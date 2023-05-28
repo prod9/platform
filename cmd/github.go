@@ -66,7 +66,7 @@ func runGitHubCmd(cmd *cobra.Command, args []string) {
 
 	tmpl := template.Must(template.New("").Parse(ghaTemplate))
 	err = tmpl.Execute(file, map[string]string{
-		"GoVersion": runtime.Version(),
+		"GoVersion": runtime.Version()[2:],
 	})
 	if err != nil {
 		log.Fatalln(err)

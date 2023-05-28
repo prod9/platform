@@ -17,7 +17,7 @@ jobs:
       - name: Install Go
         uses: actions/setup-go@v4
         with:
-         go-version: go1.20.4
+         go-version: 1.20.4
       - run: go version
       - name: Self-Build
         uses: dagger/dagger-for-github@v4
