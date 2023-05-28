@@ -12,16 +12,11 @@ import (
 var ConfigureCmd = &cobra.Command{
 	Use:   "configure",
 	Short: "Parses and show effective configuration for the current directory",
-	Run:   runConfigure,
+	Run:   runConfigureCmd,
 }
 
-func runConfigure(cmd *cobra.Command, args []string) {
-	wd, err := os.Getwd()
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	cfg, err := config.Configure(wd)
+func runConfigureCmd(cmd *cobra.Command, args []string) {
+	cfg, err := config.Configure(".")
 	if err != nil {
 		log.Fatalln(err)
 	}

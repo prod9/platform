@@ -17,6 +17,7 @@ func main() {
 		cmd.BuildCmd,
 		cmd.ConfigureCmd,
 		cmd.VanityCmd,
+		cmd.GitHubCmd,
 	)
 
 	if err := rootCmd.Execute(); err != nil {

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"os"
 	"time"
 
 	"github.com/BurntSushi/toml"
@@ -31,6 +32,14 @@ type Module struct {
 }
 
 func Configure(wd string) (*Config, error) {
+	if wd == "" || wd == "." {
+		if wd_, err := os.Getwd(); err != nil {
+			return nil, err
+		} else {
+			wd = wd_
+		}
+	}
+
 	path, err := ResolvePath(wd)
 	if err != nil {
 		return nil, err
