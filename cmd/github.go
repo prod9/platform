@@ -26,9 +26,15 @@ on:
       - main
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
     steps:
+      - name: Logs in GHCR.IO
+        uses: docker/login-action@v2.1.0
+        with:
+          registry: {{ "${{ env.REGISTRY }}" }}
+          username: {{ "${{ github.actor }}" }}
+          password: {{ "${{ secrets.GITHUB_TOKEN }}" }}
       - name: Checkout
         uses: actions/checkout@v3
         with:
