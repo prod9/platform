@@ -5,8 +5,10 @@ go 1.20
 require (
 	dagger.io/dagger v0.7.0
 	github.com/BurntSushi/toml v0.3.1
+	github.com/felixge/httpsnoop v1.0.3
 	github.com/go-git/go-git/v5 v5.7.0
 	github.com/spf13/cobra v1.7.0
+	go.jonnrb.io/vanity v0.2.0
 )
 
 require (

@@ -16,6 +16,7 @@ func main() {
 	rootCmd.AddCommand(
 		cmd.BuildCmd,
 		cmd.ConfigureCmd,
+		cmd.VanityCmd,
 	)
 
 	if err := rootCmd.Execute(); err != nil {
