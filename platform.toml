@@ -1,0 +1,12 @@
+maintainer = "Chakrit Wichian <chakrit@prodigy9.co>"
+
+excludes = [".git", "node_modules", "*.docker"]
+source_url = "https://github.com/prod9/platform"
+target_platform = "linux/amd64"
+
+[modules.cli]
+binary = "platform"
+builder = "go/basic"
+image = "ghcr.io/prod9/platform"
+package = "platform.prodigy9.co"
+wd = "."

@@ -15,7 +15,9 @@ func main() {
 
 	rootCmd.AddCommand(
 		cmd.BuildCmd,
+		cmd.ConfigureCmd,
 	)
+
 	if err := rootCmd.Execute(); err != nil {
 		log.Fatalln(err)
 	}
