@@ -38,10 +38,8 @@ jobs:
         with:
          go-version: {{.GoVersion}}
       - run: go version
-      - name: Self-Build
-        uses: dagger/dagger-for-github@v4
-        with:
-          cmds: do test
+      - name: Build
+        run: go run platform.prodigy9.co@latest build
 `
 
 func runGitHubCmd(cmd *cobra.Command, args []string) {
