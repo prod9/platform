@@ -4,7 +4,7 @@ excludes = [".git", "node_modules", "*.docker"]
 source_url = "https://github.com/prod9/platform"
 target_platform = "linux/amd64"
 
-[modules.cli]
+[modules.platform]
 binary = "platform"
 builder = "go/basic"
 image = "ghcr.io/prod9/platform"
