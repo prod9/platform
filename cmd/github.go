@@ -27,12 +27,12 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - name: Logs in GHCR.IO
         uses: docker/login-action@v2.1.0
         with:
-          registry: {{ "${{ env.REGISTRY }}" }}
+          registry: ghcr.io
           username: {{ "${{ github.actor }}" }}
           password: {{ "${{ secrets.GITHUB_TOKEN }}" }}
       - name: Checkout
