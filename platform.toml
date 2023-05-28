@@ -1,8 +1,15 @@
 maintainer = "Chakrit Wichian <chakrit@prodigy9.co>"
-
-excludes = [".git", "node_modules", "*.docker"]
 source_url = "https://github.com/prod9/platform"
 target_platform = "linux/amd64"
+
+excludes = [
+	"*.docker",
+	".git",
+	".github",
+	".gitignore",
+	"node_modules",
+	"platform.toml",
+]
 
 [modules.platform]
 binary = "platform"
