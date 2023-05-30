@@ -11,7 +11,7 @@ import (
 )
 
 func Build(job *Job) error {
-	ctx, cancel := context.WithTimeout(context.Background(), job.Timeout)
+	ctx, cancel := job.Timeout.NewContext(context.Background())
 	defer cancel()
 
 	commit, err := GitCommit(job.WD)

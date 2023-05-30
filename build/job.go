@@ -2,7 +2,6 @@ package build
 
 import (
 	"path/filepath"
-	"time"
 
 	"platform.prodigy9.co/config"
 )
@@ -10,7 +9,7 @@ import (
 type Job struct {
 	Name           string
 	WD             string
-	Timeout        time.Duration
+	Timeout        config.Timeout
 	TargetPlatform string
 	Excludes       []string
 

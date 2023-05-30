@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	DefaultTimeout = 5 * time.Minute
+	DefaultTimeout = Timeout(5 * time.Minute)
 )
 
 type Config struct {
@@ -22,9 +22,9 @@ type Config struct {
 }
 
 type Module struct {
-	WD      string        `toml:"wd"` // the directory we'll be working in
-	Timeout time.Duration `toml:"timeout"`
-	Builder string        `toml:"builder"`
+	WD      string  `toml:"wd"` // the directory we'll be working in
+	Timeout Timeout `toml:"timeout"`
+	Builder string  `toml:"builder"`
 
 	ImageName   string `toml:"image"`
 	PackageName string `toml:"package"`
