@@ -1,0 +1,21 @@
+maintainer = "{{ .Maintainer }} <{{ .MaintainerEmail }}>"
+platform = "linux/amd64"
+repository = "https://github.com/prod9/{{ .ProjectName }}"
+
+excludes = [
+	"*.docker",
+	"*.local",
+	".dockerignore",
+	".git",
+	".github",
+	".gitignore",
+	".idea",
+	"node_modules",
+	"platform.toml",
+]
+
+[modules.platform]
+builder = "go/workspace"
+image = "ghcr.io/prod9/{{ .ProjectName }}"
+package = "github.com/prod9/{{ .ProjectName }}"
+workdir = "."

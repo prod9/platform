@@ -8,6 +8,8 @@ import (
 )
 
 func main() {
+	defer log.Println("exited.")
+
 	rootCmd := &cobra.Command{
 		Use:   "platform",
 		Short: "PRODIGY9 platform swiss army knife",
@@ -15,9 +17,9 @@ func main() {
 
 	rootCmd.AddCommand(
 		cmd.BuildCmd,
+		cmd.BootstrapCmd,
 		cmd.ConfigureCmd,
 		cmd.VanityCmd,
-		cmd.GitHubCmd,
 	)
 
 	if err := rootCmd.Execute(); err != nil {
