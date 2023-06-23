@@ -7,9 +7,17 @@ import (
 	"path/filepath"
 )
 
-var ErrPlatformFileNotFound = errors.New("could not find platform.toml")
+var ErrNoPlatformConfig = errors.New("could not find platform.toml")
 
 func ResolvePath(wd string) (string, error) {
+	if !filepath.IsAbs(wd) {
+		if wd_, err := filepath.Abs(wd); err != nil {
+			return "", err
+		} else {
+			wd = wd_
+		}
+	}
+
 	info, err := os.Stat(wd)
 	if err != nil {
 		return "", err
@@ -19,23 +27,26 @@ func ResolvePath(wd string) (string, error) {
 		return wd, nil
 	}
 
+	// try looking in current folder
 	filename := filepath.Join(wd, "platform.toml")
 	info, err = os.Stat(filename)
 	if err == nil && !info.IsDir() {
 		// we found the file
 		return filename, err
 	}
+
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return "", err
 	}
-	// if err == nil && info.IsDir(), keep looking
-	// if err != nil && errors.Is(err, fs.ErrNotExist), keep looking
+	// keep looking in parent folder if:
+	//   * err == nil && info.IsDir()
+	//   * err != nil && errors.Is(err, fs.ErrNotExist)
 
-	parentWD := filepath.Dir(wd)
-	if parentWD == wd {
+	parent := filepath.Dir(wd)
+	if parent == wd {
 		// no more parents :(
-		return "", ErrPlatformFileNotFound
+		return "", ErrNoPlatformConfig
 	}
 
-	return ResolvePath(parentWD)
+	return ResolvePath(parent)
 }

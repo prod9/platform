@@ -1,6 +1,7 @@
 package config
 
 import (
+	"log"
 	"os"
 	"time"
 
@@ -8,23 +9,23 @@ import (
 )
 
 const (
-	DefaultTimeout = Timeout(5 * time.Minute)
+	DefaultTimeout = 5 * time.Minute
 )
 
 type Config struct {
-	Maintainer     string `toml:"maintainer"`
-	ConfigPath     string
-	TargetPlatform string `toml:"target_platform"`
-	SourceURL      string `toml:"source_url"`
+	Maintainer string `toml:"maintainer"`
+	ConfigPath string `toml:"-"`
+	Platform   string `toml:"platform"`
+	Repository string `toml:"repository"`
 
 	Excludes []string           `toml:"excludes"`
 	Modules  map[string]*Module `toml:"modules"`
 }
 
 type Module struct {
-	WD      string  `toml:"wd"` // the directory we'll be working in
-	Timeout Timeout `toml:"timeout"`
-	Builder string  `toml:"builder"`
+	WorkDir string        `toml:"workdir"` // the directory we'll be working in
+	Timeout time.Duration `toml:"timeout"`
+	Builder string        `toml:"builder"`
 
 	ImageName   string `toml:"image"`
 	PackageName string `toml:"package"`
@@ -46,13 +47,14 @@ func Configure(wd string) (*Config, error) {
 	}
 
 	cfg := &Config{}
-	_, err = toml.DecodeFile(path, cfg)
-	if err != nil {
+	if _, err = toml.DecodeFile(path, cfg); err != nil {
 		return nil, err
 	}
 
 	cfg.ConfigPath = path
 	cfg.assignDefaults()
+	cfg.assignEnvOverrides()
+	cfg.inferValues()
 	return cfg, nil
 }
 
@@ -60,6 +62,24 @@ func (c *Config) assignDefaults() {
 	for _, mod := range c.Modules {
 		if mod.Timeout <= 0 {
 			mod.Timeout = DefaultTimeout
+		}
+	}
+}
+
+func (c *Config) assignEnvOverrides() {
+	if platform, ok := os.LookupEnv("PLATFORM"); ok {
+		log.Println("platform overriden from", c.Platform, "to", platform)
+		c.Platform = platform
+	}
+}
+
+func (c *Config) inferValues() {
+	for modname, mod := range c.Modules {
+		if mod.BinaryName == "" {
+			mod.BinaryName = modname
+		}
+		if mod.WorkDir == "" {
+			mod.WorkDir = "."
 		}
 	}
 }
