@@ -1,20 +1,20 @@
 maintainer = "Chakrit Wichian <chakrit@prodigy9.co>"
-source_url = "https://github.com/prod9/platform"
-target_platform = "linux/amd64"
+platform = "linux/amd64"
+repository = "https://github.com/prod9/platform"
 
 excludes = [
 	"*.docker",
+	"*.local",
+	".dockerignore",
 	".git",
 	".github",
 	".gitignore",
+	".idea",
 	"node_modules",
 	"platform.toml",
 ]
 
 [modules.platform]
-binary = "platform"
 builder = "go/basic"
 image = "ghcr.io/prod9/platform"
 package = "platform.prodigy9.co"
-timeout = "10m"
-wd = "."
