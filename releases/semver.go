@@ -12,7 +12,8 @@ import (
 )
 
 var (
-	ErrNoSemver = errors.New("no valid semver tag found")
+	ErrNoSemver       = errors.New("no valid semver tag found")
+	ErrNoSemverOption = errors.New("at least one of --major, --minor or --patch must be specified")
 )
 
 type Semver struct{}
@@ -27,8 +28,8 @@ func (s Semver) Generate(cfg *config.Config, opts *Options) (*Release, error) {
 		nextVer = "v0.0.0"
 	} else if err != nil {
 		return nil, err
-	} else {
-		nextVer = s.nextVer(prevVer, opts)
+	} else if nextVer, err = s.nextVer(prevVer, opts); err != nil {
+		return nil, err
 	}
 
 	var commits string
@@ -90,21 +91,21 @@ func (s Semver) mostRecentVer(wd string) (string, error) {
 	}
 }
 
-func (s Semver) nextVer(ver string, opts *Options) string {
+func (s Semver) nextVer(ver string, opts *Options) (string, error) {
 	parts := strings.Split(semver.Canonical(ver), ".")
 
 	if opts.IncrementMajor {
 		n, _ := strconv.Atoi(parts[0][1:])
-		return "v" + strconv.Itoa(n+1) + "." + parts[1] + "." + parts[2]
+		return "v" + strconv.Itoa(n+1) + "." + parts[1] + "." + parts[2], nil
 	}
 	if opts.IncrementMinor {
 		n, _ := strconv.Atoi(parts[1])
-		return parts[0] + "." + strconv.Itoa(n+1) + "." + parts[2]
+		return parts[0] + "." + strconv.Itoa(n+1) + "." + parts[2], nil
 	}
 	if opts.IncrementPatch {
 		n, _ := strconv.Atoi(parts[2])
-		return parts[0] + "." + parts[1] + "." + strconv.Itoa(n+1)
+		return parts[0] + "." + parts[1] + "." + strconv.Itoa(n+1), nil
 	}
 
-	return ""
+	return "", ErrNoSemverOption
 }

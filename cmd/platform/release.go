@@ -32,8 +32,6 @@ func init() {
 }
 
 func runReleaseCmd(cmd *cobra.Command, args []string) {
-	// TODO: Check major minor patch
-
 	cfg, err := config.Configure(".")
 	if err != nil {
 		log.Fatalln(err)
