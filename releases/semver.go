@@ -46,7 +46,7 @@ func (s Semver) Generate(cfg *config.Config, opts *Options) (*Release, error) {
 
 	rel := &Release{
 		Name:    nextVer,
-		Message: generateMessage(cfg, refs),
+		Message: generateMessage(cfg, nextVer, refs),
 		Commits: refs,
 	}
 	return rel, nil

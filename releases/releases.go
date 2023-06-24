@@ -49,9 +49,13 @@ func FindStrategy(name string) (Strategy, error) {
 	}
 }
 
-func generateMessage(cfg *config.Config, refs []CommitRef) string {
+func generateMessage(cfg *config.Config, title string, refs []CommitRef) string {
 	//* [f3e0f9][https://github.com/prod9/platform/commit/f3e0f9] Sample message
 	sb := &strings.Builder{}
+	sb.WriteString(title)
+	sb.WriteRune('\n')
+	sb.WriteRune('\n')
+
 	for _, ref := range refs {
 		sb.WriteString("* [")
 		sb.WriteString(ref.Hash)
