@@ -21,6 +21,7 @@ type (
 		Maintainer string `toml:"maintainer"`
 		Platform   string `toml:"platform"`
 		Repository string `toml:"repository"`
+		Strategy   string `toml:"strategy"`
 
 		Excludes []string           `toml:"excludes"`
 		Modules  map[string]*Module `toml:"modules"`

@@ -1,6 +1,7 @@
 maintainer = "Chakrit Wichian <chakrit@prodigy9.co>"
 platform = "linux/amd64"
 repository = "https://github.com/prod9/platform"
+strategy = "semver"
 
 excludes = [
 	"*.docker",
