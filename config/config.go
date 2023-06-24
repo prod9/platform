@@ -3,6 +3,7 @@ package config
 import (
 	"log"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/BurntSushi/toml"
@@ -12,25 +13,29 @@ const (
 	DefaultTimeout = 5 * time.Minute
 )
 
-type Config struct {
-	Maintainer string `toml:"maintainer"`
-	ConfigPath string `toml:"-"`
-	Platform   string `toml:"platform"`
-	Repository string `toml:"repository"`
+type (
+	Config struct {
+		ConfigPath string `toml:"-"`
+		ConfigDir  string `toml:"-"`
 
-	Excludes []string           `toml:"excludes"`
-	Modules  map[string]*Module `toml:"modules"`
-}
+		Maintainer string `toml:"maintainer"`
+		Platform   string `toml:"platform"`
+		Repository string `toml:"repository"`
 
-type Module struct {
-	WorkDir string        `toml:"workdir"` // the directory we'll be working in
-	Timeout time.Duration `toml:"timeout"`
-	Builder string        `toml:"builder"`
+		Excludes []string           `toml:"excludes"`
+		Modules  map[string]*Module `toml:"modules"`
+	}
 
-	ImageName   string `toml:"image"`
-	PackageName string `toml:"package"`
-	BinaryName  string `toml:"binary"`
-}
+	Module struct {
+		WorkDir string        `toml:"workdir"` // the directory we'll be working in
+		Timeout time.Duration `toml:"timeout"`
+		Builder string        `toml:"builder"`
+
+		ImageName   string `toml:"image"`
+		PackageName string `toml:"package"`
+		BinaryName  string `toml:"binary"`
+	}
+)
 
 func Configure(wd string) (*Config, error) {
 	if wd == "" || wd == "." {
@@ -52,6 +57,8 @@ func Configure(wd string) (*Config, error) {
 	}
 
 	cfg.ConfigPath = path
+	cfg.ConfigDir = filepath.Dir(path)
+
 	cfg.assignDefaults()
 	cfg.assignEnvOverrides()
 	cfg.inferValues()

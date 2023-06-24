@@ -29,8 +29,7 @@ func JobFromModule(cfg *config.Config, name string, mod *config.Module) (*Job, e
 		return nil, err
 	}
 
-	modpath := filepath.Dir(cfg.ConfigPath)
-	modpath = filepath.Join(modpath, mod.WorkDir)
+	modpath := filepath.Join(cfg.ConfigDir, mod.WorkDir)
 	modpath = filepath.Clean(modpath)
 
 	return &Job{

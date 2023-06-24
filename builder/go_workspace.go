@@ -19,8 +19,8 @@ func buildGoWorkspace(ctx context.Context, client *dagger.Client, job *Job) (err
 	defer errutil.Wrap("go/workspace", &err)
 
 	// parse go.work file so we know what modules we need in the container
-	rootdir := filepath.Dir(job.Config.ConfigPath)
-	workfile := filepath.Join(rootdir, "go.work")
+	rootdir := job.Config.ConfigDir
+	workfile := filepath.Join(job.Config.ConfigDir, "go.work")
 	workmods, err := gowork.ParseFile(workfile)
 	if err != nil {
 		return err
