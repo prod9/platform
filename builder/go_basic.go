@@ -13,7 +13,7 @@ var GoBasic = Builder{
 	Build: buildGoBasic,
 }
 
-func buildGoBasic(ctx context.Context, client *dagger.Client, job *Job) (err error) {
+func buildGoBasic(ctx context.Context, client *dagger.Client, job *Job) (container *dagger.Container, err error) {
 	defer errutil.Wrap("go/workspace", &err)
 
 	modcache := client.CacheVolume("go-" + runtime.Version() + "-modcache")
@@ -41,7 +41,5 @@ func buildGoBasic(ctx context.Context, client *dagger.Client, job *Job) (err err
 			Args: []string{"/app/" + job.BinaryName},
 		})
 
-	runner, err = runner.Sync(ctx)
-	return err
-
+	return runner.Sync(ctx)
 }

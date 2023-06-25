@@ -15,7 +15,7 @@ var GoWorkspace = Builder{
 	Build: buildGoWorkspace,
 }
 
-func buildGoWorkspace(ctx context.Context, client *dagger.Client, job *Job) (err error) {
+func buildGoWorkspace(ctx context.Context, client *dagger.Client, job *Job) (container *dagger.Container, err error) {
 	defer errutil.Wrap("go/workspace", &err)
 
 	// parse go.work file so we know what modules we need in the container
@@ -23,7 +23,7 @@ func buildGoWorkspace(ctx context.Context, client *dagger.Client, job *Job) (err
 	workfile := filepath.Join(job.Config.ConfigDir, "go.work")
 	workmods, err := gowork.ParseFile(workfile)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	modcache := client.CacheVolume("go-" + runtime.Version() + "-modcache")
@@ -71,8 +71,6 @@ func buildGoWorkspace(ctx context.Context, client *dagger.Client, job *Job) (err
 			Args: []string{"/app/" + job.BinaryName},
 		})
 
-	runner, err = runner.Sync(ctx)
-	// TODO: Publish runner
-	return err
+	return runner.Sync(ctx)
 
 }

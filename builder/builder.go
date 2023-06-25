@@ -3,6 +3,7 @@ package builder
 import (
 	"context"
 	"errors"
+	"log"
 	"os"
 	"strings"
 
@@ -20,7 +21,7 @@ type BuildFunc func(
 	ctx context.Context,
 	client *dagger.Client,
 	job *Job,
-) error
+) (*dagger.Container, error)
 
 type Builder struct {
 	Name  string
@@ -56,6 +57,18 @@ func Build(cfg *config.Config, jobs ...*Job) error {
 	return errutil.AggregateWithTags(jobs, func(idx int, job *Job) (string, error) {
 		ctx, cancel := context.WithTimeout(ctx, job.Timeout)
 		defer cancel()
-		return job.Name, job.Builder.Build(ctx, client, job)
+
+		container, err := job.Builder.Build(ctx, client, job)
+		if err != nil {
+			return job.Name, err
+		}
+
+		hash, err := container.Publish(ctx, job.PublishImageName)
+		if err != nil {
+			return job.Name, err
+		}
+
+		log.Println("published", hash)
+		return job.Name, nil
 	})
 }

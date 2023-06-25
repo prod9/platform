@@ -2,6 +2,7 @@ package releases
 
 import (
 	"errors"
+	"sort"
 	"strings"
 
 	"golang.org/x/mod/semver"
@@ -19,6 +20,25 @@ var (
 type Semver struct{}
 
 var _ Strategy = Semver{}
+
+func (s Semver) List(cfg *config.Config) ([]*Release, error) {
+	lines, err := gitcmd.ListTags(cfg.ConfigDir)
+	if err != nil {
+		return nil, err
+	}
+
+	var result []*Release
+	for _, line := range strings.Split(lines, "\n") {
+		if semver.IsValid(line) {
+			result = append(result, &Release{Name: line})
+		}
+	}
+
+	sort.Slice(result, func(i, j int) bool {
+		return semver.Compare(result[i].Name, result[j].Name) < 0
+	})
+	return result, nil
+}
 
 func (s Semver) Recover(cfg *config.Config, opts *Options) (*Release, error) {
 	// get annotated tag and name

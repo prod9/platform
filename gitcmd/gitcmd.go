@@ -21,8 +21,14 @@ func ListTags(wd string) (string, error) {
 func Tag(wd string, tagname, message string) (string, error) {
 	return runCmd(wd, "git", "tag", "-a", "-m", message, tagname)
 }
+func TagF(wd string, tagname string) (string, error) {
+	return runCmd(wd, "git", "tag", "-f", tagname)
+}
 func PushTag(wd string, remote, tagname string) (string, error) {
 	return runCmd(wd, "git", "push", "--porcelain", remote, tagname)
+}
+func PushTagF(wd string, remote, tagname string) (string, error) {
+	return runCmd(wd, "git", "push", "--porcelain", "-f", remote, tagname)
 }
 func TagMessage(wd string, tagname string) (string, error) {
 	return runCmd(wd, "git", "tag", "-l", "--format=%(contents)", tagname)

@@ -27,6 +27,9 @@ type Job struct {
 	ImageName   string
 	PackageName string
 	BinaryName  string
+
+	Publish          bool
+	PublishImageName string
 }
 
 func JobsFromArgs(cfg *config.Config, args []string) (jobs []*Job, err error) {

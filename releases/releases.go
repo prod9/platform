@@ -29,6 +29,7 @@ type Options struct {
 }
 
 type Strategy interface {
+	List(cfg *config.Config) ([]*Release, error)
 	Recover(cfg *config.Config, opts *Options) (*Release, error)
 	Generate(cfg *config.Config, opts *Options) (*Release, error)
 	Create(cfg *config.Config, rel *Release) error
@@ -45,6 +46,19 @@ func FindStrategy(name string) (Strategy, error) {
 	} else {
 		return nil, ErrBadStrategy
 	}
+}
+
+func ListNames(strat Strategy, cfg *config.Config) ([]string, error) {
+	rel, err := strat.List(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	var names []string
+	for _, r := range rel {
+		names = append(names, r.Name)
+	}
+	return names, nil
 }
 
 func generateMessage(cfg *config.Config, title string, refs []CommitRef) string {
