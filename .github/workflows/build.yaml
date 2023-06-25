@@ -5,6 +5,9 @@ on:
     branches:
       - main
 
+env:
+  ALWAYS_YES: "y"
+
 jobs:
   build:
     runs-on: self-hosted
