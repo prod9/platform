@@ -64,7 +64,11 @@ func (s Semver) Generate(cfg *config.Config, opts *Options) (*Release, error) {
 func (s Semver) Create(cfg *config.Config, rel *Release) error {
 	if _, err := gitcmd.Tag(cfg.ConfigDir, rel.Name, rel.Message); err != nil {
 		return err
-	} else if _, err := gitcmd.PushTag(cfg.ConfigDir, rel.Name); err != nil {
+	} else if branch, err := gitcmd.CurrentBranch(cfg.ConfigDir); err != nil {
+		return err
+	} else if remote, err := gitcmd.TrackingRemote(cfg.ConfigDir, branch); err != nil {
+		return err
+	} else if _, err := gitcmd.PushTag(cfg.ConfigDir, remote, rel.Name); err != nil {
 		return err
 	} else {
 		return nil
