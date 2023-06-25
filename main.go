@@ -5,6 +5,7 @@ import (
 
 	fxcmd "fx.prodigy9.co/cmd"
 	"github.com/spf13/cobra"
+	"platform.prodigy9.co/cmd"
 )
 
 var rootCmd = &cobra.Command{
@@ -14,13 +15,13 @@ var rootCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(
-		BootstrapCmd,
-		BuildCmd,
-		ConfigureCmd,
-		DeployCmd,
-		PublishCmd,
-		ReleaseCmd,
-		VanityCmd,
+		cmd.BootstrapCmd,
+		cmd.BuildCmd,
+		cmd.ConfigureCmd,
+		cmd.DeployCmd,
+		cmd.PublishCmd,
+		cmd.ReleaseCmd,
+		cmd.VanityCmd,
 
 		fxcmd.PrintConfigCmd,
 	)
