@@ -63,12 +63,15 @@ func Build(cfg *config.Config, jobs ...*Job) error {
 			return job.Name, err
 		}
 
-		hash, err := container.Publish(ctx, job.PublishImageName)
-		if err != nil {
-			return job.Name, err
+		if job.Publish {
+			log.Println("publishing", job.PublishImageName)
+			hash, err := container.Publish(ctx, job.PublishImageName)
+			if err != nil {
+				return job.Name, err
+			}
+			log.Println("published", hash)
 		}
 
-		log.Println("published", hash)
 		return job.Name, nil
 	})
 }
