@@ -12,8 +12,8 @@ import (
 )
 
 var ReleaseCmd = &cobra.Command{
-	Use:   "release",
-	Short: "Create a new release",
+	Use:   "release [name]",
+	Short: "Create a new release with the given name.",
 	Run:   runReleaseCmd,
 }
 
@@ -24,11 +24,6 @@ var (
 )
 
 func init() {
-	f := ReleaseCmd.Flags()
-	f.BoolVar(&releaseMajor, "major", false, "Creates a major release (for semver releases)")
-	f.BoolVar(&releaseMinor, "minor", false, "Creates a minor release (for semver releases)")
-	f.BoolVar(&releasePatch, "patch", false, "Creates a patch release (for semver releases)")
-	ReleaseCmd.MarkFlagsMutuallyExclusive("major", "minor", "patch")
 }
 
 func runReleaseCmd(cmd *cobra.Command, args []string) {
@@ -42,11 +37,12 @@ func runReleaseCmd(cmd *cobra.Command, args []string) {
 		log.Fatalln(err)
 	}
 
-	rel, err := strat.Generate(cfg, &releases.Options{
-		IncrementMajor: releaseMajor,
-		IncrementMinor: releaseMinor,
-		IncrementPatch: releasePatch,
-	})
+	opts := &releases.Options{}
+	if len(args) > 0 {
+		opts.Name = args[0]
+	}
+
+	rel, err := strat.Generate(cfg, opts)
 	if err != nil {
 		log.Fatalln(err)
 	}

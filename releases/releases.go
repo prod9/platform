@@ -24,9 +24,7 @@ type Release struct {
 }
 
 type Options struct {
-	IncrementMajor bool
-	IncrementMinor bool
-	IncrementPatch bool
+	Name  string
 }
 
 type Strategy interface {

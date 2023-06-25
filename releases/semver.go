@@ -3,7 +3,6 @@ package releases
 import (
 	"errors"
 	"log"
-	"strconv"
 	"strings"
 
 	"golang.org/x/mod/semver"
@@ -12,8 +11,9 @@ import (
 )
 
 var (
-	ErrNoSemver       = errors.New("no valid semver tag found")
-	ErrNoSemverOption = errors.New("at least one of --major, --minor or --patch must be specified")
+	ErrNoSemver        = errors.New("a valid semver is required to create release")
+	ErrBadSemver       = errors.New("release name is not semver")
+	ErrNoRecentVersion = errors.New("no valid semver tag found")
 )
 
 type Semver struct{}
@@ -21,14 +21,15 @@ type Semver struct{}
 var _ Strategy = Semver{}
 
 func (s Semver) Generate(cfg *config.Config, opts *Options) (*Release, error) {
-	nextVer := ""
+	nextVer := opts.Name
+	if nextVer == "" {
+		return nil, ErrNoSemver
+	} else if nextVer != "" && !semver.IsValid(nextVer) {
+		return nil, ErrBadSemver
+	}
 
 	prevVer, err := s.mostRecentVer(cfg.ConfigDir)
-	if errors.Is(err, ErrNoSemver) {
-		nextVer = "v0.0.0"
-	} else if err != nil {
-		return nil, err
-	} else if nextVer, err = s.nextVer(prevVer, opts); err != nil {
+	if err != nil {
 		return nil, err
 	}
 
@@ -80,32 +81,13 @@ func (s Semver) mostRecentVer(wd string) (string, error) {
 	tags := strings.Split(raw, "\n")
 	semver.Sort(tags)
 	if len(tags) == 0 {
-		return "", ErrNoSemver
+		return "", ErrNoRecentVersion
 	}
 
 	mostRecent := tags[len(tags)-1]
 	if !semver.IsValid(mostRecent) {
-		return "", ErrNoSemver
+		return "", ErrNoRecentVersion
 	} else {
 		return mostRecent, nil
 	}
-}
-
-func (s Semver) nextVer(ver string, opts *Options) (string, error) {
-	parts := strings.Split(semver.Canonical(ver), ".")
-
-	if opts.IncrementMajor {
-		n, _ := strconv.Atoi(parts[0][1:])
-		return "v" + strconv.Itoa(n+1) + "." + parts[1] + "." + parts[2], nil
-	}
-	if opts.IncrementMinor {
-		n, _ := strconv.Atoi(parts[1])
-		return parts[0] + "." + strconv.Itoa(n+1) + "." + parts[2], nil
-	}
-	if opts.IncrementPatch {
-		n, _ := strconv.Atoi(parts[2])
-		return parts[0] + "." + parts[1] + "." + strconv.Itoa(n+1), nil
-	}
-
-	return "", ErrNoSemverOption
 }

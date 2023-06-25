@@ -18,4 +18,4 @@ excludes = [
 [modules.platform]
 builder = "go/basic"
 image = "ghcr.io/prod9/platform"
-package = "platform.prodigy9.co"
+package = "platform.prodigy9.co/cmd/platform"
