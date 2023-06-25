@@ -11,8 +11,6 @@ env:
 jobs:
   build:
     runs-on: self-hosted
-    environment:
-      ALWAYS_YES: "y"
     steps:
       - name: Logs in GHCR.IO
         uses: docker/login-action@v2.1.0
