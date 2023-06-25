@@ -3,6 +3,8 @@ platform = "linux/amd64"
 repository = "https://github.com/prod9/platform"
 strategy = "semver"
 
+environments = ["platform.prodigy9.co"]
+
 excludes = [
 	"*.docker",
 	"*.local",

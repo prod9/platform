@@ -18,10 +18,11 @@ type (
 		ConfigPath string `toml:"-"`
 		ConfigDir  string `toml:"-"`
 
-		Maintainer string `toml:"maintainer"`
-		Platform   string `toml:"platform"`
-		Repository string `toml:"repository"`
-		Strategy   string `toml:"strategy"`
+		Maintainer   string   `toml:"maintainer"`
+		Platform     string   `toml:"platform"`
+		Repository   string   `toml:"repository"`
+		Strategy     string   `toml:"strategy"`
+		Environments []string `toml: "environments"`
 
 		Excludes []string           `toml:"excludes"`
 		Modules  map[string]*Module `toml:"modules"`
