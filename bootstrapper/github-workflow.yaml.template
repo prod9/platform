@@ -25,4 +25,4 @@ jobs:
          go-version: {{.GoVersion}}
       - run: go version
       - name: Build
-        run: go run platform.prodigy9.co@latest build
+        run: go run platform.prodigy9.co/cmd/platform@latest build
