@@ -9,16 +9,14 @@ import (
 	"fx.prodigy9.co/cmd/prompts"
 	"github.com/BurntSushi/toml"
 	"github.com/spf13/cobra"
-	"golang.org/x/exp/maps"
 	"platform.prodigy9.co/builder"
 	"platform.prodigy9.co/config"
-	"platform.prodigy9.co/gitcmd"
 	"platform.prodigy9.co/releases"
 )
 
 var PublishCmd = &cobra.Command{
-	Use:   "publish (release)",
-	Short: "Builds and publish a release",
+	Use:   "publish [modules...]",
+	Short: "Builds current directory and publish as a release",
 	Run:   runPublish,
 }
 
@@ -33,27 +31,17 @@ func runPublish(cmd *cobra.Command, args []string) {
 		log.Fatalln(err)
 	}
 
-	allReleases, err := strat.List(cfg)
-	if err != nil {
-		log.Fatalln(err)
-	}
-	if len(allReleases) == 0 {
-		log.Fatalln("no release to deploy, create some first.")
-	}
-
-	sess := prompts.New(nil, args)
-	releaseName := sess.Str("which release")
-
-	opts := &releases.Options{Name: releaseName}
+	opts := &releases.Options{}
 	rel, err := strat.Recover(cfg, opts)
 	if err != nil {
 		log.Fatalln(err)
 	}
 
+	sess := prompts.New(nil, args)
 	if err = toml.NewEncoder(os.Stdout).Encode(rel); err != nil {
 		log.Fatalln(err)
 	}
-	if !sess.YesNo("publish " + releaseName + "?") {
+	if !sess.YesNo("publish " + rel.Name + "?") {
 		return
 	}
 
