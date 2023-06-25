@@ -29,9 +29,9 @@ type Options struct {
 }
 
 type Strategy interface {
+	Recover(cfg *config.Config, opts *Options) (*Release, error)
 	Generate(cfg *config.Config, opts *Options) (*Release, error)
 	Create(cfg *config.Config, rel *Release) error
-	Publish(cfg *config.Config, rel *Release) error
 }
 
 var knownStrategies = map[string]Strategy{

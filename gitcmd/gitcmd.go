@@ -24,18 +24,21 @@ func Tag(wd string, tagname, message string) (string, error) {
 func PushTag(wd string, remote, tagname string) (string, error) {
 	return runCmd(wd, "git", "push", "--porcelain", remote, tagname)
 }
+func TagMessage(wd string, tagname string) (string, error) {
+	return runCmd(wd, "git", "tag", "-l", "--format=%(contents)", tagname)
+}
 
 func Status(wd string) (string, error) {
 	return runCmd(wd, "git", "status", "--porcelain")
+}
+func Describe(wd string) (string, error) {
+	return runCmd(wd, "git", "describe", "--always", "--all", "--dirty", "--broken")
 }
 func CurrentBranch(wd string) (string, error) {
 	return runCmd(wd, "git", "branch", "--show-current")
 }
 func TrackingRemote(wd string, branch string) (string, error) {
 	return runCmd(wd, "git", "config", "branch."+branch+".remote")
-}
-func Describe(wd string) (string, error) {
-	return runCmd(wd, "git", "describe", "--always", "--all", "--dirty", "--broken")
 }
 
 func runCmd(wd, name string, args ...string) (string, error) {

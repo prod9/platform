@@ -48,7 +48,6 @@ func runReleaseCmd(cmd *cobra.Command, args []string) {
 	if err = toml.NewEncoder(os.Stdout).Encode(rel); err != nil {
 		log.Fatalln(err)
 	}
-
 	sess := prompts.New(nil, nil)
 	if !sess.YesNo("create this release?") {
 		return

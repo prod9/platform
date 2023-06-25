@@ -20,6 +20,27 @@ type Semver struct{}
 
 var _ Strategy = Semver{}
 
+func (s Semver) Recover(cfg *config.Config, opts *Options) (*Release, error) {
+	// get annotated tag and name
+	if opts.Name == "" {
+		tagname, err := gitcmd.Describe(cfg.ConfigDir)
+		if err != nil {
+			return nil, err
+		} else if !semver.IsValid(tagname) {
+			return nil, ErrBadSemver
+		}
+
+		opts.Name = tagname
+	}
+
+	tagmsg, err := gitcmd.TagMessage(cfg.ConfigDir, opts.Name)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Release{Name: opts.Name, Message: tagmsg}, nil
+}
+
 func (s Semver) Generate(cfg *config.Config, opts *Options) (*Release, error) {
 	nextVer := opts.Name
 	if nextVer == "" {
@@ -73,10 +94,6 @@ func (s Semver) Create(cfg *config.Config, rel *Release) error {
 	} else {
 		return nil
 	}
-}
-
-func (s Semver) Publish(cfg *config.Config, rel *Release) error {
-	return nil
 }
 
 func (s Semver) mostRecentVer(wd string) (string, error) {
