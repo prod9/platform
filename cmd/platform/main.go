@@ -17,6 +17,7 @@ func init() {
 		BuildCmd,
 		ConfigureCmd,
 		DeployCmd,
+		PublishCmd,
 		ReleaseCmd,
 		VanityCmd,
 	)
