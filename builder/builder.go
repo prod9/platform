@@ -82,7 +82,6 @@ func Build(cfg *config.Config, jobs ...*Job) error {
 		}
 
 		if job.Publish {
-			log.Println("publishing", job.PublishImageName)
 			if fxconfig.Get(fxcfg, RegistryUsernameConfig) != "" {
 				container = container.WithRegistryAuth(
 					fxconfig.Get(fxcfg, RegistryConfig),
@@ -91,6 +90,7 @@ func Build(cfg *config.Config, jobs ...*Job) error {
 				)
 			}
 
+			log.Println("publishing", job.PublishImageName)
 			hash, err := container.Publish(ctx, job.PublishImageName)
 			if err != nil {
 				return job.Name, err
