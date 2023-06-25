@@ -44,5 +44,5 @@ func runCmd(wd, name string, args ...string) (string, error) {
 		return "", err
 	}
 
-	return outbuf.String(), nil
+	return strings.TrimSpace(outbuf.String()), nil
 }

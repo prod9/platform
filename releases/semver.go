@@ -14,6 +14,7 @@ var (
 	ErrNoSemver        = errors.New("a valid semver is required to create release")
 	ErrBadSemver       = errors.New("release name is not semver")
 	ErrNoRecentVersion = errors.New("no valid semver tag found")
+	ErrDirtyWorkdir    = errors.New("working directory has uncommitted changes")
 )
 
 type Semver struct{}
@@ -31,6 +32,14 @@ func (s Semver) Generate(cfg *config.Config, opts *Options) (*Release, error) {
 	prevVer, err := s.mostRecentVer(cfg.ConfigDir)
 	if err != nil {
 		return nil, err
+	}
+
+	// ensure we have clean worktree (so we don't accidentally release something that's not
+	// already in a commit)
+	status, err := gitcmd.Status(cfg.ConfigDir)
+	if err != nil {
+	} else if status != "" && !opts.Force {
+		return nil, ErrDirtyWorkdir
 	}
 
 	var commits string

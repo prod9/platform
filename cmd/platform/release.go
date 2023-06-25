@@ -17,13 +17,11 @@ var ReleaseCmd = &cobra.Command{
 	Run:   runReleaseCmd,
 }
 
-var (
-	releaseMajor bool
-	releaseMinor bool
-	releasePatch bool
-)
+var forceRelease bool
 
 func init() {
+	ReleaseCmd.Flags().BoolVarP(&forceRelease, "force", "f", false,
+		"Force release even if worktree is dirty")
 }
 
 func runReleaseCmd(cmd *cobra.Command, args []string) {
@@ -37,7 +35,7 @@ func runReleaseCmd(cmd *cobra.Command, args []string) {
 		log.Fatalln(err)
 	}
 
-	opts := &releases.Options{}
+	opts := &releases.Options{Force: forceRelease}
 	if len(args) > 0 {
 		opts.Name = args[0]
 	}
