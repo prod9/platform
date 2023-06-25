@@ -2,11 +2,11 @@ steps:
   - name: ":mountain: Prepare OS"
     command: "apk add build-base git go"
     key: os
-  - name: ":build: Self-Build"
+  - name: ":wrench: Self-Build"
     command: "go run ./cmd/platform build"
     if: build.tag != "platform.prodigy9.co"
     depends_on: os
-  - name: ":build: Self-Deploy"
+  - name: ":wrench: Self-Deploy"
     command: "go run ./cmd/platform deploy"
     if: build.tag == "platform.prodigy9.co"
     depends_on: os
