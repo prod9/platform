@@ -21,11 +21,19 @@ var DeployCmd = &cobra.Command{
 	Run:   runDeploy,
 }
 
-var skipBuildOnDeploy bool
+var (
+	skipBuildOnDeploy bool
+	skipTagOnDeploy   bool
+)
 
 func init() {
+	// TODO: Document how to use these
+	//  * uses deploy -n on local machine to create tag
+	//  * uses deploy -b on remote machines to skip tag, just builds
 	DeployCmd.Flags().BoolVarP(&skipBuildOnDeploy, "no-build", "n", false,
-		"Skips building, only create tags (i.e. use CI to build tags)")
+		"Skips building, only create tags.")
+	DeployCmd.Flags().BoolVarP(&skipTagOnDeploy, "no-tag", "b", false,
+		"Only builds, do not create tags.")
 }
 
 func runDeploy(cmd *cobra.Command, args []string) {
@@ -75,13 +83,15 @@ func runDeploy(cmd *cobra.Command, args []string) {
 		}
 	}
 
-	if _, err := gitcmd.TagF(cfg.ConfigDir, targetEnv); err != nil {
-		log.Fatalln(err)
-	} else if branch, err := gitcmd.CurrentBranch(cfg.ConfigDir); err != nil {
-		log.Fatalln(err)
-	} else if remote, err := gitcmd.TrackingRemote(cfg.ConfigDir, branch); err != nil {
-		log.Fatalln(err)
-	} else if _, err := gitcmd.PushTagF(cfg.ConfigDir, remote, targetEnv); err != nil {
-		log.Fatalln(err)
+	if !skipTagOnDeploy {
+		if _, err := gitcmd.TagF(cfg.ConfigDir, targetEnv); err != nil {
+			log.Fatalln(err)
+		} else if branch, err := gitcmd.CurrentBranch(cfg.ConfigDir); err != nil {
+			log.Fatalln(err)
+		} else if remote, err := gitcmd.TrackingRemote(cfg.ConfigDir, branch); err != nil {
+			log.Fatalln(err)
+		} else if _, err := gitcmd.PushTagF(cfg.ConfigDir, remote, targetEnv); err != nil {
+			log.Fatalln(err)
+		}
 	}
 }

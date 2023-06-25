@@ -17,6 +17,6 @@ steps:
 
   # deploy if environment tag is present
   - name: ":rocket: Build and Deploy"
-    command: "go run ./cmd/platform deploy platform.prodigy9.co"
+    command: "go run ./cmd/platform deploy --no-tag platform.prodigy9.co"
     if: build.tag == "platform.prodigy9.co"
     depends_on: os
