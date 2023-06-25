@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"dagger.io/dagger"
+	fxconfig "fx.prodigy9.co/config"
 	"fx.prodigy9.co/errutil"
 	"platform.prodigy9.co/config"
 )
@@ -15,6 +16,15 @@ import (
 var (
 	ErrBadBuilder = errors.New("builder: invalid builder")
 	ErrNoJobs     = errors.New("builder: empty jobs list, nothing to do.")
+)
+
+// non-standard config settings using fx's env variable configuration. These are meant to
+// be set in CI agents so that the credentials do not need to be stored with each
+// project's codebase.
+var (
+	RegistryConfig         = fxconfig.Str("REGISTRY")
+	RegistryUsernameConfig = fxconfig.Str("REGISTRY_USERNAME")
+	RegistryPasswordConfig = fxconfig.Str("REGISTRY_PASSWORD")
 )
 
 type BuildFunc func(
@@ -54,6 +64,12 @@ func Build(cfg *config.Config, jobs ...*Job) error {
 	}
 	defer client.Close()
 
+	fxcfg := fxconfig.Configure()
+	registryPassword := client.SetSecret(
+		RegistryPasswordConfig.Name(),
+		fxconfig.Get(fxcfg, RegistryPasswordConfig),
+	)
+
 	return errutil.AggregateWithTags(jobs, func(idx int, job *Job) (string, error) {
 		ctx, cancel := context.WithTimeout(ctx, job.Timeout)
 		defer cancel()
@@ -61,10 +77,20 @@ func Build(cfg *config.Config, jobs ...*Job) error {
 		container, err := job.Builder.Build(ctx, client, job)
 		if err != nil {
 			return job.Name, err
+		} else if container, err = container.Sync(ctx); err != nil {
+			return job.Name, err
 		}
 
 		if job.Publish {
 			log.Println("publishing", job.PublishImageName)
+			if fxconfig.Get(fxcfg, RegistryUsernameConfig) != "" {
+				container = container.WithRegistryAuth(
+					fxconfig.Get(fxcfg, RegistryConfig),
+					fxconfig.Get(fxcfg, RegistryUsernameConfig),
+					registryPassword,
+				)
+			}
+
 			hash, err := container.Publish(ctx, job.PublishImageName)
 			if err != nil {
 				return job.Name, err
