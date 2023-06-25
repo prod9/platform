@@ -12,14 +12,17 @@ import (
 )
 
 var (
-	//go:embed github-workflow.yaml.template
-	githubWorkflowTemplate string
+	//go:embed github.build.yaml.template
+	githubBuildTemplate string
+	//go:embed github.deploy.yaml.template
+	githubDeployTemplate string
 	//go:embed platform.toml.template
 	platformTomlTemplate string
 
 	templates = map[string]string{
-		".github/workflows/platform.yaml": githubWorkflowTemplate,
-		"platform.toml":                   platformTomlTemplate,
+		".github/workflows/build.yaml":  githubBuildTemplate,
+		".github/workflows/deploy.yaml": githubDeployTemplate,
+		"platform.toml":                 platformTomlTemplate,
 	}
 )
 
