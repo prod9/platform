@@ -20,6 +20,9 @@ func ListTags(wd string) (string, error) {
 func Tag(wd string, tagname, message string) (string, error) {
 	return runCmd(wd, "git", "tag", "-a", "-m", message, tagname)
 }
+func PushTag(wd string, tagname string) (string, error) {
+	return runCmd(wd, "git", "push", "--porcelain", tagname)
+}
 func Status(wd string) (string, error) {
 	return runCmd(wd, "git", "status", "--porcelain")
 }

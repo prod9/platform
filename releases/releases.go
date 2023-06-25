@@ -25,13 +25,13 @@ type Release struct {
 
 type Options struct {
 	Name  string
+	Force bool
 }
 
 type Strategy interface {
 	Generate(cfg *config.Config, opts *Options) (*Release, error)
 	Create(cfg *config.Config, rel *Release) error
-	// Build(*Release) error
-	// Publish(*Release) error
+	Publish(cfg *config.Config, rel *Release) error
 }
 
 var knownStrategies = map[string]Strategy{

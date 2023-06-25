@@ -2,7 +2,6 @@ package releases
 
 import (
 	"errors"
-	"log"
 	"strings"
 
 	"golang.org/x/mod/semver"
@@ -63,22 +62,17 @@ func (s Semver) Generate(cfg *config.Config, opts *Options) (*Release, error) {
 }
 
 func (s Semver) Create(cfg *config.Config, rel *Release) error {
-	log.Println("tagging release...")
 	if _, err := gitcmd.Tag(cfg.ConfigDir, rel.Name, rel.Message); err != nil {
+		return err
+	} else if _, err := gitcmd.PushTag(cfg.ConfigDir, rel.Name); err != nil {
 		return err
 	} else {
 		return nil
 	}
 }
 
-// Build implements Releaser
-func (Semver) Build(*Release) error {
-	panic("unimplemented")
-}
-
-// Publish implements Releaser
-func (Semver) Publish(*Release) error {
-	panic("unimplemented")
+func (s Semver) Publish(cfg *config.Config, rel *Release) error {
+	return nil
 }
 
 func (s Semver) mostRecentVer(wd string) (string, error) {
