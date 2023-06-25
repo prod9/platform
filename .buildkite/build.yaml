@@ -1,0 +1,4 @@
+steps:
+  - name: ":hammer: Build"
+    command: "./platform build"
+    key: build
