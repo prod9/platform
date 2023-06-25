@@ -12,7 +12,7 @@ import (
 )
 
 var ReleaseCmd = &cobra.Command{
-	Use:   "release [name]",
+	Use:   "release (name)",
 	Short: "Create a new release with the given name.",
 	Run:   runReleaseCmd,
 }

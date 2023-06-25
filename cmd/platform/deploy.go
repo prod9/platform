@@ -17,7 +17,7 @@ import (
 )
 
 var DeployCmd = &cobra.Command{
-	Use:   "deploy",
+	Use:   "deploy (release)",
 	Short: "Deploy a release",
 	Run:   runDeploy,
 }
