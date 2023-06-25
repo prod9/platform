@@ -4,13 +4,12 @@ go 1.20
 
 require (
 	dagger.io/dagger v0.7.2
-	fx.prodigy9.co v0.0.0-20230625102136-01be1eb7cd29
+	fx.prodigy9.co v0.0.0-20230625144506-7786b546be08
 	github.com/BurntSushi/toml v0.3.1
 	github.com/felixge/httpsnoop v1.0.3
 	github.com/spf13/cobra v1.7.0
 	github.com/stretchr/testify v1.8.1
 	go.jonnrb.io/vanity v0.2.0
-	golang.org/x/exp v0.0.0-20230321023759-10a507213a29
 	golang.org/x/mod v0.10.0
 )
 
@@ -36,6 +35,7 @@ require (
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/vektah/gqlparser/v2 v2.5.1 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
+	golang.org/x/exp v0.0.0-20230321023759-10a507213a29 // indirect
 	golang.org/x/sync v0.2.0 // indirect
 	golang.org/x/sys v0.8.0 // indirect
 	golang.org/x/term v0.8.0 // indirect
