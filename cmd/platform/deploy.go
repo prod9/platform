@@ -9,7 +9,6 @@ import (
 	"fx.prodigy9.co/cmd/prompts"
 	"github.com/BurntSushi/toml"
 	"github.com/spf13/cobra"
-	"golang.org/x/exp/maps"
 	"platform.prodigy9.co/builder"
 	"platform.prodigy9.co/config"
 	"platform.prodigy9.co/gitcmd"
@@ -54,8 +53,6 @@ func runDeploy(cmd *cobra.Command, args []string) {
 	sess := prompts.New(nil, args)
 	releaseName := sess.Str("which release")
 	targetEnv := sess.List("target environment", "", cfg.Environments)
-
-	maps.Keys(cfg.Modules)
 
 	opts := &releases.Options{Name: releaseName}
 	rel, err := strat.Recover(cfg, opts)
