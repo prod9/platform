@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 
+	fxcmd "fx.prodigy9.co/cmd"
 	"github.com/spf13/cobra"
 )
 
@@ -20,6 +21,8 @@ func init() {
 		PublishCmd,
 		ReleaseCmd,
 		VanityCmd,
+
+		fxcmd.PrintConfigCmd,
 	)
 }
 
