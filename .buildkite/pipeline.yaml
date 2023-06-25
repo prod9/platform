@@ -13,6 +13,7 @@ steps:
   - name: ":wrench: Build and Publish"
     command: "go run ./cmd/platform publish"
     if: build.tag != null && build.tag != "platform.prodigy9.co"
+    depends_on: os
 
   # deploy if environment tag is present
   - name: ":wrench: Self-Deploy"
