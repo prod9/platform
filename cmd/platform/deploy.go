@@ -22,6 +22,13 @@ var DeployCmd = &cobra.Command{
 	Run:   runDeploy,
 }
 
+var skipBuildOnDeploy bool
+
+func init() {
+	DeployCmd.Flags().BoolVarP(&skipBuildOnDeploy, "no-build", "n", false,
+		"Skips building, only create tags (i.e. use CI to build tags)")
+}
+
 func runDeploy(cmd *cobra.Command, args []string) {
 	cfg, err := config.Configure(".")
 	if err != nil {
@@ -63,20 +70,24 @@ func runDeploy(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	jobs, err := builder.JobsFromArgs(cfg, sess.Args())
-	if err != nil {
-		log.Fatalln(err)
+	// build and publish image
+	if !skipBuildOnDeploy {
+		jobs, err := builder.JobsFromArgs(cfg, sess.Args())
+		if err != nil {
+			log.Fatalln(err)
+		}
+
+		for _, j := range jobs {
+			j.Publish = true
+			j.PublishImageName = j.ImageName + ":" + targetEnv
+		}
+
+		if err = builder.Build(cfg, jobs...); err != nil {
+			log.Fatalln(err)
+		}
 	}
 
-	for _, j := range jobs {
-		j.Publish = true
-		j.PublishImageName = j.ImageName + ":" + targetEnv
-	}
-
-	// actually publish the image
-	if err = builder.Build(cfg, jobs...); err != nil {
-		log.Fatalln(err)
-	} else if _, err := gitcmd.TagF(cfg.ConfigDir, targetEnv); err != nil {
+	if _, err := gitcmd.TagF(cfg.ConfigDir, targetEnv); err != nil {
 		log.Fatalln(err)
 	} else if branch, err := gitcmd.CurrentBranch(cfg.ConfigDir); err != nil {
 		log.Fatalln(err)
