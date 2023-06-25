@@ -42,28 +42,19 @@ func runDeploy(cmd *cobra.Command, args []string) {
 		log.Fatalln(err)
 	}
 
-	allReleases, err := strat.List(cfg)
-	if err != nil {
-		log.Fatalln(err)
-	}
-	if len(allReleases) == 0 {
-		log.Fatalln("no release to deploy, create some first.")
-	}
-
-	sess := prompts.New(nil, args)
-	releaseName := sess.Str("which release")
-	targetEnv := sess.List("target environment", "", cfg.Environments)
-
-	opts := &releases.Options{Name: releaseName}
+	opts := &releases.Options{}
 	rel, err := strat.Recover(cfg, opts)
 	if err != nil {
 		log.Fatalln(err)
 	}
 
+	sess := prompts.New(nil, args)
+	targetEnv := sess.List("target environment", "", cfg.Environments)
+
 	if err = toml.NewEncoder(os.Stdout).Encode(rel); err != nil {
 		log.Fatalln(err)
 	}
-	if !sess.YesNo("deploy " + releaseName + " to " + targetEnv + "?") {
+	if !sess.YesNo("deploy " + rel.Name + " to " + targetEnv + "?") {
 		return
 	}
 
