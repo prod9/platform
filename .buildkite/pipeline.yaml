@@ -16,7 +16,7 @@ steps:
     depends_on: os
 
   # deploy if environment tag is present
-  - name: ":wrench: Self-Deploy"
+  - name: ":rocket: Build and Deploy"
     command: "go run ./cmd/platform deploy"
     if: build.tag == "platform.prodigy9.co"
     depends_on: os
