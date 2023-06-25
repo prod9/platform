@@ -20,29 +20,9 @@ func runBuild(cmd *cobra.Command, args []string) {
 		log.Fatalln(err)
 	}
 
-	var jobs []*builder.Job
-	if len(args) == 0 {
-		for modname, mod := range cfg.Modules {
-			if job, err := builder.JobFromModule(cfg, modname, mod); err != nil {
-				log.Fatalln(err)
-			} else {
-				jobs = append(jobs, job)
-			}
-		}
-
-	} else {
-		for len(args) > 0 {
-			modname := args[0]
-			args = args[1:]
-
-			if mod, ok := cfg.Modules[modname]; !ok {
-				log.Fatalln("unknown module `" + modname + "`")
-			} else if job, err := builder.JobFromModule(cfg, modname, mod); err != nil {
-				log.Fatalln(err)
-			} else {
-				jobs = append(jobs, job)
-			}
-		}
+	jobs, err := builder.JobsFromArgs(cfg, args)
+	if err != nil {
+		log.Fatalln(err)
 	}
 
 	if err := builder.Build(cfg, jobs...); err != nil {
