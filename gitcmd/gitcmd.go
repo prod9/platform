@@ -38,7 +38,7 @@ func Status(wd string) (string, error) {
 	return runCmd(wd, "git", "status", "--porcelain")
 }
 func Describe(wd string) (string, error) {
-	return runCmd(wd, "git", "describe", "--always", "--all", "--dirty", "--broken")
+	return runCmd(wd, "git", "describe", "--always", "--dirty", "--broken")
 }
 func CurrentBranch(wd string) (string, error) {
 	return runCmd(wd, "git", "branch", "--show-current")
