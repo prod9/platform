@@ -2,10 +2,19 @@ steps:
   - name: ":mountain: Prepare OS"
     command: "apk add build-base git go"
     key: os
-  - name: ":wrench: Self-Build"
+
+  # regular builds
+  - name: ":wrench: Build"
     command: "go run ./cmd/platform build"
-    if: build.tag != "platform.prodigy9.co"
+    if: build.tag == null
     depends_on: os
+
+  # publish image if git tag is present
+  - name: ":wrench: Build and Publish"
+    command: "go run ./cmd/platform publish"
+    if: build.tag != null && build.tag != "platform.prodigy9.co"
+
+  # deploy if environment tag is present
   - name: ":wrench: Self-Deploy"
     command: "go run ./cmd/platform deploy"
     if: build.tag == "platform.prodigy9.co"
