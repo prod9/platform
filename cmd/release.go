@@ -7,7 +7,7 @@ import (
 	"fx.prodigy9.co/cmd/prompts"
 	"github.com/BurntSushi/toml"
 	"github.com/spf13/cobra"
-	"platform.prodigy9.co/config"
+	"platform.prodigy9.co/project"
 	"platform.prodigy9.co/releases"
 )
 
@@ -25,7 +25,7 @@ func init() {
 }
 
 func runReleaseCmd(cmd *cobra.Command, args []string) {
-	cfg, err := config.Configure(".")
+	cfg, err := project.Configure(".")
 	if err != nil {
 		log.Fatalln(err)
 	}

@@ -5,7 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"platform.prodigy9.co/builder"
-	"platform.prodigy9.co/config"
+	"platform.prodigy9.co/project"
 )
 
 var BuildCmd = &cobra.Command{
@@ -15,7 +15,7 @@ var BuildCmd = &cobra.Command{
 }
 
 func runBuild(cmd *cobra.Command, args []string) {
-	cfg, err := config.Configure(".")
+	cfg, err := project.Configure(".")
 	if err != nil {
 		log.Fatalln(err)
 	}

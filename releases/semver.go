@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	"golang.org/x/mod/semver"
-	"platform.prodigy9.co/config"
 	"platform.prodigy9.co/gitcmd"
+	"platform.prodigy9.co/project"
 )
 
 var (
@@ -21,7 +21,7 @@ type Semver struct{}
 
 var _ Strategy = Semver{}
 
-func (s Semver) List(cfg *config.Config) ([]*Release, error) {
+func (s Semver) List(cfg *project.Project) ([]*Release, error) {
 	lines, err := gitcmd.ListTags(cfg.ConfigDir)
 	if err != nil {
 		return nil, err
@@ -40,7 +40,7 @@ func (s Semver) List(cfg *config.Config) ([]*Release, error) {
 	return result, nil
 }
 
-func (s Semver) Recover(cfg *config.Config, opts *Options) (*Release, error) {
+func (s Semver) Recover(cfg *project.Project, opts *Options) (*Release, error) {
 	// get annotated tag and name
 	if opts.Name == "" {
 		tagname, err := gitcmd.Describe(cfg.ConfigDir)
@@ -61,7 +61,7 @@ func (s Semver) Recover(cfg *config.Config, opts *Options) (*Release, error) {
 	return &Release{Name: opts.Name, Message: tagmsg}, nil
 }
 
-func (s Semver) Generate(cfg *config.Config, opts *Options) (*Release, error) {
+func (s Semver) Generate(cfg *project.Project, opts *Options) (*Release, error) {
 	nextVer := opts.Name
 	if nextVer == "" {
 		return nil, ErrNoSemver
@@ -102,7 +102,7 @@ func (s Semver) Generate(cfg *config.Config, opts *Options) (*Release, error) {
 	return rel, nil
 }
 
-func (s Semver) Create(cfg *config.Config, rel *Release) error {
+func (s Semver) Create(cfg *project.Project, rel *Release) error {
 	if _, err := gitcmd.Tag(cfg.ConfigDir, rel.Name, rel.Message); err != nil {
 		return err
 	} else if branch, err := gitcmd.CurrentBranch(cfg.ConfigDir); err != nil {

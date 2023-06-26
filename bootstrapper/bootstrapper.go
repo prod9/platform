@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"text/template"
 
-	"platform.prodigy9.co/config"
+	"platform.prodigy9.co/project"
 )
 
 var (
@@ -35,8 +35,8 @@ func Bootstrap(dir string, info *Info) error {
 		return err
 	}
 
-	existing, err := config.ResolvePath(wd)
-	if errors.Is(err, config.ErrNoPlatformConfig) {
+	existing, err := project.ResolvePath(wd)
+	if errors.Is(err, project.ErrNoPlatformConfig) {
 		// expected, since we're bootstrapping
 
 	} else if err != nil { // unrelated error

@@ -10,7 +10,7 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/spf13/cobra"
 	"platform.prodigy9.co/builder"
-	"platform.prodigy9.co/config"
+	"platform.prodigy9.co/project"
 	"platform.prodigy9.co/releases"
 )
 
@@ -21,7 +21,7 @@ var PublishCmd = &cobra.Command{
 }
 
 func runPublish(cmd *cobra.Command, args []string) {
-	cfg, err := config.Configure(".")
+	cfg, err := project.Configure(".")
 	if err != nil {
 		log.Fatalln(err)
 	}

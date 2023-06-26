@@ -1,4 +1,4 @@
-package config
+package project
 
 import (
 	"log"
@@ -14,7 +14,7 @@ const (
 )
 
 type (
-	Config struct {
+	Project struct {
 		ConfigPath string `toml:"-"`
 		ConfigDir  string `toml:"-"`
 
@@ -39,7 +39,7 @@ type (
 	}
 )
 
-func Configure(wd string) (*Config, error) {
+func Configure(wd string) (*Project, error) {
 	if wd == "" || wd == "." {
 		if wd_, err := os.Getwd(); err != nil {
 			return nil, err
@@ -53,7 +53,7 @@ func Configure(wd string) (*Config, error) {
 		return nil, err
 	}
 
-	cfg := &Config{}
+	cfg := &Project{}
 	if _, err = toml.DecodeFile(path, cfg); err != nil {
 		return nil, err
 	}
@@ -67,7 +67,7 @@ func Configure(wd string) (*Config, error) {
 	return cfg, nil
 }
 
-func (c *Config) assignDefaults() {
+func (c *Project) assignDefaults() {
 	for _, mod := range c.Modules {
 		if mod.Timeout <= 0 {
 			mod.Timeout = DefaultTimeout
@@ -75,14 +75,14 @@ func (c *Config) assignDefaults() {
 	}
 }
 
-func (c *Config) assignEnvOverrides() {
+func (c *Project) assignEnvOverrides() {
 	if platform, ok := os.LookupEnv("PLATFORM"); ok {
 		log.Println("platform overriden from", c.Platform, "to", platform)
 		c.Platform = platform
 	}
 }
 
-func (c *Config) inferValues() {
+func (c *Project) inferValues() {
 	for modname, mod := range c.Modules {
 		if mod.BinaryName == "" {
 			mod.BinaryName = modname

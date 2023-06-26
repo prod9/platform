@@ -4,8 +4,8 @@ import (
 	"errors"
 	"strings"
 
-	"platform.prodigy9.co/config"
 	"platform.prodigy9.co/gitcmd"
+	"platform.prodigy9.co/project"
 )
 
 var (
@@ -29,10 +29,10 @@ type Options struct {
 }
 
 type Strategy interface {
-	List(cfg *config.Config) ([]*Release, error)
-	Recover(cfg *config.Config, opts *Options) (*Release, error)
-	Generate(cfg *config.Config, opts *Options) (*Release, error)
-	Create(cfg *config.Config, rel *Release) error
+	List(cfg *project.Project) ([]*Release, error)
+	Recover(cfg *project.Project, opts *Options) (*Release, error)
+	Generate(cfg *project.Project, opts *Options) (*Release, error)
+	Create(cfg *project.Project, rel *Release) error
 }
 
 var knownStrategies = map[string]Strategy{
@@ -48,7 +48,7 @@ func FindStrategy(name string) (Strategy, error) {
 	}
 }
 
-func ListNames(strat Strategy, cfg *config.Config) ([]string, error) {
+func ListNames(strat Strategy, cfg *project.Project) ([]string, error) {
 	rel, err := strat.List(cfg)
 	if err != nil {
 		return nil, err
@@ -61,7 +61,7 @@ func ListNames(strat Strategy, cfg *config.Config) ([]string, error) {
 	return names, nil
 }
 
-func generateMessage(cfg *config.Config, title string, refs []CommitRef) string {
+func generateMessage(cfg *project.Project, title string, refs []CommitRef) string {
 	//* [f3e0f9][https://github.com/prod9/platform/commit/f3e0f9] Sample message
 	sb := &strings.Builder{}
 	sb.WriteString(title)

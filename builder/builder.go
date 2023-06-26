@@ -10,7 +10,7 @@ import (
 	"dagger.io/dagger"
 	fxconfig "fx.prodigy9.co/config"
 	"fx.prodigy9.co/errutil"
-	"platform.prodigy9.co/config"
+	"platform.prodigy9.co/project"
 )
 
 var (
@@ -18,7 +18,7 @@ var (
 	ErrNoJobs     = errors.New("builder: empty jobs list, nothing to do.")
 )
 
-// non-standard config settings using fx's env variable configuration. These are meant to
+// non-standard project settings using fx's env variable configuration. These are meant to
 // be set in CI agents so that the credentials do not need to be stored with each
 // project's codebase.
 var (
@@ -52,7 +52,7 @@ func FindBuilder(name string) (Builder, error) {
 	}
 }
 
-func Build(cfg *config.Config, jobs ...*Job) error {
+func Build(cfg *project.Project, jobs ...*Job) error {
 	if len(jobs) == 0 {
 		return ErrNoJobs
 	}

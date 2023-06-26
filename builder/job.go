@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"platform.prodigy9.co/config"
+	"platform.prodigy9.co/project"
 )
 
 var (
@@ -14,7 +14,7 @@ var (
 )
 
 type Job struct {
-	Config  *config.Config
+	Config  *project.Project
 	Builder Builder
 
 	Name     string
@@ -32,7 +32,7 @@ type Job struct {
 	PublishImageName string
 }
 
-func JobsFromArgs(cfg *config.Config, args []string) (jobs []*Job, err error) {
+func JobsFromArgs(cfg *project.Project, args []string) (jobs []*Job, err error) {
 	if len(args) == 0 {
 		for modname, mod := range cfg.Modules {
 			if job, err := JobFromModule(cfg, modname, mod); err != nil {
@@ -60,7 +60,7 @@ func JobsFromArgs(cfg *config.Config, args []string) (jobs []*Job, err error) {
 	return jobs, nil
 }
 
-func JobFromModule(cfg *config.Config, name string, mod *config.Module) (*Job, error) {
+func JobFromModule(cfg *project.Project, name string, mod *project.Module) (*Job, error) {
 	b, err := FindBuilder(mod.Builder)
 	if err != nil {
 		return nil, err
