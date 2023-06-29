@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-var refRegexp = regexp.MustCompile("^v([0-9]{4}])([0-9]{2})([0-9]{2})([0-9]{2})([0-9]{2})$")
+var refRegexp = regexp.MustCompile("^v([0-9]{4})([0-9]{2})([0-9]{2})([0-9]{2})([0-9]{2})$")
 
 // Jan 2 15:04:05 2006 MST
 const refFormat = "v200601021504"
