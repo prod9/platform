@@ -1,10 +1,16 @@
 package releases
 
 import (
+	"errors"
+	"strings"
+
 	"platform.prodigy9.co/gitcmd"
 	"platform.prodigy9.co/project"
 	"platform.prodigy9.co/releases/dateref"
-	"strings"
+)
+
+var (
+	ErrBadTimestamp = errors.New("release name is not timestamp")
 )
 
 type Timestamp struct{}
@@ -33,7 +39,7 @@ func (d Timestamp) Recover(cfg *project.Project, opts *Options) (*Release, error
 		if err != nil {
 			return nil, err
 		} else if !dateref.IsValid(tagname) {
-			return nil, ErrBadSemver
+			return nil, ErrBadTimestamp
 		}
 
 		opts.Name = tagname
