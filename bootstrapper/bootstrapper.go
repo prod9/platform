@@ -15,6 +15,9 @@ var (
 	//go:embed platform.toml.template
 	platformTomlTemplate string
 
+	// TODO: Detect and set default strategy
+	//  i.e. go.mod -> go/basic, go.work -> go/workspace
+	// TODO: Set the first module to the app's dirname
 	templates = map[string]string{
 		"platform.toml": platformTomlTemplate,
 	}
