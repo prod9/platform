@@ -36,8 +36,8 @@ type Strategy interface {
 }
 
 var knownStrategies = map[string]Strategy{
-	"semver": Semver{},
-	"date":   Date{},
+	"semver":    Semver{},
+	"timestamp": Timestamp{},
 }
 
 func FindStrategy(name string) (Strategy, error) {

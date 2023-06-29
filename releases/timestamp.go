@@ -7,11 +7,11 @@ import (
 	"strings"
 )
 
-type Date struct{}
+type Timestamp struct{}
 
-var _ Strategy = Date{}
+var _ Strategy = Timestamp{}
 
-func (d Date) List(cfg *project.Project) ([]*Release, error) {
+func (d Timestamp) List(cfg *project.Project) ([]*Release, error) {
 	lines, err := gitcmd.ListTags(cfg.ConfigDir)
 	if err != nil {
 		return nil, err
@@ -26,7 +26,7 @@ func (d Date) List(cfg *project.Project) ([]*Release, error) {
 	return result, nil
 }
 
-func (d Date) Recover(cfg *project.Project, opts *Options) (*Release, error) {
+func (d Timestamp) Recover(cfg *project.Project, opts *Options) (*Release, error) {
 	// get annotated tag and name
 	if opts.Name == "" {
 		tagname, err := gitcmd.Describe(cfg.ConfigDir)
@@ -47,7 +47,7 @@ func (d Date) Recover(cfg *project.Project, opts *Options) (*Release, error) {
 	return &Release{Name: opts.Name, Message: tagmsg}, nil
 }
 
-func (d Date) Generate(cfg *project.Project, opts *Options) (*Release, error) {
+func (d Timestamp) Generate(cfg *project.Project, opts *Options) (*Release, error) {
 	if opts.Name == "" {
 		opts.Name = dateref.Now()
 	}
@@ -59,7 +59,7 @@ func (d Date) Generate(cfg *project.Project, opts *Options) (*Release, error) {
 	return &Release{Name: opts.Name, Message: tagmsg}, nil
 }
 
-func (d Date) Create(cfg *project.Project, rel *Release) error {
+func (d Timestamp) Create(cfg *project.Project, rel *Release) error {
 	if _, err := gitcmd.Tag(cfg.ConfigDir, rel.Name, rel.Message); err != nil {
 		return err
 	} else if branch, err := gitcmd.CurrentBranch(cfg.ConfigDir); err != nil {
