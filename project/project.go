@@ -22,7 +22,7 @@ type (
 		Platform     string   `toml:"platform"`
 		Repository   string   `toml:"repository"`
 		Strategy     string   `toml:"strategy"`
-		Environments []string `toml: "environments"`
+		Environments []string `toml:"environments"`
 
 		Excludes []string           `toml:"excludes"`
 		Modules  map[string]*Module `toml:"modules"`
