@@ -27,6 +27,7 @@ type Job struct {
 	ImageName   string
 	PackageName string
 	BinaryName  string
+	BinaryArgs  []string
 
 	Publish          bool
 	PublishImageName string
@@ -83,5 +84,6 @@ func JobFromModule(cfg *project.Project, name string, mod *project.Module) (*Job
 		ImageName:   mod.ImageName,
 		PackageName: mod.PackageName,
 		BinaryName:  mod.BinaryName,
+		BinaryArgs:  mod.BinaryArgs,
 	}, nil
 }

@@ -33,9 +33,10 @@ type (
 		Timeout time.Duration `toml:"timeout"`
 		Builder string        `toml:"builder"`
 
-		ImageName   string `toml:"image"`
-		PackageName string `toml:"package"`
-		BinaryName  string `toml:"binary"`
+		ImageName   string   `toml:"image"`
+		PackageName string   `toml:"package"`
+		BinaryName  string   `toml:"binary"`
+		BinaryArgs  []string `toml:"binary_args"`
 	}
 )
 

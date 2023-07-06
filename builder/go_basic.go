@@ -38,7 +38,10 @@ func buildGoBasic(ctx context.Context, client *dagger.Client, job *Job) (contain
 		WithExec([]string{"apk", "add", "--no-cache", "ca-certificates", "tzdata"}).
 		WithFile("/app/"+job.BinaryName, builder.File(outname)).
 		WithDefaultArgs(dagger.ContainerWithDefaultArgsOpts{
-			Args: []string{"/app/" + job.BinaryName},
+			Args: append(
+				[]string{"/app/" + job.BinaryName},
+				job.BinaryArgs...,
+			),
 		})
 
 	return runner.Sync(ctx)
