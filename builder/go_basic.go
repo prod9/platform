@@ -14,7 +14,7 @@ var GoBasic = Builder{
 }
 
 func buildGoBasic(ctx context.Context, client *dagger.Client, job *Job) (container *dagger.Container, err error) {
-	defer errutil.Wrap("go/workspace", &err)
+	defer errutil.Wrap("go/basic", &err)
 
 	modcache := client.CacheVolume("go-" + runtime.Version() + "-modcache")
 	host := client.Host().Directory(job.WorkDir, dagger.HostDirectoryOpts{
