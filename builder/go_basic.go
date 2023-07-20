@@ -44,5 +44,7 @@ func buildGoBasic(ctx context.Context, client *dagger.Client, job *Job) (contain
 			),
 		})
 
+	// TODO: Builder should probably report what binary are in the resulting container
+	//   Because now we don't have a Dockerfile to look at
 	return runner.Sync(ctx)
 }

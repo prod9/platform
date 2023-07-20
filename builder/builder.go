@@ -41,6 +41,7 @@ type Builder struct {
 var knownBuilders = map[string]Builder{
 	"go/basic":     GoBasic,
 	"go/workspace": GoWorkspace,
+	"pnpm/basic":   PNPMBasic,
 }
 
 func FindBuilder(name string) (Builder, error) {
