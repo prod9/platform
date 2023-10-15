@@ -17,8 +17,9 @@ use (
 `
 
 func TestParseString(t *testing.T) {
-	mods, err := ParseString(GoWorkFixture)
+	version, mods, err := ParseString(GoWorkFixture)
 	require.NoError(t, err)
+	require.Equal(t, "1.20", version)
 	require.ElementsMatch(t, mods, []string{
 		"core",
 		"fx",

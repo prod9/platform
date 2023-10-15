@@ -3,7 +3,6 @@ package builder
 import (
 	"context"
 	"path/filepath"
-	"runtime"
 
 	"dagger.io/dagger"
 	"fx.prodigy9.co/errutil"
@@ -21,12 +20,13 @@ func buildGoWorkspace(ctx context.Context, client *dagger.Client, job *Job) (con
 	// parse go.work file so we know what modules we need in the container
 	rootdir := job.Config.ConfigDir
 	workfile := filepath.Join(job.Config.ConfigDir, "go.work")
-	workmods, err := gowork.ParseFile(workfile)
+	goversion, workmods, err := gowork.ParseFile(workfile)
 	if err != nil {
 		return nil, err
 	}
 
-	modcache := client.CacheVolume("go-" + runtime.Version() + "-modcache")
+	gobin := "go" + goversion
+	modcache := client.CacheVolume("go-" + goversion + "-modcache")
 	host := client.Host().Directory(rootdir, dagger.HostDirectoryOpts{
 		Exclude: job.Excludes,
 	})
@@ -37,6 +37,8 @@ func buildGoWorkspace(ctx context.Context, client *dagger.Client, job *Job) (con
 	builder := base.
 		WithExec([]string{"apk", "add", "--no-cache", "build-base", "go"}).
 		WithMountedCache("/root/go/pkg/mod", modcache).
+		WithExec([]string{"go", "install", "golang.org/dl/go" + goversion + "@latest"}).
+		WithExec([]string{gobin, "download"}).
 		WithFile("go.work", host.File("go.work")).
 		WithFile("go.work.sum", host.File("go.work.sum"))
 
@@ -51,10 +53,10 @@ func buildGoWorkspace(ctx context.Context, client *dagger.Client, job *Job) (con
 	// NOTE: Users should `go work sync` if mod doesn't match as build logs maybe invisible
 	// or hard to track down for the user.
 	builder = builder.
-		WithExec([]string{"go", "mod", "download", "-x", "all"})
+		WithExec([]string{gobin, "mod", "download", "-x", "all"})
 
 	// test and build
-	testargs := []string{"go", "test", "-v"}
+	testargs := []string{gobin, "test", "-v"}
 	for _, mod := range workmods {
 		testargs = append(testargs, "./"+mod+"/...")
 	}
@@ -62,7 +64,7 @@ func buildGoWorkspace(ctx context.Context, client *dagger.Client, job *Job) (con
 	builder = builder.
 		WithDirectory("/app", host).
 		WithExec(testargs).
-		WithExec([]string{"go", "build", "-v", "-o", outname, job.PackageName})
+		WithExec([]string{gobin, "build", "-v", "-o", outname, job.PackageName})
 
 	runner := base.
 		WithExec([]string{"apk", "add", "--no-cache", "ca-certificates", "tzdata"}).
