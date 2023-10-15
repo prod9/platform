@@ -25,7 +25,7 @@ func buildGoWorkspace(ctx context.Context, client *dagger.Client, job *Job) (con
 		return nil, err
 	}
 
-	gobin := "go" + goversion
+	gobin := "/root/sdk/go" + goversion + "/bin/go"
 	modcache := client.CacheVolume("go-" + goversion + "-modcache")
 	host := client.Host().Directory(rootdir, dagger.HostDirectoryOpts{
 		Exclude: job.Excludes,
@@ -35,10 +35,10 @@ func buildGoWorkspace(ctx context.Context, client *dagger.Client, job *Job) (con
 	base := BaseImageForJob(client, job)
 
 	builder := base.
-		WithExec([]string{"apk", "add", "--no-cache", "build-base", "go"}).
+		WithExec([]string{"apk", "add", "--no-cache", "build-base", "go"}). //git
 		WithMountedCache("/root/go/pkg/mod", modcache).
 		WithExec([]string{"go", "install", "golang.org/dl/go" + goversion + "@latest"}).
-		WithExec([]string{gobin, "download"}).
+		WithExec([]string{"/root/go/bin/go" + goversion, "download"}).
 		WithFile("go.work", host.File("go.work")).
 		WithFile("go.work.sum", host.File("go.work.sum"))
 
