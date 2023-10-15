@@ -25,7 +25,7 @@ func buildGoBasic(ctx context.Context, client *dagger.Client, job *Job) (contain
 	base := BaseImageForJob(client, job)
 
 	builder := base.
-		WithExec([]string{"apk", "add", "--no-cache", "build-base", "go"}).
+		WithExec([]string{"apk", "add", "--no-cache", "build-base", "git", "go"}).
 		WithMountedCache("/root/go/pkg/mod", modcache).
 		WithFile("go.mod", host.File("go.mod")).
 		WithFile("go.sum", host.File("go.sum")).
