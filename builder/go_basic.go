@@ -36,13 +36,21 @@ func buildGoBasic(ctx context.Context, client *dagger.Client, job *Job) (contain
 
 	runner := base.
 		WithExec([]string{"apk", "add", "--no-cache", "ca-certificates", "tzdata"}).
-		WithFile("/app/"+job.BinaryName, builder.File(outname)).
-		WithDefaultArgs(dagger.ContainerWithDefaultArgsOpts{
-			Args: append(
-				[]string{"/app/" + job.BinaryName},
-				job.BinaryArgs...,
-			),
-		})
+		WithFile("/app/"+job.BinaryName, builder.File(outname))
+
+	for _, dir := range job.AssetDirs {
+		runner = runner.WithDirectory(dir, builder.Directory(dir))
+	}
+	for key, value := range job.Env {
+		runner = runner.WithEnvVariable(key, value)
+	}
+
+	runner = runner.WithDefaultArgs(dagger.ContainerWithDefaultArgsOpts{
+		Args: append(
+			[]string{"/app/" + job.BinaryName},
+			job.BinaryArgs...,
+		),
+	})
 
 	// TODO: Builder should probably report what binary are in the resulting container
 	//   Because now we don't have a Dockerfile to look at

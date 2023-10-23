@@ -68,10 +68,18 @@ func buildGoWorkspace(ctx context.Context, client *dagger.Client, job *Job) (con
 
 	runner := base.
 		WithExec([]string{"apk", "add", "--no-cache", "ca-certificates", "tzdata"}).
-		WithFile("/app/"+job.BinaryName, builder.File(outname)).
-		WithDefaultArgs(dagger.ContainerWithDefaultArgsOpts{
-			Args: []string{"/app/" + job.BinaryName},
-		})
+		WithFile("/app/"+job.BinaryName, builder.File(outname))
+
+	for _, dir := range job.AssetDirs {
+		runner = runner.WithDirectory(dir, builder.Directory(dir))
+	}
+	for key, value := range job.Env {
+		runner = runner.WithEnvVariable(key, value)
+	}
+
+	runner = runner.WithDefaultArgs(dagger.ContainerWithDefaultArgsOpts{
+		Args: []string{"/app/" + job.BinaryName},
+	})
 
 	return runner.Sync(ctx)
 

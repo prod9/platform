@@ -33,10 +33,12 @@ type (
 		Timeout time.Duration `toml:"timeout"`
 		Builder string        `toml:"builder"`
 
-		ImageName   string   `toml:"image"`
-		PackageName string   `toml:"package"`
-		BinaryName  string   `toml:"binary"`
-		BinaryArgs  []string `toml:"binary_args"`
+		ImageName   string            `toml:"image"`
+		PackageName string            `toml:"package"`
+		BinaryName  string            `toml:"binary"`
+		BinaryArgs  []string          `toml:"binary_args"`
+		AssetDirs   []string          `toml:"asset_dirs"`
+		Env         map[string]string `toml:"env"`
 	}
 )
 
