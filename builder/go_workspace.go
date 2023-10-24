@@ -78,7 +78,10 @@ func buildGoWorkspace(ctx context.Context, client *dagger.Client, job *Job) (con
 	}
 
 	runner = runner.WithDefaultArgs(dagger.ContainerWithDefaultArgsOpts{
-		Args: []string{"/app/" + job.BinaryName},
+		Args: append([]string{
+			"/app/" + job.BinaryName},
+			job.BinaryArgs...,
+		),
 	})
 
 	return runner.Sync(ctx)
