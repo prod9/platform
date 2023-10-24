@@ -20,7 +20,7 @@ func buildPNPMBasic(ctx context.Context, client *dagger.Client, job *Job) (conta
 		Directory(job.WorkDir, dagger.HostDirectoryOpts{Exclude: job.Excludes})
 
 	builder := BaseImageForJob(client, job).
-		WithExec([]string{"apk", "add", "--no-cache", "nodejs-current"}).
+		WithExec([]string{"apk", "add", "--no-cache", "nodejs-current", "build-base", "python3"}).
 		WithExec([]string{"corepack", "enable", "pnpm"}).
 		WithMountedCache("/root/.local/share/pnpm", cache).
 		WithFile("package.json", host.File("package.json")).
