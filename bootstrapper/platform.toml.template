@@ -1,3 +1,5 @@
+# vim: filetype=toml
+
 maintainer = "{{ .Maintainer }} <{{ .MaintainerEmail }}>"
 platform = "linux/amd64"
 repository = "https://github.com/prod9/{{ .ProjectName }}"
@@ -17,7 +19,7 @@ excludes = [
 	"platform.toml",
 ]
 
-[modules.platform]
+[modules.{{ .ProjectName }}]
 builder = "go/workspace"
 image = "ghcr.io/prod9/{{ .ProjectName }}"
 package = "github.com/prod9/{{ .ProjectName }}"

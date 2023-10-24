@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"text/template"
 
 	"platform.prodigy9.co/project"
@@ -14,16 +15,22 @@ import (
 var (
 	//go:embed platform.toml.template
 	platformTomlTemplate string
+	//go:embed buildkite.pipeline.yaml.template
+	buildkitePipelineYamlTemplate string
+	//go:embed platform.template
+	platformTemplate string
 
 	// TODO: Detect and set default strategy
 	//  i.e. go.mod -> go/basic, go.work -> go/workspace
 	// TODO: Set the first module to the app's dirname
 	templates = map[string]string{
-		"platform.toml": platformTomlTemplate,
+		"platform.toml":            platformTomlTemplate,
+		"platform":                 platformTemplate,
+		".buildkite/pipeline.yaml": buildkitePipelineYamlTemplate,
 	}
 )
 
-var ErrPlatformAlreadyExist = errors.New("platform.toml already exists")
+var ErrFileAlreadyExist = errors.New("one or more destination file(s) already exists")
 
 type Info struct {
 	ProjectName     string
@@ -32,7 +39,14 @@ type Info struct {
 	GoVersion       string
 }
 
-func Bootstrap(dir string, info *Info) error {
+func Check(dir string) error {
+	if dir == "" {
+		wd, err := os.Getwd()
+		if err != nil {
+			return err
+		}
+		dir = wd
+	}
 	wd, err := os.Getwd()
 	if err != nil {
 		return err
@@ -47,16 +61,39 @@ func Bootstrap(dir string, info *Info) error {
 
 	} else { // err == nil, we found existing platform.toml
 		log.Println("found:", existing)
-		return ErrPlatformAlreadyExist
+		return ErrFileAlreadyExist
+	}
+
+	return nil
+}
+
+func Bootstrap(dir string, info *Info) error {
+	if dir == "" {
+		wd, err := os.Getwd()
+		if err != nil {
+			return err
+		}
+		dir = wd
 	}
 
 	// applying...
 	for filename, content := range templates {
-		outfilename := filepath.Join(wd, filename)
+		if strings.Contains("/", filename) {
+			if err := os.MkdirAll(filepath.Join(dir, filepath.Dir(filename)), 0755); err != nil {
+				return err
+			}
+		}
+
+		outfilename := filepath.Join(dir, filename)
+		if _, err := os.Stat(outfilename); !os.IsNotExist(err) {
+			log.Println("found:", outfilename)
+			return ErrFileAlreadyExist
+		}
+
 		if err := writeTemplate(content, outfilename, info); err != nil {
 			return err
 		} else {
-			log.Println("wrote", outfilename)
+			log.Println("wrote:", outfilename)
 		}
 	}
 
