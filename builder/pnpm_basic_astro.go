@@ -34,11 +34,11 @@ func buildPNPMBasicAstro(ctx context.Context, client *dagger.Client, job *Job) (
 			"apk", "add", "--no-cache",
 			"nodejs-current", "tzdata", "ca-certificates",
 		}).
-		WithDirectory("/app", builder.Directory("dist/server")).
+		WithDirectory("/app", builder.Directory("dist")).
 		WithFile("package.json", builder.File("package.json")).
 		WithFile("pnpm-lock.yaml", builder.File("pnpm-lock.yaml")).
 		WithDefaultArgs(dagger.ContainerWithDefaultArgsOpts{
-			Args: []string{"/usr/bin/node", "entry.mjs"},
+			Args: []string{"/usr/bin/node", "server/entry.mjs"},
 		})
 
 	return runner.Sync(ctx)
