@@ -89,5 +89,7 @@ func JobFromModule(cfg *project.Project, name string, mod *project.Module) (*Job
 		BinaryArgs:  mod.BinaryArgs,
 		AssetDirs:   mod.AssetDirs,
 		Env:         mod.Env,
+
+		Publish: mod.Publish,
 	}, nil
 }
