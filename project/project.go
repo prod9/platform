@@ -39,6 +39,8 @@ type (
 		BinaryArgs  []string          `toml:"binary_args"`
 		AssetDirs   []string          `toml:"asset_dirs"`
 		Env         map[string]string `toml:"env"`
+
+		Publish bool `toml:publish`
 	}
 )
 
