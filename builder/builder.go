@@ -92,8 +92,8 @@ func Build(cfg *project.Project, jobs ...*Job) error {
 				)
 			}
 
-			log.Println("publishing", job.PublishImageName)
-			hash, err := container.Publish(ctx, job.PublishImageName)
+			log.Println("publishing", job.PublishImageName, "to", job.ImageName)
+			hash, err := container.Publish(ctx, job.ImageName)
 			if err != nil {
 				return job.Name, err
 			}
