@@ -43,6 +43,7 @@ var knownBuilders = map[string]Builder{
 	"go/workspace":     GoWorkspace,
 	"pnpm/basic":       PNPMBasic,
 	"pnpm/basic/astro": PNPMBasicAstro,
+	"pnpm/workspace":   PNPMWorkspace,
 }
 
 func FindBuilder(name string) (Builder, error) {
