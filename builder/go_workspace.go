@@ -25,6 +25,10 @@ func buildGoWorkspace(ctx context.Context, client *dagger.Client, job *Job) (con
 		return nil, err
 	}
 
+	if job.GoVersion != "" {
+		goversion = job.GoVersion
+	}
+
 	gobin := "/root/sdk/go" + goversion + "/bin/go"
 	modcache := client.CacheVolume("go-" + goversion + "-modcache")
 	host := client.Host().Directory(rootdir, dagger.HostDirectoryOpts{
@@ -35,8 +39,9 @@ func buildGoWorkspace(ctx context.Context, client *dagger.Client, job *Job) (con
 	base := BaseImageForJob(client, job)
 
 	builder := base.
-		WithExec([]string{"apk", "add", "--no-cache", "build-base", "go"}). //git
+		WithExec([]string{"apk", "add", "--no-cache", "build-base", "go", "gcompat"}). //git
 		WithMountedCache("/root/go/pkg/mod", modcache).
+		WithEnvVariable("GOROOT", "/usr/lib/go").
 		WithExec([]string{"go", "install", "golang.org/dl/go" + goversion + "@latest"}).
 		WithExec([]string{"/root/go/bin/go" + goversion, "download"}).
 		WithFile("go.work", host.File("go.work")).
@@ -61,10 +66,12 @@ func buildGoWorkspace(ctx context.Context, client *dagger.Client, job *Job) (con
 		testargs = append(testargs, "./"+mod+"/...")
 	}
 
+	packagedir := filepath.Join("/app", job.PackageName)
+
 	builder = builder.
 		WithDirectory("/app", host).
 		WithExec(testargs).
-		WithExec([]string{gobin, "build", "-v", "-o", outname, job.PackageName})
+		WithExec([]string{gobin, "build", "-v", "-o", outname, packagedir})
 
 	runner := base.
 		WithExec([]string{"apk", "add", "--no-cache", "ca-certificates", "tzdata"}).
