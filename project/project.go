@@ -39,6 +39,7 @@ type (
 		BinaryArgs  []string          `toml:"binary_args"`
 		AssetDirs   []string          `toml:"asset_dirs"`
 		Env         map[string]string `toml:"env"`
+		GoVersion   string            `toml:"go_version"`
 
 		Publish bool `toml:publish`
 	}

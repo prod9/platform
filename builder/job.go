@@ -27,6 +27,7 @@ type Job struct {
 	ImageName   string
 	PackageName string
 	BinaryName  string
+	GoVersion   string
 	BinaryArgs  []string
 	AssetDirs   []string
 	Env         map[string]string
@@ -85,6 +86,7 @@ func JobFromModule(cfg *project.Project, name string, mod *project.Module) (*Job
 		Repository:  cfg.Repository,
 		ImageName:   mod.ImageName,
 		PackageName: mod.PackageName,
+		GoVersion:   mod.GoVersion,
 		BinaryName:  mod.BinaryName,
 		BinaryArgs:  mod.BinaryArgs,
 		AssetDirs:   mod.AssetDirs,
