@@ -35,11 +35,14 @@ func buildGoWorkspace(ctx context.Context, client *dagger.Client, job *Job) (con
 		Exclude: job.Excludes,
 	})
 
-	outname := "/" + job.BinaryName
+	outname := job.BinaryName
 	base := BaseImageForJob(client, job)
 
 	builder := base.
-		WithExec([]string{"apk", "add", "--no-cache", "build-base", "go", "gcompat"}). //git
+		WithExec([]string{"apk", "add", "--no-cache", "build-base", "go", "musl", "ca-certificates", "wget"}). //git
+		WithExec([]string{"wget", "-q", "-O", "/etc/apk/keys/sgerrand.rsa.pub", "https://alpine-pkgs.sgerrand.com/sgerrand.rsa.pub"}).
+		WithExec([]string{"wget", "https://github.com/sgerrand/alpine-pkg-glibc/releases/download/2.34-r0/glibc-2.34-r0.apk"}).
+		WithExec([]string{"apk", "add", "--force-overwrite", "--no-cache", "glibc-2.34-r0.apk"}).
 		WithMountedCache("/root/go/pkg/mod", modcache).
 		WithEnvVariable("GOROOT", "/usr/lib/go").
 		WithExec([]string{"go", "install", "golang.org/dl/go" + goversion + "@latest"}).
