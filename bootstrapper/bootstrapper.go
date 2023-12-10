@@ -37,12 +37,13 @@ func Bootstrap(dir string, info *Info) error {
 
 	// generate platform.toml
 	proj := *project.ProjectDefaults
-	proj.Maintainer = fmt.Sprint("%s <%s>", info.Maintainer, info.MaintainerEmail)
+	proj.Maintainer = fmt.Sprintf("%s <%s>", info.Maintainer, info.MaintainerEmail)
 	proj.Repository = info.Repository
 
 	mods, err := builder.Discover(dir)
 	for name, builder := range mods {
 		mod := *project.ModuleDefaults
+		mod.WorkDir = "./" + name
 		mod.Builder = builder.Name()
 		proj.Modules[name] = &mod
 	}
