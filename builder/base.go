@@ -2,7 +2,7 @@ package builder
 
 import "dagger.io/dagger"
 
-const BASE_IMAGE = "alpine:3.18"
+const BASE_IMAGE = "alpine:3.19"
 
 func BaseImageForJob(client *dagger.Client, job *Job) *dagger.Container {
 	return client.
