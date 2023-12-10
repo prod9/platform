@@ -15,7 +15,7 @@ type (
 		ConfigDir  string `toml:"-"`
 
 		Maintainer   string   `toml:"maintainer"`
-		Platform     string   `toml:"platform"`
+		Platform     string   `toml:"platform,omitempty"`
 		Repository   string   `toml:"repository"`
 		Strategy     string   `toml:"strategy"`
 		Environments []string `toml:"environments"`
@@ -25,19 +25,19 @@ type (
 	}
 
 	Module struct {
-		WorkDir string        `toml:"workdir"` // the directory we'll be working in
-		Timeout time.Duration `toml:"timeout"`
-		Builder string        `toml:"builder"`
+		WorkDir string        `toml:"workdir,omitempty"` // the directory we'll be working in
+		Timeout time.Duration `toml:"timeout,omitempty"`
+		Builder string        `toml:"builder,omitempty"`
 
-		ImageName   string            `toml:"image"`
-		PackageName string            `toml:"package"`
-		BinaryName  string            `toml:"binary"`
-		BinaryArgs  []string          `toml:"binary_args"`
-		AssetDirs   []string          `toml:"asset_dirs"`
-		Env         map[string]string `toml:"env"`
-		GoVersion   string            `toml:"go_version"`
+		ImageName   string            `toml:"image,omitempty"`
+		PackageName string            `toml:"package,omitempty"`
+		BinaryName  string            `toml:"binary,omitempty"`
+		BinaryArgs  []string          `toml:"binary_args,omitempty"`
+		AssetDirs   []string          `toml:"asset_dirs,omitempty"`
+		Env         map[string]string `toml:"env,omitempty"`
+		GoVersion   string            `toml:"go_version,omitempty"`
 
-		Publish bool `toml:publish`
+		Publish bool `toml:"publish"`
 	}
 )
 
