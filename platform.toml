@@ -1,9 +1,9 @@
 maintainer = "Chakrit Wichian <chakrit@prodigy9.co>"
+
+environments = ["platform.prodigy9.co"]
 platform = "linux/amd64"
 repository = "https://github.com/prod9/platform"
 strategy = "semver"
-
-environments = ["platform.prodigy9.co"]
 
 excludes = [
 	"*.docker",
@@ -21,3 +21,4 @@ excludes = [
 builder = "go/basic"
 image = "ghcr.io/prod9/platform"
 package = "platform.prodigy9.co"
+timeout = 60000000000
