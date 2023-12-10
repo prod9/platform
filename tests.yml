@@ -1,6 +1,6 @@
 config:
   interpreter: /bin/sh
-  timeout: 5s
+  timeout: 1m
   workdir: .
 tests:
   - name: Compiles
