@@ -1,0 +1,17 @@
+maintainer = "Johnny Appleseed <john@apple.com>"
+platform = "linux/amd64"
+repository = "github.com/prod9/platform"
+strategy = "timestamp"
+excludes = ["*.docker", "*.local", ".dockerignore", ".git", ".github", ".gitignore", ".idea", ".vscode", "node_modules", "platform.toml"]
+
+[modules]
+  [modules.app]
+    workdir = "./app"
+    timeout = 5000000000
+    builder = "go/workspace"
+    publish = false
+  [modules.fx]
+    workdir = "./fx"
+    timeout = 5000000000
+    builder = "go/workspace"
+    publish = false

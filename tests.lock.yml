@@ -51,3 +51,215 @@
           data:
             - 'discovered: storybook => pnpm/workspace'
             - 'discovered: web => pnpm/workspace'
+- name: tests.yml \ Bootstrap \ Go Basic
+  commands:
+    - command: go run . -q bootstrap ./testbeds/gobasic "Johnny Appleseed" "john@apple.com"
+          "github.com/prod9/platform" "ghcr.io/prod9/platform"
+      checks:
+        - name: exitcode
+          data:
+            - "0"
+        - name: stderr
+          data:
+            - 'wrote: /Users/chakrit/Documents/prod9/platform/testbeds/gobasic/platform'
+            - 'wrote: /Users/chakrit/Documents/prod9/platform/testbeds/gobasic/.buildkite/pipeline.yaml'
+            - exited.
+        - name: ./testbeds/gobasic/platform.toml
+          data:
+            - '-----BEGIN platform.toml-----'
+            - maintainer = "Johnny Appleseed <john@apple.com>"
+            - platform = "linux/amd64"
+            - repository = "github.com/prod9/platform"
+            - strategy = "timestamp"
+            - excludes = ["*.docker", "*.local", ".dockerignore", ".git", ".github",
+              ".gitignore", ".idea", ".vscode", "node_modules", "platform.toml"]
+            - ""
+            - '[modules]'
+            - '  [modules.gobasic]'
+            - '    workdir = "./gobasic"'
+            - '    timeout = 5000000000'
+            - '    builder = "go/basic"'
+            - '    publish = false'
+            - '-----END platform.toml-----'
+            - ""
+        - name: ./testbeds/gobasic/platform
+          data:
+            - '-----BEGIN platform-----'
+            - '#!/bin/sh'
+            - ""
+            - PLATFORM_VERSION="v0.2.0"
+            - ""
+            - go run "platform.prodigy9.co@$PLATFORM_VERSION" "$@"
+            - '-----END platform-----'
+            - ""
+        - name: ./testbeds/gobasic/.buildkite/*.*
+          data:
+            - '-----BEGIN pipeline.yaml-----'
+            - '# vim: filetype=yaml'
+            - 'steps:'
+            - '  - name: ":mountain: Prepare OS"'
+            - '    command: "apk add build-base git go"'
+            - '    key: os'
+            - ""
+            - '  # regular builds'
+            - '  - name: ":wrench: Build"'
+            - '    command: "./platform build"'
+            - '    if: build.tag == null'
+            - '    depends_on: os'
+            - ""
+            - '  # publish image if git tag is present'
+            - '  - name: ":wrench: Build and Publish"'
+            - '    command: "./platform publish"'
+            - '    if: build.tag != null && build.tag =~ /^v[0-9]+.*/'
+            - '    depends_on: os'
+            - ""
+            - '  # deploy if environment tag is present'
+            - '  - name: ":rocket: Build and Deploy"'
+            - '    command: "./platform deploy --no-tag $$BUILDKITE_TAG"'
+            - '    if: build.tag != null && build.tag !~ /^v[0-9]+.*/'
+            - '    depends_on: os'
+            - '-----END pipeline.yaml-----'
+            - ""
+- name: tests.yml \ Bootstrap \ Go Workspace
+  commands:
+    - command: go run . -q bootstrap ./testbeds/gowork "Johnny Appleseed" "john@apple.com"
+          "github.com/prod9/platform" "ghcr.io/prod9/platform"
+      checks:
+        - name: exitcode
+          data:
+            - "0"
+        - name: stderr
+          data:
+            - 'wrote: /Users/chakrit/Documents/prod9/platform/testbeds/gowork/platform'
+            - 'wrote: /Users/chakrit/Documents/prod9/platform/testbeds/gowork/.buildkite/pipeline.yaml'
+            - exited.
+        - name: ./testbeds/gowork/platform.toml
+          data:
+            - '-----BEGIN platform.toml-----'
+            - maintainer = "Johnny Appleseed <john@apple.com>"
+            - platform = "linux/amd64"
+            - repository = "github.com/prod9/platform"
+            - strategy = "timestamp"
+            - excludes = ["*.docker", "*.local", ".dockerignore", ".git", ".github",
+              ".gitignore", ".idea", ".vscode", "node_modules", "platform.toml"]
+            - ""
+            - '[modules]'
+            - '  [modules.app]'
+            - '    workdir = "./app"'
+            - '    timeout = 5000000000'
+            - '    builder = "go/workspace"'
+            - '    publish = false'
+            - '  [modules.fx]'
+            - '    workdir = "./fx"'
+            - '    timeout = 5000000000'
+            - '    builder = "go/workspace"'
+            - '    publish = false'
+            - '-----END platform.toml-----'
+            - ""
+        - name: ./testbeds/gowork/platform
+          data:
+            - '-----BEGIN platform-----'
+            - '#!/bin/sh'
+            - ""
+            - PLATFORM_VERSION="v0.2.0"
+            - ""
+            - go run "platform.prodigy9.co@$PLATFORM_VERSION" "$@"
+            - '-----END platform-----'
+            - ""
+        - name: ./testbeds/gowork/.buildkite/*.*
+          data:
+            - '-----BEGIN pipeline.yaml-----'
+            - '# vim: filetype=yaml'
+            - 'steps:'
+            - '  - name: ":mountain: Prepare OS"'
+            - '    command: "apk add build-base git go"'
+            - '    key: os'
+            - ""
+            - '  # regular builds'
+            - '  - name: ":wrench: Build"'
+            - '    command: "./platform build"'
+            - '    if: build.tag == null'
+            - '    depends_on: os'
+            - ""
+            - '  # publish image if git tag is present'
+            - '  - name: ":wrench: Build and Publish"'
+            - '    command: "./platform publish"'
+            - '    if: build.tag != null && build.tag =~ /^v[0-9]+.*/'
+            - '    depends_on: os'
+            - ""
+            - '  # deploy if environment tag is present'
+            - '  - name: ":rocket: Build and Deploy"'
+            - '    command: "./platform deploy --no-tag $$BUILDKITE_TAG"'
+            - '    if: build.tag != null && build.tag !~ /^v[0-9]+.*/'
+            - '    depends_on: os'
+            - '-----END pipeline.yaml-----'
+            - ""
+- name: tests.yml \ Bootstrap \ PNPM Basic
+  commands:
+    - command: go run . -q bootstrap ./testbeds/pnpmbasic "Johnny Appleseed" "john@apple.com"
+          "github.com/prod9/platform" "ghcr.io/prod9/platform"
+      checks:
+        - name: exitcode
+          data:
+            - "0"
+        - name: stderr
+          data:
+            - 'wrote: /Users/chakrit/Documents/prod9/platform/testbeds/pnpmbasic/platform'
+            - 'wrote: /Users/chakrit/Documents/prod9/platform/testbeds/pnpmbasic/.buildkite/pipeline.yaml'
+            - exited.
+        - name: ./testbeds/pnpmbasic/platform.toml
+          data:
+            - '-----BEGIN platform.toml-----'
+            - maintainer = "Johnny Appleseed <john@apple.com>"
+            - platform = "linux/amd64"
+            - repository = "github.com/prod9/platform"
+            - strategy = "timestamp"
+            - excludes = ["*.docker", "*.local", ".dockerignore", ".git", ".github",
+              ".gitignore", ".idea", ".vscode", "node_modules", "platform.toml"]
+            - ""
+            - '[modules]'
+            - '  [modules.pnpmbasic]'
+            - '    workdir = "./pnpmbasic"'
+            - '    timeout = 5000000000'
+            - '    builder = "pnpm/basic"'
+            - '    publish = false'
+            - '-----END platform.toml-----'
+            - ""
+        - name: ./testbeds/pnpmbasic/platform
+          data:
+            - '-----BEGIN platform-----'
+            - '#!/bin/sh'
+            - ""
+            - PLATFORM_VERSION="v0.2.0"
+            - ""
+            - go run "platform.prodigy9.co@$PLATFORM_VERSION" "$@"
+            - '-----END platform-----'
+            - ""
+        - name: ./testbeds/pnpmbasic/.buildkite/*.*
+          data:
+            - '-----BEGIN pipeline.yaml-----'
+            - '# vim: filetype=yaml'
+            - 'steps:'
+            - '  - name: ":mountain: Prepare OS"'
+            - '    command: "apk add build-base git go"'
+            - '    key: os'
+            - ""
+            - '  # regular builds'
+            - '  - name: ":wrench: Build"'
+            - '    command: "./platform build"'
+            - '    if: build.tag == null'
+            - '    depends_on: os'
+            - ""
+            - '  # publish image if git tag is present'
+            - '  - name: ":wrench: Build and Publish"'
+            - '    command: "./platform publish"'
+            - '    if: build.tag != null && build.tag =~ /^v[0-9]+.*/'
+            - '    depends_on: os'
+            - ""
+            - '  # deploy if environment tag is present'
+            - '  - name: ":rocket: Build and Deploy"'
+            - '    command: "./platform deploy --no-tag $$BUILDKITE_TAG"'
+            - '    if: build.tag != null && build.tag !~ /^v[0-9]+.*/'
+            - '    depends_on: os'
+            - '-----END pipeline.yaml-----'
+            - ""

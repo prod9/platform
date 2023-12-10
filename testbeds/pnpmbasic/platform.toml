@@ -1,0 +1,12 @@
+maintainer = "Johnny Appleseed <john@apple.com>"
+platform = "linux/amd64"
+repository = "github.com/prod9/platform"
+strategy = "timestamp"
+excludes = ["*.docker", "*.local", ".dockerignore", ".git", ".github", ".gitignore", ".idea", ".vscode", "node_modules", "platform.toml"]
+
+[modules]
+  [modules.pnpmbasic]
+    workdir = "./pnpmbasic"
+    timeout = 5000000000
+    builder = "pnpm/basic"
+    publish = false
