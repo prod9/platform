@@ -2,100 +2,77 @@ package bootstrapper
 
 import (
 	_ "embed"
-	"errors"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
-	"strings"
 	"text/template"
 
+	"github.com/BurntSushi/toml"
+	"platform.prodigy9.co/builder"
 	"platform.prodigy9.co/project"
 )
 
 var (
-	//go:embed platform.toml.template
-	platformTomlTemplate string
 	//go:embed buildkite.pipeline.yaml.template
 	buildkitePipelineYamlTemplate string
 	//go:embed platform.template
 	platformTemplate string
-
-	// TODO: Detect and set default strategy
-	//  i.e. go.mod -> go/basic, go.work -> go/workspace
-	// TODO: Set the first module to the app's dirname
-	templates = map[string]string{
-		"platform.toml":            platformTomlTemplate,
-		"platform":                 platformTemplate,
-		".buildkite/pipeline.yaml": buildkitePipelineYamlTemplate,
-	}
 )
-
-var ErrFileAlreadyExist = errors.New("one or more destination file(s) already exists")
 
 type Info struct {
 	ProjectName     string
 	Maintainer      string
 	MaintainerEmail string
-	GoVersion       string
+	Repository      string
+	ImagePrefix     string
+	GoVersion       string // TODO: Probably should detect from user's environment
 }
 
-func Check(dir string) error {
-	if dir == "" {
-		wd, err := os.Getwd()
-		if err != nil {
-			return err
-		}
-		dir = wd
-	}
-	wd, err := os.Getwd()
+func Bootstrap(dir string, info *Info) error {
+	dir, err := resolveWD(dir)
 	if err != nil {
 		return err
 	}
 
-	existing, err := project.ResolvePath(wd)
-	if errors.Is(err, project.ErrNoPlatformConfig) {
-		// expected, since we're bootstrapping
+	// generate platform.toml
+	proj := *project.ProjectDefaults
+	proj.Maintainer = fmt.Sprint("%s <%s>", info.Maintainer, info.MaintainerEmail)
+	proj.Repository = info.Repository
 
-	} else if err != nil { // unrelated error
-		log.Fatalln(err)
-
-	} else { // err == nil, we found existing platform.toml
-		log.Println("found:", existing)
-		return ErrFileAlreadyExist
+	mods, err := builder.Discover(dir)
+	for name, builder := range mods {
+		mod := *project.ModuleDefaults
+		mod.Builder = builder.Name()
+		proj.Modules[name] = &mod
 	}
 
-	return nil
-}
+	outfilename := filepath.Join(dir, "platform.toml")
+	projfile, err := os.Create(outfilename)
+	if err != nil {
+		return err
+	}
+	defer projfile.Close()
 
-func Bootstrap(dir string, info *Info) error {
-	if dir == "" {
-		wd, err := os.Getwd()
-		if err != nil {
-			return err
-		}
-		dir = wd
+	if err := toml.NewEncoder(projfile).Encode(&proj); err != nil {
+		return err
 	}
 
-	// applying...
-	for filename, content := range templates {
-		if strings.Contains("/", filename) {
-			if err := os.MkdirAll(filepath.Join(dir, filepath.Dir(filename)), 0755); err != nil {
-				return err
-			}
-		}
-
-		outfilename := filepath.Join(dir, filename)
-		if _, err := os.Stat(outfilename); !os.IsNotExist(err) {
-			log.Println("found:", outfilename)
-			return ErrFileAlreadyExist
-		}
-
-		if err := writeTemplate(content, outfilename, info); err != nil {
-			return err
-		} else {
-			log.Println("wrote:", outfilename)
-		}
+	// generate platform script
+	outfilename = filepath.Join(dir, "platform")
+	if err := writeTemplate(platformTemplate, outfilename, info); err != nil {
+		return err
+	} else if err := os.Chmod(outfilename, 0744); err != nil { // make executable
+		return err
 	}
+	log.Println("wrote:", outfilename)
+
+	// generate .buildkite/pipeline.yaml
+	outfilename = filepath.Join(dir, ".buildkite", "pipeline.yaml")
+	if err := writeTemplate(buildkitePipelineYamlTemplate, outfilename, info); err != nil {
+		return err
+	}
+	log.Println("wrote:", outfilename)
 
 	return nil
 }
@@ -118,4 +95,24 @@ func writeTemplate(content, dest string, info *Info) error {
 	}
 
 	return nil
+}
+
+func resolveWD(wd string) (string, error) {
+	if wd == "" {
+		if wd_, err := os.Getwd(); err != nil {
+			return "", err
+		} else {
+			wd = wd_
+		}
+	}
+
+	if !filepath.IsAbs(wd) {
+		if abs, err := filepath.Abs(wd); err != nil {
+			return "", err
+		} else {
+			wd = abs
+		}
+	}
+
+	return wd, nil
 }

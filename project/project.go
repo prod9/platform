@@ -9,10 +9,6 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
-const (
-	DefaultTimeout = 5 * time.Minute
-)
-
 type (
 	Project struct {
 		ConfigPath string `toml:"-"`
@@ -42,6 +38,31 @@ type (
 		GoVersion   string            `toml:"go_version"`
 
 		Publish bool `toml:publish`
+	}
+)
+
+var (
+	ProjectDefaults = &Project{
+		Strategy: "timestamp",
+		Platform: "linux/amd64",
+		Excludes: []string{
+			"*.docker",
+			"*.local",
+			".dockerignore",
+			".git",
+			".github",
+			".gitignore",
+			".idea",
+			".vscode",
+			"node_modules",
+			"platform.toml",
+		},
+		Modules: map[string]*Module{},
+	}
+
+	ModuleDefaults = &Module{
+		Timeout: 5 * time.Second,
+		Publish: false,
 	}
 )
 
@@ -76,7 +97,7 @@ func Configure(wd string) (*Project, error) {
 func (c *Project) assignDefaults() {
 	for _, mod := range c.Modules {
 		if mod.Timeout <= 0 {
-			mod.Timeout = DefaultTimeout
+			mod.Timeout = ModuleDefaults.Timeout
 		}
 	}
 }
