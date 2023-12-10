@@ -2,8 +2,6 @@ module platform.prodigy9.co
 
 go 1.21
 
-toolchain go1.21.4
-
 require (
 	dagger.io/dagger v0.9.4
 	fx.prodigy9.co v0.0.0-20230625144506-7786b546be08
