@@ -1,0 +1,53 @@
+- name: tests.yml \ Compiles
+  commands:
+    - command: go install -v .
+      checks:
+        - name: exitcode
+          data:
+            - "0"
+- name: tests.yml \ Discover \ Go Basic
+  commands:
+    - command: go run . -q discover ./testbeds/gobasic   2>&1 | grep "discovered"
+          | sort
+      checks:
+        - name: exitcode
+          data:
+            - "0"
+        - name: stdout
+          data:
+            - 'discovered: gobasic => go/basic'
+- name: tests.yml \ Discover \ Go Workspace
+  commands:
+    - command: go run . -q discover ./testbeds/gowork    2>&1 | grep "discovered"
+          | sort
+      checks:
+        - name: exitcode
+          data:
+            - "0"
+        - name: stdout
+          data:
+            - 'discovered: app => go/workspace'
+            - 'discovered: fx => go/workspace'
+- name: tests.yml \ Discover \ PNPM Basic
+  commands:
+    - command: go run . -q discover ./testbeds/pnpmbasic 2>&1 | grep "discovered"
+          | sort
+      checks:
+        - name: exitcode
+          data:
+            - "0"
+        - name: stdout
+          data:
+            - 'discovered: pnpmbasic => pnpm/basic'
+- name: tests.yml \ Discover \ PNPM Workspace
+  commands:
+    - command: go run . -q discover ./testbeds/pnpmwork 2>&1 | grep "discovered" |
+          sort
+      checks:
+        - name: exitcode
+          data:
+            - "0"
+        - name: stdout
+          data:
+            - 'discovered: storybook => pnpm/workspace'
+            - 'discovered: web => pnpm/workspace'

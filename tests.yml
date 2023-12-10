@@ -1,0 +1,27 @@
+config:
+  interpreter: /bin/sh
+  timeout: 5s
+  workdir: .
+tests:
+  - name: Compiles
+    checks:
+      - exitcode
+    commands:
+      - go install -v .
+  - name: Discover
+    checks:
+      - exitcode
+      - stdout
+    tests:
+      - name: Go Basic
+        commands:
+          - go run . -q discover ./testbeds/gobasic   2>&1 | grep "discovered" | sort
+      - name: Go Workspace
+        commands:
+          - go run . -q discover ./testbeds/gowork    2>&1 | grep "discovered" | sort
+      - name: PNPM Basic
+        commands:
+          - go run . -q discover ./testbeds/pnpmbasic 2>&1 | grep "discovered" | sort
+      - name: PNPM Workspace
+        commands:
+          - go run . -q discover ./testbeds/pnpmwork 2>&1 | grep "discovered" | sort
