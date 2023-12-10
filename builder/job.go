@@ -15,7 +15,7 @@ var (
 
 type Job struct {
 	Config  *project.Project
-	Builder Builder
+	Builder Interface
 
 	Name     string
 	WorkDir  string

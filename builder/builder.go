@@ -3,6 +3,7 @@ package builder
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"os"
 	"strings"
@@ -15,7 +16,8 @@ import (
 
 var (
 	ErrBadBuilder = errors.New("builder: invalid builder")
-	ErrNoJobs     = errors.New("builder: empty jobs list, nothing to do.")
+	ErrNoBuilder  = errors.New("builder: no compatible builder detected")
+	ErrNoJobs     = errors.New("builder: empty jobs list, nothing to do")
 )
 
 // non-standard project settings using fx's env variable configuration. These are meant to
@@ -27,32 +29,72 @@ var (
 	RegistryPasswordConfig = fxconfig.Str("REGISTRY_PASSWORD")
 )
 
-type BuildFunc func(
-	ctx context.Context,
-	client *dagger.Client,
-	job *Job,
-) (*dagger.Container, error)
+type Kind string
 
-type Builder struct {
-	Name  string
-	Build BuildFunc
+const (
+	KindBasic     Kind = "basic"
+	KindWorkspace Kind = "workspace"
+)
+
+type Interface interface {
+	Name() string
+	Kind() Kind
+
+	Discover(wd string) (map[string]Interface, error)
+	Build(ctx context.Context, client *dagger.Client, job *Job) (*dagger.Container, error)
 }
 
-var knownBuilders = map[string]Builder{
-	"go/basic":         GoBasic,
-	"go/workspace":     GoWorkspace,
-	"pnpm/basic":       PNPMBasic,
-	"pnpm/basic/astro": PNPMBasicAstro,
-	"pnpm/workspace":   PNPMWorkspace,
-}
-
-func FindBuilder(name string) (Builder, error) {
-	name = strings.TrimSpace(strings.ToLower(name))
-	if builder, ok := knownBuilders[name]; ok {
-		return builder, nil
-	} else {
-		return Builder{}, ErrBadBuilder
+var (
+	knownBuilders = []Interface{
+		// Order sensitive due to Discover() calls on different builders discovering the same
+		// subfolder a little differently.
+		GoWorkspace{},
+		PNPMWorkspace{},
+		GoBasic{},
+		PNPMBasic{},
 	}
+
+	basicBuilders     []Interface
+	workspaceBuilders []Interface
+)
+
+func init() {
+	for _, builder := range knownBuilders {
+		switch builder.Kind() {
+		case KindBasic:
+			basicBuilders = append(basicBuilders, builder)
+		case KindWorkspace:
+			workspaceBuilders = append(workspaceBuilders, builder)
+		}
+	}
+}
+
+func All() []Interface        { return knownBuilders }
+func Basics() []Interface     { return basicBuilders }
+func Workspaces() []Interface { return workspaceBuilders }
+
+func FindBuilder(name string) (Interface, error) {
+	name = strings.TrimSpace(strings.ToLower(name))
+	for _, builder := range knownBuilders {
+		if builder.Name() == name {
+			return builder, nil
+		}
+	}
+
+	return nil, fmt.Errorf("%s: %w", name, ErrBadBuilder)
+}
+
+func Discover(wd string) (map[string]Interface, error) {
+	for _, builder := range knownBuilders {
+		if mods, err := builder.Discover(wd); errors.Is(err, ErrNoBuilder) {
+			continue
+		} else if err != nil {
+			return nil, err
+		} else if len(mods) > 0 {
+			return mods, nil
+		}
+	}
+	return nil, ErrNoBuilder
 }
 
 func Build(cfg *project.Project, jobs ...*Job) error {

@@ -2,19 +2,54 @@ package builder
 
 import (
 	"context"
+	"errors"
+	"os"
 	"path/filepath"
 
 	"dagger.io/dagger"
 	"fx.prodigy9.co/errutil"
+	"platform.prodigy9.co/builder/fileutil"
 	"platform.prodigy9.co/builder/gowork"
 )
 
-var GoWorkspace = Builder{
-	Name:  "go/workspace",
-	Build: buildGoWorkspace,
+type GoWorkspace struct{}
+
+func (GoWorkspace) Name() string { return "go/workspace" }
+func (GoWorkspace) Kind() Kind   { return KindWorkspace }
+
+func (b GoWorkspace) Discover(wd string) (map[string]Interface, error) {
+	if detected, err := fileutil.DetectFile(wd, "go.work"); err != nil {
+		return nil, err
+	} else if !detected {
+		return nil, ErrNoBuilder
+	}
+
+	// scan for go/basic on subfolders, should switch to proper go.work parsers if/when it
+	// is available from go tooling directly
+	mods := map[string]Interface{}
+	err := fileutil.WalkSubdirs(wd, func(dir os.DirEntry) error {
+		submods, err := GoBasic{}.Discover(filepath.Join(wd, dir.Name()))
+		if errors.Is(err, ErrNoBuilder) {
+			return nil
+		}
+
+		// found a go/basic submodule, mark it as using go/workspace
+		for submod, _ := range submods {
+			mods[submod] = b
+		}
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	} else if len(mods) == 0 {
+		return nil, ErrNoBuilder
+	} else {
+		return mods, nil
+	}
 }
 
-func buildGoWorkspace(ctx context.Context, client *dagger.Client, job *Job) (container *dagger.Container, err error) {
+func (GoWorkspace) Build(ctx context.Context, client *dagger.Client, job *Job) (container *dagger.Container, err error) {
 	defer errutil.Wrap("go/workspace", &err)
 
 	// parse go.work file so we know what modules we need in the container

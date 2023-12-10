@@ -2,17 +2,31 @@ package builder
 
 import (
 	"context"
+	"path/filepath"
 
 	"dagger.io/dagger"
 	"fx.prodigy9.co/errutil"
+	"platform.prodigy9.co/builder/fileutil"
 )
 
-var PNPMBasic = Builder{
-	Name:  "pnpm/basic",
-	Build: buildPNPMBasic,
+type PNPMBasic struct{}
+
+func (PNPMBasic) Name() string { return "pnpm/basic" }
+func (PNPMBasic) Kind() Kind   { return KindBasic }
+
+func (b PNPMBasic) Discover(wd string) (map[string]Interface, error) {
+	if detected, err := fileutil.DetectFile(wd, "pnpm-lock.yaml"); err != nil {
+		return nil, err
+	} else if !detected {
+		return nil, ErrNoBuilder
+	}
+
+	name := filepath.Base(wd)
+	return map[string]Interface{name: b}, nil
+
 }
 
-func buildPNPMBasic(ctx context.Context, client *dagger.Client, job *Job) (container *dagger.Container, err error) {
+func (PNPMBasic) Build(ctx context.Context, client *dagger.Client, job *Job) (container *dagger.Container, err error) {
 	defer errutil.Wrap("pnpm/basic", &err)
 
 	cache := client.CacheVolume("pnpm-store-cache")

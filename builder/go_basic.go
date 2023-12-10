@@ -2,18 +2,31 @@ package builder
 
 import (
 	"context"
+	"path/filepath"
 	"runtime"
 
 	"dagger.io/dagger"
 	"fx.prodigy9.co/errutil"
+	"platform.prodigy9.co/builder/fileutil"
 )
 
-var GoBasic = Builder{
-	Name:  "go/basic",
-	Build: buildGoBasic,
+type GoBasic struct{}
+
+func (GoBasic) Name() string { return "go/basic" }
+func (GoBasic) Kind() Kind   { return KindBasic }
+
+func (b GoBasic) Discover(wd string) (map[string]Interface, error) {
+	if detected, err := fileutil.DetectFile(wd, "go.mod"); err != nil {
+		return nil, err
+	} else if !detected {
+		return nil, ErrNoBuilder
+	}
+
+	name := filepath.Base(wd)
+	return map[string]Interface{name: b}, nil
 }
 
-func buildGoBasic(ctx context.Context, client *dagger.Client, job *Job) (container *dagger.Container, err error) {
+func (GoBasic) Build(ctx context.Context, client *dagger.Client, job *Job) (container *dagger.Container, err error) {
 	defer errutil.Wrap("go/basic", &err)
 
 	modcache := client.CacheVolume("go-" + runtime.Version() + "-modcache")
