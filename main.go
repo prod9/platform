@@ -19,6 +19,7 @@ func init() {
 		cmd.BuildCmd,
 		cmd.ConfigureCmd,
 		cmd.DeployCmd,
+		cmd.DiscoverCmd,
 		cmd.PublishCmd,
 		cmd.ReleaseCmd,
 		cmd.VanityCmd,
