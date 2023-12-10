@@ -54,10 +54,10 @@ func Bootstrap(dir string, info *Info) error {
 		return err
 	}
 	defer projfile.Close()
-
 	if err := toml.NewEncoder(projfile).Encode(&proj); err != nil {
 		return err
 	}
+	log.Println("wrote: platform.toml")
 
 	// generate platform script
 	outfilename = filepath.Join(dir, "platform")
@@ -66,14 +66,14 @@ func Bootstrap(dir string, info *Info) error {
 	} else if err := os.Chmod(outfilename, 0744); err != nil { // make executable
 		return err
 	}
-	log.Println("wrote:", outfilename)
+	log.Println("wrote: platform")
 
 	// generate .buildkite/pipeline.yaml
 	outfilename = filepath.Join(dir, ".buildkite", "pipeline.yaml")
 	if err := writeTemplate(buildkitePipelineYamlTemplate, outfilename, info); err != nil {
 		return err
 	}
-	log.Println("wrote:", outfilename)
+	log.Println("wrote: .buildkite/pipeline.yaml")
 
 	return nil
 }
