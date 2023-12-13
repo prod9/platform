@@ -113,10 +113,7 @@ func (c *Project) assignEnvOverrides() {
 }
 
 func (c *Project) inferValues() {
-	for modname, mod := range c.Modules {
-		if mod.CommandName == "" {
-			mod.CommandName = modname
-		}
+	for _, mod := range c.Modules {
 		if mod.WorkDir == "" {
 			mod.WorkDir = "."
 		}
