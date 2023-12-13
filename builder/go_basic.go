@@ -34,7 +34,7 @@ func (GoBasic) Build(ctx context.Context, client *dagger.Client, job *Job) (cont
 		Exclude: job.Excludes,
 	})
 
-	outname := "/" + job.BinaryName
+	outname := "/" + job.CommandName
 	base := BaseImageForJob(client, job)
 
 	builder := base.
@@ -49,7 +49,7 @@ func (GoBasic) Build(ctx context.Context, client *dagger.Client, job *Job) (cont
 
 	runner := base.
 		WithExec([]string{"apk", "add", "--no-cache", "ca-certificates", "tzdata"}).
-		WithFile("/app/"+job.BinaryName, builder.File(outname))
+		WithFile("/app/"+job.CommandName, builder.File(outname))
 
 	for _, dir := range job.AssetDirs {
 		runner = runner.WithDirectory(dir, builder.Directory(dir))
@@ -60,8 +60,8 @@ func (GoBasic) Build(ctx context.Context, client *dagger.Client, job *Job) (cont
 
 	runner = runner.WithDefaultArgs(dagger.ContainerWithDefaultArgsOpts{
 		Args: append(
-			[]string{"/app/" + job.BinaryName},
-			job.BinaryArgs...,
+			[]string{"/app/" + job.CommandName},
+			job.CommandArgs...,
 		),
 	})
 

@@ -23,17 +23,17 @@ type Job struct {
 	Platform string
 	Excludes []string
 
-	Repository  string
-	ImageName   string
-	PackageName string
-	BinaryName  string
-	GoVersion   string
-	BinaryArgs  []string
-	AssetDirs   []string
-	Env         map[string]string
-
+	Env              map[string]string
 	Publish          bool
 	PublishImageName string
+
+	AssetDirs   []string
+	CommandArgs []string
+	CommandName string
+	GoVersion   string
+	ImageName   string
+	PackageName string
+	Repository  string
 }
 
 func JobsFromArgs(cfg *project.Project, args []string) (jobs []*Job, err error) {
@@ -87,8 +87,8 @@ func JobFromModule(cfg *project.Project, name string, mod *project.Module) (*Job
 		ImageName:   mod.ImageName,
 		PackageName: mod.PackageName,
 		GoVersion:   mod.GoVersion,
-		BinaryName:  mod.BinaryName,
-		BinaryArgs:  mod.BinaryArgs,
+		CommandName: mod.CommandName,
+		CommandArgs: mod.CommandArgs,
 		AssetDirs:   mod.AssetDirs,
 		Env:         mod.Env,
 

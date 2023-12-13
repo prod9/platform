@@ -29,15 +29,18 @@ type (
 		Timeout time.Duration `toml:"timeout,omitempty"`
 		Builder string        `toml:"builder,omitempty"`
 
-		ImageName   string            `toml:"image,omitempty"`
-		PackageName string            `toml:"package,omitempty"`
-		BinaryName  string            `toml:"binary,omitempty"`
-		BinaryArgs  []string          `toml:"binary_args,omitempty"`
-		AssetDirs   []string          `toml:"asset_dirs,omitempty"`
-		Env         map[string]string `toml:"env,omitempty"`
-		GoVersion   string            `toml:"go_version,omitempty"`
+		Env     map[string]string `toml:"env,omitempty"`
+		Publish bool              `toml:"publish"`
 
-		Publish bool `toml:"publish"`
+		// misc settings for builds
+		AssetDirs   []string `toml:"asset_dirs,omitempty"`
+		BuildDir    string   `toml:"build_dir,omitempty"`
+		CommandArgs []string `toml:"args,omitempty"`
+		CommandName string   `toml:"cmd,omitempty"`
+		Entrypoint  string   `toml:"entrypoint,omitempty"`
+		GoVersion   string   `toml:"go_version,omitempty"`
+		ImageName   string   `toml:"image,omitempty"`
+		PackageName string   `toml:"package,omitempty"`
 	}
 )
 
@@ -111,8 +114,8 @@ func (c *Project) assignEnvOverrides() {
 
 func (c *Project) inferValues() {
 	for modname, mod := range c.Modules {
-		if mod.BinaryName == "" {
-			mod.BinaryName = modname
+		if mod.CommandName == "" {
+			mod.CommandName = modname
 		}
 		if mod.WorkDir == "" {
 			mod.WorkDir = "."
