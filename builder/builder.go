@@ -97,6 +97,8 @@ func Discover(wd string) (map[string]Interface, error) {
 	return nil, ErrNoBuilder
 }
 
+// TODO: Build should return a JobResult or something so we can add more manipulation
+// commands after image is built
 func Build(cfg *project.Project, jobs ...*Job) error {
 	if len(jobs) == 0 {
 		return ErrNoJobs

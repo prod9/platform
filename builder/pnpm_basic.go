@@ -3,6 +3,7 @@ package builder
 import (
 	"context"
 	"path/filepath"
+	"strings"
 
 	"dagger.io/dagger"
 	"fx.prodigy9.co/errutil"
@@ -43,17 +44,40 @@ func (PNPMBasic) Build(ctx context.Context, client *dagger.Client, job *Job) (co
 		WithDirectory("/app", host).
 		WithExec([]string{"pnpm", "build"})
 
-	runner := builder.
+	runner := BaseImageForJob(client, job).
 		WithExec([]string{
 			"apk", "add", "--no-cache",
 			"nodejs-current", "tzdata", "ca-certificates",
 		}).
-		WithDirectory("/app", builder.Directory("build")).
+		WithExec([]string{"corepack", "enable", "pnpm"}).
 		WithFile("package.json", builder.File("package.json")).
 		WithFile("pnpm-lock.yaml", builder.File("pnpm-lock.yaml")).
-		WithDefaultArgs(dagger.ContainerWithDefaultArgsOpts{
-			Args: []string{"/usr/bin/node", "."},
-		})
+		WithExec([]string{"pnpm", "i"})
 
-	return runner.Sync(ctx)
+	outdir := strings.TrimSpace(job.BuildDir)
+	if outdir == "" {
+		outdir = "build"
+	}
+
+	cmd := strings.TrimSpace(job.CommandName)
+	if cmd == "" {
+		cmd = "/usr/bin/node"
+	}
+
+	args := []string{cmd}
+	if len(job.CommandArgs) > 0 {
+		args = append(args, job.CommandArgs...)
+	} else {
+		args = append(args, ".")
+	}
+
+	runner = runner.WithDirectory("/app", builder.Directory(outdir)).
+		WithDefaultArgs(dagger.ContainerWithDefaultArgsOpts{Args: args})
+
+	if runner, err = runner.Sync(ctx); err != nil {
+		return nil, err
+	} else {
+		runner.Export(ctx, job.Name+".docker")
+		return runner, nil
+	}
 }
