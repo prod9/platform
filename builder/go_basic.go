@@ -4,6 +4,7 @@ import (
 	"context"
 	"path/filepath"
 	"runtime"
+	"strings"
 
 	"dagger.io/dagger"
 	"fx.prodigy9.co/errutil"
@@ -58,14 +59,21 @@ func (GoBasic) Build(ctx context.Context, client *dagger.Client, job *Job) (cont
 		runner = runner.WithEnvVariable(key, value)
 	}
 
-	runner = runner.WithDefaultArgs(dagger.ContainerWithDefaultArgsOpts{
-		Args: append(
-			[]string{"/app/" + job.CommandName},
-			job.CommandArgs...,
-		),
-	})
+	cmd := strings.TrimSpace(job.CommandName)
+	switch {
+	case cmd == "" && job.PackageName != "":
+		cmd = job.PackageName
+	case cmd == "" && job.Name != "":
+		cmd = job.Name
+	}
+
+	args := []string{cmd}
+	if len(job.CommandArgs) > 0 {
+		args = append(args, job.CommandArgs...)
+	}
 
 	// TODO: Builder should probably report what binary are in the resulting container
 	//   Because now we don't have a Dockerfile to look at
+	runner = runner.WithDefaultArgs(dagger.ContainerWithDefaultArgsOpts{Args: args})
 	return runner.Sync(ctx)
 }

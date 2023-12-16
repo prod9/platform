@@ -54,7 +54,12 @@ func (GoWorkspace) Build(ctx context.Context, client *dagger.Client, job *Job) (
 
 	// parse go.work file so we know what modules we need in the container
 	rootdir := job.WorkDir
-	workfile := filepath.Join(job.WorkDir, "go.work")
+	wsdir, err := filepath.Abs(filepath.Join(rootdir, ".."))
+	if err != nil {
+		return nil, err
+	}
+
+	workfile := filepath.Join(wsdir, "go.work")
 	goversion, workmods, err := gowork.ParseFile(workfile)
 	if err != nil {
 		return nil, err
@@ -66,7 +71,7 @@ func (GoWorkspace) Build(ctx context.Context, client *dagger.Client, job *Job) (
 
 	gobin := "/root/sdk/go" + goversion + "/bin/go"
 	modcache := client.CacheVolume("go-" + goversion + "-modcache")
-	host := client.Host().Directory(rootdir, dagger.HostDirectoryOpts{
+	host := client.Host().Directory(wsdir, dagger.HostDirectoryOpts{
 		Exclude: job.Excludes,
 	})
 
