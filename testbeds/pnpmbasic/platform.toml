@@ -6,7 +6,7 @@ excludes = ["*.docker", "*.local", ".dockerignore", ".git", ".github", ".gitigno
 
 [modules]
   [modules.pnpmbasic]
-    workdir = "./pnpmbasic"
+    workdir = "."
     timeout = 5000000000
     builder = "pnpm/basic"
     publish = false

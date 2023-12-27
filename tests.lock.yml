@@ -1,6 +1,6 @@
 - name: Platform \ Platform
   commands:
-    - command: go build -o ./testbeds/platform -v .
+    - command: go build -v -o ./bin/platform .
       checks:
         - name: exitcode
           data:
@@ -27,7 +27,7 @@
             - ""
             - '[modules]'
             - '  [modules.gobasic]'
-            - '    workdir = "./gobasic"'
+            - '    workdir = "."'
             - '    timeout = 5000000000'
             - '    builder = "go/basic"'
             - '    publish = false'
@@ -165,7 +165,7 @@
             - ""
             - '[modules]'
             - '  [modules.pnpmbasic]'
-            - '    workdir = "./pnpmbasic"'
+            - '    workdir = "."'
             - '    timeout = 5000000000'
             - '    builder = "pnpm/basic"'
             - '    publish = false'

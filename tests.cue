@@ -33,7 +33,7 @@ let testbeds = [...{name: string, dir: string}] &
 		{
 			name: "Platform"
 			checks: ["exitcode"]
-			commands: [ "go build -o ./testbeds/platform -v ."]
+			commands: [ "go build -v -o ./bin/platform ."]
 		},
 		for testbed in testbeds {
 			{

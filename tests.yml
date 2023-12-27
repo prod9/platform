@@ -8,7 +8,7 @@ tests:
     checks:
       - exitcode
     commands:
-      - go build -o ./testbeds/platform -v .
+      - go build -v -o ./bin/platform .
   - name: Go Basic
     tests:
       - name: Discover

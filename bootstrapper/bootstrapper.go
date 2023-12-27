@@ -41,10 +41,16 @@ func Bootstrap(dir string, info *Info) error {
 	proj.Repository = info.Repository
 
 	mods, err := builder.Discover(dir)
-	for name, builder := range mods {
+	for name, bldr := range mods {
 		mod := *project.ModuleDefaults
-		mod.WorkDir = "./" + name
-		mod.Builder = builder.Name()
+		mod.Builder = bldr.Name()
+		switch bldr.Kind() {
+		case builder.KindWorkspace:
+			mod.WorkDir = "./" + name
+		default: // KindBasic
+			mod.WorkDir = "."
+		}
+
 		proj.Modules[name] = &mod
 	}
 

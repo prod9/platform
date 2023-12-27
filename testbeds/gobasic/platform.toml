@@ -6,7 +6,7 @@ excludes = ["*.docker", "*.local", ".dockerignore", ".git", ".github", ".gitigno
 
 [modules]
   [modules.gobasic]
-    workdir = "./gobasic"
+    workdir = "."
     timeout = 5000000000
     builder = "go/basic"
     publish = false
