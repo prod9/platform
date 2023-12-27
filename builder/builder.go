@@ -26,32 +26,40 @@ var (
 	RegistryPasswordConfig = fxconfig.Str("REGISTRY_PASSWORD")
 )
 
-type Kind string
+type (
+	Layout string
+	Class  string
 
-const (
-	KindBasic     Kind = "basic"
-	KindWorkspace Kind = "workspace"
+	Interface interface {
+		Name() string
+		Layout() Layout
+		Class() Class
+
+		Discover(wd string) (map[string]Interface, error)
+		Build(sess *Session, job *Job) (*dagger.Container, error)
+	}
+
+	BuildResult struct {
+		Job       *Job
+		Container *dagger.Container
+		Err       error
+	}
+
+	PublishResult struct {
+		BuildResult
+		ImageName string
+		ImageHash string
+	}
 )
 
-type Interface interface {
-	Name() string
-	Kind() Kind
+const (
+	LayoutBasic     Layout = "basic"
+	LayoutWorkspace Layout = "workspace"
 
-	Discover(wd string) (map[string]Interface, error)
-	Build(sess *Session, job *Job) (*dagger.Container, error)
-}
-
-type BuildResult struct {
-	Job       *Job
-	Container *dagger.Container
-	Err       error
-}
-
-type PublishResult struct {
-	BuildResult
-	ImageName string
-	ImageHash string
-}
+	ClassNative      Class = "native"
+	ClassBytecode    Class = "bytecode"
+	ClassInterpreted Class = "interpreted"
+)
 
 var (
 	knownBuilders = []Interface{
@@ -62,25 +70,9 @@ var (
 		GoBasic{},
 		PNPMBasic{},
 	}
-
-	basicBuilders     []Interface
-	workspaceBuilders []Interface
 )
 
-func init() {
-	for _, builder := range knownBuilders {
-		switch builder.Kind() {
-		case KindBasic:
-			basicBuilders = append(basicBuilders, builder)
-		case KindWorkspace:
-			workspaceBuilders = append(workspaceBuilders, builder)
-		}
-	}
-}
-
-func All() []Interface        { return knownBuilders }
-func Basics() []Interface     { return basicBuilders }
-func Workspaces() []Interface { return workspaceBuilders }
+func All() []Interface { return knownBuilders }
 
 func FindBuilder(name string) (Interface, error) {
 	name = strings.TrimSpace(strings.ToLower(name))

@@ -12,8 +12,9 @@ import (
 
 type GoBasic struct{}
 
-func (GoBasic) Name() string { return "go/basic" }
-func (GoBasic) Kind() Kind   { return KindBasic }
+func (GoBasic) Name() string   { return "go/basic" }
+func (GoBasic) Layout() Layout { return LayoutBasic }
+func (GoBasic) Class() Class   { return ClassNative }
 
 func (b GoBasic) Discover(wd string) (map[string]Interface, error) {
 	if detected, err := fileutil.DetectFile(wd, "go.mod"); err != nil {

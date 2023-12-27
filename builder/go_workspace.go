@@ -14,8 +14,9 @@ import (
 
 type GoWorkspace struct{}
 
-func (GoWorkspace) Name() string { return "go/workspace" }
-func (GoWorkspace) Kind() Kind   { return KindWorkspace }
+func (GoWorkspace) Name() string   { return "go/workspace" }
+func (GoWorkspace) Layout() Layout { return LayoutWorkspace }
+func (GoWorkspace) Class() Class   { return ClassNative }
 
 func (b GoWorkspace) Discover(wd string) (map[string]Interface, error) {
 	if detected, err := fileutil.DetectFile(wd, "go.work"); err != nil {

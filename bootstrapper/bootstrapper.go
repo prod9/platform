@@ -44,14 +44,21 @@ func Bootstrap(dir string, info *Info) error {
 	for name, bldr := range mods {
 		mod := *project.ModuleDefaults
 		mod.Builder = bldr.Name()
-		switch bldr.Kind() {
-		case builder.KindWorkspace:
+
+		switch bldr.Layout() {
+		case builder.LayoutWorkspace:
 			mod.WorkDir = "./" + name
-		default: // KindBasic
+		default: // LayoutBasic
 			mod.WorkDir = "."
 		}
 
-		mod.CommandName = name
+		switch bldr.Class() {
+		case builder.ClassNative: // natively compiled, just run the compiled binary
+			mod.CommandName = name
+		default: // bytecode and interpreted, requires interpreter or jit/vm binary
+			mod.CommandName = ""
+		}
+
 		proj.Modules[name] = &mod
 	}
 

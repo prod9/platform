@@ -12,8 +12,9 @@ import (
 
 type PNPMWorkspace struct{}
 
-func (PNPMWorkspace) Name() string { return "pnpm/workspace" }
-func (PNPMWorkspace) Kind() Kind   { return KindWorkspace }
+func (PNPMWorkspace) Name() string   { return "pnpm/workspace" }
+func (PNPMWorkspace) Layout() Layout { return LayoutWorkspace }
+func (PNPMWorkspace) Class() Class   { return ClassInterpreted }
 
 func (b PNPMWorkspace) Discover(wd string) (map[string]Interface, error) {
 	if detected, err := fileutil.DetectFile(wd, "pnpm-workspaces.yaml"); err != nil {

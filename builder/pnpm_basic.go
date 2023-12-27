@@ -11,8 +11,9 @@ import (
 
 type PNPMBasic struct{}
 
-func (PNPMBasic) Name() string { return "pnpm/basic" }
-func (PNPMBasic) Kind() Kind   { return KindBasic }
+func (PNPMBasic) Name() string   { return "pnpm/basic" }
+func (PNPMBasic) Layout() Layout { return LayoutBasic }
+func (PNPMBasic) Class() Class   { return ClassInterpreted }
 
 func (b PNPMBasic) Discover(wd string) (map[string]Interface, error) {
 	if detected, err := fileutil.DetectFile(wd, "pnpm-lock.yaml"); err != nil {
