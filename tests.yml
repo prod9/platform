@@ -1,69 +1,67 @@
+name: Platform
 config:
   interpreter: /bin/sh
   timeout: 1m
   workdir: .
 tests:
-  - name: Compiles
+  - name: Platform
     checks:
       - exitcode
     commands:
       - go build -o ./testbeds/platform -v .
-  - name: Discover
-    checks:
-      - stderr
+  - name: Go Basic
     tests:
-      - name: Go Basic
+      - name: Discover
+        checks:
+          - stderr
         commands:
           - go run . discover ./testbeds/gobasic
-      - name: Go Workspace
-        commands:
-          - go run . discover ./testbeds/gowork
-      - name: PNPM Basic
-        commands:
-          - go run . discover ./testbeds/pnpmbasic
-      - name: PNPM Workspace
-        commands:
-          - go run . discover ./testbeds/pnpmwork
-  - name: Bootstrap
-    checks:
-      - exitcode
-      - stderr
-    tests:
-      - name: Go Basic
+      - name: Bootstrap
         checks:
           - ./testbeds/gobasic/platform.toml
           - ./testbeds/gobasic/platform
           - ./testbeds/gobasic/.buildkite/*.*
         commands:
           - go run . -q bootstrap ./testbeds/gobasic "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform" "ghcr.io/prod9/platform"
-      - name: Go Workspace
+  - name: Go Workspace
+    tests:
+      - name: Discover
+        checks:
+          - stderr
+        commands:
+          - go run . discover ./testbeds/gowork
+      - name: Bootstrap
         checks:
           - ./testbeds/gowork/platform.toml
           - ./testbeds/gowork/platform
           - ./testbeds/gowork/.buildkite/*.*
         commands:
           - go run . -q bootstrap ./testbeds/gowork "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform" "ghcr.io/prod9/platform"
-      - name: PNPM Basic
+  - name: PNPM Basic
+    tests:
+      - name: Discover
+        checks:
+          - stderr
+        commands:
+          - go run . discover ./testbeds/pnpmbasic
+      - name: Bootstrap
         checks:
           - ./testbeds/pnpmbasic/platform.toml
           - ./testbeds/pnpmbasic/platform
           - ./testbeds/pnpmbasic/.buildkite/*.*
         commands:
           - go run . -q bootstrap ./testbeds/pnpmbasic "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform" "ghcr.io/prod9/platform"
-      - name: PNPM Workspace
+  - name: PNPM Workspace
+    tests:
+      - name: Discover
+        checks:
+          - stderr
+        commands:
+          - go run . discover ./testbeds/pnpmwork
+      - name: Bootstrap
         checks:
           - ./testbeds/pnpmwork/platform.toml
           - ./testbeds/pnpmwork/platform
           - ./testbeds/pnpmwork/.buildkite/*.*
         commands:
-          - go run . -q bootstrap ./testbeds/pnpmbasic "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform" "ghcr.io/prod9/platform"
-  # - name: Build
-  #   checks:
-  #     - stderr
-  #     - exitcode
-  #   tests:
-  #     - name: Go Basic
-  #       config:
-  #         workdir: ./testbeds/gobasic
-  #       commands:
-  #         - ../platform -q build
+          - go run . -q bootstrap ./testbeds/pnpmwork "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform" "ghcr.io/prod9/platform"
