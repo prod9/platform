@@ -52,7 +52,7 @@ let testbeds = [...{name: string, dir: string}] &
 							"./testbeds/\(testbed.dir)/.buildkite/*.*",
 						]
 						commands: [
-							"go run . -q bootstrap ./testbeds/\(testbed.dir) \"Johnny Appleseed\" \"john@apple.com\" \"github.com/prod9/platform\" \"ghcr.io/prod9/platform\"",
+							"./testbed.sh \(testbed.dir) bootstrap \"Johnny Appleseed\" \"john@apple.com\" \"github.com/prod9/platform\" \"ghcr.io/prod9/platform\"",
 						]
 					},
 				]

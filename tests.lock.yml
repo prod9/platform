@@ -14,7 +14,7 @@
             - '  INF discover dir=gobasic builder=go/basic'
 - name: Platform \ Go Basic \ Bootstrap
   commands:
-    - command: go run . -q bootstrap ./testbeds/gobasic "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform" "ghcr.io/prod9/platform"
+    - command: ./testbed.sh gobasic bootstrap "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform" "ghcr.io/prod9/platform"
       checks:
         - name: ./testbeds/gobasic/platform.toml
           data:
@@ -81,7 +81,7 @@
             - '  INF discover dir=fx builder=go/workspace'
 - name: Platform \ Go Workspace \ Bootstrap
   commands:
-    - command: go run . -q bootstrap ./testbeds/gowork "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform" "ghcr.io/prod9/platform"
+    - command: ./testbed.sh gowork bootstrap "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform" "ghcr.io/prod9/platform"
       checks:
         - name: ./testbeds/gowork/platform.toml
           data:
@@ -152,7 +152,7 @@
             - '  INF discover dir=pnpmbasic builder=pnpm/basic'
 - name: Platform \ PNPM Basic \ Bootstrap
   commands:
-    - command: go run . -q bootstrap ./testbeds/pnpmbasic "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform" "ghcr.io/prod9/platform"
+    - command: ./testbed.sh pnpmbasic bootstrap "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform" "ghcr.io/prod9/platform"
       checks:
         - name: ./testbeds/pnpmbasic/platform.toml
           data:
@@ -219,7 +219,7 @@
             - '  INF discover dir=web builder=pnpm/workspace'
 - name: Platform \ PNPM Workspace \ Bootstrap
   commands:
-    - command: go run . -q bootstrap ./testbeds/pnpmwork "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform" "ghcr.io/prod9/platform"
+    - command: ./testbed.sh pnpmwork bootstrap "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform" "ghcr.io/prod9/platform"
       checks:
         - name: ./testbeds/pnpmwork/platform.toml
           data:

@@ -22,7 +22,7 @@ tests:
           - ./testbeds/gobasic/platform
           - ./testbeds/gobasic/.buildkite/*.*
         commands:
-          - go run . -q bootstrap ./testbeds/gobasic "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform" "ghcr.io/prod9/platform"
+          - ./testbed.sh gobasic bootstrap "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform" "ghcr.io/prod9/platform"
   - name: Go Workspace
     tests:
       - name: Discover
@@ -36,7 +36,7 @@ tests:
           - ./testbeds/gowork/platform
           - ./testbeds/gowork/.buildkite/*.*
         commands:
-          - go run . -q bootstrap ./testbeds/gowork "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform" "ghcr.io/prod9/platform"
+          - ./testbed.sh gowork bootstrap "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform" "ghcr.io/prod9/platform"
   - name: PNPM Basic
     tests:
       - name: Discover
@@ -50,7 +50,7 @@ tests:
           - ./testbeds/pnpmbasic/platform
           - ./testbeds/pnpmbasic/.buildkite/*.*
         commands:
-          - go run . -q bootstrap ./testbeds/pnpmbasic "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform" "ghcr.io/prod9/platform"
+          - ./testbed.sh pnpmbasic bootstrap "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform" "ghcr.io/prod9/platform"
   - name: PNPM Workspace
     tests:
       - name: Discover
@@ -64,4 +64,4 @@ tests:
           - ./testbeds/pnpmwork/platform
           - ./testbeds/pnpmwork/.buildkite/*.*
         commands:
-          - go run . -q bootstrap ./testbeds/pnpmwork "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform" "ghcr.io/prod9/platform"
+          - ./testbed.sh pnpmwork bootstrap "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform" "ghcr.io/prod9/platform"
