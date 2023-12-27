@@ -78,9 +78,14 @@ func runPreview(cmd *cobra.Command, args []string) {
 		plog.Fatalln(result.Err)
 	}
 
+	startArgs, err := result.Container.DefaultArgs(sess.Context())
+	if err != nil {
+		plog.Fatalln(err)
+	}
+
 	container := result.Container.
 		WithExposedPort(previewPort).
-		WithExec(append([]string{"./" + preview.CommandName}, preview.CommandArgs...)).
+		WithExec(startArgs).
 		AsService()
 
 	tunnel := sess.Client().Host().Tunnel(container)
