@@ -53,26 +53,32 @@ func (b PNPMWorkspace) Discover(wd string) (map[string]Interface, error) {
 func (PNPMWorkspace) Build(sess *Session, job *Job) (container *dagger.Container, err error) {
 	defer errutil.Wrap("pnpm/workspace", &err)
 
-	host := sess.Client().Host().
-		Directory(job.WorkDir, dagger.HostDirectoryOpts{Exclude: job.Excludes})
+	wsdir, err := filepath.Abs(filepath.Join(job.WorkDir, ".."))
+	if err != nil {
+		return nil, err
+	}
 
-	base := BaseImageForJob(sess, job).
-		WithExec([]string{"apk", "add", "--no-cache", "nodejs-current", "build-base", "python3"}).
-		WithExec([]string{"corepack", "enable", "pnpm"}).
-		WithDirectory("/app", host)
+	host := sess.Client().Host().Directory(wsdir, dagger.HostDirectoryOpts{
+		Exclude: job.Excludes,
+	})
+
+	base := BaseImageForJob(sess, job)
 
 	// TODO: Do 2-step builds, install dependencies first, to speed up builds
-	builder := base.
-		WithExec([]string{"pnpm", "i"}).
+	builder := withPNPMBuildBase(base)
+	builder = withPNPMPkgCache(sess, builder)
+
+	builder = builder.
+		WithDirectory("/app", host).
+		WithExec([]string{"pnpm", "-r", "install"}).
 		WithExec([]string{"pnpm", "-r", "build"})
 
-	runner := builder.
-		WithExec([]string{
-			"apk", "add", "--no-cache",
-			"nodejs-current", "tzdata", "ca-certificates",
-		}).
+	runner := withPNPMRunnerBase(base).
+		WithDirectory("/app", builder.Directory("/app/"+job.Name+"/build"))
+
+	runner = withTypeModulePackageJSON(runner).
 		WithDefaultArgs(dagger.ContainerWithDefaultArgsOpts{
-			Args: []string{"/usr/bin/node", filepath.Join(job.PackageName, "build")},
+			Args: []string{"/usr/bin/node", "."},
 		})
 
 	return runner.Sync(sess.Context())
