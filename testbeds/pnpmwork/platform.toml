@@ -10,10 +10,8 @@ excludes = ["*.docker", "*.local", ".dockerignore", ".git", ".github", ".gitigno
     timeout = "1m0s"
     builder = "pnpm/workspace"
     publish = false
-    cmd = "storybook"
   [modules.web]
     workdir = "./web"
     timeout = "1m0s"
     builder = "pnpm/workspace"
     publish = false
-    cmd = "web"
