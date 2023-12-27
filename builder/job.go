@@ -25,15 +25,11 @@ type Job struct {
 	Platform string
 	Excludes []string
 
-	Env              map[string]string
-	Publish          bool
-	PublishImageName string
-
+	Env         map[string]string
 	AssetDirs   []string
 	BuildDir    string
 	CommandArgs []string
 	CommandName string
-	GoVersion   string
 	ImageName   string
 	PackageName string
 	Repository  string
@@ -94,14 +90,11 @@ func JobFromModule(cfg *project.Project, name string, mod *project.Module) (*Job
 		Platform: platform,
 		Excludes: cfg.Excludes,
 
-		Env:     mod.Env,
-		Publish: mod.Publish,
-
+		Env:         mod.Env,
 		AssetDirs:   mod.AssetDirs,
 		BuildDir:    mod.BuildDir,
 		CommandArgs: mod.CommandArgs,
 		CommandName: mod.CommandName,
-		GoVersion:   mod.GoVersion,
 		ImageName:   mod.ImageName,
 		PackageName: mod.PackageName,
 		Repository:  cfg.Repository,

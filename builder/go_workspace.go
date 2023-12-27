@@ -1,10 +1,10 @@
 package builder
 
 import (
-	"context"
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"dagger.io/dagger"
 	"fx.prodigy9.co/errutil"
@@ -49,15 +49,17 @@ func (b GoWorkspace) Discover(wd string) (map[string]Interface, error) {
 	}
 }
 
-func (GoWorkspace) Build(ctx context.Context, client *dagger.Client, job *Job) (container *dagger.Container, err error) {
+func (GoWorkspace) Build(sess *Session, job *Job) (container *dagger.Container, err error) {
 	defer errutil.Wrap("go/workspace", &err)
 
-	// parse go.work file so we know what modules we need in the container
-	rootdir := job.WorkDir
-	wsdir, err := filepath.Abs(filepath.Join(rootdir, ".."))
+	wsdir, err := filepath.Abs(filepath.Join(job.WorkDir, ".."))
 	if err != nil {
 		return nil, err
 	}
+
+	host := sess.Client().Host().Directory(wsdir, dagger.HostDirectoryOpts{
+		Exclude: job.Excludes,
+	})
 
 	workfile := filepath.Join(wsdir, "go.work")
 	goversion, workmods, err := gowork.ParseFile(workfile)
@@ -65,27 +67,27 @@ func (GoWorkspace) Build(ctx context.Context, client *dagger.Client, job *Job) (
 		return nil, err
 	}
 
-	if job.GoVersion != "" {
-		goversion = job.GoVersion
+	cmd := strings.TrimSpace(job.CommandName)
+	switch {
+	case cmd == "" && job.PackageName != "":
+		cmd = job.PackageName
+	case cmd == "" && job.Name != "":
+		cmd = job.Name
 	}
 
-	gobin := "/root/sdk/go" + goversion + "/bin/go"
-	modcache := client.CacheVolume("go-" + goversion + "-modcache")
-	host := client.Host().Directory(wsdir, dagger.HostDirectoryOpts{
-		Exclude: job.Excludes,
-	})
+	args := []string{cmd}
+	if len(job.CommandArgs) > 0 {
+		args = append(args, job.CommandArgs...)
+	}
 
-	base := BaseImageForJob(client, job)
+	base := BaseImageForJob(sess, job)
 
-	builder := base.
-		WithExec([]string{"apk", "add", "--no-cache", "build-base", "go", "musl", "ca-certificates", "wget"}). //git
-		WithExec([]string{"wget", "-q", "-O", "/etc/apk/keys/sgerrand.rsa.pub", "https://alpine-pkgs.sgerrand.com/sgerrand.rsa.pub"}).
-		WithExec([]string{"wget", "https://github.com/sgerrand/alpine-pkg-glibc/releases/download/2.34-r0/glibc-2.34-r0.apk"}).
-		WithExec([]string{"apk", "add", "--force-overwrite", "--no-cache", "glibc-2.34-r0.apk"}).
-		WithMountedCache("/root/go/pkg/mod", modcache).
-		WithEnvVariable("GOROOT", "/usr/lib/go").
-		WithExec([]string{"go", "install", "golang.org/dl/go" + goversion + "@latest"}).
-		WithExec([]string{"/root/go/bin/go" + goversion, "download"}).
+	builder := withGoBuildBase(base)
+	builder = withGoMUSLPatch(builder)
+	builder = withGoPkgCache(sess, builder, goversion)
+	builder, gobin := withCustomGoVersion(builder, goversion)
+
+	builder = builder.
 		WithFile("go.work", host.File("go.work")).
 		WithFile("go.work.sum", host.File("go.work.sum"))
 
@@ -102,23 +104,18 @@ func (GoWorkspace) Build(ctx context.Context, client *dagger.Client, job *Job) (
 	builder = builder.
 		WithExec([]string{gobin, "mod", "download", "-x", "all"})
 
-	// test and build
 	testargs := []string{gobin, "test", "-v"}
 	for _, mod := range workmods {
 		testargs = append(testargs, "./"+mod+"/...")
 	}
 
 	builder = builder.
-		WithDirectory("/app", host).
+		WithDirectory(".", host).
 		WithExec(testargs).
-		// needs to use package name here because the module name is the folder name so
-		// we cannot output compiled binary with the same name
-		WithExec([]string{gobin, "build", "-v", "-o", job.PackageName, job.PackageName})
+		WithExec([]string{gobin, "build", "-v", "-o", "/out/" + cmd, job.PackageName})
 
-	runner := base.
-		WithExec([]string{"apk", "add", "--no-cache", "ca-certificates", "tzdata"}).
-		WithFile("/app/"+job.CommandName, builder.File(job.PackageName))
-
+	runner := withGoRunnerBase(base).
+		WithFile("/app/"+cmd, builder.File("/out/"+cmd))
 	for _, dir := range job.AssetDirs {
 		runner = runner.WithDirectory(dir, builder.Directory(dir))
 	}
@@ -126,13 +123,6 @@ func (GoWorkspace) Build(ctx context.Context, client *dagger.Client, job *Job) (
 		runner = runner.WithEnvVariable(key, value)
 	}
 
-	runner = runner.WithDefaultArgs(dagger.ContainerWithDefaultArgsOpts{
-		Args: append([]string{
-			"/app/" + job.CommandName},
-			job.CommandArgs...,
-		),
-	})
-
-	return runner.Sync(ctx)
-
+	runner = runner.WithDefaultArgs(dagger.ContainerWithDefaultArgsOpts{Args: args})
+	return runner.Sync(sess.Context())
 }

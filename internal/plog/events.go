@@ -14,8 +14,11 @@ func Event(str string) {
 func Config(key, value string) {
 	Logger().Warn("config", slog.String(key, value))
 }
-func Fatalln(err error) {
+func Error(err error) {
 	Logger().Error(err.Error())
+}
+func Fatalln(err error) {
+	Error(err)
 	os.Exit(1)
 }
 
@@ -31,8 +34,8 @@ func Dir(action, dir, builder string) {
 func Command(cmd string, args ...string) {
 	Logger().Info("command", slog.String("cmd", cmd+" "+strings.Join(args, " ")))
 }
-func Image(img string) {
-	Logger().Info("publish", slog.String("image", img))
+func Image(action, img string) {
+	Logger().Info(action, slog.String("image", img))
 }
 
 func HTTPServing(addr string) {

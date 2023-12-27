@@ -1,7 +1,6 @@
 package builder
 
 import (
-	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -51,13 +50,13 @@ func (b PNPMWorkspace) Discover(wd string) (map[string]Interface, error) {
 
 }
 
-func (PNPMWorkspace) Build(ctx context.Context, client *dagger.Client, job *Job) (container *dagger.Container, err error) {
+func (PNPMWorkspace) Build(sess *Session, job *Job) (container *dagger.Container, err error) {
 	defer errutil.Wrap("pnpm/workspace", &err)
 
-	host := client.Host().
+	host := sess.Client().Host().
 		Directory(job.WorkDir, dagger.HostDirectoryOpts{Exclude: job.Excludes})
 
-	base := BaseImageForJob(client, job).
+	base := BaseImageForJob(sess, job).
 		WithExec([]string{"apk", "add", "--no-cache", "nodejs-current", "build-base", "python3"}).
 		WithExec([]string{"corepack", "enable", "pnpm"}).
 		WithDirectory("/app", host)
@@ -76,5 +75,5 @@ func (PNPMWorkspace) Build(ctx context.Context, client *dagger.Client, job *Job)
 			Args: []string{"/usr/bin/node", filepath.Join(job.PackageName, "build")},
 		})
 
-	return runner.Sync(ctx)
+	return runner.Sync(sess.Context())
 }

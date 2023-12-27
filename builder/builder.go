@@ -1,16 +1,14 @@
 package builder
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"strings"
 
 	"dagger.io/dagger"
 	fxconfig "fx.prodigy9.co/config"
-	"fx.prodigy9.co/errutil"
+	"platform.prodigy9.co/internal"
 	"platform.prodigy9.co/internal/plog"
-	"platform.prodigy9.co/project"
 )
 
 var (
@@ -40,7 +38,19 @@ type Interface interface {
 	Kind() Kind
 
 	Discover(wd string) (map[string]Interface, error)
-	Build(ctx context.Context, client *dagger.Client, job *Job) (*dagger.Container, error)
+	Build(sess *Session, job *Job) (*dagger.Container, error)
+}
+
+type BuildResult struct {
+	Job       *Job
+	Container *dagger.Container
+	Err       error
+}
+
+type PublishResult struct {
+	BuildResult
+	ImageName string
+	ImageHash string
 }
 
 var (
@@ -96,53 +106,69 @@ func Discover(wd string) (map[string]Interface, error) {
 	return nil, ErrNoBuilder
 }
 
-// TODO: Build should return a JobResult or something so we can add more manipulation
-// commands after image is built
-func Build(cfg *project.Project, jobs ...*Job) error {
+func Build(sess *Session, jobs ...*Job) ([]BuildResult, error) {
 	if len(jobs) == 0 {
-		return ErrNoJobs
+		return nil, ErrNoJobs
 	}
 
-	ctx := context.Background()
-	client, err := dagger.Connect(ctx, dagger.WithLogOutput(plog.OutputForDagger()))
-	if err != nil {
-		return err
+	m := &internal.Multiplexer[*Job, BuildResult]{}
+	m.Reset(jobs)
+	return m.Start(func(idx int, job *Job) BuildResult {
+		ctx, cancel := sess.JobContext(job)
+		defer cancel()
+
+		container, err := job.Builder.Build(sess, job)
+		if err != nil {
+			return BuildResult{Job: job, Container: nil, Err: err}
+		}
+
+		container, err = container.Sync(ctx)
+		if err != nil {
+			return BuildResult{Job: job, Container: nil, Err: err}
+		} else {
+			return BuildResult{Job: job, Container: container, Err: nil}
+		}
+	}), nil
+}
+
+func Publish(sess *Session, builds ...BuildResult) ([]PublishResult, error) {
+	if len(builds) == 0 {
+		return nil, ErrNoJobs
 	}
-	defer client.Close()
 
 	fxcfg := fxconfig.Configure()
-	registryPassword := client.SetSecret(
+	registryPassword := sess.Client().SetSecret(
 		RegistryPasswordConfig.Name(),
 		fxconfig.Get(fxcfg, RegistryPasswordConfig),
 	)
 
-	return errutil.AggregateWithTags(jobs, func(idx int, job *Job) (string, error) {
-		ctx, cancel := context.WithTimeout(ctx, job.Timeout)
-		defer cancel()
+	m := &internal.Multiplexer[BuildResult, PublishResult]{}
+	m.Reset(builds)
+	return m.Start(func(idx int, build BuildResult) PublishResult {
+		if build.Err != nil {
+			return PublishResult{BuildResult: build}
+		}
 
-		container, err := job.Builder.Build(ctx, client, job)
+		container := build.Container
+		if fxconfig.Get(fxcfg, RegistryUsernameConfig) != "" {
+			container = container.WithRegistryAuth(
+				fxconfig.Get(fxcfg, RegistryConfig),
+				fxconfig.Get(fxcfg, RegistryUsernameConfig),
+				registryPassword,
+			)
+		}
+
+		hash, err := container.Publish(sess.Context(), build.Job.ImageName)
 		if err != nil {
-			return job.Name, err
-		} else if container, err = container.Sync(ctx); err != nil {
-			return job.Name, err
+			build.Err = err
+			return PublishResult{BuildResult: build}
 		}
 
-		if job.Publish {
-			if fxconfig.Get(fxcfg, RegistryUsernameConfig) != "" {
-				container = container.WithRegistryAuth(
-					fxconfig.Get(fxcfg, RegistryConfig),
-					fxconfig.Get(fxcfg, RegistryUsernameConfig),
-					registryPassword,
-				)
-			}
-
-			hash, err := container.Publish(ctx, job.ImageName)
-			if err != nil {
-				return job.Name, err
-			}
-			plog.Image(hash)
+		plog.Image("publish", hash)
+		return PublishResult{
+			BuildResult: build,
+			ImageName:   build.Job.ImageName,
+			ImageHash:   hash,
 		}
-
-		return job.Name, nil
-	})
+	}), nil
 }

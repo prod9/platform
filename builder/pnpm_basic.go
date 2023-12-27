@@ -1,7 +1,6 @@
 package builder
 
 import (
-	"context"
 	"path/filepath"
 	"strings"
 
@@ -27,14 +26,14 @@ func (b PNPMBasic) Discover(wd string) (map[string]Interface, error) {
 
 }
 
-func (PNPMBasic) Build(ctx context.Context, client *dagger.Client, job *Job) (container *dagger.Container, err error) {
+func (PNPMBasic) Build(sess *Session, job *Job) (container *dagger.Container, err error) {
 	defer errutil.Wrap("pnpm/basic", &err)
 
-	cache := client.CacheVolume("pnpm-store-cache")
-	host := client.Host().
+	cache := sess.Client().CacheVolume("pnpm-store-cache")
+	host := sess.Client().Host().
 		Directory(job.WorkDir, dagger.HostDirectoryOpts{Exclude: job.Excludes})
 
-	builder := BaseImageForJob(client, job).
+	builder := BaseImageForJob(sess, job).
 		WithExec([]string{"apk", "add", "--no-cache", "nodejs-current", "build-base", "python3"}).
 		WithExec([]string{"corepack", "enable", "pnpm"}).
 		WithMountedCache("/root/.local/share/pnpm", cache).
@@ -44,7 +43,7 @@ func (PNPMBasic) Build(ctx context.Context, client *dagger.Client, job *Job) (co
 		WithDirectory("/app", host).
 		WithExec([]string{"pnpm", "build"})
 
-	runner := BaseImageForJob(client, job).
+	runner := BaseImageForJob(sess, job).
 		WithExec([]string{
 			"apk", "add", "--no-cache",
 			"nodejs-current", "tzdata", "ca-certificates",
@@ -74,10 +73,10 @@ func (PNPMBasic) Build(ctx context.Context, client *dagger.Client, job *Job) (co
 	runner = runner.WithDirectory("/app", builder.Directory(outdir)).
 		WithDefaultArgs(dagger.ContainerWithDefaultArgsOpts{Args: args})
 
-	if runner, err = runner.Sync(ctx); err != nil {
+	if runner, err = runner.Sync(sess.Context()); err != nil {
 		return nil, err
 	} else {
-		runner.Export(ctx, job.Name+".docker")
+		runner.Export(sess.Context(), job.Name+".docker")
 		return runner, nil
 	}
 }

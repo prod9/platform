@@ -41,7 +41,11 @@ func ParseReader(r io.Reader) (string, []string, error) {
 			mods = append(mods, txt[2:])
 		} else if strings.HasPrefix(txt, "1.") {
 			version = txt
+			if len(version) < 5 { // 1.2.3 is at least 5 chars
+				version += ".0"
+			}
 		}
 	}
+
 	return version, mods, scanner.Err()
 }

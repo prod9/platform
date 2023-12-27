@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"context"
+
 	"github.com/spf13/cobra"
 	"platform.prodigy9.co/builder"
 	"platform.prodigy9.co/internal/plog"
@@ -24,7 +26,19 @@ func runBuild(cmd *cobra.Command, args []string) {
 		plog.Fatalln(err)
 	}
 
-	if err := builder.Build(cfg, jobs...); err != nil {
+	sess, err := builder.NewSession(context.Background())
+	if err != nil {
 		plog.Fatalln(err)
+	}
+
+	results, err := builder.Build(sess, jobs...)
+	if err != nil {
+		plog.Fatalln(err)
+	}
+
+	for _, result := range results {
+		if result.Err != nil {
+			plog.Error(result.Err)
+		}
 	}
 }

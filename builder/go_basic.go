@@ -1,14 +1,13 @@
 package builder
 
 import (
-	"context"
 	"path/filepath"
-	"runtime"
 	"strings"
 
 	"dagger.io/dagger"
 	"fx.prodigy9.co/errutil"
 	"platform.prodigy9.co/builder/fileutil"
+	"platform.prodigy9.co/builder/gowork"
 )
 
 type GoBasic struct{}
@@ -27,35 +26,16 @@ func (b GoBasic) Discover(wd string) (map[string]Interface, error) {
 	return map[string]Interface{name: b}, nil
 }
 
-func (GoBasic) Build(ctx context.Context, client *dagger.Client, job *Job) (container *dagger.Container, err error) {
+func (GoBasic) Build(sess *Session, job *Job) (container *dagger.Container, err error) {
 	defer errutil.Wrap("go/basic", &err)
 
-	modcache := client.CacheVolume("go-" + runtime.Version() + "-modcache")
-	host := client.Host().Directory(job.WorkDir, dagger.HostDirectoryOpts{
+	host := sess.Client().Host().Directory(job.WorkDir, dagger.HostDirectoryOpts{
 		Exclude: job.Excludes,
 	})
 
-	base := BaseImageForJob(client, job)
-
-	builder := base.
-		WithExec([]string{"apk", "add", "--no-cache", "build-base", "git", "go"}).
-		WithMountedCache("/root/go/pkg/mod", modcache).
-		WithFile("go.mod", host.File("go.mod")).
-		WithFile("go.sum", host.File("go.sum")).
-		WithExec([]string{"go", "mod", "download", "-x", "all"}).
-		WithDirectory(".", host).
-		WithExec([]string{"go", "test", "-v", "./..."}).
-		WithExec([]string{"go", "build", "-v", "-o", job.CommandName, job.PackageName})
-
-	runner := base.
-		WithExec([]string{"apk", "add", "--no-cache", "ca-certificates", "tzdata"}).
-		WithFile("/app/"+job.CommandName, builder.File(job.CommandName))
-
-	for _, dir := range job.AssetDirs {
-		runner = runner.WithDirectory(dir, builder.Directory(dir))
-	}
-	for key, value := range job.Env {
-		runner = runner.WithEnvVariable(key, value)
+	goversion, _, err := gowork.ParseFile(filepath.Join(job.WorkDir, "go.mod"))
+	if err != nil {
+		return nil, err
 	}
 
 	cmd := strings.TrimSpace(job.CommandName)
@@ -71,8 +51,32 @@ func (GoBasic) Build(ctx context.Context, client *dagger.Client, job *Job) (cont
 		args = append(args, job.CommandArgs...)
 	}
 
-	// TODO: Builder should probably report what binary are in the resulting container
-	//   Because now we don't have a Dockerfile to look at
+	base := BaseImageForJob(sess, job)
+
+	builder := withGoBuildBase(base)
+	builder = withGoMUSLPatch(builder)
+	builder = withGoPkgCache(sess, builder, goversion)
+	builder, gobin := withCustomGoVersion(builder, goversion)
+
+	builder = builder.
+		WithFile("go.mod", host.File("go.mod")).
+		WithFile("go.sum", host.File("go.sum")).
+		WithExec([]string{gobin, "mod", "download", "-x", "all"})
+
+	builder = builder.
+		WithDirectory(".", host).
+		WithExec([]string{gobin, "test", "-v", "./..."}).
+		WithExec([]string{gobin, "build", "-v", "-o", "/out/" + cmd, job.PackageName})
+
+	runner := withGoRunnerBase(base).
+		WithFile("/app/"+cmd, builder.File("/out/"+cmd))
+	for _, dir := range job.AssetDirs {
+		runner = runner.WithDirectory(dir, builder.Directory(dir))
+	}
+	for key, value := range job.Env {
+		runner = runner.WithEnvVariable(key, value)
+	}
+
 	runner = runner.WithDefaultArgs(dagger.ContainerWithDefaultArgsOpts{Args: args})
-	return runner.Sync(ctx)
+	return runner.Sync(sess.Context())
 }

@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"os"
 
 	"fx.prodigy9.co/cmd/prompts"
@@ -35,25 +36,37 @@ func runPublish(cmd *cobra.Command, args []string) {
 		plog.Fatalln(err)
 	}
 
-	sess := prompts.New(nil, args)
+	p := prompts.New(nil, args)
 	if err = toml.NewEncoder(os.Stdout).Encode(rel); err != nil {
 		plog.Fatalln(err)
 	}
-	if !sess.YesNo("publish " + rel.Name + "?") {
+	if !p.YesNo("publish " + rel.Name + "?") {
 		return
 	}
 
-	jobs, err := builder.JobsFromArgs(cfg, sess.Args())
+	jobs, err := builder.JobsFromArgs(cfg, p.Args())
 	if err != nil {
 		plog.Fatalln(err)
 	}
 
-	for _, j := range jobs {
-		j.Publish = true
-		j.PublishImageName = j.ImageName + ":" + rel.Name
+	ctx := context.Background()
+	sess, err := builder.NewSession(ctx)
+	if err != nil {
+		plog.Fatalln(err)
 	}
 
-	if err = builder.Build(cfg, jobs...); err != nil {
+	builds, err := builder.Build(sess, jobs...)
+	if err != nil {
 		plog.Fatalln(err)
+	}
+	results, err := builder.Publish(sess, builds...)
+	if err != nil {
+		plog.Fatalln(err)
+	}
+
+	for _, result := range results {
+		if result.Err != nil {
+			plog.Error(result.Err)
+		}
 	}
 }
