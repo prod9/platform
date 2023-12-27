@@ -1,7 +1,11 @@
 package fx
 
-import "fmt"
+import (
+	"github.com/mgutz/ansi"
+)
 
-func Hello() {
-	fmt.Println("Hello, World!")
+func Hello() string {
+	return (ansi.Magenta + "Hello, " +
+		ansi.Cyan + "World!" +
+		ansi.Reset)
 }

@@ -1,7 +1,10 @@
 package main
 
-import "fixtures.platform.prodigy9.co/fx"
+import (
+	"fixtures.platform.prodigy9.co/fx"
+	"fmt"
+)
 
 func main() {
-	fx.Hello()
+	fmt.Println(fx.Hello())
 }

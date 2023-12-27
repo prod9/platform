@@ -75,7 +75,6 @@ func (GoWorkspace) Build(ctx context.Context, client *dagger.Client, job *Job) (
 		Exclude: job.Excludes,
 	})
 
-	outname := job.CommandName
 	base := BaseImageForJob(client, job)
 
 	builder := base.
@@ -109,16 +108,16 @@ func (GoWorkspace) Build(ctx context.Context, client *dagger.Client, job *Job) (
 		testargs = append(testargs, "./"+mod+"/...")
 	}
 
-	packagedir := filepath.Join("/app", job.PackageName)
-
 	builder = builder.
 		WithDirectory("/app", host).
 		WithExec(testargs).
-		WithExec([]string{gobin, "build", "-v", "-o", outname, packagedir})
+		// needs to use package name here because the module name is the folder name so
+		// we cannot output compiled binary with the same name
+		WithExec([]string{gobin, "build", "-v", "-o", job.PackageName, job.PackageName})
 
 	runner := base.
 		WithExec([]string{"apk", "add", "--no-cache", "ca-certificates", "tzdata"}).
-		WithFile("/app/"+job.CommandName, builder.File(outname))
+		WithFile("/app/"+job.CommandName, builder.File(job.PackageName))
 
 	for _, dir := range job.AssetDirs {
 		runner = runner.WithDirectory(dir, builder.Directory(dir))

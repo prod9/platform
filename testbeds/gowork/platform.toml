@@ -6,14 +6,16 @@ excludes = ["*.docker", "*.local", ".dockerignore", ".git", ".github", ".gitigno
 
 [modules]
   [modules.app]
-    workdir = "./app"
-    timeout = "1m0s"
     builder = "go/workspace"
-    publish = false
     cmd = "app"
-  [modules.fx]
-    workdir = "./fx"
-    timeout = "1m0s"
-    builder = "go/workspace"
+    package = "fixtures.platform.prodigy9.co/app"
     publish = false
+    timeout = "1m0s"
+    workdir = "./app"
+  [modules.fx]
+    builder = "go/workspace"
     cmd = "fx"
+    package = "fixtures.platform.prodigy9.co/fx"
+    publish = false
+    timeout = "1m0s"
+    workdir = "./fx"
