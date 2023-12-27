@@ -30,8 +30,6 @@ func init() {
 }
 
 func runPreview(cmd *cobra.Command, args []string) {
-	panic(previewPort)
-
 	cfg, err := project.Configure(".")
 	if err != nil {
 		plog.Fatalln(err)
