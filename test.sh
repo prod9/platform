@@ -2,4 +2,4 @@
 
 set -o xtrace
 
-go run github.com/chakrit/smoke@latest -v tests.yml "$@"
+go run github.com/chakrit/smoke@v0.2.2 -v tests.yml "$@"
