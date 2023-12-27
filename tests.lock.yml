@@ -23,7 +23,7 @@
             - platform = "auto"
             - repository = "github.com/prod9/platform"
             - strategy = "timestamp"
-            - excludes = ["*.docker", "*.local", ".dockerignore", ".git", ".github", ".gitignore", ".idea", ".vscode", "node_modules", "platform.toml"]
+            - excludes = ["*.docker", "*.local", ".dockerignore", ".git", ".github", ".gitignore", ".idea", ".svelte-kit", ".vscode", "build", "dist", "node_modules", "platform.toml", "target"]
             - ""
             - '[modules]'
             - '  [modules.gobasic]'
@@ -72,6 +72,13 @@
             - '    depends_on: os'
             - '-----END pipeline.yaml-----'
             - ""
+- name: Platform \ Go Basic \ Build
+  commands:
+    - command: ./testbed.sh gobasic -q build
+      checks:
+        - name: exitcode
+          data:
+            - "0"
 - name: Platform \ Go Workspace \ Discover
   commands:
     - command: ./testbed.sh gowork discover 2>&1 | sort
@@ -91,7 +98,7 @@
             - platform = "auto"
             - repository = "github.com/prod9/platform"
             - strategy = "timestamp"
-            - excludes = ["*.docker", "*.local", ".dockerignore", ".git", ".github", ".gitignore", ".idea", ".vscode", "node_modules", "platform.toml"]
+            - excludes = ["*.docker", "*.local", ".dockerignore", ".git", ".github", ".gitignore", ".idea", ".svelte-kit", ".vscode", "build", "dist", "node_modules", "platform.toml", "target"]
             - ""
             - '[modules]'
             - '  [modules.app]'
@@ -146,6 +153,13 @@
             - '    depends_on: os'
             - '-----END pipeline.yaml-----'
             - ""
+- name: Platform \ Go Workspace \ Build
+  commands:
+    - command: ./testbed.sh gowork -q build
+      checks:
+        - name: exitcode
+          data:
+            - "0"
 - name: Platform \ PNPM Basic \ Discover
   commands:
     - command: ./testbed.sh pnpmbasic discover 2>&1 | sort
@@ -164,7 +178,7 @@
             - platform = "auto"
             - repository = "github.com/prod9/platform"
             - strategy = "timestamp"
-            - excludes = ["*.docker", "*.local", ".dockerignore", ".git", ".github", ".gitignore", ".idea", ".vscode", "node_modules", "platform.toml"]
+            - excludes = ["*.docker", "*.local", ".dockerignore", ".git", ".github", ".gitignore", ".idea", ".svelte-kit", ".vscode", "build", "dist", "node_modules", "platform.toml", "target"]
             - ""
             - '[modules]'
             - '  [modules.pnpmbasic]'
@@ -172,7 +186,6 @@
             - '    timeout = "1m0s"'
             - '    builder = "pnpm/basic"'
             - '    publish = false'
-            - '    cmd = "pnpmbasic"'
             - '-----END platform.toml-----'
             - ""
         - name: ./testbeds/pnpmbasic/platform
@@ -213,6 +226,13 @@
             - '    depends_on: os'
             - '-----END pipeline.yaml-----'
             - ""
+- name: Platform \ PNPM Basic \ Build
+  commands:
+    - command: ./testbed.sh pnpmbasic -q build
+      checks:
+        - name: exitcode
+          data:
+            - "0"
 - name: Platform \ PNPM Workspace \ Discover
   commands:
     - command: ./testbed.sh pnpmwork discover 2>&1 | sort
@@ -232,7 +252,7 @@
             - platform = "auto"
             - repository = "github.com/prod9/platform"
             - strategy = "timestamp"
-            - excludes = ["*.docker", "*.local", ".dockerignore", ".git", ".github", ".gitignore", ".idea", ".vscode", "node_modules", "platform.toml"]
+            - excludes = ["*.docker", "*.local", ".dockerignore", ".git", ".github", ".gitignore", ".idea", ".svelte-kit", ".vscode", "build", "dist", "node_modules", "platform.toml", "target"]
             - ""
             - '[modules]'
             - '  [modules.storybook]'
@@ -240,13 +260,11 @@
             - '    timeout = "1m0s"'
             - '    builder = "pnpm/workspace"'
             - '    publish = false'
-            - '    cmd = "storybook"'
             - '  [modules.web]'
             - '    workdir = "./web"'
             - '    timeout = "1m0s"'
             - '    builder = "pnpm/workspace"'
             - '    publish = false'
-            - '    cmd = "web"'
             - '-----END platform.toml-----'
             - ""
         - name: ./testbeds/pnpmwork/platform
@@ -287,3 +305,10 @@
             - '    depends_on: os'
             - '-----END pipeline.yaml-----'
             - ""
+- name: Platform \ PNPM Workspace \ Build
+  commands:
+    - command: ./testbed.sh pnpmwork -q build
+      checks:
+        - name: exitcode
+          data:
+            - "0"

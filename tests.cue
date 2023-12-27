@@ -55,6 +55,13 @@ let testbeds = [...{name: string, dir: string}] &
 							"./testbed.sh \(testbed.dir) bootstrap \"Johnny Appleseed\" \"john@apple.com\" \"github.com/prod9/platform\" \"ghcr.io/prod9/platform\"",
 						]
 					},
+					{
+						name: "Build"
+						checks: ["exitcode"]
+						commands: [
+							"./testbed.sh \(testbed.dir) -q build",
+						]
+					},
 				]
 			}
 		},
