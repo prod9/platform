@@ -1,12 +1,12 @@
 package cmd
 
 import (
-	"log"
 	"os"
 
 	"fx.prodigy9.co/cmd/prompts"
 	"github.com/BurntSushi/toml"
 	"github.com/spf13/cobra"
+	"platform.prodigy9.co/internal/plog"
 	"platform.prodigy9.co/project"
 	"platform.prodigy9.co/releases"
 )
@@ -27,12 +27,12 @@ func init() {
 func runReleaseCmd(cmd *cobra.Command, args []string) {
 	cfg, err := project.Configure(".")
 	if err != nil {
-		log.Fatalln(err)
+		plog.Fatalln(err)
 	}
 
 	strat, err := releases.FindStrategy(cfg.Strategy)
 	if err != nil {
-		log.Fatalln(err)
+		plog.Fatalln(err)
 	}
 
 	opts := &releases.Options{Force: forceRelease}
@@ -42,11 +42,11 @@ func runReleaseCmd(cmd *cobra.Command, args []string) {
 
 	rel, err := strat.Generate(cfg, opts)
 	if err != nil {
-		log.Fatalln(err)
+		plog.Fatalln(err)
 	}
 
 	if err = toml.NewEncoder(os.Stdout).Encode(rel); err != nil {
-		log.Fatalln(err)
+		plog.Fatalln(err)
 	}
 	sess := prompts.New(nil, nil)
 	if !sess.YesNo("create this release?") {
@@ -54,6 +54,6 @@ func runReleaseCmd(cmd *cobra.Command, args []string) {
 	}
 
 	if err = strat.Create(cfg, rel); err != nil {
-		log.Fatalln(err)
+		plog.Fatalln(err)
 	}
 }

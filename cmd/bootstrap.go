@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"log"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -9,6 +8,7 @@ import (
 	"fx.prodigy9.co/cmd/prompts"
 	"github.com/spf13/cobra"
 	"platform.prodigy9.co/bootstrapper"
+	"platform.prodigy9.co/internal/plog"
 )
 
 var BootstrapCmd = &cobra.Command{
@@ -20,7 +20,7 @@ var BootstrapCmd = &cobra.Command{
 func runBootstrapCmd(cmd *cobra.Command, args []string) {
 	wd, err := os.Getwd()
 	if err != nil {
-		log.Fatalln(err)
+		plog.Fatalln(err)
 	}
 
 	if len(args) > 0 {
@@ -30,7 +30,7 @@ func runBootstrapCmd(cmd *cobra.Command, args []string) {
 
 	wd, err = filepath.Abs(wd)
 	if err != nil {
-		log.Fatalln(err)
+		plog.Fatalln(err)
 	}
 
 	sess := prompts.New(nil, args)
@@ -43,6 +43,6 @@ func runBootstrapCmd(cmd *cobra.Command, args []string) {
 		ImagePrefix:     sess.Str("docker image prefix (e.g. ghcr.io/prod9/)"),
 	}
 	if err := bootstrapper.Bootstrap(wd, info); err != nil {
-		log.Fatalln(err)
+		plog.Fatalln(err)
 	}
 }

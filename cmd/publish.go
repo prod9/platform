@@ -1,15 +1,13 @@
 package cmd
 
 import (
-	// "log"
-
-	"log"
 	"os"
 
 	"fx.prodigy9.co/cmd/prompts"
 	"github.com/BurntSushi/toml"
 	"github.com/spf13/cobra"
 	"platform.prodigy9.co/builder"
+	"platform.prodigy9.co/internal/plog"
 	"platform.prodigy9.co/project"
 	"platform.prodigy9.co/releases"
 )
@@ -23,23 +21,23 @@ var PublishCmd = &cobra.Command{
 func runPublish(cmd *cobra.Command, args []string) {
 	cfg, err := project.Configure(".")
 	if err != nil {
-		log.Fatalln(err)
+		plog.Fatalln(err)
 	}
 
 	strat, err := releases.FindStrategy(cfg.Strategy)
 	if err != nil {
-		log.Fatalln(err)
+		plog.Fatalln(err)
 	}
 
 	opts := &releases.Options{}
 	rel, err := strat.Recover(cfg, opts)
 	if err != nil {
-		log.Fatalln(err)
+		plog.Fatalln(err)
 	}
 
 	sess := prompts.New(nil, args)
 	if err = toml.NewEncoder(os.Stdout).Encode(rel); err != nil {
-		log.Fatalln(err)
+		plog.Fatalln(err)
 	}
 	if !sess.YesNo("publish " + rel.Name + "?") {
 		return
@@ -47,7 +45,7 @@ func runPublish(cmd *cobra.Command, args []string) {
 
 	jobs, err := builder.JobsFromArgs(cfg, sess.Args())
 	if err != nil {
-		log.Fatalln(err)
+		plog.Fatalln(err)
 	}
 
 	for _, j := range jobs {
@@ -56,6 +54,6 @@ func runPublish(cmd *cobra.Command, args []string) {
 	}
 
 	if err = builder.Build(cfg, jobs...); err != nil {
-		log.Fatalln(err)
+		plog.Fatalln(err)
 	}
 }

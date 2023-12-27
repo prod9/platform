@@ -1,11 +1,11 @@
 package cmd
 
 import (
-	"log"
 	"os"
 
 	"github.com/BurntSushi/toml"
 	"github.com/spf13/cobra"
+	"platform.prodigy9.co/internal/plog"
 	"platform.prodigy9.co/project"
 )
 
@@ -18,10 +18,10 @@ var ConfigureCmd = &cobra.Command{
 func runConfigureCmd(cmd *cobra.Command, args []string) {
 	cfg, err := project.Configure(".")
 	if err != nil {
-		log.Fatalln(err)
+		plog.Fatalln(err)
 	}
 
 	if err := toml.NewEncoder(os.Stdout).Encode(cfg); err != nil {
-		log.Fatalln(err)
+		plog.Fatalln(err)
 	}
 }

@@ -1,11 +1,12 @@
 package gitcmd
 
 import (
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"platform.prodigy9.co/internal/plog"
 )
 
 func Log(wd string) (string, error) {
@@ -53,7 +54,7 @@ func runCmd(wd, name string, args ...string) (string, error) {
 		return "", err
 	}
 
-	log.Println(name + " " + strings.Join(args, " "))
+	plog.Command(name, args...)
 	outbuf := &strings.Builder{}
 
 	cmd := exec.Command(name, args...)

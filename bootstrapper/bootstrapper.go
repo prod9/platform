@@ -3,13 +3,13 @@ package bootstrapper
 import (
 	_ "embed"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"text/template"
 
 	"github.com/BurntSushi/toml"
 	"platform.prodigy9.co/builder"
+	"platform.prodigy9.co/internal/plog"
 	"platform.prodigy9.co/project"
 )
 
@@ -57,7 +57,7 @@ func Bootstrap(dir string, info *Info) error {
 	if err := toml.NewEncoder(projfile).Encode(&proj); err != nil {
 		return err
 	}
-	log.Println("wrote: platform.toml")
+	plog.File("wrote", "platform.toml")
 
 	// generate platform script
 	outfilename = filepath.Join(dir, "platform")
@@ -66,14 +66,14 @@ func Bootstrap(dir string, info *Info) error {
 	} else if err := os.Chmod(outfilename, 0744); err != nil { // make executable
 		return err
 	}
-	log.Println("wrote: platform")
+	plog.File("wrote", "platform")
 
 	// generate .buildkite/pipeline.yaml
 	outfilename = filepath.Join(dir, ".buildkite", "pipeline.yaml")
 	if err := writeTemplate(buildkitePipelineYamlTemplate, outfilename, info); err != nil {
 		return err
 	}
-	log.Println("wrote: .buildkite/pipeline.yaml")
+	plog.File("wrote", ".buildkite/pipeline.yaml")
 
 	return nil
 }
@@ -85,7 +85,7 @@ func writeTemplate(content, dest string, info *Info) error {
 
 	file, err := os.Create(dest)
 	if err != nil {
-		log.Fatalln(err)
+		plog.Fatalln(err)
 	}
 	defer file.Close()
 

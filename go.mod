@@ -7,6 +7,8 @@ require (
 	fx.prodigy9.co v0.0.0-20230625144506-7786b546be08
 	github.com/BurntSushi/toml v0.3.1
 	github.com/felixge/httpsnoop v1.0.3
+	github.com/lmittmann/tint v1.0.3
+	github.com/mattn/go-isatty v0.0.19
 	github.com/spf13/cobra v1.7.0
 	github.com/stretchr/testify v1.8.3
 	go.jonnrb.io/vanity v0.2.0

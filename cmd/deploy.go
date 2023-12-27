@@ -1,9 +1,7 @@
 package cmd
 
 import (
-	// "log"
-
-	"log"
+	"errors"
 	"os"
 
 	"fx.prodigy9.co/cmd/prompts"
@@ -11,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 	"platform.prodigy9.co/builder"
 	"platform.prodigy9.co/gitcmd"
+	"platform.prodigy9.co/internal/plog"
 	"platform.prodigy9.co/project"
 	"platform.prodigy9.co/releases"
 )
@@ -39,28 +38,28 @@ func init() {
 func runDeploy(cmd *cobra.Command, args []string) {
 	cfg, err := project.Configure(".")
 	if err != nil {
-		log.Fatalln(err)
+		plog.Fatalln(err)
 	}
 	if len(cfg.Environments) == 0 {
-		log.Fatalln("no deploy environments defined, add some in project.toml")
+		plog.Fatalln(errors.New("no deploy environments defined, add some in project.toml"))
 	}
 
 	strat, err := releases.FindStrategy(cfg.Strategy)
 	if err != nil {
-		log.Fatalln(err)
+		plog.Fatalln(err)
 	}
 
 	opts := &releases.Options{}
 	rel, err := strat.Recover(cfg, opts)
 	if err != nil {
-		log.Fatalln(err)
+		plog.Fatalln(err)
 	}
 
 	sess := prompts.New(nil, args)
 	targetEnv := sess.List("target environment", "", cfg.Environments)
 
 	if err = toml.NewEncoder(os.Stdout).Encode(rel); err != nil {
-		log.Fatalln(err)
+		plog.Fatalln(err)
 	}
 	if !sess.YesNo("deploy " + rel.Name + " to " + targetEnv + "?") {
 		return
@@ -70,7 +69,7 @@ func runDeploy(cmd *cobra.Command, args []string) {
 	if !skipBuildOnDeploy {
 		jobs, err := builder.JobsFromArgs(cfg, sess.Args())
 		if err != nil {
-			log.Fatalln(err)
+			plog.Fatalln(err)
 		}
 
 		for _, j := range jobs {
@@ -79,19 +78,19 @@ func runDeploy(cmd *cobra.Command, args []string) {
 		}
 
 		if err = builder.Build(cfg, jobs...); err != nil {
-			log.Fatalln(err)
+			plog.Fatalln(err)
 		}
 	}
 
 	if !skipTagOnDeploy {
 		if _, err := gitcmd.TagF(cfg.ConfigDir, targetEnv); err != nil {
-			log.Fatalln(err)
+			plog.Fatalln(err)
 		} else if branch, err := gitcmd.CurrentBranch(cfg.ConfigDir); err != nil {
-			log.Fatalln(err)
+			plog.Fatalln(err)
 		} else if remote, err := gitcmd.TrackingRemote(cfg.ConfigDir, branch); err != nil {
-			log.Fatalln(err)
+			plog.Fatalln(err)
 		} else if _, err := gitcmd.PushTagF(cfg.ConfigDir, remote, targetEnv); err != nil {
-			log.Fatalln(err)
+			plog.Fatalln(err)
 		}
 	}
 }

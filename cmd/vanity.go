@@ -1,12 +1,15 @@
 package cmd
 
 import (
-	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/felixge/httpsnoop"
 	"github.com/spf13/cobra"
 	"go.jonnrb.io/vanity"
+	"platform.prodigy9.co/internal/plog"
 )
 
 var vanityListenAddr string
@@ -31,8 +34,7 @@ func runVanityCmd(cmd *cobra.Command, args []string) {
 	handler := vanity.GitHubHandler("platform.prodigy9.co", "prod9", "platform", "https")
 	wrapped := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		m := httpsnoop.CaptureMetrics(handler, w, r)
-		log.Printf(
-			"%s %s (code=%d dt=%s written=%d)\n",
+		plog.HTTPRequest(
 			r.Method,
 			r.URL,
 			m.Code,
@@ -41,8 +43,20 @@ func runVanityCmd(cmd *cobra.Command, args []string) {
 		)
 	})
 
-	log.Println("serving", vanityListenAddr)
-	if err := http.ListenAndServe(vanityListenAddr, wrapped); err != nil {
-		log.Fatalln(err)
+	srv := &http.Server{
+		Addr:    vanityListenAddr,
+		Handler: wrapped,
+	}
+
+	sigs := make(chan os.Signal)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-sigs
+		srv.Close()
+	}()
+
+	plog.HTTPServing(vanityListenAddr)
+	if err := srv.ListenAndServe(); err != nil {
+		plog.Fatalln(err)
 	}
 }

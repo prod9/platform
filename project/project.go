@@ -1,12 +1,12 @@
 package project
 
 import (
-	"log"
 	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/BurntSushi/toml"
+	"platform.prodigy9.co/internal/plog"
 )
 
 type (
@@ -107,7 +107,7 @@ func (c *Project) assignDefaults() {
 
 func (c *Project) assignEnvOverrides() {
 	if platform, ok := os.LookupEnv("PLATFORM"); ok {
-		log.Println("platform overriden from", c.Platform, "to", platform)
+		plog.Config("platform", platform)
 		c.Platform = platform
 	}
 }

@@ -4,13 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
-	"os"
 	"strings"
 
 	"dagger.io/dagger"
 	fxconfig "fx.prodigy9.co/config"
 	"fx.prodigy9.co/errutil"
+	"platform.prodigy9.co/internal/plog"
 	"platform.prodigy9.co/project"
 )
 
@@ -105,7 +104,7 @@ func Build(cfg *project.Project, jobs ...*Job) error {
 	}
 
 	ctx := context.Background()
-	client, err := dagger.Connect(ctx, dagger.WithLogOutput(os.Stderr))
+	client, err := dagger.Connect(ctx, dagger.WithLogOutput(plog.OutputForDagger()))
 	if err != nil {
 		return err
 	}
@@ -137,12 +136,11 @@ func Build(cfg *project.Project, jobs ...*Job) error {
 				)
 			}
 
-			log.Println("publishing", job.PublishImageName, "to", job.ImageName)
 			hash, err := container.Publish(ctx, job.ImageName)
 			if err != nil {
 				return job.Name, err
 			}
-			log.Println("published", hash)
+			plog.Image(hash)
 		}
 
 		return job.Name, nil

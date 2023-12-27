@@ -1,13 +1,12 @@
 package main
 
 import (
-	"io/ioutil"
-	"log"
 	"os"
 
 	fxcmd "fx.prodigy9.co/cmd"
 	"github.com/spf13/cobra"
 	"platform.prodigy9.co/cmd"
+	"platform.prodigy9.co/internal/plog"
 )
 
 var rootCmd = &cobra.Command{
@@ -35,21 +34,13 @@ func init() {
 }
 
 func main() {
-	defer log.Println("exited.")
+	defer plog.Event("exited")
 	if err := rootCmd.ParseFlags(os.Args); err != nil {
-		log.Fatalln(err)
+		plog.Fatalln(err)
 	}
 
-	if quiet >= 2 {
-		log.SetOutput(ioutil.Discard)
-	} else if quiet >= 1 {
-		log.SetFlags(0) // reduce
-	} else {
-		// useful in CI to have date and time stamps
-		log.SetFlags(log.Lshortfile + log.Ltime + log.Ldate)
-	}
-
+	plog.SetQuietness(quiet)
 	if err := rootCmd.Execute(); err != nil {
-		log.Fatalln(err)
+		plog.Fatalln(err)
 	}
 }
