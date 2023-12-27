@@ -1,5 +1,5 @@
 <script>
-	import { Hello } from "@pnpmwork/storybook";
+	import { Hello } from "storybook";
 </script>
 
 <h1>Welcome to SvelteKit</h1>
