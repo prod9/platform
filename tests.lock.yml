@@ -1,70 +1,52 @@
 - name: tests.yml \ Compiles
   commands:
-    - command: go install -v .
+    - command: go build -o ./testbeds/platform -v .
       checks:
         - name: exitcode
           data:
             - "0"
 - name: tests.yml \ Discover \ Go Basic
   commands:
-    - command: go run . -q discover ./testbeds/gobasic   2>&1 | grep "discovered"
-          | sort
+    - command: go run . discover ./testbeds/gobasic
       checks:
-        - name: exitcode
+        - name: stderr
           data:
-            - "0"
-        - name: stdout
-          data:
-            - 'discovered: gobasic => go/basic'
+            - '  INF discover dir=gobasic builder=go/basic'
 - name: tests.yml \ Discover \ Go Workspace
   commands:
-    - command: go run . -q discover ./testbeds/gowork    2>&1 | grep "discovered"
-          | sort
+    - command: go run . discover ./testbeds/gowork
       checks:
-        - name: exitcode
+        - name: stderr
           data:
-            - "0"
-        - name: stdout
-          data:
-            - 'discovered: app => go/workspace'
-            - 'discovered: fx => go/workspace'
+            - '  INF discover dir=app builder=go/workspace'
+            - '  INF discover dir=fx builder=go/workspace'
 - name: tests.yml \ Discover \ PNPM Basic
   commands:
-    - command: go run . -q discover ./testbeds/pnpmbasic 2>&1 | grep "discovered"
-          | sort
+    - command: go run . discover ./testbeds/pnpmbasic
       checks:
-        - name: exitcode
+        - name: stderr
           data:
-            - "0"
-        - name: stdout
-          data:
-            - 'discovered: pnpmbasic => pnpm/basic'
+            - '  INF discover dir=pnpmbasic builder=pnpm/basic'
 - name: tests.yml \ Discover \ PNPM Workspace
   commands:
-    - command: go run . -q discover ./testbeds/pnpmwork 2>&1 | grep "discovered" |
-          sort
+    - command: go run . discover ./testbeds/pnpmwork
       checks:
-        - name: exitcode
+        - name: stderr
           data:
-            - "0"
-        - name: stdout
-          data:
-            - 'discovered: storybook => pnpm/workspace'
-            - 'discovered: web => pnpm/workspace'
+            - '  INF discover dir=storybook builder=pnpm/workspace'
+            - '  INF discover dir=web builder=pnpm/workspace'
 - name: tests.yml \ Bootstrap \ Go Basic
   commands:
-    - command: go run . -q bootstrap ./testbeds/gobasic "Johnny Appleseed" "john@apple.com"
-          "github.com/prod9/platform" "ghcr.io/prod9/platform"
+    - command: go run . -q bootstrap ./testbeds/gobasic "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform" "ghcr.io/prod9/platform"
       checks:
         - name: exitcode
           data:
             - "0"
         - name: stderr
           data:
-            - 'wrote: platform.toml'
-            - 'wrote: platform'
-            - 'wrote: .buildkite/pipeline.yaml'
-            - exited.
+            - '  INF wrote filename=platform.toml'
+            - '  INF wrote filename=platform'
+            - '  INF wrote filename=.buildkite/pipeline.yaml'
         - name: ./testbeds/gobasic/platform.toml
           data:
             - '-----BEGIN platform.toml-----'
@@ -72,8 +54,7 @@
             - platform = "linux/amd64"
             - repository = "github.com/prod9/platform"
             - strategy = "timestamp"
-            - excludes = ["*.docker", "*.local", ".dockerignore", ".git", ".github",
-              ".gitignore", ".idea", ".vscode", "node_modules", "platform.toml"]
+            - excludes = ["*.docker", "*.local", ".dockerignore", ".git", ".github", ".gitignore", ".idea", ".vscode", "node_modules", "platform.toml"]
             - ""
             - '[modules]'
             - '  [modules.gobasic]'
@@ -123,18 +104,16 @@
             - ""
 - name: tests.yml \ Bootstrap \ Go Workspace
   commands:
-    - command: go run . -q bootstrap ./testbeds/gowork "Johnny Appleseed" "john@apple.com"
-          "github.com/prod9/platform" "ghcr.io/prod9/platform"
+    - command: go run . -q bootstrap ./testbeds/gowork "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform" "ghcr.io/prod9/platform"
       checks:
         - name: exitcode
           data:
             - "0"
         - name: stderr
           data:
-            - 'wrote: platform.toml'
-            - 'wrote: platform'
-            - 'wrote: .buildkite/pipeline.yaml'
-            - exited.
+            - '  INF wrote filename=platform.toml'
+            - '  INF wrote filename=platform'
+            - '  INF wrote filename=.buildkite/pipeline.yaml'
         - name: ./testbeds/gowork/platform.toml
           data:
             - '-----BEGIN platform.toml-----'
@@ -142,8 +121,7 @@
             - platform = "linux/amd64"
             - repository = "github.com/prod9/platform"
             - strategy = "timestamp"
-            - excludes = ["*.docker", "*.local", ".dockerignore", ".git", ".github",
-              ".gitignore", ".idea", ".vscode", "node_modules", "platform.toml"]
+            - excludes = ["*.docker", "*.local", ".dockerignore", ".git", ".github", ".gitignore", ".idea", ".vscode", "node_modules", "platform.toml"]
             - ""
             - '[modules]'
             - '  [modules.app]'
@@ -198,18 +176,16 @@
             - ""
 - name: tests.yml \ Bootstrap \ PNPM Basic
   commands:
-    - command: go run . -q bootstrap ./testbeds/pnpmbasic "Johnny Appleseed" "john@apple.com"
-          "github.com/prod9/platform" "ghcr.io/prod9/platform"
+    - command: go run . -q bootstrap ./testbeds/pnpmbasic "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform" "ghcr.io/prod9/platform"
       checks:
         - name: exitcode
           data:
             - "0"
         - name: stderr
           data:
-            - 'wrote: platform.toml'
-            - 'wrote: platform'
-            - 'wrote: .buildkite/pipeline.yaml'
-            - exited.
+            - '  INF wrote filename=platform.toml'
+            - '  INF wrote filename=platform'
+            - '  INF wrote filename=.buildkite/pipeline.yaml'
         - name: ./testbeds/pnpmbasic/platform.toml
           data:
             - '-----BEGIN platform.toml-----'
@@ -217,8 +193,7 @@
             - platform = "linux/amd64"
             - repository = "github.com/prod9/platform"
             - strategy = "timestamp"
-            - excludes = ["*.docker", "*.local", ".dockerignore", ".git", ".github",
-              ".gitignore", ".idea", ".vscode", "node_modules", "platform.toml"]
+            - excludes = ["*.docker", "*.local", ".dockerignore", ".git", ".github", ".gitignore", ".idea", ".vscode", "node_modules", "platform.toml"]
             - ""
             - '[modules]'
             - '  [modules.pnpmbasic]'
@@ -266,3 +241,21 @@
             - '    depends_on: os'
             - '-----END pipeline.yaml-----'
             - ""
+- name: tests.yml \ Bootstrap \ PNPM Workspace
+  commands:
+    - command: go run . -q bootstrap ./testbeds/pnpmbasic "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform" "ghcr.io/prod9/platform"
+      checks:
+        - name: exitcode
+          data:
+            - "0"
+        - name: stderr
+          data:
+            - '  INF wrote filename=platform.toml'
+            - '  INF wrote filename=platform'
+            - '  INF wrote filename=.buildkite/pipeline.yaml'
+        - name: ./testbeds/pnpmwork/platform.toml
+          data: []
+        - name: ./testbeds/pnpmwork/platform
+          data: []
+        - name: ./testbeds/pnpmwork/.buildkite/*.*
+          data: []

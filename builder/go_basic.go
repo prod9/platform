@@ -35,7 +35,7 @@ func (GoBasic) Build(ctx context.Context, client *dagger.Client, job *Job) (cont
 		Exclude: job.Excludes,
 	})
 
-	outname := "/" + job.CommandName
+	outname := "/app/" + job.CommandName
 	base := BaseImageForJob(client, job)
 
 	builder := base.

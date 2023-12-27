@@ -7,24 +7,23 @@ tests:
     checks:
       - exitcode
     commands:
-      - go install -v .
+      - go build -o ./testbeds/platform -v .
   - name: Discover
     checks:
-      - exitcode
-      - stdout
+      - stderr
     tests:
       - name: Go Basic
         commands:
-          - go run . -q discover ./testbeds/gobasic   2>&1 | grep "discovered" | sort
+          - go run . discover ./testbeds/gobasic
       - name: Go Workspace
         commands:
-          - go run . -q discover ./testbeds/gowork    2>&1 | grep "discovered" | sort
+          - go run . discover ./testbeds/gowork
       - name: PNPM Basic
         commands:
-          - go run . -q discover ./testbeds/pnpmbasic 2>&1 | grep "discovered" | sort
+          - go run . discover ./testbeds/pnpmbasic
       - name: PNPM Workspace
         commands:
-          - go run . -q discover ./testbeds/pnpmwork 2>&1 | grep "discovered" | sort
+          - go run . discover ./testbeds/pnpmwork
   - name: Bootstrap
     checks:
       - exitcode
@@ -51,3 +50,20 @@ tests:
           - ./testbeds/pnpmbasic/.buildkite/*.*
         commands:
           - go run . -q bootstrap ./testbeds/pnpmbasic "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform" "ghcr.io/prod9/platform"
+      - name: PNPM Workspace
+        checks:
+          - ./testbeds/pnpmwork/platform.toml
+          - ./testbeds/pnpmwork/platform
+          - ./testbeds/pnpmwork/.buildkite/*.*
+        commands:
+          - go run . -q bootstrap ./testbeds/pnpmbasic "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform" "ghcr.io/prod9/platform"
+  # - name: Build
+  #   checks:
+  #     - stderr
+  #     - exitcode
+  #   tests:
+  #     - name: Go Basic
+  #       config:
+  #         workdir: ./testbeds/gobasic
+  #       commands:
+  #         - ../platform -q build

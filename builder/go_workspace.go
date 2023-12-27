@@ -34,7 +34,7 @@ func (b GoWorkspace) Discover(wd string) (map[string]Interface, error) {
 		}
 
 		// found a go/basic submodule, mark it as using go/workspace
-		for submod, _ := range submods {
+		for submod := range submods {
 			mods[submod] = b
 		}
 		return nil
