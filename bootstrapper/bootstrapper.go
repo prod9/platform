@@ -51,6 +51,7 @@ func Bootstrap(dir string, info *Info) error {
 			mod.WorkDir = "."
 		}
 
+		mod.CommandName = name
 		proj.Modules[name] = &mod
 	}
 

@@ -31,6 +31,7 @@
             - '    timeout = "1m0s"'
             - '    builder = "go/basic"'
             - '    publish = false'
+            - '    cmd = "gobasic"'
             - '-----END platform.toml-----'
             - ""
         - name: ./testbeds/gobasic/platform
@@ -98,11 +99,13 @@
             - '    timeout = "1m0s"'
             - '    builder = "go/workspace"'
             - '    publish = false'
+            - '    cmd = "app"'
             - '  [modules.fx]'
             - '    workdir = "./fx"'
             - '    timeout = "1m0s"'
             - '    builder = "go/workspace"'
             - '    publish = false'
+            - '    cmd = "fx"'
             - '-----END platform.toml-----'
             - ""
         - name: ./testbeds/gowork/platform
@@ -169,6 +172,7 @@
             - '    timeout = "1m0s"'
             - '    builder = "pnpm/basic"'
             - '    publish = false'
+            - '    cmd = "pnpmbasic"'
             - '-----END platform.toml-----'
             - ""
         - name: ./testbeds/pnpmbasic/platform
@@ -236,11 +240,13 @@
             - '    timeout = "1m0s"'
             - '    builder = "pnpm/workspace"'
             - '    publish = false'
+            - '    cmd = "storybook"'
             - '  [modules.web]'
             - '    workdir = "./web"'
             - '    timeout = "1m0s"'
             - '    builder = "pnpm/workspace"'
             - '    publish = false'
+            - '    cmd = "web"'
             - '-----END platform.toml-----'
             - ""
         - name: ./testbeds/pnpmwork/platform

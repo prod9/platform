@@ -35,7 +35,6 @@ func (GoBasic) Build(ctx context.Context, client *dagger.Client, job *Job) (cont
 		Exclude: job.Excludes,
 	})
 
-	outname := "/app/" + job.CommandName
 	base := BaseImageForJob(client, job)
 
 	builder := base.
@@ -46,11 +45,11 @@ func (GoBasic) Build(ctx context.Context, client *dagger.Client, job *Job) (cont
 		WithExec([]string{"go", "mod", "download", "-x", "all"}).
 		WithDirectory(".", host).
 		WithExec([]string{"go", "test", "-v", "./..."}).
-		WithExec([]string{"go", "build", "-v", "-o", outname, job.PackageName})
+		WithExec([]string{"go", "build", "-v", "-o", job.CommandName, job.PackageName})
 
 	runner := base.
 		WithExec([]string{"apk", "add", "--no-cache", "ca-certificates", "tzdata"}).
-		WithFile("/app/"+job.CommandName, builder.File(outname))
+		WithFile("/app/"+job.CommandName, builder.File(job.CommandName))
 
 	for _, dir := range job.AssetDirs {
 		runner = runner.WithDirectory(dir, builder.Directory(dir))
