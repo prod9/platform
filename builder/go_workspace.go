@@ -109,10 +109,15 @@ func (GoWorkspace) Build(sess *Session, job *Job) (container *dagger.Container, 
 		testargs = append(testargs, "./"+mod+"/...")
 	}
 
+	pkg := job.PackageName
+	if pkg == "" {
+		pkg = "./" + job.Name
+	}
+
 	builder = builder.
 		WithDirectory(".", host).
 		WithExec(testargs).
-		WithExec([]string{gobin, "build", "-v", "-o", "/out/" + cmd, job.PackageName})
+		WithExec([]string{gobin, "build", "-v", "-o", "/out/" + cmd, pkg})
 
 	runner := withGoRunnerBase(base).
 		WithFile("/app/"+cmd, builder.File("/out/"+cmd))
