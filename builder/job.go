@@ -80,7 +80,7 @@ func JobFromModule(cfg *project.Project, name string, mod *project.Module) (*Job
 
 		Name:     name,
 		WorkDir:  modpath,
-		Timeout:  mod.Timeout,
+		Timeout:  mod.Timeout.Duration(),
 		Platform: cfg.Platform,
 		Excludes: cfg.Excludes,
 

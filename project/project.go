@@ -7,6 +7,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"platform.prodigy9.co/internal/plog"
+	"platform.prodigy9.co/internal/timeouts"
 )
 
 type (
@@ -25,9 +26,9 @@ type (
 	}
 
 	Module struct {
-		WorkDir string        `toml:"workdir,omitempty"` // the directory we'll be working in
-		Timeout time.Duration `toml:"timeout,omitempty"`
-		Builder string        `toml:"builder,omitempty"`
+		WorkDir string           `toml:"workdir,omitempty"` // the directory we'll be working in
+		Timeout timeouts.Timeout `toml:"timeout,omitempty"`
+		Builder string           `toml:"builder,omitempty"`
 
 		Env     map[string]string `toml:"env,omitempty"`
 		Publish bool              `toml:"publish"`
@@ -64,7 +65,7 @@ var (
 	}
 
 	ModuleDefaults = &Module{
-		Timeout: 5 * time.Second,
+		Timeout: timeouts.From(1 * time.Minute),
 		Publish: false,
 	}
 )
