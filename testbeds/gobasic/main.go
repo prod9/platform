@@ -1,7 +1,13 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/mgutz/ansi"
+)
 
 func main() {
-	fmt.Println("Hello, World!")
+	fmt.Println(ansi.Magenta + "Hello, " +
+		ansi.Cyan + "World!" +
+		ansi.Reset)
 }
