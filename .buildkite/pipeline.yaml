@@ -4,7 +4,7 @@ steps:
     key: os
 
   - name: ":white_check_mark: Run Tests"
-    command: "./test.sh"
+    command: "./test.sh -v"
     depends_on: os
     key: test
 
