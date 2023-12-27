@@ -57,9 +57,13 @@ var (
 			".github",
 			".gitignore",
 			".idea",
+			".svelte-kit",
 			".vscode",
+			"build",
+			"dist",
 			"node_modules",
 			"platform.toml",
+			"target",
 		},
 		Modules: map[string]*Module{},
 	}

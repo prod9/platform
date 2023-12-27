@@ -13,8 +13,13 @@ excludes = [
 	".github",
 	".gitignore",
 	".idea",
+	".svelte-kit",
+	".vscode",
+	"build",
+	"dist",
 	"node_modules",
 	"platform.toml",
+	"target",
 ]
 
 [modules.platform]
