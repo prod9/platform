@@ -48,7 +48,7 @@ type (
 var (
 	ProjectDefaults = &Project{
 		Strategy: "timestamp",
-		Platform: "linux/amd64",
+		Platform: "auto",
 		Excludes: []string{
 			"*.docker",
 			"*.local",

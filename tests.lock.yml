@@ -20,7 +20,7 @@
           data:
             - '-----BEGIN platform.toml-----'
             - maintainer = "Johnny Appleseed <john@apple.com>"
-            - platform = "linux/amd64"
+            - platform = "auto"
             - repository = "github.com/prod9/platform"
             - strategy = "timestamp"
             - excludes = ["*.docker", "*.local", ".dockerignore", ".git", ".github", ".gitignore", ".idea", ".vscode", "node_modules", "platform.toml"]
@@ -87,7 +87,7 @@
           data:
             - '-----BEGIN platform.toml-----'
             - maintainer = "Johnny Appleseed <john@apple.com>"
-            - platform = "linux/amd64"
+            - platform = "auto"
             - repository = "github.com/prod9/platform"
             - strategy = "timestamp"
             - excludes = ["*.docker", "*.local", ".dockerignore", ".git", ".github", ".gitignore", ".idea", ".vscode", "node_modules", "platform.toml"]
@@ -158,7 +158,7 @@
           data:
             - '-----BEGIN platform.toml-----'
             - maintainer = "Johnny Appleseed <john@apple.com>"
-            - platform = "linux/amd64"
+            - platform = "auto"
             - repository = "github.com/prod9/platform"
             - strategy = "timestamp"
             - excludes = ["*.docker", "*.local", ".dockerignore", ".git", ".github", ".gitignore", ".idea", ".vscode", "node_modules", "platform.toml"]
@@ -225,7 +225,7 @@
           data:
             - '-----BEGIN platform.toml-----'
             - maintainer = "Johnny Appleseed <john@apple.com>"
-            - platform = "linux/amd64"
+            - platform = "auto"
             - repository = "github.com/prod9/platform"
             - strategy = "timestamp"
             - excludes = ["*.docker", "*.local", ".dockerignore", ".git", ".github", ".gitignore", ".idea", ".vscode", "node_modules", "platform.toml"]

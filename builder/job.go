@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"time"
 
 	"platform.prodigy9.co/project"
@@ -74,6 +76,14 @@ func JobFromModule(cfg *project.Project, name string, mod *project.Module) (*Job
 	modpath := filepath.Join(cfg.ConfigDir, mod.WorkDir)
 	modpath = filepath.Clean(modpath)
 
+	var platform string
+	if strings.ToLower(cfg.Platform) == "auto" {
+		// since linux is the most compatible, we should be safe here
+		platform = "linux/" + runtime.GOARCH
+	} else {
+		platform = cfg.Platform
+	}
+
 	return &Job{
 		Config:  cfg,
 		Builder: b,
@@ -81,7 +91,7 @@ func JobFromModule(cfg *project.Project, name string, mod *project.Module) (*Job
 		Name:     name,
 		WorkDir:  modpath,
 		Timeout:  mod.Timeout.Duration(),
-		Platform: cfg.Platform,
+		Platform: platform,
 		Excludes: cfg.Excludes,
 
 		Env:     mod.Env,
