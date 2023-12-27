@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -18,17 +19,8 @@ var BootstrapCmd = &cobra.Command{
 }
 
 func runBootstrapCmd(cmd *cobra.Command, args []string) {
+	fmt.Println(args)
 	wd, err := os.Getwd()
-	if err != nil {
-		plog.Fatalln(err)
-	}
-
-	if len(args) > 0 {
-		wd = filepath.Join(wd, args[0])
-		args = args[1:]
-	}
-
-	wd, err = filepath.Abs(wd)
 	if err != nil {
 		plog.Fatalln(err)
 	}
