@@ -46,7 +46,7 @@ func (GoBasic) Build(sess *Session, job *Job) (container *dagger.Container, err 
 		cmd = job.Name
 	}
 
-	args := []string{cmd}
+	args := []string{"./" + cmd}
 	if len(job.CommandArgs) > 0 {
 		args = append(args, job.CommandArgs...)
 	}

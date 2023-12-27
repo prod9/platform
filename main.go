@@ -1,8 +1,6 @@
 package main
 
 import (
-	"os"
-
 	fxcmd "fx.prodigy9.co/cmd"
 	"github.com/spf13/cobra"
 	"platform.prodigy9.co/cmd"
@@ -25,6 +23,8 @@ func init() {
 		cmd.ConfigureCmd,
 		cmd.DeployCmd,
 		cmd.DiscoverCmd,
+		cmd.ExportCmd,
+		cmd.PreviewCmd,
 		cmd.PublishCmd,
 		cmd.ReleaseCmd,
 		cmd.VanityCmd,
@@ -35,10 +35,6 @@ func init() {
 
 func main() {
 	defer plog.Event("exited")
-	if err := rootCmd.ParseFlags(os.Args); err != nil {
-		plog.Fatalln(err)
-	}
-
 	plog.SetQuietness(quiet)
 	if err := rootCmd.Execute(); err != nil {
 		plog.Fatalln(err)
