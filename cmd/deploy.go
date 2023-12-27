@@ -72,6 +72,7 @@ func runDeploy(cmd *cobra.Command, args []string) {
 		if err != nil {
 			plog.Fatalln(err)
 		}
+		defer sess.Close()
 
 		jobs, err := builder.JobsFromArgs(cfg, p.Args())
 		if err != nil {

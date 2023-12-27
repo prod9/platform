@@ -30,6 +30,7 @@ func runBuild(cmd *cobra.Command, args []string) {
 	if err != nil {
 		plog.Fatalln(err)
 	}
+	defer sess.Close()
 
 	results, err := builder.Build(sess, jobs...)
 	if err != nil {

@@ -54,6 +54,7 @@ func runPublish(cmd *cobra.Command, args []string) {
 	if err != nil {
 		plog.Fatalln(err)
 	}
+	defer sess.Close()
 
 	builds, err := builder.Build(sess, jobs...)
 	if err != nil {
