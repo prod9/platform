@@ -7,9 +7,9 @@
             - "0"
 - name: Platform \ Go Basic \ Discover
   commands:
-    - command: go run . discover ./testbeds/gobasic
+    - command: ./testbed.sh gobasic discover 2>&1 | sort
       checks:
-        - name: stderr
+        - name: stdout
           data:
             - '  INF discover dir=gobasic builder=go/basic'
 - name: Platform \ Go Basic \ Bootstrap
@@ -73,9 +73,9 @@
             - ""
 - name: Platform \ Go Workspace \ Discover
   commands:
-    - command: go run . discover ./testbeds/gowork
+    - command: ./testbed.sh gowork discover 2>&1 | sort
       checks:
-        - name: stderr
+        - name: stdout
           data:
             - '  INF discover dir=app builder=go/workspace'
             - '  INF discover dir=fx builder=go/workspace'
@@ -145,9 +145,9 @@
             - ""
 - name: Platform \ PNPM Basic \ Discover
   commands:
-    - command: go run . discover ./testbeds/pnpmbasic
+    - command: ./testbed.sh pnpmbasic discover 2>&1 | sort
       checks:
-        - name: stderr
+        - name: stdout
           data:
             - '  INF discover dir=pnpmbasic builder=pnpm/basic'
 - name: Platform \ PNPM Basic \ Bootstrap
@@ -211,12 +211,12 @@
             - ""
 - name: Platform \ PNPM Workspace \ Discover
   commands:
-    - command: go run . discover ./testbeds/pnpmwork
+    - command: ./testbed.sh pnpmwork discover 2>&1 | sort
       checks:
-        - name: stderr
+        - name: stdout
           data:
-            - '  INF discover dir=web builder=pnpm/workspace'
             - '  INF discover dir=storybook builder=pnpm/workspace'
+            - '  INF discover dir=web builder=pnpm/workspace'
 - name: Platform \ PNPM Workspace \ Bootstrap
   commands:
     - command: go run . -q bootstrap ./testbeds/pnpmwork "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform" "ghcr.io/prod9/platform"

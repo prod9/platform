@@ -41,8 +41,8 @@ let testbeds = [...{name: string, dir: string}] &
 				tests: [
 					{
 						name: "Discover"
-						checks: ["stderr"]
-						commands: [ "go run . discover ./testbeds/\(testbed.dir)"]
+						checks: ["stdout"]
+						commands: [ "./testbed.sh \(testbed.dir) discover 2>&1 | sort"]
 					},
 					{
 						name: "Bootstrap"

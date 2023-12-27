@@ -13,9 +13,9 @@ tests:
     tests:
       - name: Discover
         checks:
-          - stderr
+          - stdout
         commands:
-          - go run . discover ./testbeds/gobasic
+          - ./testbed.sh gobasic discover 2>&1 | sort
       - name: Bootstrap
         checks:
           - ./testbeds/gobasic/platform.toml
@@ -27,9 +27,9 @@ tests:
     tests:
       - name: Discover
         checks:
-          - stderr
+          - stdout
         commands:
-          - go run . discover ./testbeds/gowork
+          - ./testbed.sh gowork discover 2>&1 | sort
       - name: Bootstrap
         checks:
           - ./testbeds/gowork/platform.toml
@@ -41,9 +41,9 @@ tests:
     tests:
       - name: Discover
         checks:
-          - stderr
+          - stdout
         commands:
-          - go run . discover ./testbeds/pnpmbasic
+          - ./testbed.sh pnpmbasic discover 2>&1 | sort
       - name: Bootstrap
         checks:
           - ./testbeds/pnpmbasic/platform.toml
@@ -55,9 +55,9 @@ tests:
     tests:
       - name: Discover
         checks:
-          - stderr
+          - stdout
         commands:
-          - go run . discover ./testbeds/pnpmwork
+          - ./testbed.sh pnpmwork discover 2>&1 | sort
       - name: Bootstrap
         checks:
           - ./testbeds/pnpmwork/platform.toml
