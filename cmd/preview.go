@@ -44,22 +44,24 @@ func runPreview(cmd *cobra.Command, args []string) {
 		plog.Fatalln(errors.New("no modules to preview"))
 	}
 
-	var names []string
-	for _, job := range jobs {
-		names = append(names, job.Name)
-	}
-
-	p := prompts.New(nil, args)
-	modname := p.List("preview which module?", jobs[0].Name, names)
-
-	var preview *builder.Job
-	for _, job := range jobs {
-		if job.Name == modname {
-			preview = job
+	preview := jobs[0] // at least 1 by this point
+	if len(jobs) > 1 {
+		var names []string
+		for _, job := range jobs {
+			names = append(names, job.Name)
 		}
-	}
-	if preview == nil {
-		plog.Fatalln(errors.New("no module to preview"))
+
+		p := prompts.New(nil, args)
+		modname := p.List("preview which module?", jobs[0].Name, names)
+
+		for _, job := range jobs {
+			if job.Name == modname {
+				preview = job
+			}
+		}
+		if preview == nil {
+			plog.Fatalln(errors.New("no module to preview"))
+		}
 	}
 
 	sess, err := builder.NewSession(context.Background())
