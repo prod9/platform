@@ -84,6 +84,10 @@ func runDeploy(cmd *cobra.Command, args []string) {
 			plog.Fatalln(err)
 		}
 
+		for _, job := range jobs {
+			job.ImageName = job.ImageName + ":" + targetEnv
+		}
+
 		results, err := builder.Publish(sess, builds...)
 		if err != nil {
 			plog.Fatalln(err)
