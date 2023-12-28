@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"os"
 
 	"github.com/spf13/cobra"
 	"platform.prodigy9.co/builder"
@@ -37,9 +38,14 @@ func runBuild(cmd *cobra.Command, args []string) {
 		plog.Fatalln(err)
 	}
 
+	anyerr := false
 	for _, result := range results {
 		if result.Err != nil {
 			plog.Error(result.Err)
+			anyerr = true
 		}
+	}
+	if anyerr {
+		os.Exit(1)
 	}
 }
