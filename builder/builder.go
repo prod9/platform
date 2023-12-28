@@ -156,7 +156,7 @@ func Publish(sess *Session, builds ...BuildResult) ([]PublishResult, error) {
 			return PublishResult{BuildResult: build}
 		}
 
-		plog.Image("publish", hash)
+		plog.Image("publish", build.Job.ImageName, hash)
 		return PublishResult{
 			BuildResult: build,
 			ImageName:   build.Job.ImageName,

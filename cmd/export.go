@@ -42,12 +42,20 @@ func runExport(cmd *cobra.Command, args []string) {
 			continue
 		}
 
+		id, err := result.Container.ID(sess.Context())
+		if err != nil {
+			plog.Fatalln(err)
+		}
+		if len(id) > 16 {
+			id = id[len(id)-16:]
+		}
+
 		outname := result.Job.Name + ".docker"
-		_, err := result.Container.Export(sess.Context(), outname)
+		_, err = result.Container.Export(sess.Context(), outname)
 		if err != nil {
 			plog.Fatalln(err)
 		} else {
-			plog.Image("export", outname)
+			plog.Image("export", outname, string(id))
 		}
 	}
 }

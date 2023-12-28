@@ -34,8 +34,11 @@ func Dir(action, dir, builder string) {
 func Command(cmd string, args ...string) {
 	Logger().Info("command", slog.String("cmd", cmd+" "+strings.Join(args, " ")))
 }
-func Image(action, img string) {
-	Logger().Info(action, slog.String("image", img))
+func Image(action, image, hash string) {
+	Logger().Info(action,
+		slog.String("hash", hash),
+		slog.String("image", image),
+	)
 }
 
 func HTTPServing(addr string) {
