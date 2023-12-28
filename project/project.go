@@ -88,37 +88,37 @@ func Configure(wd string) (*Project, error) {
 		return nil, err
 	}
 
-	cfg := &Project{}
-	if _, err = toml.DecodeFile(path, cfg); err != nil {
+	proj := &Project{}
+	if _, err = toml.DecodeFile(path, proj); err != nil {
 		return nil, err
 	}
 
-	cfg.ConfigPath = path
-	cfg.ConfigDir = filepath.Dir(path)
+	proj.ConfigPath = path
+	proj.ConfigDir = filepath.Dir(path)
 
-	cfg.assignDefaults()
-	cfg.assignEnvOverrides()
-	cfg.inferValues()
-	return cfg, nil
+	proj.assignDefaults()
+	proj.assignEnvOverrides()
+	proj.inferValues()
+	return proj, nil
 }
 
-func (c *Project) assignDefaults() {
-	for _, mod := range c.Modules {
+func (p *Project) assignDefaults() {
+	for _, mod := range p.Modules {
 		if mod.Timeout <= 0 {
 			mod.Timeout = ModuleDefaults.Timeout
 		}
 	}
 }
 
-func (c *Project) assignEnvOverrides() {
+func (p *Project) assignEnvOverrides() {
 	if platform, ok := os.LookupEnv("PLATFORM"); ok {
 		plog.Config("platform", platform)
-		c.Platform = platform
+		p.Platform = platform
 	}
 }
 
-func (c *Project) inferValues() {
-	for _, mod := range c.Modules {
+func (p *Project) inferValues() {
+	for _, mod := range p.Modules {
 		if mod.WorkDir == "" {
 			mod.WorkDir = "."
 		}

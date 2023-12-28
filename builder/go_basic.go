@@ -69,13 +69,12 @@ func (GoBasic) Build(sess *Session, job *Job) (container *dagger.Container, err 
 		WithExec([]string{gobin, "test", "-v", "./..."}).
 		WithExec([]string{gobin, "build", "-v", "-o", "/out/" + cmd, job.PackageName})
 
-	runner := withGoRunnerBase(base).
-		WithFile("/app/"+cmd, builder.File("/out/"+cmd))
+	runner := withGoRunnerBase(base)
+	runner = withJobEnv(runner, job)
+
+	runner = runner.WithFile("/app/"+cmd, builder.File("/out/"+cmd))
 	for _, dir := range job.AssetDirs {
 		runner = runner.WithDirectory(dir, builder.Directory(dir))
-	}
-	for key, value := range job.Env {
-		runner = runner.WithEnvVariable(key, value)
 	}
 
 	runner = runner.WithDefaultArgs(dagger.ContainerWithDefaultArgsOpts{Args: args})

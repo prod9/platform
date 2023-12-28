@@ -75,6 +75,8 @@ func JobFromModule(cfg *project.Project, name string, mod *project.Module) (*Job
 	var platform string
 	if strings.ToLower(cfg.Platform) == "auto" {
 		// since linux is the most compatible, we should be safe here
+		// also assumes that platform is built for the same architecture since it's meant
+		// to be run locally on the target machine
 		platform = "linux/" + runtime.GOARCH
 	} else {
 		platform = cfg.Platform

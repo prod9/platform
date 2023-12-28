@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"dagger.io/dagger"
 	"fx.prodigy9.co/errutil"
@@ -74,13 +75,30 @@ func (PNPMWorkspace) Build(sess *Session, job *Job) (container *dagger.Container
 		WithExec([]string{"pnpm", "-r", "install"}).
 		WithExec([]string{"pnpm", "-r", "build"})
 
-	runner := withPNPMRunnerBase(base).
-		WithDirectory("/app", builder.Directory("/app/"+job.Name+"/build"))
+	outdir := strings.TrimSpace(job.BuildDir)
+	if outdir == "" {
+		outdir = "build"
+	}
+
+	cmd := strings.TrimSpace(job.CommandName)
+	if cmd == "" {
+		cmd = "/usr/bin/node"
+	}
+
+	args := []string{cmd}
+	if len(job.CommandArgs) > 0 {
+		args = append(args, job.CommandArgs...)
+	} else {
+		args = append(args, ".")
+	}
+
+	runner := withPNPMRunnerBase(base)
+	runner = withJobEnv(runner, job)
+
+	runner = runner.
+		WithDirectory("/app", builder.Directory("/app/"+job.Name+"/"+outdir))
 
 	runner = withTypeModulePackageJSON(runner).
-		WithDefaultArgs(dagger.ContainerWithDefaultArgsOpts{
-			Args: []string{"/usr/bin/node", "."},
-		})
-
+		WithDefaultArgs(dagger.ContainerWithDefaultArgsOpts{Args: args})
 	return runner.Sync(sess.Context())
 }

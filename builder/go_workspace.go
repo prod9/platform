@@ -120,13 +120,12 @@ func (GoWorkspace) Build(sess *Session, job *Job) (container *dagger.Container, 
 		WithExec(testargs).
 		WithExec([]string{gobin, "build", "-v", "-o", "/out/" + cmd, pkg})
 
-	runner := withGoRunnerBase(base).
-		WithFile("/app/"+cmd, builder.File("/out/"+cmd))
+	runner := withGoRunnerBase(base)
+	runner = withJobEnv(runner, job)
+
+	runner = runner.WithFile("/app/"+cmd, builder.File("/out/"+cmd))
 	for _, dir := range job.AssetDirs {
 		runner = runner.WithDirectory(dir, builder.Directory(dir))
-	}
-	for key, value := range job.Env {
-		runner = runner.WithEnvVariable(key, value)
 	}
 
 	runner = runner.WithDefaultArgs(dagger.ContainerWithDefaultArgsOpts{Args: args})
