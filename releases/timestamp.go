@@ -53,6 +53,10 @@ func (d Timestamp) Recover(cfg *project.Project, opts *Options) (*Release, error
 	return &Release{Name: opts.Name, Message: tagmsg}, nil
 }
 
+func (d Timestamp) NextName(cfg *project.Project, comp NameComponent) (string, error) {
+	return dateref.Now(), nil
+}
+
 func (d Timestamp) Generate(cfg *project.Project, opts *Options) (*Release, error) {
 	if opts.Name == "" {
 		opts.Name = dateref.Now()

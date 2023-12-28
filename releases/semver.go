@@ -3,6 +3,7 @@ package releases
 import (
 	"errors"
 	"sort"
+	"strconv"
 	"strings"
 
 	"golang.org/x/mod/semver"
@@ -59,6 +60,53 @@ func (s Semver) Recover(cfg *project.Project, opts *Options) (*Release, error) {
 	}
 
 	return &Release{Name: opts.Name, Message: tagmsg}, nil
+}
+
+func (s Semver) NextName(cfg *project.Project, comp NameComponent) (string, error) {
+	if comp == "" {
+		comp = NamePatch
+	}
+
+	tagname, err := gitcmd.Describe(cfg.ConfigDir)
+	if err != nil {
+		return "", err
+	}
+	if idx := strings.IndexRune(tagname, '-'); idx > -1 {
+		tagname = tagname[:idx]
+	}
+
+	v := semver.Canonical(tagname)
+	parts := strings.Split(v, ".")
+	switch comp {
+	case NamePatch:
+		if n, err := strconv.Atoi(parts[2]); err != nil {
+			return "", ErrBadSemver
+		} else {
+			parts[2] = strconv.Itoa(n + 1)
+		}
+
+	case NameMinor:
+		if n, err := strconv.Atoi(parts[1]); err != nil {
+			return "", ErrBadSemver
+		} else {
+			parts[1] = strconv.Itoa(n + 1)
+			parts[2] = "0"
+		}
+
+	case NameMajor:
+		if n, err := strconv.Atoi(parts[0][1:]); err != nil {
+			return "", ErrBadSemver
+		} else {
+			parts[0] = "v" + strconv.Itoa(n+1)
+			parts[1] = "0"
+			parts[2] = "0"
+		}
+
+	default:
+		return "", errors.New("invalid version component: " + string(comp))
+	}
+
+	return strings.Join(parts, "."), nil
 }
 
 func (s Semver) Generate(cfg *project.Project, opts *Options) (*Release, error) {

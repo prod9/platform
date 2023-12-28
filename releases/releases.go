@@ -12,28 +12,39 @@ var (
 	ErrBadStrategy = errors.New("releases: invalid strategy")
 )
 
-type CommitRef struct {
-	Hash    string `toml:"hash"`
-	Subject string `toml:"subject"`
-}
+type NameComponent string
 
-type Release struct {
-	Name    string      `toml:"name"`
-	Message string      `toml:"message"`
-	Commits []CommitRef `toml:"commits"`
-}
+const (
+	NameTimestamp NameComponent = "timestamp"
+	NamePatch     NameComponent = "patch"
+	NameMinor     NameComponent = "minor"
+	NameMajor     NameComponent = "major"
+)
 
-type Options struct {
-	Name  string
-	Force bool
-}
+type (
+	CommitRef struct {
+		Hash    string `toml:"hash"`
+		Subject string `toml:"subject"`
+	}
+	Release struct {
+		Name    string      `toml:"name"`
+		Message string      `toml:"message"`
+		Commits []CommitRef `toml:"commits"`
+	}
+	Options struct {
+		Name  string
+		Force bool
+	}
 
-type Strategy interface {
-	List(cfg *project.Project) ([]*Release, error)
-	Recover(cfg *project.Project, opts *Options) (*Release, error)
-	Generate(cfg *project.Project, opts *Options) (*Release, error)
-	Create(cfg *project.Project, rel *Release) error
-}
+	Strategy interface {
+		List(cfg *project.Project) ([]*Release, error)
+		Recover(cfg *project.Project, opts *Options) (*Release, error)
+
+		NextName(cfg *project.Project, comp NameComponent) (string, error)
+		Generate(cfg *project.Project, opts *Options) (*Release, error)
+		Create(cfg *project.Project, rel *Release) error
+	}
+)
 
 var knownStrategies = map[string]Strategy{
 	"semver":    Semver{},
