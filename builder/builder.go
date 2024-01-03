@@ -69,6 +69,7 @@ var (
 		PNPMWorkspace{},
 		GoBasic{},
 		PNPMBasic{},
+		PNPMStatic{},
 	}
 )
 
