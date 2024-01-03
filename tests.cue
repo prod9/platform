@@ -20,6 +20,7 @@ let testbeds = [...{name: string, dir: string}] &
 	{name: "Go Workspace", dir:   "gowork"},
 	{name: "PNPM Basic", dir:     "pnpmbasic"},
 	{name: "PNPM Workspace", dir: "pnpmwork"},
+	{name: "PNPM Static", dir:    "pnpmstatic"},
 ]
 
 #Test & {
@@ -33,7 +34,7 @@ let testbeds = [...{name: string, dir: string}] &
 		{
 			name: "Platform"
 			checks: ["exitcode"]
-			commands: [ "go build -v -o ./bin/platform ."]
+			commands: ["go build -v -o ./bin/platform ."]
 		},
 		for testbed in testbeds {
 			{
@@ -42,7 +43,7 @@ let testbeds = [...{name: string, dir: string}] &
 					{
 						name: "Discover"
 						checks: ["stdout"]
-						commands: [ "./testbed.sh \(testbed.dir) discover 2>&1 | sort"]
+						commands: ["./testbed.sh \(testbed.dir) discover 2>&1 | sort"]
 					},
 					{
 						name: "Bootstrap"

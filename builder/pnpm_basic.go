@@ -24,7 +24,6 @@ func (b PNPMBasic) Discover(wd string) (map[string]Interface, error) {
 
 	name := filepath.Base(wd)
 	return map[string]Interface{name: b}, nil
-
 }
 
 func (PNPMBasic) Build(sess *Session, job *Job) (container *dagger.Container, err error) {

@@ -1,9 +1,12 @@
 package builder
 
 import (
+	"path/filepath"
+	"strings"
+
 	"dagger.io/dagger"
 	"fx.prodigy9.co/errutil"
-	"strings"
+	"platform.prodigy9.co/builder/fileutil"
 )
 
 type PNPMStatic struct{}
@@ -13,10 +16,15 @@ func (PNPMStatic) Layout() Layout { return LayoutBasic }
 func (PNPMStatic) Class() Class   { return ClassInterpreted }
 
 func (b PNPMStatic) Discover(wd string) (map[string]Interface, error) {
-	// since we'll need to delve into framework-specific stuff to find out,
-	// which means we'll need to keep updated with the latest versions of every framework,
-	// we're leaving this out for now
-	return nil, ErrNoBuilder
+	// Assumes astro = static site, for now.
+	if detected, err := fileutil.DetectFile(wd, "astro.config.mjs"); err != nil {
+		return nil, err
+	} else if !detected {
+		return nil, ErrNoBuilder
+	}
+
+	name := filepath.Base(wd)
+	return map[string]Interface{name: b}, nil
 }
 
 func (b PNPMStatic) Build(sess *Session, job *Job) (container *dagger.Container, err error) {
