@@ -8,6 +8,7 @@ import (
 	"syscall"
 	"time"
 
+	"dagger.io/dagger"
 	"fx.prodigy9.co/cmd/prompts"
 	"github.com/spf13/cobra"
 	"platform.prodigy9.co/builder"
@@ -90,13 +91,17 @@ func runPreview(cmd *cobra.Command, args []string) {
 		WithExec(startArgs).
 		AsService()
 
-	tunnel := sess.Client().Host().Tunnel(container)
+	tunnel := sess.Client().Host().Tunnel(container, dagger.HostTunnelOpts{
+		Native: true,
+	})
 	tunnel, err = tunnel.Start(sess.Context())
 	if err != nil {
 		plog.Fatalln(err)
 	}
 
-	addr, err := tunnel.Endpoint(sess.Context())
+	addr, err := tunnel.Endpoint(sess.Context(), dagger.ServiceEndpointOpts{
+		Port: previewPort,
+	})
 	if err != nil {
 		plog.Fatalln(err)
 	}
