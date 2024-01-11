@@ -26,10 +26,12 @@ type Job struct {
 	Excludes []string
 
 	Env         map[string]string
+	Port        int
+	CommandName string
+	CommandArgs []string
+
 	AssetDirs   []string
 	BuildDir    string
-	CommandArgs []string
-	CommandName string
 	ImageName   string
 	PackageName string
 	Repository  string
@@ -93,10 +95,12 @@ func JobFromModule(cfg *project.Project, name string, mod *project.Module) (*Job
 		Excludes: cfg.Excludes,
 
 		Env:         mod.Env,
+		Port:        mod.Port,
+		CommandName: mod.CommandName,
+		CommandArgs: mod.CommandArgs,
+
 		AssetDirs:   mod.AssetDirs,
 		BuildDir:    mod.BuildDir,
-		CommandArgs: mod.CommandArgs,
-		CommandName: mod.CommandName,
 		ImageName:   mod.ImageName,
 		PackageName: mod.PackageName,
 		Repository:  cfg.Repository,

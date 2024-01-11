@@ -30,15 +30,15 @@ type (
 		Timeout timeouts.Timeout `toml:"timeout,omitempty"`
 		Builder string           `toml:"builder,omitempty"`
 
-		Env     map[string]string `toml:"env,omitempty"`
-		Publish bool              `toml:"publish"`
+		// container settings
+		Env         map[string]string `toml:"env,omitempty"`
+		Port        int               `toml:"port,omitempty"`
+		CommandName string            `toml:"cmd,omitempty"`
+		CommandArgs []string          `toml:"args,omitempty"`
 
-		// misc settings for builds
+		// build process settings
 		AssetDirs   []string `toml:"asset_dirs,omitempty"`
 		BuildDir    string   `toml:"build_dir,omitempty"`
-		CommandArgs []string `toml:"args,omitempty"`
-		CommandName string   `toml:"cmd,omitempty"`
-		Entrypoint  string   `toml:"entrypoint,omitempty"`
 		GoVersion   string   `toml:"go_version,omitempty"`
 		ImageName   string   `toml:"image,omitempty"`
 		PackageName string   `toml:"package,omitempty"`
@@ -70,7 +70,6 @@ var (
 
 	ModuleDefaults = &Module{
 		Timeout: timeouts.From(1 * time.Minute),
-		Publish: false,
 	}
 )
 
