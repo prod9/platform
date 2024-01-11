@@ -28,4 +28,5 @@ builder = "go/basic"
 cmd = "platform"
 image = "ghcr.io/prod9/platform"
 package = "platform.prodigy9.co"
+port = 8000
 timeout = "5m0s"

@@ -27,7 +27,7 @@ var (
 )
 
 func init() {
-	PreviewCmd.Flags().IntVarP(&previewPort, "port", "p", 8000, "Binds port for preview")
+	PreviewCmd.Flags().IntVarP(&previewPort, "port", "p", 0, "Binds port for preview")
 }
 
 func runPreview(cmd *cobra.Command, args []string) {
@@ -84,6 +84,10 @@ func runPreview(cmd *cobra.Command, args []string) {
 	startArgs, err := result.Container.DefaultArgs(sess.Context())
 	if err != nil {
 		plog.Fatalln(err)
+	}
+
+	if previewPort <= 1 {
+		previewPort = preview.Port
 	}
 
 	container := result.Container.
