@@ -15,10 +15,10 @@ var (
 type NameComponent string
 
 const (
-	NameTimestamp NameComponent = "timestamp"
-	NamePatch     NameComponent = "patch"
-	NameMinor     NameComponent = "minor"
-	NameMajor     NameComponent = "major"
+	NameAny   NameComponent = "any"
+	NamePatch NameComponent = "patch"
+	NameMinor NameComponent = "minor"
+	NameMajor NameComponent = "major"
 )
 
 type (
@@ -49,6 +49,7 @@ type (
 var knownStrategies = map[string]Strategy{
 	"semver":    Semver{},
 	"timestamp": Timestamp{},
+	"datestamp": Datestamp{},
 }
 
 func FindStrategy(name string) (Strategy, error) {
@@ -58,19 +59,6 @@ func FindStrategy(name string) (Strategy, error) {
 	} else {
 		return nil, ErrBadStrategy
 	}
-}
-
-func ListNames(strat Strategy, cfg *project.Project) ([]string, error) {
-	rel, err := strat.List(cfg)
-	if err != nil {
-		return nil, err
-	}
-
-	var names []string
-	for _, r := range rel {
-		names = append(names, r.Name)
-	}
-	return names, nil
 }
 
 func generateMessage(cfg *project.Project, title string, refs []CommitRef) string {

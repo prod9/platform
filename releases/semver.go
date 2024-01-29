@@ -142,12 +142,11 @@ func (s Semver) Generate(cfg *project.Project, opts *Options) (*Release, error) 
 		return nil, err
 	}
 
-	rel := &Release{
+	return &Release{
 		Name:    nextVer,
 		Message: generateMessage(cfg, nextVer, refs),
 		Commits: refs,
-	}
-	return rel, nil
+	}, nil
 }
 
 func (s Semver) Create(cfg *project.Project, rel *Release) error {

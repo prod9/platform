@@ -67,7 +67,7 @@ func runReleaseCmd(cmd *cobra.Command, args []string) {
 		case bumpMajor:
 			opts.Name, err = strat.NextName(cfg, releases.NameMajor)
 		default:
-			opts.Name, err = strat.NextName(cfg, "")
+			opts.Name, err = strat.NextName(cfg, releases.NameAny)
 		}
 		if err != nil {
 			plog.Fatalln(err)
