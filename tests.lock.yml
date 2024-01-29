@@ -39,7 +39,7 @@
             - '-----BEGIN platform-----'
             - '#!/bin/sh'
             - ""
-            - PLATFORM_VERSION="v0.3.6"
+            - PLATFORM_VERSION="v0.3.8"
             - ""
             - go run "platform.prodigy9.co@$PLATFORM_VERSION" "$@"
             - '-----END platform-----'
@@ -120,7 +120,7 @@
             - '-----BEGIN platform-----'
             - '#!/bin/sh'
             - ""
-            - PLATFORM_VERSION="v0.3.6"
+            - PLATFORM_VERSION="v0.3.8"
             - ""
             - go run "platform.prodigy9.co@$PLATFORM_VERSION" "$@"
             - '-----END platform-----'
@@ -193,7 +193,7 @@
             - '-----BEGIN platform-----'
             - '#!/bin/sh'
             - ""
-            - PLATFORM_VERSION="v0.3.6"
+            - PLATFORM_VERSION="v0.3.8"
             - ""
             - go run "platform.prodigy9.co@$PLATFORM_VERSION" "$@"
             - '-----END platform-----'
@@ -272,7 +272,7 @@
             - '-----BEGIN platform-----'
             - '#!/bin/sh'
             - ""
-            - PLATFORM_VERSION="v0.3.6"
+            - PLATFORM_VERSION="v0.3.8"
             - ""
             - go run "platform.prodigy9.co@$PLATFORM_VERSION" "$@"
             - '-----END platform-----'
@@ -345,7 +345,7 @@
             - '-----BEGIN platform-----'
             - '#!/bin/sh'
             - ""
-            - PLATFORM_VERSION="v0.3.6"
+            - PLATFORM_VERSION="v0.3.8"
             - ""
             - go run "platform.prodigy9.co@$PLATFORM_VERSION" "$@"
             - '-----END platform-----'
