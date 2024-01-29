@@ -36,11 +36,18 @@ func (d Datestamp) List(cfg *project.Project) ([]*Release, error) {
 func (d Datestamp) Recover(cfg *project.Project, opts *Options) (*Release, error) {
 	// get annotated tag and name
 	if opts.Name == "" {
-		tagname, err := gitcmd.Describe(cfg.ConfigDir)
+		var tagname string
+		// Publish latest if current commit is not tagged
+		_, err := gitcmd.ExactMatchTag(cfg.ConfigDir)
 		if err != nil {
-			return nil, err
-		} else if !dateref.IsValid(tagname) {
-			return nil, ErrBadDatestamp
+			tagname = "latest"
+		} else {
+			tagname, err := gitcmd.Describe(cfg.ConfigDir)
+			if err != nil {
+				return nil, err
+			} else if !dateref.IsValid(tagname) {
+				return nil, ErrBadDatestamp
+			}
 		}
 
 		opts.Name = tagname
