@@ -56,6 +56,11 @@ func runPublish(cmd *cobra.Command, args []string) {
 	}
 	defer sess.Close()
 
+	// Tag the image with the release name
+	for _, job := range jobs {
+		job.ImageName = job.ImageName + ":" + rel.Name
+	}
+
 	builds, err := builder.Build(sess, jobs...)
 	if err != nil {
 		plog.Fatalln(err)
