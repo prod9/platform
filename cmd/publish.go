@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"os"
 
 	"fx.prodigy9.co/cmd/prompts"
@@ -33,8 +34,15 @@ func runPublish(cmd *cobra.Command, args []string) {
 	opts := &releases.Options{}
 	rel, err := strat.Recover(cfg, opts)
 	if err != nil {
-		plog.Event("Tag not found, creating latest release")
-		rel = &releases.Release{Name: "latest"}
+		if errors.Is(err, releases.ErrBadDatestamp) {
+			plog.Event("Tag is not valid, creating latest release")
+			rel = &releases.Release{Name: "latest"}
+		} else if errors.Is(err, releases.ErrBadTimestamp) {
+			plog.Event("Tag is not valid, creating latest release")
+			rel = &releases.Release{Name: "latest"}
+		} else {
+			plog.Fatalln(err)
+		}
 	}
 
 	p := prompts.New(nil, args)
