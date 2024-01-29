@@ -33,7 +33,7 @@ func runPublish(cmd *cobra.Command, args []string) {
 	opts := &releases.Options{}
 	rel, err := strat.Recover(cfg, opts)
 	if err != nil {
-		plog.Event("Using latest as default release name")
+		plog.Event("Tag not found, creating latest release")
 		rel = &releases.Release{Name: "latest"}
 	}
 
