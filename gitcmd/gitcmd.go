@@ -41,6 +41,9 @@ func Status(wd string) (string, error) {
 func Describe(wd string) (string, error) {
 	return runCmd(wd, "git", "describe", "--always", "--dirty", "--broken")
 }
+func ExactMatchTag(wd string) (string, error) {
+	return runCmd(wd, "git", "describe", "--exact-match")
+}
 func CurrentBranch(wd string) (string, error) {
 	return runCmd(wd, "git", "branch", "--show-current")
 }
