@@ -24,7 +24,7 @@ var (
 )
 
 func init() {
-	PublishCmd.Flags().BoolVarP(&allowLatest, "latest", "l", false,
+	PublishCmd.Flags().BoolVarP(&allowLatest, "allow-latest", "l", false,
 		"Allow publishing latest release")
 }
 
