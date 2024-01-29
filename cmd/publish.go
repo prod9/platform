@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"errors"
 	"os"
 
 	"fx.prodigy9.co/cmd/prompts"
@@ -20,6 +19,15 @@ var PublishCmd = &cobra.Command{
 	Run:   runPublish,
 }
 
+var (
+	allowLatest bool
+)
+
+func init() {
+	PublishCmd.Flags().BoolVarP(&allowLatest, "latest", "l", false,
+		"Allow publishing latest release")
+}
+
 func runPublish(cmd *cobra.Command, args []string) {
 	cfg, err := project.Configure(".")
 	if err != nil {
@@ -34,13 +42,14 @@ func runPublish(cmd *cobra.Command, args []string) {
 	opts := &releases.Options{}
 	rel, err := strat.Recover(cfg, opts)
 	if err != nil {
-		if errors.Is(err, releases.ErrBadDatestamp) {
-			plog.Event("Tag is not valid, creating latest release")
+		if !allowLatest {
+			plog.Fatalln(err)
+		}
+
+		switch err {
+		case releases.ErrBadDatestamp, releases.ErrBadTimestamp, releases.ErrBadSemver:
 			rel = &releases.Release{Name: "latest"}
-		} else if errors.Is(err, releases.ErrBadTimestamp) {
-			plog.Event("Tag is not valid, creating latest release")
-			rel = &releases.Release{Name: "latest"}
-		} else {
+		default:
 			plog.Fatalln(err)
 		}
 	}
