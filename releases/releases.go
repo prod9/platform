@@ -109,3 +109,12 @@ func listCommits(wd string, range_ string) (refs []CommitRef, err error) {
 
 	return refs, nil
 }
+
+func IsBadRelease(err error) bool {
+	switch err {
+	case ErrBadDatestamp, ErrBadTimestamp, ErrBadSemver:
+		return true
+	default:
+		return false
+	}
+}

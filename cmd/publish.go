@@ -46,10 +46,9 @@ func runPublish(cmd *cobra.Command, args []string) {
 			plog.Fatalln(err)
 		}
 
-		switch err {
-		case releases.ErrBadDatestamp, releases.ErrBadTimestamp, releases.ErrBadSemver:
+		if releases.IsBadRelease(err) {
 			rel = &releases.Release{Name: "latest"}
-		default:
+		} else {
 			plog.Fatalln(err)
 		}
 	}
