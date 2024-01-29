@@ -42,11 +42,7 @@ func runPublish(cmd *cobra.Command, args []string) {
 	opts := &releases.Options{}
 	rel, err := strat.Recover(cfg, opts)
 	if err != nil {
-		if !allowLatest {
-			plog.Fatalln(err)
-		}
-
-		if releases.IsBadRelease(err) {
+		if allowLatest && releases.IsBadRelease(err) {
 			rel = &releases.Release{Name: "latest"}
 		} else {
 			plog.Fatalln(err)
