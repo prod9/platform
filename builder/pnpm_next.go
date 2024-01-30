@@ -35,6 +35,7 @@ func (PNPMNext) Build(sess *Session, job *Job) (container *dagger.Container, err
 	builder := BaseImageForJob(sess, job)
 	builder = withPNPMBuildBase(builder)
 	builder = withPNPMPkgCache(sess, builder)
+	builder = withJobEnv(builder, job)
 
 	builder = builder.
 		WithFile("package.json", host.File("package.json")).
@@ -47,12 +48,7 @@ func (PNPMNext) Build(sess *Session, job *Job) (container *dagger.Container, err
 	runner = withPNPMRunnerBase(runner)
 	runner = withJobEnv(runner, job)
 
-	runner = runner.
-		WithFile("package.json", builder.File("package.json")).
-		WithFile("pnpm-lock.yaml", builder.File("pnpm-lock.yaml")).
-		WithExec([]string{"pnpm", "i"})
-
-	defaultCmd := "pnpm"
+	defaultCmd := "/usr/bin/node"
 	cmd := strings.TrimSpace(job.CommandName)
 	if cmd == "" {
 		cmd = defaultCmd
@@ -62,11 +58,19 @@ func (PNPMNext) Build(sess *Session, job *Job) (container *dagger.Container, err
 	if len(job.CommandArgs) > 0 {
 		args = append(args, job.CommandArgs...)
 	} else if cmd == defaultCmd {
-		args = append(args, ".")
+		args = append(args, "server.js")
+	}
+
+	outdir := strings.TrimSpace(job.BuildDir)
+	if outdir == "" {
+		outdir = "build"
 	}
 
 	runner = runner.
-		WithDirectory("/app", host).
+		WithDirectory("/app", builder.Directory(filepath.Join(outdir, "standalone"))).
+		WithDirectory(filepath.Join("/app", outdir, "static"), builder.Directory(filepath.Join(outdir, "static"))).
+		WithDirectory("/app/public", builder.Directory("public")).
+		WithWorkdir("/app").
 		WithDefaultArgs(dagger.ContainerWithDefaultArgsOpts{Args: args})
 	return runner, nil
 }

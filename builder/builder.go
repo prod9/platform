@@ -70,6 +70,7 @@ var (
 		GoBasic{},
 		PNPMStatic{},
 		PNPMBasic{},
+		PNPMNext{},
 	}
 )
 
