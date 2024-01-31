@@ -70,10 +70,19 @@ func (PNPMWorkspace) Build(sess *Session, job *Job) (container *dagger.Container
 	builder := withPNPMBuildBase(base)
 	builder = withPNPMPkgCache(sess, builder)
 
+	pkg := job.PackageName
+	if pkg == "" {
+		pkg = job.Name
+	}
+
 	builder = builder.
 		WithDirectory("/app", host).
 		WithExec([]string{"pnpm", "-r", "install"}).
 		WithExec([]string{"pnpm", "-r", "build"})
+
+	// Prepare NodeJS Modules for deployment
+	builder = builder.
+		WithExec([]string{"pnpm", "deploy", "--filter", pkg, "--prod", filepath.Join("/deploy")})
 
 	outdir := strings.TrimSpace(job.BuildDir)
 	if outdir == "" {
@@ -96,7 +105,9 @@ func (PNPMWorkspace) Build(sess *Session, job *Job) (container *dagger.Container
 	runner = withJobEnv(runner, job)
 
 	runner = runner.
-		WithDirectory("/app", builder.Directory("/app/"+job.Name+"/"+outdir))
+		WithDirectory("/app", builder.Directory("/app/"+job.Name+"/"+outdir)).
+		// Add Node modules to runner
+		WithDirectory("/app/node_modules", builder.Directory("/deploy/node_modules"))
 
 	runner = withTypeModulePackageJSON(runner).
 		WithDefaultArgs(dagger.ContainerWithDefaultArgsOpts{Args: args})
