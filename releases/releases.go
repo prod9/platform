@@ -10,6 +10,7 @@ import (
 
 var (
 	ErrBadStrategy = errors.New("releases: invalid strategy")
+	ErrBadEnv      = errors.New("releases: invalid environment")
 )
 
 type NameComponent string
@@ -117,4 +118,17 @@ func IsBadRelease(err error) bool {
 	default:
 		return false
 	}
+}
+
+func MatchEnv(cfg *project.Project) (bool, error) {
+	tagname, err := gitcmd.Describe(cfg.ConfigDir)
+	if err != nil {
+		return false, err
+	}
+	for _, env := range cfg.Environments {
+		if env == tagname {
+			return true, nil
+		}
+	}
+	return false, ErrBadEnv
 }

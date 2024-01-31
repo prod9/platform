@@ -52,12 +52,23 @@ func runDeploy(cmd *cobra.Command, args []string) {
 
 	opts := &releases.Options{}
 	rel, err := strat.Recover(cfg, opts)
-	if err != nil {
+	bad := releases.IsBadRelease(err)
+	if err != nil && !bad {
 		plog.Fatalln(err)
+	} else if bad {
+		_, err := releases.MatchEnv(cfg)
+		if err != nil {
+			plog.Fatalln(err)
+		}
 	}
 
 	p := prompts.New(nil, args)
 	targetEnv := p.List("target environment", "", cfg.Environments)
+	if rel == nil {
+		rel = &releases.Release{
+			Name: targetEnv,
+		}
+	}
 
 	if err = toml.NewEncoder(os.Stdout).Encode(rel); err != nil {
 		plog.Fatalln(err)
