@@ -385,3 +385,76 @@
         - name: exitcode
           data:
             - "0"
+- name: Platform \ PNPM Next \ Discover
+  commands:
+    - command: ./testbed.sh pnpmnext discover 2>&1 | sort
+      checks:
+        - name: stdout
+          data:
+            - '  INF discover dir=pnpmnext builder=pnpm/next'
+- name: Platform \ PNPM Next \ Bootstrap
+  commands:
+    - command: ./testbed.sh pnpmnext bootstrap "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform" "ghcr.io/prod9/platform"
+      checks:
+        - name: ./testbeds/pnpmnext/platform.toml
+          data:
+            - '-----BEGIN platform.toml-----'
+            - maintainer = "Johnny Appleseed <john@apple.com>"
+            - platform = "auto"
+            - repository = "github.com/prod9/platform"
+            - strategy = "timestamp"
+            - excludes = ["*.docker", "*.local", ".dockerignore", ".git", ".github", ".gitignore", ".idea", ".svelte-kit", ".vscode", "build", "dist", "node_modules", "platform.toml", "target"]
+            - ""
+            - '[modules]'
+            - '  [modules.pnpmnext]'
+            - '    workdir = "."'
+            - '    timeout = "1m0s"'
+            - '    builder = "pnpm/next"'
+            - '    publish = false'
+            - '-----END platform.toml-----'
+            - ""
+        - name: ./testbeds/pnpmnext/platform
+          data:
+            - '-----BEGIN platform-----'
+            - '#!/bin/sh'
+            - ""
+            - PLATFORM_VERSION="v0.4.0"
+            - ""
+            - go run "platform.prodigy9.co@$PLATFORM_VERSION" "$@"
+            - '-----END platform-----'
+            - ""
+        - name: ./testbeds/pnpmnext/.buildkite/*.*
+          data:
+            - '-----BEGIN pipeline.yaml-----'
+            - '# vim: filetype=yaml'
+            - 'steps:'
+            - '  - name: ":mountain: Prepare OS"'
+            - '    command: "apk add build-base git go"'
+            - '    key: os'
+            - ""
+            - '  # regular builds'
+            - '  - name: ":wrench: Build"'
+            - '    command: "./platform build"'
+            - '    if: build.tag == null'
+            - '    depends_on: os'
+            - ""
+            - '  # publish image if git tag is present'
+            - '  - name: ":wrench: Build and Publish"'
+            - '    command: "./platform publish"'
+            - '    if: build.tag != null && build.tag =~ /^v[0-9]+.*/'
+            - '    depends_on: os'
+            - ""
+            - '  # deploy if environment tag is present'
+            - '  - name: ":rocket: Build and Deploy"'
+            - '    command: "./platform deploy --no-tag $$BUILDKITE_TAG"'
+            - '    if: build.tag != null && build.tag !~ /^v[0-9]+.*/'
+            - '    depends_on: os'
+            - '-----END pipeline.yaml-----'
+            - ""
+- name: Platform \ PNPM Next \ Build
+  commands:
+    - command: ./testbed.sh pnpmnext -q build
+      checks:
+        - name: exitcode
+          data:
+            - "0"
