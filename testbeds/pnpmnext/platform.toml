@@ -7,8 +7,6 @@ excludes = ["*.docker", "*.local", ".dockerignore", ".git", ".github", ".gitigno
 [modules]
   [modules.pnpmnext]
     workdir = "."
-    timeout = "5m0s"
+    timeout = "1m0s"
     builder = "pnpm/next"
-    build_dir = ".next"
-
     publish = false

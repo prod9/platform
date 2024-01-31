@@ -16,7 +16,7 @@ func (PNPMNext) Layout() Layout { return LayoutBasic }
 func (PNPMNext) Class() Class   { return ClassInterpreted }
 
 func (b PNPMNext) Discover(wd string) (map[string]Interface, error) {
-	if detected, err := fileutil.DetectFile(wd, "pnpm-lock.yaml"); err != nil {
+	if detected, err := fileutil.DetectFile(wd, "next.config.js"); err != nil {
 		return nil, err
 	} else if !detected {
 		return nil, ErrNoBuilder
@@ -63,7 +63,7 @@ func (PNPMNext) Build(sess *Session, job *Job) (container *dagger.Container, err
 
 	outdir := strings.TrimSpace(job.BuildDir)
 	if outdir == "" {
-		outdir = "build"
+		outdir = ".next"
 	}
 
 	runner = runner.
