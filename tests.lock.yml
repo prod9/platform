@@ -23,14 +23,13 @@
             - platform = "auto"
             - repository = "github.com/prod9/platform"
             - strategy = "timestamp"
-            - excludes = ["*.docker", "*.local", ".dockerignore", ".git", ".github", ".gitignore", ".idea", ".svelte-kit", ".vscode", "build", "dist", "node_modules", "platform.toml", "target"]
+            - excludes = ["*.docker", "*.local", ".dockerignore", ".git", ".github", ".gitignore", ".idea", ".svelte-kit", ".vscode", "build", "deploy", "dist", "node_modules", "platform.toml", "target"]
             - ""
             - '[modules]'
             - '  [modules.gobasic]'
             - '    workdir = "."'
             - '    timeout = "1m0s"'
             - '    builder = "go/basic"'
-            - '    publish = false'
             - '    cmd = "gobasic"'
             - '-----END platform.toml-----'
             - ""
@@ -98,20 +97,18 @@
             - platform = "auto"
             - repository = "github.com/prod9/platform"
             - strategy = "timestamp"
-            - excludes = ["*.docker", "*.local", ".dockerignore", ".git", ".github", ".gitignore", ".idea", ".svelte-kit", ".vscode", "build", "dist", "node_modules", "platform.toml", "target"]
+            - excludes = ["*.docker", "*.local", ".dockerignore", ".git", ".github", ".gitignore", ".idea", ".svelte-kit", ".vscode", "build", "deploy", "dist", "node_modules", "platform.toml", "target"]
             - ""
             - '[modules]'
             - '  [modules.app]'
             - '    workdir = "./app"'
             - '    timeout = "1m0s"'
             - '    builder = "go/workspace"'
-            - '    publish = false'
             - '    cmd = "app"'
             - '  [modules.fx]'
             - '    workdir = "./fx"'
             - '    timeout = "1m0s"'
             - '    builder = "go/workspace"'
-            - '    publish = false'
             - '    cmd = "fx"'
             - '-----END platform.toml-----'
             - ""
@@ -178,14 +175,13 @@
             - platform = "auto"
             - repository = "github.com/prod9/platform"
             - strategy = "timestamp"
-            - excludes = ["*.docker", "*.local", ".dockerignore", ".git", ".github", ".gitignore", ".idea", ".svelte-kit", ".vscode", "build", "dist", "node_modules", "platform.toml", "target"]
+            - excludes = ["*.docker", "*.local", ".dockerignore", ".git", ".github", ".gitignore", ".idea", ".svelte-kit", ".vscode", "build", "deploy", "dist", "node_modules", "platform.toml", "target"]
             - ""
             - '[modules]'
             - '  [modules.pnpmbasic]'
             - '    workdir = "."'
             - '    timeout = "1m0s"'
             - '    builder = "pnpm/basic"'
-            - '    publish = false'
             - '-----END platform.toml-----'
             - ""
         - name: ./testbeds/pnpmbasic/platform
@@ -252,19 +248,17 @@
             - platform = "auto"
             - repository = "github.com/prod9/platform"
             - strategy = "timestamp"
-            - excludes = ["*.docker", "*.local", ".dockerignore", ".git", ".github", ".gitignore", ".idea", ".svelte-kit", ".vscode", "build", "dist", "node_modules", "platform.toml", "target"]
+            - excludes = ["*.docker", "*.local", ".dockerignore", ".git", ".github", ".gitignore", ".idea", ".svelte-kit", ".vscode", "build", "deploy", "dist", "node_modules", "platform.toml", "target"]
             - ""
             - '[modules]'
             - '  [modules.storybook]'
             - '    workdir = "./storybook"'
             - '    timeout = "1m0s"'
             - '    builder = "pnpm/workspace"'
-            - '    publish = false'
             - '  [modules.web]'
             - '    workdir = "./web"'
             - '    timeout = "1m0s"'
             - '    builder = "pnpm/workspace"'
-            - '    publish = false'
             - '-----END platform.toml-----'
             - ""
         - name: ./testbeds/pnpmwork/platform
@@ -330,14 +324,13 @@
             - platform = "auto"
             - repository = "github.com/prod9/platform"
             - strategy = "timestamp"
-            - excludes = ["*.docker", "*.local", ".dockerignore", ".git", ".github", ".gitignore", ".idea", ".svelte-kit", ".vscode", "build", "dist", "node_modules", "platform.toml", "target"]
+            - excludes = ["*.docker", "*.local", ".dockerignore", ".git", ".github", ".gitignore", ".idea", ".svelte-kit", ".vscode", "build", "deploy", "dist", "node_modules", "platform.toml", "target"]
             - ""
             - '[modules]'
             - '  [modules.pnpmstatic]'
             - '    workdir = "."'
             - '    timeout = "1m0s"'
             - '    builder = "pnpm/static"'
-            - '    publish = false'
             - '-----END platform.toml-----'
             - ""
         - name: ./testbeds/pnpmstatic/platform
