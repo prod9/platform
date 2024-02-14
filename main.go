@@ -24,6 +24,7 @@ func init() {
 		cmd.DeployCmd,
 		cmd.DiscoverCmd,
 		cmd.ExportCmd,
+		cmd.ListCmd,
 		cmd.PreviewCmd,
 		cmd.PublishCmd,
 		cmd.ReleaseCmd,
