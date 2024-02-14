@@ -60,6 +60,7 @@ var (
 			".svelte-kit",
 			".vscode",
 			"build",
+			"deploy",
 			"dist",
 			"node_modules",
 			"platform.toml",
