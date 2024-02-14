@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -24,10 +25,12 @@ var PreviewCmd = &cobra.Command{
 
 var (
 	previewPort int
+	previewCmd  string
 )
 
 func init() {
 	PreviewCmd.Flags().IntVarP(&previewPort, "port", "p", 0, "Binds port for preview")
+	PreviewCmd.Flags().StringVarP(&previewCmd, "exec", "e", "", "Specify custom command to run")
 }
 
 func runPreview(cmd *cobra.Command, args []string) {
@@ -88,6 +91,10 @@ func runPreview(cmd *cobra.Command, args []string) {
 
 	if previewPort <= 1 {
 		previewPort = preview.Port
+	}
+	if cmd := strings.TrimSpace(previewCmd); cmd != "" {
+		preview.CommandName = cmd
+		preview.CommandArgs = nil // TODO: Allow specifying args?
 	}
 
 	container := result.Container.
