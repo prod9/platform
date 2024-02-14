@@ -76,7 +76,7 @@ func (b PNPMStatic) Build(sess *Session, job *Job) (container *dagger.Container,
 			`,
 		}).
 		WithDirectory("/app/www", builder.Directory(outdir)).
-		WithDefaultArgs(dagger.ContainerWithDefaultArgsOpts{Args: args})
+		WithDefaultArgs(args)
 
 	return runner, nil
 }

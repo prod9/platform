@@ -71,6 +71,6 @@ func (PNPMBasic) Build(sess *Session, job *Job) (container *dagger.Container, er
 
 	runner = runner.
 		WithDirectory("/app", builder.Directory(outdir)).
-		WithDefaultArgs(dagger.ContainerWithDefaultArgsOpts{Args: args})
+		WithDefaultArgs(args)
 	return runner, nil
 }

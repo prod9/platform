@@ -99,6 +99,6 @@ func (PNPMWorkspace) Build(sess *Session, job *Job) (container *dagger.Container
 		WithDirectory("/app", builder.Directory("/app/"+job.Name+"/"+outdir))
 
 	runner = withTypeModulePackageJSON(runner).
-		WithDefaultArgs(dagger.ContainerWithDefaultArgsOpts{Args: args})
+		WithDefaultArgs(args)
 	return runner.Sync(sess.Context())
 }

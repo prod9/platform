@@ -77,6 +77,6 @@ func (GoBasic) Build(sess *Session, job *Job) (container *dagger.Container, err 
 		runner = runner.WithDirectory(dir, builder.Directory(dir))
 	}
 
-	runner = runner.WithDefaultArgs(dagger.ContainerWithDefaultArgsOpts{Args: args})
+	runner = runner.WithDefaultArgs(args)
 	return runner.Sync(sess.Context())
 }

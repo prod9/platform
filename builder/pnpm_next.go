@@ -71,6 +71,6 @@ func (PNPMNext) Build(sess *Session, job *Job) (container *dagger.Container, err
 		WithDirectory(filepath.Join("/app", outdir, "static"), builder.Directory(filepath.Join(outdir, "static"))).
 		WithDirectory("/app/public", builder.Directory("public")).
 		WithWorkdir("/app").
-		WithDefaultArgs(dagger.ContainerWithDefaultArgsOpts{Args: args})
+		WithDefaultArgs(args)
 	return runner, nil
 }
