@@ -32,7 +32,7 @@ type (
 
 		// container settings
 		Env         map[string]string `toml:"env,omitempty"`
-		Port        int               `toml:"port,omitempty"`
+		Port        *int              `toml:"port,omitempty"`
 		CommandName string            `toml:"cmd,omitempty"`
 		CommandArgs []string          `toml:"args,omitempty"`
 

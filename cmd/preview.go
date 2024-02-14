@@ -90,7 +90,11 @@ func runPreview(cmd *cobra.Command, args []string) {
 	}
 
 	if previewPort <= 1 {
-		previewPort = preview.Port
+		if preview.Port == nil {
+			plog.Fatalln(errors.New("specify preview port with --port or port= key in platform.toml"))
+		} else {
+			previewPort = *preview.Port
+		}
 	}
 	if cmd := strings.TrimSpace(previewCmd); cmd != "" {
 		preview.CommandName = cmd

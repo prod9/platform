@@ -26,7 +26,7 @@ type Job struct {
 	Excludes []string
 
 	Env         map[string]string
-	Port        int
+	Port        *int
 	CommandName string
 	CommandArgs []string
 
