@@ -2,11 +2,10 @@ maintainer = "Johnny Appleseed <john@apple.com>"
 platform = "auto"
 repository = "github.com/prod9/platform"
 strategy = "timestamp"
-excludes = ["*.docker", "*.local", ".dockerignore", ".git", ".github", ".gitignore", ".idea", ".svelte-kit", ".vscode", "build", "dist", "node_modules", "platform.toml", "target"]
+excludes = ["*.docker", "*.local", ".dockerignore", ".git", ".github", ".gitignore", ".idea", ".svelte-kit", ".vscode", "build", "deploy", "dist", "node_modules", "platform.toml", "target"]
 
 [modules]
   [modules.pnpmbasic]
     workdir = "."
     timeout = "1m0s"
     builder = "pnpm/basic"
-    publish = false
