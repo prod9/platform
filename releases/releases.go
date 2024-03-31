@@ -4,6 +4,8 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/pterm/pterm"
+	"github.com/pterm/pterm/putils"
 	"platform.prodigy9.co/gitcmd"
 	"platform.prodigy9.co/project"
 )
@@ -117,4 +119,15 @@ func IsBadRelease(err error) bool {
 	default:
 		return false
 	}
+}
+
+func (r *Release) Render() error {
+	list := pterm.LeveledList{pterm.LeveledListItem{Level: 0, Text: r.Name}}
+	for _, c := range r.Commits {
+		list = append(list, pterm.LeveledListItem{Level: 1, Text: c.Hash + ": " + c.Subject})
+	}
+
+	return pterm.DefaultTree.
+		WithRoot(putils.TreeFromLeveledList(list)).
+		Render()
 }

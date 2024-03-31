@@ -2,10 +2,8 @@ package cmd
 
 import (
 	"errors"
-	"os"
 
 	"fx.prodigy9.co/cmd/prompts"
-	"github.com/BurntSushi/toml"
 	"github.com/spf13/cobra"
 	"platform.prodigy9.co/internal/plog"
 	"platform.prodigy9.co/project"
@@ -79,7 +77,7 @@ func runReleaseCmd(cmd *cobra.Command, args []string) {
 		plog.Fatalln(err)
 	}
 
-	if err = toml.NewEncoder(os.Stdout).Encode(rel); err != nil {
+	if err := rel.Render(); err != nil {
 		plog.Fatalln(err)
 	}
 	sess := prompts.New(nil, nil)
