@@ -76,6 +76,16 @@ func (s Semver) NextName(cfg *project.Project, comp NameComponent) (string, erro
 		comp = NamePatch
 	}
 
+	// ensure we have all the remote tags before generating
+	if branch, err := gitcmd.CurrentBranch(cfg.ConfigDir); err != nil {
+		return "", err
+	} else if remote, err := gitcmd.TrackingRemote(cfg.ConfigDir, branch); err != nil {
+		return "", err
+	} else if _, err := gitcmd.FetchTags(cfg.ConfigDir, remote); err != nil {
+		return "", err
+	}
+
+	// generate a new tag
 	tagname, err := gitcmd.Describe(cfg.ConfigDir)
 	if err != nil {
 		return "", err
