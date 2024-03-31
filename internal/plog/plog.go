@@ -5,14 +5,15 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/lmittmann/tint"
-	"github.com/mattn/go-isatty"
+	"github.com/pterm/pterm"
 )
 
 var (
 	logger *slog.Logger
 	opts   *slog.HandlerOptions
 )
+
+func out() *os.File { return os.Stderr }
 
 func SetQuietness(q int) {
 	if opts == nil {
@@ -33,7 +34,7 @@ func SetQuietness(q int) {
 
 func OutputForDagger() io.Writer {
 	if opts != nil && opts.Level.Level() <= slog.LevelInfo {
-		return os.Stderr
+		return out()
 	} else {
 		return io.Discard
 	}
@@ -45,11 +46,7 @@ func Logger() *slog.Logger {
 			opts = &slog.HandlerOptions{}
 		}
 
-		// TODO: Auto detect interactive TTY?
-		logger = slog.New(tint.NewHandler(os.Stderr, &tint.Options{
-			NoColor:    !isatty.IsTerminal(os.Stderr.Fd()),
-			TimeFormat: " ", // adds space to disable time output
-		}))
+		logger = slog.New(pterm.NewSlogHandler(&pterm.DefaultLogger))
 	}
 
 	return logger
