@@ -16,6 +16,9 @@ func LogRange(wd string, range_ string) (string, error) {
 	return runCmd(wd, "git", "log", "--pretty=%h %s", range_)
 }
 
+func FetchTags(wd, origin string) (string, error) {
+	return runCmd(wd, "git", "fetch", "--tags", origin)
+}
 func ListTags(wd string) (string, error) {
 	return runCmd(wd, "git", "tag", "-l")
 }

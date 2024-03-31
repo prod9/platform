@@ -42,6 +42,15 @@ func (s Semver) List(cfg *project.Project) ([]*Release, error) {
 }
 
 func (s Semver) Recover(cfg *project.Project, opts *Options) (*Release, error) {
+	// ensure the local wd has all the up-to-date tags
+	if branch, err := gitcmd.CurrentBranch(cfg.ConfigDir); err != nil {
+		return nil, err
+	} else if remote, err := gitcmd.TrackingRemote(cfg.ConfigDir, branch); err != nil {
+		return nil, err
+	} else if _, err := gitcmd.FetchTags(cfg.ConfigDir, remote); err != nil {
+		return nil, err
+	}
+
 	// get annotated tag and name
 	if opts.Name == "" {
 		tagname, err := gitcmd.Describe(cfg.ConfigDir)
@@ -150,11 +159,16 @@ func (s Semver) Generate(cfg *project.Project, opts *Options) (*Release, error) 
 }
 
 func (s Semver) Create(cfg *project.Project, rel *Release) error {
-	if _, err := gitcmd.Tag(cfg.ConfigDir, rel.Name, rel.Message); err != nil {
-		return err
-	} else if branch, err := gitcmd.CurrentBranch(cfg.ConfigDir); err != nil {
+	// always fetch remote tags before making changes because someone else might have
+	// pushed a tag since we last fetched (or you yourself might have pushed a tag from
+	// another machine and forgot)
+	if branch, err := gitcmd.CurrentBranch(cfg.ConfigDir); err != nil {
 		return err
 	} else if remote, err := gitcmd.TrackingRemote(cfg.ConfigDir, branch); err != nil {
+		return err
+	} else if _, err := gitcmd.FetchTags(cfg.ConfigDir, remote); err != nil {
+		return err
+	} else if _, err := gitcmd.Tag(cfg.ConfigDir, rel.Name, rel.Message); err != nil {
 		return err
 	} else if _, err := gitcmd.PushTag(cfg.ConfigDir, remote, rel.Name); err != nil {
 		return err
