@@ -48,6 +48,9 @@ func CurrentBranch(wd string) (string, error) {
 	return runCmd(wd, "git", "branch", "--show-current")
 }
 func TrackingRemote(wd string, branch string) (string, error) {
+	if branch == "" {
+		branch = "main"
+	}
 	return runCmd(wd, "git", "config", "branch."+branch+".remote")
 }
 
