@@ -21,6 +21,7 @@ let testbeds = [...{name: string, dir: string}] &
 	{name: "PNPM Basic", dir:     "pnpmbasic"},
 	{name: "PNPM Workspace", dir: "pnpmwork"},
 	{name: "PNPM Static", dir:    "pnpmstatic"},
+	{name: "PNPM Next", dir:      "pnpmnext"},
 ]
 
 #Test & {
