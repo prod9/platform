@@ -11,7 +11,7 @@
       checks:
         - name: stdout
           data:
-            - '  INFO discover dir: gobasic builder: go/basic'
+            - '  INFO  discover dir: gobasic builder: go/basic'
 - name: Platform \ Go Basic \ Bootstrap
   commands:
     - command: ./testbed.sh gobasic bootstrap "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform" "ghcr.io/prod9/platform"
@@ -84,8 +84,8 @@
       checks:
         - name: stdout
           data:
-            - '  INFO discover dir: app builder: go/workspace'
-            - '  INFO discover dir: fx builder: go/workspace'
+            - '  INFO  discover dir: app builder: go/workspace'
+            - '  INFO  discover dir: fx builder: go/workspace'
 - name: Platform \ Go Workspace \ Bootstrap
   commands:
     - command: ./testbed.sh gowork bootstrap "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform" "ghcr.io/prod9/platform"
@@ -163,7 +163,7 @@
       checks:
         - name: stdout
           data:
-            - '  INFO discover dir: pnpmbasic builder: pnpm/basic'
+            - '  INFO  discover dir: pnpmbasic builder: pnpm/basic'
 - name: Platform \ PNPM Basic \ Bootstrap
   commands:
     - command: ./testbed.sh pnpmbasic bootstrap "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform" "ghcr.io/prod9/platform"
@@ -235,8 +235,8 @@
       checks:
         - name: stdout
           data:
-            - '  INFO discover dir: storybook builder: pnpm/workspace'
-            - '  INFO discover dir: web builder: pnpm/workspace'
+            - '  INFO  discover dir: storybook builder: pnpm/workspace'
+            - '  INFO  discover dir: web builder: pnpm/workspace'
 - name: Platform \ PNPM Workspace \ Bootstrap
   commands:
     - command: ./testbed.sh pnpmwork bootstrap "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform" "ghcr.io/prod9/platform"
@@ -312,7 +312,7 @@
       checks:
         - name: stdout
           data:
-            - '  INFO discover dir: pnpmstatic builder: pnpm/static'
+            - '  INFO  discover dir: pnpmstatic builder: pnpm/static'
 - name: Platform \ PNPM Static \ Bootstrap
   commands:
     - command: ./testbed.sh pnpmstatic bootstrap "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform" "ghcr.io/prod9/platform"
@@ -384,7 +384,7 @@
       checks:
         - name: stdout
           data:
-            - '  INFO discover dir: pnpmnext builder: pnpm/next'
+            - '  INFO  discover dir: pnpmnext builder: pnpm/next'
 - name: Platform \ PNPM Next \ Bootstrap
   commands:
     - command: ./testbed.sh pnpmnext bootstrap "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform" "ghcr.io/prod9/platform"
@@ -396,7 +396,7 @@
             - platform = "auto"
             - repository = "github.com/prod9/platform"
             - strategy = "timestamp"
-            - excludes = ["*.docker", "*.local", ".dockerignore", ".git", ".github", ".gitignore", ".idea", ".svelte-kit", ".vscode", "build", "dist", "node_modules", "platform.toml", "target"]
+            - excludes = ["*.docker", "*.local", ".dockerignore", ".git", ".github", ".gitignore", ".idea", ".svelte-kit", ".vscode", "build", "deploy", "dist", "node_modules", "platform.toml", "target"]
             - ""
             - '[modules]'
             - '  [modules.pnpmnext]'
