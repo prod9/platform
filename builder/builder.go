@@ -56,21 +56,54 @@ const (
 	LayoutBasic     Layout = "basic"
 	LayoutWorkspace Layout = "workspace"
 
-	ClassNative      Class = "native"
-	ClassBytecode    Class = "bytecode"
+	// ClassNative specifies that the builder produces machine-native binary that can be
+	// directly executed without any additional VMs or interpreter required inside built
+	// container.
+	//
+	// This means the builder has a compilation step and the compilation result can be used
+	// directly.
+	//
+	// Examples: Go, Rust
+	ClassNative Class = "native"
+
+	// ClassBytecode specifies that the builder produces a binary file that are not
+	// machine-native and requires the use of an additional VM or runtime setup inside built
+	// container.
+	//
+	// This means the builder has a compilation step and the compilation result requires a
+	// VM or runtime to run.
+	//
+	// Examples: Java, Erlang, Elixir
+	ClassBytecode Class = "bytecode"
+
+	// ClassInterpreted specifies that the builder does not produce a binary file, instead
+	// it outputs a compressed/minified/bundled/packaged version of the source files.
+	//
+	// This means the builder does not have a compilation step and it simply processes
+	// source files into a more production-ready forms and usually requires the same
+	// toolings to be installed during buildtime and runtime.
+	//
+	// Examples: Ruby on Rails, Node.js
 	ClassInterpreted Class = "interpreted"
+
+	// ClassCustom specifies that the builder has its own heavily customized build process
+	// that cannot be easily categorized or genericized into the other classes.
+	//
+	// Examples: Dockerfile
+	ClassCustom Class = "custom"
 )
 
 var (
+	// IMPORTANT: This list is **Order Sensitive** due to Discover() calls on different
+	// builders discovering the same subfolder a little differently.
 	knownBuilders = []Interface{
-		// Order sensitive due to Discover() calls on different builders discovering the same
-		// subfolder a little differently.
 		GoWorkspace{},
 		PNPMWorkspace{},
 		GoBasic{},
 		PNPMStatic{},
 		PNPMBasic{},
 		PNPMNext{},
+		Dockerfile{},
 	}
 )
 
