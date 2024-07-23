@@ -3,3 +3,7 @@
 * Get tags from github when release
   (because releaser might not have the latest tag)
 * Upstream might be tracked during release
+
+
+* sync dockerfiel builder from macbook
+* and replaceattr impl in slog to strip out the timestamp

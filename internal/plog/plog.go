@@ -46,6 +46,13 @@ func Logger() *slog.Logger {
 			opts = &slog.HandlerOptions{}
 		}
 
+		opts.ReplaceAttr = func(groups []string, a slog.Attr) slog.Attr {
+			if a.Key == "time" {
+				return slog.Attr{Key: "time", Value: slog.Value{}}
+			} else {
+				return a
+			}
+		}
 		logger = slog.New(pterm.NewSlogHandler(&pterm.DefaultLogger))
 	}
 
