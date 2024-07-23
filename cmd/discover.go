@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -41,7 +42,7 @@ func runDiscover(cmd *cobra.Command, args []string) {
 		}
 
 		for name, builder := range mods {
-			plog.Dir("discover", name, builder.Name())
+			fmt.Fprintln(os.Stdout, name, "->", builder.Name())
 		}
 	}
 }

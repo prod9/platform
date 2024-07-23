@@ -25,12 +25,6 @@ func Fatalln(err error) {
 func File(action, filename string) {
 	Logger().Info(action, slog.String("filename", filename))
 }
-func Dir(action, dir, builder string) {
-	Logger().Info(action,
-		slog.String("dir", dir),
-		slog.String("builder", builder),
-	)
-}
 func Command(cmd string, args ...string) {
 	Logger().Info("command", slog.String("cmd", cmd+" "+strings.Join(args, " ")))
 }

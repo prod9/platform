@@ -43,8 +43,8 @@ let testbeds = [...{name: string, dir: string}] &
 				tests: [
 					{
 						name: "Discover"
-						checks: ["stderr"]
-						commands: ["./testbed.sh \(testbed.dir) discover"]
+						checks: ["stdout"]
+						commands: ["./testbed.sh \(testbed.dir) discover | sort"]
 					},
 					{
 						name: "Bootstrap"

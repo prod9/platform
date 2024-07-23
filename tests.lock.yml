@@ -7,11 +7,11 @@
             - "0"
 - name: Platform \ Go Basic \ Discover
   commands:
-    - command: ./testbed.sh gobasic discover
+    - command: ./testbed.sh gobasic discover | sort
       checks:
-        - name: stderr
+        - name: stdout
           data:
-            - "\e[1;32m\e[1;32mINFO \e[0m\e[0m discover \e[1;32m\e[1;32mdir: \e[0m\e[0mgobasic \e[1;32m\e[1;32mbuilder: \e[0m\e[0mgo/basic"
+            - gobasic -> go/basic
 - name: Platform \ Go Basic \ Bootstrap
   commands:
     - command: ./testbed.sh gobasic bootstrap "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform" "ghcr.io/prod9/platform"
@@ -80,12 +80,12 @@
             - "0"
 - name: Platform \ Go Workspace \ Discover
   commands:
-    - command: ./testbed.sh gowork discover
+    - command: ./testbed.sh gowork discover | sort
       checks:
-        - name: stderr
+        - name: stdout
           data:
-            - "\e[1;32m\e[1;32mINFO \e[0m\e[0m discover \e[1;32m\e[1;32mdir: \e[0m\e[0mapp \e[1;32m\e[1;32mbuilder: \e[0m\e[0mgo/workspace"
-            - "\e[1;32m\e[1;32mINFO \e[0m\e[0m discover \e[1;32m\e[1;32mdir: \e[0m\e[0mfx \e[1;32m\e[1;32mbuilder: \e[0m\e[0mgo/workspace"
+            - app -> go/workspace
+            - fx -> go/workspace
 - name: Platform \ Go Workspace \ Bootstrap
   commands:
     - command: ./testbed.sh gowork bootstrap "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform" "ghcr.io/prod9/platform"
@@ -159,11 +159,11 @@
             - "0"
 - name: Platform \ PNPM Basic \ Discover
   commands:
-    - command: ./testbed.sh pnpmbasic discover
+    - command: ./testbed.sh pnpmbasic discover | sort
       checks:
-        - name: stderr
+        - name: stdout
           data:
-            - "\e[1;32m\e[1;32mINFO \e[0m\e[0m discover \e[1;32m\e[1;32mdir: \e[0m\e[0mpnpmbasic \e[1;32m\e[1;32mbuilder: \e[0m\e[0mpnpm/basic"
+            - pnpmbasic -> pnpm/basic
 - name: Platform \ PNPM Basic \ Bootstrap
   commands:
     - command: ./testbed.sh pnpmbasic bootstrap "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform" "ghcr.io/prod9/platform"
@@ -231,12 +231,12 @@
             - "0"
 - name: Platform \ PNPM Workspace \ Discover
   commands:
-    - command: ./testbed.sh pnpmwork discover
+    - command: ./testbed.sh pnpmwork discover | sort
       checks:
-        - name: stderr
+        - name: stdout
           data:
-            - "\e[1;32m\e[1;32mINFO \e[0m\e[0m discover \e[1;32m\e[1;32mdir: \e[0m\e[0mstorybook \e[1;32m\e[1;32mbuilder: \e[0m\e[0mpnpm/workspace"
-            - "\e[1;32m\e[1;32mINFO \e[0m\e[0m discover \e[1;32m\e[1;32mdir: \e[0m\e[0mweb \e[1;32m\e[1;32mbuilder: \e[0m\e[0mpnpm/workspace"
+            - storybook -> pnpm/workspace
+            - web -> pnpm/workspace
 - name: Platform \ PNPM Workspace \ Bootstrap
   commands:
     - command: ./testbed.sh pnpmwork bootstrap "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform" "ghcr.io/prod9/platform"
@@ -308,11 +308,11 @@
             - "0"
 - name: Platform \ PNPM Static \ Discover
   commands:
-    - command: ./testbed.sh pnpmstatic discover
+    - command: ./testbed.sh pnpmstatic discover | sort
       checks:
-        - name: stderr
+        - name: stdout
           data:
-            - "\e[1;32m\e[1;32mINFO \e[0m\e[0m discover \e[1;32m\e[1;32mdir: \e[0m\e[0mpnpmstatic \e[1;32m\e[1;32mbuilder: \e[0m\e[0mpnpm/static"
+            - pnpmstatic -> pnpm/static
 - name: Platform \ PNPM Static \ Bootstrap
   commands:
     - command: ./testbed.sh pnpmstatic bootstrap "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform" "ghcr.io/prod9/platform"
@@ -380,11 +380,11 @@
             - "0"
 - name: Platform \ Dockerfile \ Discover
   commands:
-    - command: ./testbed.sh dockerfile discover
+    - command: ./testbed.sh dockerfile discover | sort
       checks:
-        - name: stderr
+        - name: stdout
           data:
-            - "\e[1;32m\e[1;32mINFO \e[0m\e[0m discover \e[1;32m\e[1;32mdir: \e[0m\e[0mdockerfile \e[1;32m\e[1;32mbuilder: \e[0m\e[0mdockerfile"
+            - dockerfile -> dockerfile
 - name: Platform \ Dockerfile \ Bootstrap
   commands:
     - command: ./testbed.sh dockerfile bootstrap "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform" "ghcr.io/prod9/platform"
