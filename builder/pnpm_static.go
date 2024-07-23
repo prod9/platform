@@ -63,7 +63,7 @@ func (b PNPMStatic) Build(sess *Session, job *Job) (container *dagger.Container,
 
 	runner := BaseImageForJob(sess, job).
 		WithExec([]string{"apk", "add", "--no-cache", "caddy", "tzdata", "ca-certificates"}).
-		WithNewFile("/app/Caddyfile", dagger.ContainerWithNewFileOpts{Contents: `
+		WithNewFile("/app/Caddyfile", `
 			{
 				admin off
 				auto_https off
@@ -74,7 +74,7 @@ func (b PNPMStatic) Build(sess *Session, job *Job) (container *dagger.Container,
 				file_server
 			}
 			`,
-		}).
+		).
 		WithDirectory("/app/www", builder.Directory(outdir)).
 		WithDefaultArgs(args)
 

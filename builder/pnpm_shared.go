@@ -22,9 +22,7 @@ func withPNPMRunnerBase(base *dagger.Container) *dagger.Container {
 
 func withTypeModulePackageJSON(base *dagger.Container) *dagger.Container {
 	return base.
-		WithNewFile("/app/package.json", dagger.ContainerWithNewFileOpts{
-			Contents: `{"type":"module"}`,
-		})
+		WithNewFile("/app/package.json", `{"type":"module"}`)
 }
 
 func withPNPMPkgCache(sess *Session, base *dagger.Container) *dagger.Container {
