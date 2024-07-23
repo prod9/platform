@@ -21,6 +21,7 @@ let testbeds = [...{name: string, dir: string}] &
 	{name: "PNPM Basic", dir:     "pnpmbasic"},
 	{name: "PNPM Workspace", dir: "pnpmwork"},
 	{name: "PNPM Static", dir:    "pnpmstatic"},
+	{name: "Dockerfile", dir:     "dockerfile"},
 ]
 
 #Test & {
@@ -42,8 +43,8 @@ let testbeds = [...{name: string, dir: string}] &
 				tests: [
 					{
 						name: "Discover"
-						checks: ["stdout"]
-						commands: ["./testbed.sh \(testbed.dir) discover 2>&1 | sort"]
+						checks: ["stderr"]
+						commands: ["./testbed.sh \(testbed.dir) discover"]
 					},
 					{
 						name: "Bootstrap"
