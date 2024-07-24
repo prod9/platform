@@ -58,24 +58,12 @@ func (b PNPMStatic) Build(sess *Session, job *Job) (container *dagger.Container,
 	if len(job.CommandArgs) > 0 {
 		args = append(args, job.CommandArgs...)
 	} else {
-		args = append(args, "run")
+		args = append(args, "file-server", "-l", "0.0.0.0:3000")
 	}
 
 	runner := BaseImageForJob(sess, job).
 		WithExec([]string{"apk", "add", "--no-cache", "caddy", "tzdata", "ca-certificates"}).
-		WithNewFile("/app/Caddyfile", `
-			{
-				admin off
-				auto_https off
-			}
-
-			http://:3000 {
-				root * /app/www
-				file_server
-			}
-			`,
-		).
-		WithDirectory("/app/www", builder.Directory(outdir)).
+		WithDirectory("/app", builder.Directory(outdir)).
 		WithDefaultArgs(args)
 
 	return runner, nil
