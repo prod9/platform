@@ -7,7 +7,10 @@ import (
 	"path/filepath"
 )
 
-var ErrNoPlatformConfig = errors.New("could not find platform.toml")
+var (
+	ErrNoPlatformConfig = errors.New("could not find platform.toml")
+	PlatformFilename    = "platform.toml"
+)
 
 func ResolvePath(wd string) (string, error) {
 	if !filepath.IsAbs(wd) {
@@ -28,7 +31,7 @@ func ResolvePath(wd string) (string, error) {
 	}
 
 	// try looking in current folder
-	filename := filepath.Join(wd, "platform.toml")
+	filename := filepath.Join(wd, PlatformFilename)
 	info, err = os.Stat(filename)
 	if err == nil && !info.IsDir() {
 		// we found the file

@@ -25,7 +25,7 @@ var (
 )
 
 func init() {
-	ReleaseCmd.Flags().BoolVarP(&forceRelease, "force", "f", false,
+	ReleaseCmd.Flags().BoolVar(&forceRelease, "force", false,
 		"Force release even if worktree is dirty")
 
 	ReleaseCmd.Flags().BoolVarP(&bumpPatch, "patch", "p", false,

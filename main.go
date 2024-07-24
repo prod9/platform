@@ -5,6 +5,7 @@ import (
 	"github.com/spf13/cobra"
 	"platform.prodigy9.co/cmd"
 	"platform.prodigy9.co/internal/plog"
+	"platform.prodigy9.co/project"
 )
 
 var rootCmd = &cobra.Command{
@@ -16,6 +17,8 @@ var quiet int
 
 func init() {
 	rootCmd.PersistentFlags().CountVarP(&quiet, "quiet", "q", "less verbose logging")
+	rootCmd.PersistentFlags().StringVarP(&project.PlatformFilename, "file", "f",
+		project.PlatformFilename, "specify a different platform.toml to load")
 
 	rootCmd.AddCommand(
 		cmd.BootstrapCmd,
