@@ -56,7 +56,7 @@ func (d Dockerfile) Build(sess *Session, job *Job) (container *dagger.Container,
 	}
 
 	builder := host.DockerBuild(dagger.DirectoryDockerBuildOpts{
-		Platform:   "",
+		Platform:   dagger.Platform(job.Platform),
 		Dockerfile: "",
 		Target:     "",
 		BuildArgs:  []dagger.BuildArg{},
