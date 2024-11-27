@@ -35,6 +35,7 @@ func (PNPMBasic) Build(sess *Session, job *Job) (container *dagger.Container, er
 	builder := BaseImageForJob(sess, job)
 	builder = withPNPMBuildBase(builder)
 	builder = withPNPMPkgCache(sess, builder)
+	builder = withJobEnv(builder, job)
 
 	builder = builder.
 		WithFile("package.json", host.File("package.json")).
