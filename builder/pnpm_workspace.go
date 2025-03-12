@@ -18,10 +18,17 @@ func (PNPMWorkspace) Layout() Layout { return LayoutWorkspace }
 func (PNPMWorkspace) Class() Class   { return ClassInterpreted }
 
 func (b PNPMWorkspace) Discover(wd string) (map[string]Interface, error) {
-	if detected, err := fileutil.DetectFile(wd, "pnpm-workspaces.yaml"); err != nil {
+	// PNPM decided to have a rename from pnpm-workspaces.yaml (with an s) to
+	// just pnpm-workspace.yaml (without the s) and it'll actually throw an error for this.
+	// so we have to have this pointless detection to patch pnpm failure to backcompat
+	if detected, err := fileutil.DetectFile(wd, "pnpm-workspace.yaml"); err != nil {
 		return nil, err
 	} else if !detected {
-		return nil, ErrNoBuilder
+		if detected2, err := fileutil.DetectFile(wd, "pnpm-workspaces.yaml"); err != nil {
+			return nil, err
+		} else if !detected2 {
+			return nil, ErrNoBuilder
+		}
 	}
 
 	// scan for pnpm/basic on subfolders
