@@ -13,5 +13,6 @@
 		"svelte": "^4.2.7",
 		"vite": "^4.4.2"
 	},
-	"type": "module"
+	"type": "module",
+	"packageManager": "pnpm@10.6.2"
 }
