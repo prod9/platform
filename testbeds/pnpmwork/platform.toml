@@ -5,8 +5,8 @@ strategy = "timestamp"
 excludes = ["*.docker", "*.local", ".dockerignore", ".git", ".github", ".gitignore", ".idea", ".svelte-kit", ".vscode", "build", "deploy", "dist", "node_modules", "platform.toml", "target"]
 
 [modules]
-  [modules.storybook]
-    workdir = "./storybook"
+  [modules.lib]
+    workdir = "./lib"
     timeout = "1m0s"
     builder = "pnpm/workspace"
   [modules.web]

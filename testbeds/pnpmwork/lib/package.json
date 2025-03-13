@@ -41,5 +41,8 @@
 	"keywords": [
 		"svelte"
 	],
-	"packageManager": "pnpm@10.6.2"
+	"packageManager": "pnpm@10.6.2",
+	"dependencies": {
+		"@sveltejs/adapter-node": "^5.2.12"
+	}
 }
