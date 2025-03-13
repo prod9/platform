@@ -4,13 +4,12 @@ import (
 	"context"
 	"errors"
 	"os"
-	"os/signal"
 	"strings"
-	"syscall"
 	"time"
 
 	"dagger.io/dagger"
 	"fx.prodigy9.co/cmd/prompts"
+	"fx.prodigy9.co/ctrlc"
 	"github.com/spf13/cobra"
 	"platform.prodigy9.co/builder"
 	"platform.prodigy9.co/internal/plog"
@@ -109,11 +108,19 @@ func runPreview(cmd *cobra.Command, args []string) {
 	tunnel := sess.Client().Host().Tunnel(container, dagger.HostTunnelOpts{
 		Native: true,
 	})
-	tunnel, err = tunnel.Start(sess.Context())
-	if err != nil {
-		plog.Fatalln(err)
-	}
 
+	ctrlc.Do(func() {
+		tunnel.Stop(sess.Context())
+		os.Exit(0)
+	})
+	go func() {
+		tunnel, err = tunnel.Start(sess.Context())
+		if err != nil {
+			plog.Fatalln(err)
+		}
+	}()
+
+	time.Sleep(3 * time.Second)
 	addr, err := tunnel.Endpoint(sess.Context(), dagger.ServiceEndpointOpts{
 		Port: previewPort,
 	})
@@ -122,17 +129,4 @@ func runPreview(cmd *cobra.Command, args []string) {
 	}
 
 	plog.HTTPServing(addr)
-
-	sigs := make(chan os.Signal)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
-		<-sigs
-		tunnel.Stop(sess.Context())
-		os.Exit(0)
-	}()
-
-	_ = time.Sleep
-	for {
-		time.Sleep(24 * time.Hour)
-	}
 }
