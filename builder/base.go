@@ -2,11 +2,13 @@ package builder
 
 import "dagger.io/dagger"
 
-const BaseImageName = "alpine:3.19"
+const BaseImageName = "rockylinux:9-minimal"
 
 func BaseImageForJob(sess *Session, job *Job) *dagger.Container {
 	return sess.Client().
-		Container(dagger.ContainerOpts{Platform: dagger.Platform(job.Platform)}).
+		Container(dagger.ContainerOpts{
+			Platform: dagger.Platform(job.Platform),
+		}).
 		From(BaseImageName).
 		WithWorkdir("/app").
 		WithLabel("org.opencontainers.image.source", job.Repository).
