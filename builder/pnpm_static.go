@@ -34,7 +34,7 @@ func (b PNPMStatic) Build(sess *Session, job *Job) (container *dagger.Container,
 		Directory(job.WorkDir, dagger.HostDirectoryOpts{Exclude: job.Excludes})
 
 	builder := BaseImageForJob(sess, job)
-	builder = withPNPMBuildBase(builder)
+	builder = withPNPMBase(builder)
 	builder = withPNPMPkgCache(sess, builder)
 
 	builder = builder.
@@ -61,8 +61,8 @@ func (b PNPMStatic) Build(sess *Session, job *Job) (container *dagger.Container,
 		args = append(args, "file-server", "-l", "0.0.0.0:3000")
 	}
 
-	runner := BaseImageForJob(sess, job).
-		WithExec([]string{"apk", "add", "--no-cache", "caddy", "tzdata", "ca-certificates"}).
+	runner := BaseImageForJob(sess, job)
+	runner = withCaddyServer(runner).
 		WithDirectory("/app", builder.Directory(outdir)).
 		WithDefaultArgs(args)
 

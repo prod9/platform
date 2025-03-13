@@ -2,22 +2,22 @@ package builder
 
 import "dagger.io/dagger"
 
-func withPNPMBuildBase(base *dagger.Container) *dagger.Container {
-	return base.
-		WithExec([]string{
-			"apk", "add", "--no-cache",
-			"nodejs-current", "build-base", "python3",
-		}).
-		WithExec([]string{"corepack", "enable", "pnpm"})
-}
+const NInstallScript = `
+curl -fsSL https://raw.githubusercontent.com/tj/n/master/bin/n | \
+	bash -s install lts
+`
 
-func withPNPMRunnerBase(base *dagger.Container) *dagger.Container {
+func withPNPMBase(base *dagger.Container) *dagger.Container {
 	return base.
 		WithExec([]string{
-			"apk", "add", "--no-cache",
-			"nodejs-current", "tzdata", "ca-certificates",
+			"microdnf", "install", "-y",
+			"which", "tar", "findutils",
+			"tzdata", "ca-certificates",
 		}).
-		WithExec([]string{"corepack", "enable", "pnpm"})
+		WithNewFile("/install-n.sh", NInstallScript).
+		WithExec([]string{"/usr/bin/bash", "/install-n.sh"}).
+		WithExec([]string{"corepack", "enable", "pnpm"}).
+		WithExec([]string{"corepack", "install", "-g", "pnpm"})
 }
 
 func withTypeModulePackageJSON(base *dagger.Container) *dagger.Container {

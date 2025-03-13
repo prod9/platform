@@ -14,3 +14,9 @@ func BaseImageForJob(sess *Session, job *Job) *dagger.Container {
 		WithLabel("org.opencontainers.image.source", job.Repository).
 		WithExec([]string{"mkdir", "-p", "/app", "/out"})
 }
+
+func withCaddyServer(base *dagger.Container) *dagger.Container {
+	return base.
+		WithExec([]string{"microdnf", "install", "-y", "epel-release"}).
+		WithExec([]string{"microdnf", "install", "-y", "caddy"})
+}

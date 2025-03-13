@@ -2,6 +2,9 @@
   "name": "pnpmwork",
   "version": "1.0.0",
   "description": "",
+	"engines": {
+		"node": ">=22"
+	},
   "main": "index.js",
   "keywords": [],
   "author": "",

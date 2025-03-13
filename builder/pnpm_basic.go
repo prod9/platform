@@ -33,7 +33,7 @@ func (PNPMBasic) Build(sess *Session, job *Job) (container *dagger.Container, er
 		Directory(job.WorkDir, dagger.HostDirectoryOpts{Exclude: job.Excludes})
 
 	builder := BaseImageForJob(sess, job)
-	builder = withPNPMBuildBase(builder)
+	builder = withPNPMBase(builder)
 	builder = withPNPMPkgCache(sess, builder)
 	builder = withJobEnv(builder, job)
 
@@ -45,7 +45,7 @@ func (PNPMBasic) Build(sess *Session, job *Job) (container *dagger.Container, er
 		WithExec([]string{"pnpm", "build"})
 
 	runner := BaseImageForJob(sess, job)
-	runner = withPNPMRunnerBase(runner)
+	runner = withPNPMBase(runner)
 	runner = withJobEnv(runner, job)
 
 	runner = runner.
@@ -60,7 +60,7 @@ func (PNPMBasic) Build(sess *Session, job *Job) (container *dagger.Container, er
 
 	cmd := strings.TrimSpace(job.CommandName)
 	if cmd == "" {
-		cmd = "/usr/bin/node"
+		cmd = "/usr/local/bin/node"
 	}
 
 	args := []string{cmd}

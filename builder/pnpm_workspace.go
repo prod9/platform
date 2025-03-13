@@ -74,7 +74,7 @@ func (PNPMWorkspace) Build(sess *Session, job *Job) (container *dagger.Container
 	base := BaseImageForJob(sess, job)
 
 	// TODO: Do 2-step builds, install dependencies first, to speed up builds
-	builder := withPNPMBuildBase(base)
+	builder := withPNPMBase(base)
 	builder = withPNPMPkgCache(sess, builder)
 
 	pkg := job.PackageName
@@ -87,18 +87,21 @@ func (PNPMWorkspace) Build(sess *Session, job *Job) (container *dagger.Container
 		WithExec([]string{"pnpm", "-r", "install"}).
 		WithExec([]string{"pnpm", "-r", "build"})
 
-	// Prepare NodeJS Modules for deployment
-	builder = builder.
-		WithExec([]string{"pnpm", "deploy", "--filter", pkg, "--prod", filepath.Join("/deploy")})
-
 	outdir := strings.TrimSpace(job.BuildDir)
 	if outdir == "" {
 		outdir = "build"
 	}
 
+	runner := withPNPMBase(base)
+	runner = withJobEnv(runner, job)
+
+	runner = runner.
+		WithDirectory("/app", builder.Directory("/app/"+job.Name+"/"+outdir)).
+		WithDirectory("/app/node_modules", builder.Directory("/app/"+job.Name+"/node_modules"))
+
 	cmd := strings.TrimSpace(job.CommandName)
 	if cmd == "" {
-		cmd = "/usr/bin/node"
+		cmd = "/usr/local/bin/node"
 	}
 
 	args := []string{cmd}
@@ -107,14 +110,6 @@ func (PNPMWorkspace) Build(sess *Session, job *Job) (container *dagger.Container
 	} else {
 		args = append(args, ".")
 	}
-
-	runner := withPNPMRunnerBase(base)
-	runner = withJobEnv(runner, job)
-
-	runner = runner.
-		WithDirectory("/app", builder.Directory("/app/"+job.Name+"/"+outdir)).
-		// Add Node modules to runner
-		WithDirectory("/app/node_modules", builder.Directory("/deploy/node_modules"))
 
 	runner = withTypeModulePackageJSON(runner).
 		WithDefaultArgs(args)
