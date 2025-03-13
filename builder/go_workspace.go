@@ -84,7 +84,6 @@ func (GoWorkspace) Build(sess *Session, job *Job) (container *dagger.Container, 
 	base := BaseImageForJob(sess, job)
 
 	builder := withGoBuildBase(base)
-	builder = withGoMUSLPatch(builder)
 	builder = withGoPkgCache(sess, builder, goversion)
 	builder, gobin := withCustomGoVersion(builder, goversion)
 
