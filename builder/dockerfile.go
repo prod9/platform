@@ -67,5 +67,6 @@ func (d Dockerfile) Build(sess *Session, job *Job) (container *dagger.Container,
 	if len(args) > 0 {
 		builder = builder.WithDefaultArgs(args)
 	}
+
 	return builder.Sync(sess.Context())
 }
