@@ -3,6 +3,7 @@ package project
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/BurntSushi/toml"
@@ -118,9 +119,22 @@ func (p *Project) assignEnvOverrides() {
 }
 
 func (p *Project) inferValues() {
-	for _, mod := range p.Modules {
+	var base string
+	if strings.HasPrefix(p.Repository, "github.com") {
+		base = "ghcr.io" + p.Repository[10:]
+	}
+
+	singleModule := len(p.Modules) == 1
+	for name, mod := range p.Modules {
 		if mod.WorkDir == "" {
 			mod.WorkDir = "."
+		}
+		if mod.ImageName == "" && p.Repository != "" {
+			if singleModule {
+				mod.ImageName = base
+			} else {
+				mod.ImageName = base + "/" + name
+			}
 		}
 	}
 }
