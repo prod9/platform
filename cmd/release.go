@@ -43,36 +43,24 @@ func runReleaseCmd(cmd *cobra.Command, args []string) {
 		plog.Fatalln(errors.New("only one of --patch, --minor, or --major may be specified"))
 	}
 
+	opts := &releases.Options{Force: forceRelease}
+	switch {
+	case bumpPatch:
+		opts.Component = releases.NamePatch
+	case bumpMinor:
+		opts.Component = releases.NameMinor
+	case bumpMajor:
+		opts.Component = releases.NameMajor
+	default:
+		opts.Component = releases.NameAny
+	}
+
 	cfg, err := project.Configure(".")
 	if err != nil {
 		plog.Fatalln(err)
 	}
 
-	strat, err := releases.FindStrategy(cfg.Strategy)
-	if err != nil {
-		plog.Fatalln(err)
-	}
-
-	opts := &releases.Options{Force: forceRelease}
-	if len(args) > 0 {
-		opts.Name = args[0]
-	} else {
-		switch {
-		case bumpPatch:
-			opts.Name, err = strat.NextName(cfg, releases.NamePatch)
-		case bumpMinor:
-			opts.Name, err = strat.NextName(cfg, releases.NameMinor)
-		case bumpMajor:
-			opts.Name, err = strat.NextName(cfg, releases.NameMajor)
-		default:
-			opts.Name, err = strat.NextName(cfg, releases.NameAny)
-		}
-		if err != nil {
-			plog.Fatalln(err)
-		}
-	}
-
-	rel, err := strat.Generate(cfg, opts)
+	rel, err := releases.Generate(cfg, opts)
 	if err != nil {
 		plog.Fatalln(err)
 	}
@@ -85,7 +73,7 @@ func runReleaseCmd(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	if err = strat.Create(cfg, rel); err != nil {
+	if err = releases.Create(cfg, rel); err != nil {
 		plog.Fatalln(err)
 	}
 }

@@ -16,11 +16,19 @@ func LogRange(wd string, range_ string) (string, error) {
 	return runCmd(wd, "git", "log", "--pretty=%h %s", range_)
 }
 
+func FetchFTags(wd, origin string, tags []string) (string, error) {
+	args := []string{"fetch", "-f", origin}
+	for _, tag := range tags {
+		args = append(args, "refs/tags/"+tag+":refs/tags/"+tag)
+	}
+
+	return runCmd(wd, "git", args...)
+}
 func FetchTags(wd, origin string) (string, error) {
 	return runCmd(wd, "git", "fetch", "--tags", origin)
 }
-func ListTags(wd string) (string, error) {
-	return runCmd(wd, "git", "tag", "-l")
+func ListTags(wd, pattern string) (string, error) {
+	return runCmd(wd, "git", "tag", "-l", pattern)
 }
 func Tag(wd string, tagname, message string) (string, error) {
 	return runCmd(wd, "git", "tag", "-a", "-m", message, tagname)

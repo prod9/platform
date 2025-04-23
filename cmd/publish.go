@@ -19,15 +19,6 @@ var PublishCmd = &cobra.Command{
 	Run:   runPublish,
 }
 
-var (
-	allowLatest bool
-)
-
-func init() {
-	PublishCmd.Flags().BoolVarP(&allowLatest, "allow-latest", "l", false,
-		"Allow publishing latest release")
-}
-
 func runPublish(cmd *cobra.Command, args []string) {
 	cfg, err := project.Configure(".")
 	if err != nil {
@@ -39,14 +30,14 @@ func runPublish(cmd *cobra.Command, args []string) {
 		plog.Fatalln(err)
 	}
 
-	opts := &releases.Options{}
-	rel, err := strat.Recover(cfg, opts)
+	collection, err := releases.Recover(cfg)
 	if err != nil {
-		if allowLatest && releases.IsBadRelease(err) {
-			rel = &releases.Release{Name: "latest"}
-		} else {
-			plog.Fatalln(err)
-		}
+		plog.Fatalln(err)
+	}
+
+	rel, err := collection.GetLatest(strat)
+	if err != nil {
+		plog.Fatalln(err)
 	}
 
 	p := prompts.New(nil, args)

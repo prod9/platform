@@ -3,6 +3,7 @@ package releases
 import (
 	"errors"
 	"strings"
+	"unicode"
 
 	"github.com/pterm/pterm"
 	"github.com/pterm/pterm/putils"
@@ -11,7 +12,11 @@ import (
 )
 
 var (
-	ErrBadStrategy = errors.New("releases: invalid strategy")
+	ErrNoRelease           = errors.New("cannot find a valid release")
+	ErrBadStrategy         = errors.New("invalid strategy")
+	ErrBadVersion          = errors.New("invalid version")
+	ErrBadVersionComponent = errors.New("invalid version component")
+	ErrDirtyWorkdir        = errors.New("working directory has uncommitted changes")
 )
 
 type NameComponent string
@@ -34,17 +39,14 @@ type (
 		Commits []CommitRef `toml:"commits"`
 	}
 	Options struct {
-		Name  string
-		Force bool
+		Name      string
+		Force     bool
+		Component NameComponent
 	}
 
 	Strategy interface {
-		List(cfg *project.Project) ([]*Release, error)
-		Recover(cfg *project.Project, opts *Options) (*Release, error)
-
-		NextName(cfg *project.Project, comp NameComponent) (string, error)
-		Generate(cfg *project.Project, opts *Options) (*Release, error)
-		Create(cfg *project.Project, rel *Release) error
+		IsValid(name string) bool
+		NextName(prevName string, comp NameComponent) (string, error)
 	}
 )
 
@@ -52,6 +54,75 @@ var knownStrategies = map[string]Strategy{
 	"semver":    Semver{},
 	"timestamp": Timestamp{},
 	"datestamp": Datestamp{},
+}
+
+func Generate(cfg *project.Project, opts *Options) (*Release, error) {
+	if err := checkGitStatus(cfg, opts); err != nil {
+		return nil, err
+	}
+
+	collection, err := Recover(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	strat, err := FindStrategy(cfg.Strategy)
+	if err != nil {
+		return nil, err
+	}
+
+	commits := ""
+	prevName := collection.LatestName(strat)
+	if prevName != "" {
+		commits = prevName + "..HEAD"
+	}
+
+	refs, err := listCommits(cfg.ConfigDir, commits)
+	if err != nil {
+		return nil, err
+	}
+
+	nextName, err := strat.NextName(prevName, opts.Component)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Release{
+		Name:    nextName,
+		Message: generateMessage(cfg, nextName, refs),
+		Commits: refs,
+	}, nil
+}
+
+func Create(cfg *project.Project, rel *Release) error {
+	// always fetch remote tags before making changes because someone else might have
+	// pushed a tag since we last fetched (or you yourself might have pushed a tag from
+	// another machine and forgot)
+	if branch, err := gitcmd.CurrentBranch(cfg.ConfigDir); err != nil {
+		return err
+	} else if remote, err := gitcmd.TrackingRemote(cfg.ConfigDir, branch); err != nil {
+		return err
+	} else if _, err := gitcmd.FetchFTags(cfg.ConfigDir, remote, cfg.Environments); err != nil {
+		return err
+	} else if _, err := gitcmd.FetchTags(cfg.ConfigDir, remote); err != nil {
+		return err
+	} else if _, err := gitcmd.Tag(cfg.ConfigDir, rel.Name, rel.Message); err != nil {
+		return err
+	} else if _, err := gitcmd.PushTag(cfg.ConfigDir, remote, rel.Name); err != nil {
+		return err
+	} else {
+		return nil
+	}
+}
+
+func checkGitStatus(cfg *project.Project, opts *Options) error {
+	if status, err := gitcmd.Status(cfg.ConfigDir); err != nil {
+		return err
+	} else if status != "" && !opts.Force {
+		return ErrDirtyWorkdir
+	} else {
+		return nil
+	}
 }
 
 func FindStrategy(name string) (Strategy, error) {
@@ -95,30 +166,27 @@ func listCommits(wd string, range_ string) (refs []CommitRef, err error) {
 		return nil, err
 	}
 
-	// TODO: Something a bit more efficient than Split->Split
-	lines := strings.Split(raw, "\n")
-	for _, line := range lines {
-		if len(line) < 7 { // abbrev-hash is min 7 chars
+	hashIdx, subjectIdx := 0, 0
+	for idx, r := range raw {
+		switch {
+		case !unicode.IsSpace(r):
+			continue
+		case hashIdx == 0:
+			hashIdx = idx + 1
+			continue
+		case subjectIdx == 0:
+			subjectIdx = idx + 1
 			continue
 		}
 
-		parts := strings.SplitN(line, " ", 2)
 		refs = append(refs, CommitRef{
-			Hash:    parts[0],
-			Subject: parts[1],
+			Hash:    raw[hashIdx : subjectIdx-1],
+			Subject: raw[subjectIdx:idx],
 		})
+		hashIdx, subjectIdx = 0, 0
 	}
 
 	return refs, nil
-}
-
-func IsBadRelease(err error) bool {
-	switch err {
-	case ErrBadDatestamp, ErrBadTimestamp, ErrBadSemver:
-		return true
-	default:
-		return false
-	}
 }
 
 func (r *Release) Render() error {

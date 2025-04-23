@@ -34,8 +34,6 @@ func init() {
 		"Skips building, only create tags.")
 	DeployCmd.Flags().BoolVarP(&skipTagOnDeploy, "no-tag", "b", false,
 		"Only builds, do not create tags.")
-	// TODO: Auto create release (or make a flag) when deploying since most of the devs do
-	// release followed immediately by deploy anyway.
 }
 
 func runDeploy(cmd *cobra.Command, args []string) {
@@ -52,15 +50,18 @@ func runDeploy(cmd *cobra.Command, args []string) {
 		plog.Fatalln(err)
 	}
 
-	opts := &releases.Options{}
-	rel, err := strat.Recover(cfg, opts)
+	collection, err := releases.Recover(cfg)
+	if err != nil {
+		plog.Fatalln(err)
+	}
+
+	rel, err := collection.GetLatest(strat)
 	if err != nil {
 		plog.Fatalln(err)
 	}
 
 	p := prompts.New(nil, args)
 	targetEnv := p.List("target environment", "", cfg.Environments)
-
 	if err = toml.NewEncoder(os.Stdout).Encode(rel); err != nil {
 		plog.Fatalln(err)
 	}
