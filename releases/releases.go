@@ -2,8 +2,9 @@ package releases
 
 import (
 	"errors"
+	"iter"
+	"slices"
 	"strings"
-	"unicode"
 
 	"github.com/pterm/pterm"
 	"github.com/pterm/pterm/putils"
@@ -115,6 +116,17 @@ func Create(cfg *project.Project, rel *Release) error {
 	}
 }
 
+func (r *Release) Render() error {
+	list := pterm.LeveledList{pterm.LeveledListItem{Level: 0, Text: r.Name}}
+	for _, c := range r.Commits {
+		list = append(list, pterm.LeveledListItem{Level: 1, Text: c.Hash + ": " + c.Subject})
+	}
+
+	return pterm.DefaultTree.
+		WithRoot(putils.TreeFromLeveledList(list)).
+		Render()
+}
+
 func checkGitStatus(cfg *project.Project, opts *Options) error {
 	if status, err := gitcmd.Status(cfg.ConfigDir); err != nil {
 		return err
@@ -162,40 +174,29 @@ func listCommits(wd string, range_ string) (refs []CommitRef, err error) {
 	} else {
 		raw, err = gitcmd.LogRange(wd, range_)
 	}
-	if err != nil {
-		return nil, err
-	}
 
-	hashIdx, subjectIdx := 0, 0
-	for idx, r := range raw {
-		switch {
-		case !unicode.IsSpace(r):
-			continue
-		case hashIdx == 0:
-			hashIdx = idx + 1
-			continue
-		case subjectIdx == 0:
-			subjectIdx = idx + 1
-			continue
-		}
-
-		refs = append(refs, CommitRef{
-			Hash:    raw[hashIdx : subjectIdx-1],
-			Subject: raw[subjectIdx:idx],
-		})
-		hashIdx, subjectIdx = 0, 0
-	}
-
-	return refs, nil
+	return slices.Collect(parseLogOutput(raw)), nil
 }
 
-func (r *Release) Render() error {
-	list := pterm.LeveledList{pterm.LeveledListItem{Level: 0, Text: r.Name}}
-	for _, c := range r.Commits {
-		list = append(list, pterm.LeveledListItem{Level: 1, Text: c.Hash + ": " + c.Subject})
-	}
+func parseLogOutput(raw string) iter.Seq[CommitRef] {
+	return func(yield func(CommitRef) bool) {
+		hashStart, subjStart := 0, 0
+		ref := CommitRef{}
+		for idx, r := range raw {
+			// example:
+			// f3e0f9: Sample message
+			if ref.Hash == "" && r == ' ' {
+				ref.Hash = raw[hashStart:idx]
+				subjStart = idx + 1
 
-	return pterm.DefaultTree.
-		WithRoot(putils.TreeFromLeveledList(list)).
-		Render()
+			} else if ref.Subject == "" && r == '\n' {
+				ref.Subject = raw[subjStart:idx]
+				if !yield(ref) {
+					return
+				}
+				ref = CommitRef{}
+				hashStart = idx + 1
+			}
+		}
+	}
 }
