@@ -73,7 +73,6 @@ func (PNPMWorkspace) Build(sess *Session, job *Job) (container *dagger.Container
 
 	base := BaseImageForJob(sess, job)
 
-	// TODO: Do 2-step builds, install dependencies first, to speed up builds
 	builder := withPNPMBase(base)
 	builder = withPNPMPkgCache(sess, builder)
 
@@ -111,7 +110,11 @@ func (PNPMWorkspace) Build(sess *Session, job *Job) (container *dagger.Container
 		args = append(args, ".")
 	}
 
-	runner = withTypeModulePackageJSON(runner).
-		WithDefaultArgs(args)
+	runner = withTypeModulePackageJSON(runner)
+	for _, dir := range job.AssetDirs {
+		runner = runner.WithDirectory(dir, builder.Directory(dir))
+	}
+
+	runner = runner.WithDefaultArgs(args)
 	return runner.Sync(sess.Context())
 }

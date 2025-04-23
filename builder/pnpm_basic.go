@@ -70,8 +70,11 @@ func (PNPMBasic) Build(sess *Session, job *Job) (container *dagger.Container, er
 		args = append(args, ".")
 	}
 
-	runner = runner.
-		WithDirectory("/app", builder.Directory(outdir)).
-		WithDefaultArgs(args)
+	runner = runner.WithDirectory("/app", builder.Directory(outdir))
+	for _, dir := range job.AssetDirs {
+		runner = runner.WithDirectory(dir, builder.Directory(dir))
+	}
+
+	runner = runner.WithDefaultArgs(args)
 	return runner, nil
 }
