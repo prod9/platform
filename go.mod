@@ -3,7 +3,7 @@ module platform.prodigy9.co
 go 1.24.2
 
 require (
-	dagger.io/dagger v0.18.4
+	dagger.io/dagger v0.18.5
 	fx.prodigy9.co v0.4.0
 	github.com/BurntSushi/toml v1.4.0
 	github.com/felixge/httpsnoop v1.0.4
