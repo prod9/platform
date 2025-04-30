@@ -2,7 +2,13 @@ package builder
 
 import "dagger.io/dagger"
 
-const BaseImageName = "rockylinux:9-minimal"
+const (
+	BaseImageName = "rockylinux:9-minimal"
+
+	// CacheBusterName can be updated when we need to ensure that both Dagger and Docker
+	// are not caching bad old images in all environments.
+	CacheBusterName = "cache-buster-0d8d5fe5"
+)
 
 func BaseImageForJob(sess *Session, job *Job) *dagger.Container {
 	return sess.Client().
@@ -12,7 +18,8 @@ func BaseImageForJob(sess *Session, job *Job) *dagger.Container {
 		From(BaseImageName).
 		WithWorkdir("/app").
 		WithLabel("org.opencontainers.image.source", job.Repository).
-		WithExec([]string{"mkdir", "-p", "/app", "/out"})
+		WithExec([]string{"mkdir", "-p", "/app", "/out"}).
+		WithExec([]string{"touch", "/" + CacheBusterName})
 }
 
 func withCaddyServer(base *dagger.Container) *dagger.Container {
