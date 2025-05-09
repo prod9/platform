@@ -51,7 +51,7 @@ func (b PNPMStatic) Build(sess *Session, job *Job) (container *dagger.Container,
 
 	cmd := strings.TrimSpace(job.CommandName)
 	if cmd == "" {
-		cmd = "/usr/sbin/caddy"
+		cmd = "caddy"
 	}
 
 	args := []string{cmd}
