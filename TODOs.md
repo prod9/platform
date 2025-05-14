@@ -8,3 +8,5 @@
 
 * sync dockerfiel builder from macbook
 * and replaceattr impl in slog to strip out the timestamp
+
+* Cache git command results (we don't need to, for example, find current branch twice)
