@@ -28,6 +28,6 @@ func withCustomGoVersion(base *dagger.Container, goversion string) (*dagger.Cont
 }
 
 func withGoPkgCache(sess *Session, base *dagger.Container, goversion string) *dagger.Container {
-	modcache := sess.Client().CacheVolume("go-" + goversion + "-modcache")
+	modcache := sess.Client().CacheVolume("platform-go-" + goversion + "-modcache")
 	return base.WithMountedCache("/root/go/pkg/mod", modcache)
 }
