@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"platform.prodigy9.co/gitcmd"
+	"platform.prodigy9.co/gitctx/gitcmd"
 	"platform.prodigy9.co/project"
 )
 

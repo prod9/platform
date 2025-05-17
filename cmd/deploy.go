@@ -9,7 +9,7 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/spf13/cobra"
 	"platform.prodigy9.co/builder"
-	"platform.prodigy9.co/gitcmd"
+	"platform.prodigy9.co/gitctx/gitcmd"
 	"platform.prodigy9.co/internal/plog"
 	"platform.prodigy9.co/project"
 	"platform.prodigy9.co/releases"

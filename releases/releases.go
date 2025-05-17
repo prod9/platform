@@ -8,7 +8,7 @@ import (
 
 	"github.com/pterm/pterm"
 	"github.com/pterm/pterm/putils"
-	"platform.prodigy9.co/gitcmd"
+	"platform.prodigy9.co/gitctx/gitcmd"
 	"platform.prodigy9.co/project"
 )
 
