@@ -32,7 +32,7 @@ func (g *GitCtx) UpdateEnvironmentTags() error {
 				return wrapErr(err)
 			}
 		} else {
-			refs = append(refs, gitconfig.RefSpec(env))
+			refs = append(refs, gitconfig.RefSpec(env+":"+env))
 		}
 	}
 
@@ -62,6 +62,7 @@ func (g *GitCtx) UpdateAllTags() error {
 	err = g.repo.Fetch(&git.FetchOptions{
 		Depth:      1,
 		RemoteName: remote.Config().Name,
+		Tags:       git.AllTags,
 	})
 	if err != nil && !errors.Is(err, git.NoErrAlreadyUpToDate) {
 		return wrapErr(err)
