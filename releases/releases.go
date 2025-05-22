@@ -2,13 +2,11 @@ package releases
 
 import (
 	"errors"
-	"iter"
-	"slices"
 	"strings"
 
 	"github.com/pterm/pterm"
 	"github.com/pterm/pterm/putils"
-	"platform.prodigy9.co/gitctx/gitcmd"
+	"platform.prodigy9.co/gitctx"
 	"platform.prodigy9.co/project"
 )
 
@@ -30,14 +28,10 @@ const (
 )
 
 type (
-	CommitRef struct {
-		Hash    string `toml:"hash"`
-		Subject string `toml:"subject"`
-	}
 	Release struct {
-		Name    string      `toml:"name"`
-		Message string      `toml:"message"`
-		Commits []CommitRef `toml:"commits"`
+		Name    string             `toml:"name"`
+		Message string             `toml:"message"`
+		Commits []gitctx.CommitRef `toml:"commits"`
 	}
 	Options struct {
 		Name      string
@@ -58,7 +52,10 @@ var knownStrategies = map[string]Strategy{
 }
 
 func Generate(cfg *project.Project, opts *Options) (*Release, error) {
-	if err := checkGitStatus(cfg, opts); err != nil {
+	git, err := gitctx.New(cfg)
+	if err != nil {
+		return nil, err
+	} else if err = git.IsClean(); err != nil {
 		return nil, err
 	}
 
@@ -72,13 +69,13 @@ func Generate(cfg *project.Project, opts *Options) (*Release, error) {
 		return nil, err
 	}
 
-	commits := ""
+	var refs []gitctx.CommitRef
 	prevName := collection.LatestName(strat)
-	if prevName != "" {
-		commits = prevName + "..HEAD"
+	if prevName == "" {
+		refs, err = git.RecentCommits()
+	} else {
+		refs, err = git.CommitsSinceTag(prevName)
 	}
-
-	refs, err := listCommits(cfg.ConfigDir, commits)
 	if err != nil {
 		return nil, err
 	}
@@ -96,20 +93,18 @@ func Generate(cfg *project.Project, opts *Options) (*Release, error) {
 }
 
 func Create(cfg *project.Project, rel *Release) error {
-	// always fetch remote tags before making changes because someone else might have
-	// pushed a tag since we last fetched (or you yourself might have pushed a tag from
-	// another machine and forgot)
-	if branch, err := gitcmd.CurrentBranch(cfg.ConfigDir); err != nil {
+	git, err := gitctx.New(cfg)
+	if err != nil {
 		return err
-	} else if remote, err := gitcmd.TrackingRemote(cfg.ConfigDir, branch); err != nil {
+	}
+
+	if err := git.UpdateEnvironmentTags(); err != nil {
 		return err
-	} else if _, err := gitcmd.FetchFTags(cfg.ConfigDir, remote, cfg.Environments); err != nil {
+	} else if err := git.UpdateAllTags(); err != nil {
 		return err
-	} else if _, err := gitcmd.FetchTags(cfg.ConfigDir, remote); err != nil {
+	} else if _, err := git.SetVersionTag(rel.Name, rel.Message); err != nil {
 		return err
-	} else if _, err := gitcmd.Tag(cfg.ConfigDir, rel.Name, rel.Message); err != nil {
-		return err
-	} else if _, err := gitcmd.PushTag(cfg.ConfigDir, remote, rel.Name); err != nil {
+	} else if err := git.PushVersionTag(rel.Name); err != nil {
 		return err
 	} else {
 		return nil
@@ -127,16 +122,6 @@ func (r *Release) Render() error {
 		Render()
 }
 
-func checkGitStatus(cfg *project.Project, opts *Options) error {
-	if status, err := gitcmd.Status(cfg.ConfigDir); err != nil {
-		return err
-	} else if status != "" && !opts.Force {
-		return ErrDirtyWorkdir
-	} else {
-		return nil
-	}
-}
-
 func FindStrategy(name string) (Strategy, error) {
 	name = strings.ToLower(strings.TrimSpace(name))
 	if strat, ok := knownStrategies[name]; ok {
@@ -146,7 +131,7 @@ func FindStrategy(name string) (Strategy, error) {
 	}
 }
 
-func generateMessage(cfg *project.Project, title string, refs []CommitRef) string {
+func generateMessage(cfg *project.Project, title string, refs []gitctx.CommitRef) string {
 	//* [f3e0f9][https://github.com/prod9/platform/commit/f3e0f9] Sample message
 	sb := &strings.Builder{}
 	sb.WriteString(title)
@@ -165,38 +150,4 @@ func generateMessage(cfg *project.Project, title string, refs []CommitRef) strin
 		sb.WriteRune('\n')
 	}
 	return sb.String()
-}
-
-func listCommits(wd string, range_ string) (refs []CommitRef, err error) {
-	var raw string
-	if range_ == "" {
-		raw, err = gitcmd.Log(wd)
-	} else {
-		raw, err = gitcmd.LogRange(wd, range_)
-	}
-
-	return slices.Collect(parseLogOutput(raw)), nil
-}
-
-func parseLogOutput(raw string) iter.Seq[CommitRef] {
-	return func(yield func(CommitRef) bool) {
-		hashStart, subjStart := 0, 0
-		ref := CommitRef{}
-		for idx, r := range raw {
-			// example:
-			// f3e0f9: Sample message
-			if ref.Hash == "" && r == ' ' {
-				ref.Hash = raw[hashStart:idx]
-				subjStart = idx + 1
-
-			} else if ref.Subject == "" && r == '\n' {
-				ref.Subject = raw[subjStart:idx]
-				if !yield(ref) {
-					return
-				}
-				ref = CommitRef{}
-				hashStart = idx + 1
-			}
-		}
-	}
 }

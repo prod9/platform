@@ -4,7 +4,6 @@ import (
 	"log/slog"
 	"net/url"
 	"os"
-	"strings"
 	"time"
 )
 
@@ -22,11 +21,11 @@ func Fatalln(err error) {
 	os.Exit(1)
 }
 
+func Git(action, hash string) {
+	Logger().Info("git", action, hash)
+}
 func File(action, filename string) {
 	Logger().Info(action, slog.String("filename", filename))
-}
-func Command(cmd string, args ...string) {
-	Logger().Info("command", slog.String("cmd", cmd+" "+strings.Join(args, " ")))
 }
 func Image(action, image, hash string) {
 	Logger().Info(action,
