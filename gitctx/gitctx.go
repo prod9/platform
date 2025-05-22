@@ -51,6 +51,54 @@ func New(proj *project.Project) (*GitCtx, error) {
 	return &GitCtx{
 		repo: repo,
 		proj: proj,
+
+		currentBranch: sync.OnceValues(func() (string, error) {
+			plog.Git("branch", "checking")
+
+			head, err := repo.Head()
+			if err != nil {
+				return "", wrapErr(err)
+			}
+			return head.Name().Short(), nil
+		}),
+
+		mainRemote: sync.OnceValues(func() (*git.Remote, error) {
+			plog.Git("remote", "checking")
+
+			remotes, err := repo.Remotes()
+			if err != nil {
+				return nil, err
+			}
+
+			var repoURL *url.URL
+			if u, err := url.Parse(proj.Repository); err != nil {
+				return nil, err
+			} else {
+				repoURL = u
+			}
+
+			for _, remote := range remotes {
+				if len(remote.Config().URLs) < 1 {
+					continue
+				}
+
+				rawURL := remote.Config().URLs[0]
+				if u, err := url.Parse(rawURL); err != nil {
+					// ignore malformed remote
+					plog.Error(err)
+					continue
+				} else if !repoPathMatch(u, repoURL) {
+					// we only care about the path because people can have ssh remotes setup
+					// with varying names and protocols
+					continue
+				} else {
+					return remote, nil
+				}
+			}
+
+			// no main remote found
+			return nil, nil
+		}),
 	}, nil
 }
 
@@ -72,27 +120,13 @@ func (g *GitCtx) IsClean() error {
 }
 
 func (g *GitCtx) CurrentBranch() (string, error) {
-	if g.currentBranch != nil {
-		if branch, err := g.currentBranch(); err != nil {
-			return "", wrapErr(err)
-		} else if branch == "" {
-			return "", ErrNoCurrentBranch
-		} else {
-			return branch, nil
-		}
+	if branch, err := g.currentBranch(); err != nil {
+		return "", wrapErr(err)
+	} else if branch == "" {
+		return "", ErrNoCurrentBranch
+	} else {
+		return branch, nil
 	}
-
-	g.currentBranch = sync.OnceValues(func() (string, error) {
-		plog.Git("branch", "checking")
-
-		head, err := g.repo.Head()
-		if err != nil {
-			return "", wrapErr(err)
-		}
-		return head.Name().Short(), nil
-	})
-
-	return g.CurrentBranch()
 }
 
 func (g *GitCtx) MainRemoteName() (string, error) {
@@ -103,54 +137,13 @@ func (g *GitCtx) MainRemoteName() (string, error) {
 	}
 }
 func (g *GitCtx) MainRemote() (*git.Remote, error) {
-	if g.mainRemote != nil {
-		if remote, err := g.mainRemote(); err != nil {
-			return nil, wrapErr(err)
-		} else if remote == nil {
-			return nil, ErrNoMainRemote
-		} else {
-			return remote, nil
-		}
+	if remote, err := g.mainRemote(); err != nil {
+		return nil, wrapErr(err)
+	} else if remote == nil {
+		return nil, ErrNoMainRemote
+	} else {
+		return remote, nil
 	}
-
-	g.mainRemote = sync.OnceValues(func() (*git.Remote, error) {
-		plog.Git("remote", "checking")
-		remotes, err := g.repo.Remotes()
-		if err != nil {
-			return nil, err
-		}
-
-		var repoURL *url.URL
-		if u, err := url.Parse(g.proj.Repository); err != nil {
-			return nil, err
-		} else {
-			repoURL = u
-		}
-
-		for _, remote := range remotes {
-			if len(remote.Config().URLs) < 1 {
-				continue
-			}
-
-			rawURL := remote.Config().URLs[0]
-			if u, err := url.Parse(rawURL); err != nil {
-				// ignore malformed remote
-				plog.Error(err)
-				continue
-			} else if !repoPathMatch(u, repoURL) {
-				// we only care about the path because people can have ssh remotes setup
-				// with varying names and protocols
-				continue
-			} else {
-				return remote, nil
-			}
-		}
-
-		// no main remote found
-		return nil, nil
-	})
-
-	return g.MainRemote()
 }
 
 func (g *GitCtx) RecentCommits() ([]CommitRef, error) {

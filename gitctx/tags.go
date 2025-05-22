@@ -24,17 +24,19 @@ func (g *GitCtx) UpdateEnvironmentTags() error {
 
 	var refs []gitconfig.RefSpec
 	for _, env := range g.proj.Environments {
-		if ref, err := g.repo.Tag(env); err != nil {
+		// we only need to update local refs if it doesn't exist to avoid tag clobbering.
+		// if the tag never existed, a normal fetch (i.e. during UpdateAllTags) will fetch it
+		// just fine so we can skip all non-existent env tags.
+		if _, err := g.repo.Tag(env); err != nil {
 			if !errors.Is(err, git.ErrTagNotFound) {
 				return wrapErr(err)
 			}
 		} else {
-			refs = append(refs, gitconfig.RefSpec(ref.String()))
+			refs = append(refs, gitconfig.RefSpec(env))
 		}
 	}
 
 	err = g.repo.Fetch(&git.FetchOptions{
-		Depth:      1,
 		Force:      true,
 		RemoteName: remote.Config().Name,
 		RefSpecs:   refs,
