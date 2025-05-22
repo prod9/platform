@@ -22,7 +22,10 @@ func Fatalln(err error) {
 }
 
 func Git(action, hash string) {
-	Logger().Info("git", action, hash)
+	Logger().Debug("git", action, hash)
+}
+func GitInfo(item, value string) {
+	Logger().Info("git", item, value)
 }
 func File(action, filename string) {
 	Logger().Info(action, slog.String("filename", filename))
