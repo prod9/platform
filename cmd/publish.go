@@ -8,6 +8,7 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/spf13/cobra"
 	"platform.prodigy9.co/builder"
+	"platform.prodigy9.co/gitctx"
 	"platform.prodigy9.co/internal/plog"
 	"platform.prodigy9.co/project"
 	"platform.prodigy9.co/releases"
@@ -30,12 +31,14 @@ func runPublish(cmd *cobra.Command, args []string) {
 		plog.Fatalln(err)
 	}
 
-	collection, err := releases.Recover(cfg)
+	git := gitctx.New(cfg)
+
+	collection, err := releases.Recover(cfg, git)
 	if err != nil {
 		plog.Fatalln(err)
 	}
 
-	rel, err := collection.GetLatest(strat)
+	rel, err := collection.GetLatest(git, strat)
 	if err != nil {
 		plog.Fatalln(err)
 	}

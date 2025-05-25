@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"platform.prodigy9.co/gitctx/gitcmd"
+	"platform.prodigy9.co/gitctx"
 	"platform.prodigy9.co/project"
 )
 
@@ -18,22 +18,18 @@ type Collection struct {
 	names []string
 }
 
-func Recover(cfg *project.Project) (*Collection, error) {
+func Recover(cfg *project.Project, git *gitctx.GitCtx) (*Collection, error) {
 	// ensure the local wd has all the up-to-date tags
 	//
 	// note that environment tags will change as we deploy to the environment so we need to
 	// do a fetch --force just for those tags.
-	if branch, err := gitcmd.CurrentBranch(cfg.ConfigDir); err != nil {
+	if err := git.UpdateEnvironmentTags(); err != nil {
 		return nil, err
-	} else if remote, err := gitcmd.TrackingRemote(cfg.ConfigDir, branch); err != nil {
-		return nil, err
-	} else if _, err := gitcmd.FetchFTags(cfg.ConfigDir, remote, cfg.Environments); err != nil {
-		return nil, err
-	} else if _, err := gitcmd.FetchTags(cfg.ConfigDir, remote); err != nil {
+	} else if err := git.UpdateAllTags(); err != nil {
 		return nil, err
 	}
 
-	lines, err := gitcmd.ListTags(cfg.ConfigDir, "v*")
+	lines, err := git.ListTags("v*")
 	if err != nil {
 		return nil, err
 	}
@@ -64,10 +60,10 @@ func (c *Collection) LatestName(strat Strategy) string {
 	return ""
 }
 
-func (c *Collection) Get(name string) (*Release, error) {
+func (c *Collection) Get(git *gitctx.GitCtx, name string) (*Release, error) {
 	if name == "" {
 		return nil, ErrNoRelease
-	} else if msg, err := gitcmd.TagMessage(c.cfg.ConfigDir, name); err != nil {
+	} else if msg, err := git.GetTagMessage(name); err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrNoRelease, err)
 	} else {
 		return &Release{
@@ -77,19 +73,19 @@ func (c *Collection) Get(name string) (*Release, error) {
 	}
 }
 
-func (c *Collection) GetLatest(strat Strategy) (*Release, error) {
+func (c *Collection) GetLatest(git *gitctx.GitCtx, strat Strategy) (*Release, error) {
 	if name := c.LatestName(strat); name == "" {
 		return nil, ErrNoRelease
 	} else {
-		return c.Get(name)
+		return c.Get(git, name)
 	}
 }
 
-func (c *Collection) PendingChanges() ([]CommitRef, error) {
+func (c *Collection) PendingChanges(git *gitctx.GitCtx) ([]CommitRef, error) {
 	last := c.LatestName(nil)
 	if last == "" {
 		return nil, nil
 	}
 
-	return listCommits(c.cfg.ConfigDir, last)
+	return listCommits(git, last+"..HEAD")
 }

@@ -5,6 +5,7 @@ import (
 
 	"fx.prodigy9.co/cmd/prompts"
 	"github.com/spf13/cobra"
+	"platform.prodigy9.co/gitctx"
 	"platform.prodigy9.co/internal/plog"
 	"platform.prodigy9.co/project"
 	"platform.prodigy9.co/releases"
@@ -60,7 +61,9 @@ func runReleaseCmd(cmd *cobra.Command, args []string) {
 		plog.Fatalln(err)
 	}
 
-	rel, err := releases.Generate(cfg, opts)
+	git := gitctx.New(cfg)
+
+	rel, err := releases.Generate(cfg, git, opts)
 	if err != nil {
 		plog.Fatalln(err)
 	}
@@ -73,7 +76,7 @@ func runReleaseCmd(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	if err = releases.Create(cfg, rel); err != nil {
+	if err = releases.Create(cfg, git, rel); err != nil {
 		plog.Fatalln(err)
 	}
 }

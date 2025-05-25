@@ -8,7 +8,7 @@ import (
 
 	"github.com/pterm/pterm"
 	"github.com/pterm/pterm/putils"
-	"platform.prodigy9.co/gitctx/gitcmd"
+	"platform.prodigy9.co/gitctx"
 	"platform.prodigy9.co/project"
 )
 
@@ -57,12 +57,12 @@ var knownStrategies = map[string]Strategy{
 	"datestamp": Datestamp{},
 }
 
-func Generate(cfg *project.Project, opts *Options) (*Release, error) {
-	if err := checkGitStatus(cfg, opts); err != nil {
+func Generate(cfg *project.Project, git *gitctx.GitCtx, opts *Options) (*Release, error) {
+	if err := checkGitStatus(cfg, git, opts); err != nil {
 		return nil, err
 	}
 
-	collection, err := Recover(cfg)
+	collection, err := Recover(cfg, git)
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +78,7 @@ func Generate(cfg *project.Project, opts *Options) (*Release, error) {
 		commits = prevName + "..HEAD"
 	}
 
-	refs, err := listCommits(cfg.ConfigDir, commits)
+	refs, err := listCommits(git, commits)
 	if err != nil {
 		return nil, err
 	}
@@ -95,21 +95,17 @@ func Generate(cfg *project.Project, opts *Options) (*Release, error) {
 	}, nil
 }
 
-func Create(cfg *project.Project, rel *Release) error {
+func Create(cfg *project.Project, git *gitctx.GitCtx, rel *Release) error {
 	// always fetch remote tags before making changes because someone else might have
 	// pushed a tag since we last fetched (or you yourself might have pushed a tag from
 	// another machine and forgot)
-	if branch, err := gitcmd.CurrentBranch(cfg.ConfigDir); err != nil {
+	if err := git.UpdateEnvironmentTags(); err != nil {
 		return err
-	} else if remote, err := gitcmd.TrackingRemote(cfg.ConfigDir, branch); err != nil {
+	} else if err := git.UpdateAllTags(); err != nil {
 		return err
-	} else if _, err := gitcmd.FetchFTags(cfg.ConfigDir, remote, cfg.Environments); err != nil {
+	} else if _, err := git.SetVersionTag(rel.Name, rel.Message); err != nil {
 		return err
-	} else if _, err := gitcmd.FetchTags(cfg.ConfigDir, remote); err != nil {
-		return err
-	} else if _, err := gitcmd.Tag(cfg.ConfigDir, rel.Name, rel.Message); err != nil {
-		return err
-	} else if _, err := gitcmd.PushTag(cfg.ConfigDir, remote, rel.Name); err != nil {
+	} else if err := git.PushVersionTag(rel.Name); err != nil {
 		return err
 	} else {
 		return nil
@@ -127,14 +123,16 @@ func (r *Release) Render() error {
 		Render()
 }
 
-func checkGitStatus(cfg *project.Project, opts *Options) error {
-	if status, err := gitcmd.Status(cfg.ConfigDir); err != nil {
-		return err
-	} else if status != "" && !opts.Force {
-		return ErrDirtyWorkdir
-	} else {
-		return nil
+func checkGitStatus(cfg *project.Project, git *gitctx.GitCtx, opts *Options) error {
+	if !opts.Force {
+		if err := git.IsClean(); err != nil {
+			if err == gitctx.ErrDirtyWorkdir {
+				return ErrDirtyWorkdir
+			}
+			return err
+		}
 	}
+	return nil
 }
 
 func FindStrategy(name string) (Strategy, error) {
@@ -167,12 +165,12 @@ func generateMessage(cfg *project.Project, title string, refs []CommitRef) strin
 	return sb.String()
 }
 
-func listCommits(wd string, range_ string) (refs []CommitRef, err error) {
+func listCommits(git *gitctx.GitCtx, range_ string) (refs []CommitRef, err error) {
 	var raw string
 	if range_ == "" {
-		raw, err = gitcmd.Log(wd)
+		raw, err = git.RecentCommits()
 	} else {
-		raw, err = gitcmd.LogRange(wd, range_)
+		raw, err = git.CommitsSinceTag(strings.Split(range_, "..")[0])
 	}
 
 	return slices.Collect(parseLogOutput(raw)), nil

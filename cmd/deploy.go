@@ -9,7 +9,7 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/spf13/cobra"
 	"platform.prodigy9.co/builder"
-	"platform.prodigy9.co/gitctx/gitcmd"
+	"platform.prodigy9.co/gitctx"
 	"platform.prodigy9.co/internal/plog"
 	"platform.prodigy9.co/project"
 	"platform.prodigy9.co/releases"
@@ -50,12 +50,14 @@ func runDeploy(cmd *cobra.Command, args []string) {
 		plog.Fatalln(err)
 	}
 
-	collection, err := releases.Recover(cfg)
+	git := gitctx.New(cfg)
+
+	collection, err := releases.Recover(cfg, git)
 	if err != nil {
 		plog.Fatalln(err)
 	}
 
-	rel, err := collection.GetLatest(strat)
+	rel, err := collection.GetLatest(git, strat)
 	if err != nil {
 		plog.Fatalln(err)
 	}
@@ -110,13 +112,9 @@ func runDeploy(cmd *cobra.Command, args []string) {
 	}
 
 	if !skipTagOnDeploy {
-		if _, err := gitcmd.TagF(cfg.ConfigDir, targetEnv); err != nil {
+		if _, err := git.SetEnvironmentTag(targetEnv); err != nil {
 			plog.Fatalln(err)
-		} else if branch, err := gitcmd.CurrentBranch(cfg.ConfigDir); err != nil {
-			plog.Fatalln(err)
-		} else if remote, err := gitcmd.TrackingRemote(cfg.ConfigDir, branch); err != nil {
-			plog.Fatalln(err)
-		} else if _, err := gitcmd.PushTagF(cfg.ConfigDir, remote, targetEnv); err != nil {
+		} else if err := git.PushEnvironmentTag(targetEnv); err != nil {
 			plog.Fatalln(err)
 		}
 	}
