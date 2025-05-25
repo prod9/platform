@@ -22,11 +22,14 @@ func Fatalln(err error) {
 	os.Exit(1)
 }
 
+func Git(cmd string, args ...string) {
+	Logger().Debug("git", cmd, strings.Join(args, " "))
+}
+func GitInfo(item, value string) {
+	Logger().Info("git", item, value)
+}
 func File(action, filename string) {
 	Logger().Info(action, slog.String("filename", filename))
-}
-func Command(cmd string, args ...string) {
-	Logger().Info("command", slog.String("cmd", cmd+" "+strings.Join(args, " ")))
 }
 func Image(action, image, hash string) {
 	Logger().Info(action,

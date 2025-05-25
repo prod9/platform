@@ -4,36 +4,30 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"sync"
 
 	"github.com/pterm/pterm"
 )
 
 var (
-	logger *slog.Logger
-	opts   *slog.HandlerOptions
+	mx sync.Mutex
+
+	logger    *slog.Logger
+	verbosity int
 )
 
 func out() *os.File { return os.Stderr }
 
-func SetQuietness(q int) {
-	if opts == nil {
-		opts = &slog.HandlerOptions{}
-	}
+func SetVerbosity(v int) {
+	mx.Lock()
+	defer mx.Unlock()
 
-	switch {
-	case q >= 2:
-		opts.Level = slog.LevelError
-	case q == 1:
-		opts.Level = slog.LevelWarn
-	case q == 0:
-		opts.Level = slog.LevelInfo
-	case q < 0:
-		opts.Level = slog.LevelDebug
-	}
+	verbosity = v
+	logger = nil
 }
 
 func OutputForDagger() io.Writer {
-	if opts != nil && opts.Level.Level() <= slog.LevelInfo {
+	if verbosity >= 0 {
 		return out()
 	} else {
 		return io.Discard
@@ -42,24 +36,30 @@ func OutputForDagger() io.Writer {
 
 func Logger() *slog.Logger {
 	if logger == nil {
-		if opts == nil {
-			opts = &slog.HandlerOptions{}
-		}
+		initLogger()
+		return Logger()
+	} else {
+		return logger
+	}
+}
+func initLogger() {
+	mx.Lock()
+	defer mx.Unlock()
 
-		opts.ReplaceAttr = func(groups []string, a slog.Attr) slog.Attr {
-			if a.Key == "time" {
-				return slog.Attr{Key: "time", Value: slog.Value{}}
-			} else {
-				return a
-			}
-		}
+	ptLogger := pterm.DefaultLogger
+	ptLogger.ShowTime = false
+	ptLogger.Writer = out()
 
-		ptLogger := pterm.DefaultLogger
-		ptLogger.ShowTime = false
-		ptLogger.Writer = out()
-
-		logger = slog.New(pterm.NewSlogHandler(&ptLogger))
+	switch {
+	case verbosity > 0:
+		ptLogger.Level = pterm.LogLevelDebug
+	case verbosity == 0:
+		ptLogger.Level = pterm.LogLevelInfo
+	case verbosity == -1:
+		ptLogger.Level = pterm.LogLevelWarn
+	default:
+		ptLogger.Level = pterm.LogLevelError
 	}
 
-	return logger
+	logger = slog.New(pterm.NewSlogHandler(&ptLogger))
 }

@@ -68,7 +68,7 @@ func runCmd(wd, name string, args ...string) (string, error) {
 		return "", err
 	}
 
-	plog.Command(name, args...)
+	plog.Git(name, args...)
 	outbuf := &strings.Builder{}
 
 	cmd := exec.Command(name, args...)
