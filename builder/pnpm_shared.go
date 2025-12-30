@@ -9,11 +9,6 @@ curl -fsSL https://raw.githubusercontent.com/tj/n/master/bin/n | \
 
 func withPNPMBase(base *dagger.Container) *dagger.Container {
 	return base.
-		WithExec([]string{
-			"microdnf", "install", "-y",
-			"which", "tar", "findutils",
-			"tzdata", "ca-certificates",
-		}).
 		WithNewFile("/install-n.sh", NInstallScript).
 		WithExec([]string{"/usr/bin/bash", "/install-n.sh"}).
 		WithExec([]string{"corepack", "enable", "pnpm"}).
@@ -21,8 +16,7 @@ func withPNPMBase(base *dagger.Container) *dagger.Container {
 }
 
 func withTypeModulePackageJSON(base *dagger.Container) *dagger.Container {
-	return base.
-		WithNewFile("/app/package.json", `{"type":"module"}`)
+	return base.WithNewFile("/app/package.json", `{"type":"module"}`)
 }
 
 func withPNPMPkgCache(sess *Session, base *dagger.Container) *dagger.Container {

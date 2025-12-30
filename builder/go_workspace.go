@@ -85,7 +85,7 @@ func (GoWorkspace) Build(sess *Session, job *Job) (container *dagger.Container, 
 
 	builder := withGoBuildBase(base)
 	builder = withGoPkgCache(sess, builder, goversion)
-	builder, gobin := withCustomGoVersion(builder, goversion)
+	builder, gobin := withGoVersion(builder, goversion)
 
 	builder = builder.
 		WithFile("go.work", host.File("go.work")).
