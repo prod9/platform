@@ -32,27 +32,7 @@ func (PNPMBasic) Build(sess *Session, job *Job) (container *dagger.Container, er
 	host := sess.Client().Host().
 		Directory(job.WorkDir, dagger.HostDirectoryOpts{Exclude: job.Excludes})
 
-	builder := BaseImageForJob(sess, job)
-	builder = withPNPMBase(builder)
-	builder = withPNPMPkgCache(sess, builder)
-	builder = withJobEnv(builder, job)
-
-	builder = builder.
-		WithFile("package.json", host.File("package.json")).
-		WithFile("pnpm-lock.yaml", host.File("pnpm-lock.yaml")).
-		WithExec([]string{"pnpm", "i"}).
-		WithDirectory("/app", host).
-		WithExec([]string{"pnpm", "build"})
-
-	runner := BaseImageForJob(sess, job)
-	runner = withPNPMBase(runner)
-	runner = withJobEnv(runner, job)
-
-	runner = runner.
-		WithFile("package.json", builder.File("package.json")).
-		WithFile("pnpm-lock.yaml", builder.File("pnpm-lock.yaml")).
-		WithExec([]string{"pnpm", "i"})
-
+	// prepare job parameters
 	outdir := strings.TrimSpace(job.BuildDir)
 	if outdir == "" {
 		outdir = "build"
@@ -70,11 +50,27 @@ func (PNPMBasic) Build(sess *Session, job *Job) (container *dagger.Container, er
 		args = append(args, ".")
 	}
 
-	runner = runner.WithDirectory("/app", builder.Directory(outdir))
+	// build
+	base := BaseImageForJob(sess, job)
+	base = withPNPMBase(base)
+	base = withPNPMPkgCache(sess, base)
+	base = withJobEnv(base, job)
+	base = base.
+		WithFile("package.json", host.File("package.json")).
+		WithFile("pnpm-lock.yaml", host.File("pnpm-lock.yaml")).
+		WithExec([]string{"pnpm", "i"})
+
+	builder := base.
+		WithDirectory("/app", host).
+		WithExec([]string{"pnpm", "build"})
+
+	// runner
+	runner := withRunnerPkgs(base).
+		WithDirectory("/app", builder.Directory(outdir))
 	for _, dir := range job.AssetDirs {
 		runner = runner.WithDirectory(dir, builder.Directory(dir))
 	}
 
 	runner = runner.WithDefaultArgs(args)
-	return runner, nil
+	return runner.Sync(sess.Context())
 }

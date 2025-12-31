@@ -29,16 +29,11 @@ func (b GoBasic) Discover(wd string) (map[string]Interface, error) {
 
 func (GoBasic) Build(sess *Session, job *Job) (container *dagger.Container, err error) {
 	defer errutil.Wrap("go/basic", &err)
-
 	host := sess.Client().Host().Directory(job.WorkDir, dagger.HostDirectoryOpts{
 		Exclude: job.Excludes,
 	})
 
-	goversion, _, err := gowork.ParseFile(filepath.Join(job.WorkDir, "go.mod"))
-	if err != nil {
-		return nil, err
-	}
-
+	// prepare job parameters
 	cmd := strings.TrimSpace(job.CommandName)
 	switch {
 	case cmd == "" && job.PackageName != "":
@@ -47,16 +42,21 @@ func (GoBasic) Build(sess *Session, job *Job) (container *dagger.Container, err 
 		cmd = job.Name
 	}
 
+	goversion, _, err := gowork.ParseFile(filepath.Join(job.WorkDir, "go.mod"))
+	if err != nil {
+		return nil, err
+	}
+
 	args := []string{"./" + cmd}
 	if len(job.CommandArgs) > 0 {
 		args = append(args, job.CommandArgs...)
 	}
 
+	// build
 	base := BaseImageForJob(sess, job)
-
-	builder := withGoBuildBase(base)
-	builder = withGoPkgCache(sess, builder, goversion)
+	builder := withBuildPkgs(base, "go")
 	builder, gobin := withGoVersion(builder, goversion)
+	builder = withGoPkgCache(sess, builder, goversion)
 
 	builder = builder.
 		WithFile("go.mod", host.File("go.mod")).
@@ -68,9 +68,9 @@ func (GoBasic) Build(sess *Session, job *Job) (container *dagger.Container, err 
 		WithExec([]string{gobin, "test", "-v", "./..."}).
 		WithExec([]string{gobin, "build", "-v", "-o", "/out/" + cmd, job.PackageName})
 
-	runner := withGoRunnerBase(base)
+	// run
+	runner := withRunnerPkgs(base)
 	runner = withJobEnv(runner, job)
-
 	runner = runner.WithFile("/app/"+cmd, builder.File("/out/"+cmd))
 	for _, dir := range job.AssetDirs {
 		runner = runner.WithDirectory(dir, builder.Directory(dir))

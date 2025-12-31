@@ -6,13 +6,13 @@ const (
 	// SEE: https://edu.chainguard.dev/open-source/wolfi/overview/
 	BaseImageName = "cgr.dev/chainguard/wolfi-base"
 
-	// CacheBusterName can be updated when we need to ensure that both Dagger and Docker
+	// CacheBuster can be updated when we need to ensure that both Dagger and Docker
 	// are not caching bad old images in all environments.
 	//
 	// This should rarely need to be updated, but sometimes is necessary. For example,
-	// rockylinux might have a bad image uploaded to Docker Hub, and we need to force
+	// chainguard might have a bad image uploaded to Docker Hub, and we need to force
 	// a rebuild of the image in all environments.
-	CacheBusterName = "cache-buster-1aef8838"
+	CacheBuster = "cache-buster-1aef8838"
 )
 
 func BaseImageForJob(sess *Session, job *Job) *dagger.Container {
@@ -26,7 +26,7 @@ func BaseImageForJob(sess *Session, job *Job) *dagger.Container {
 		WithWorkdir("/app").
 		WithLabel("org.opencontainers.image.source", job.Repository).
 		WithExec([]string{"mkdir", "-p", "/app", "/out"}).
-		WithNewFile("/"+CacheBusterName, CacheBusterName).
+		WithNewFile("/"+CacheBuster, CacheBuster).
 
 		// optimize dnf
 		WithMountedCache("/var/cache/apk", apkCache).

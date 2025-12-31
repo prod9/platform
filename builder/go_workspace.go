@@ -68,6 +68,7 @@ func (GoWorkspace) Build(sess *Session, job *Job) (container *dagger.Container, 
 		return nil, err
 	}
 
+	// prepare job parameters
 	cmd := strings.TrimSpace(job.CommandName)
 	switch {
 	case cmd == "" && job.PackageName != "":
@@ -81,11 +82,12 @@ func (GoWorkspace) Build(sess *Session, job *Job) (container *dagger.Container, 
 		args = append(args, job.CommandArgs...)
 	}
 
+	// build
 	base := BaseImageForJob(sess, job)
 
-	builder := withGoBuildBase(base)
-	builder = withGoPkgCache(sess, builder, goversion)
+	builder := withBuildPkgs(base, "go")
 	builder, gobin := withGoVersion(builder, goversion)
+	builder = withGoPkgCache(sess, builder, goversion)
 
 	builder = builder.
 		WithFile("go.work", host.File("go.work")).
@@ -119,9 +121,9 @@ func (GoWorkspace) Build(sess *Session, job *Job) (container *dagger.Container, 
 		WithExec(testargs).
 		WithExec([]string{gobin, "build", "-v", "-o", "/out/" + cmd, pkg})
 
-	runner := withGoRunnerBase(base)
+	// run
+	runner := withRunnerPkgs(base)
 	runner = withJobEnv(runner, job)
-
 	runner = runner.WithFile("/app/"+cmd, builder.File("/out/"+cmd))
 	for _, dir := range job.AssetDirs {
 		runner = runner.WithDirectory(dir, builder.Directory(dir))

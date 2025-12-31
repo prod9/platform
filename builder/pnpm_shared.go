@@ -1,15 +1,20 @@
 package builder
 
-import "dagger.io/dagger"
+import (
+	"strings"
+
+	"dagger.io/dagger"
+)
 
 const NInstallScript = `
+set -xe
 curl -fsSL https://raw.githubusercontent.com/tj/n/master/bin/n | \
 	bash -s install lts
 `
 
 func withPNPMBase(base *dagger.Container) *dagger.Container {
-	return base.
-		WithNewFile("/install-n.sh", NInstallScript).
+	return withBuildPkgs(base).
+		WithNewFile("/install-n.sh", strings.TrimSpace(NInstallScript)).
 		WithExec([]string{"/usr/bin/bash", "/install-n.sh"}).
 		WithExec([]string{"corepack", "enable", "pnpm"}).
 		WithExec([]string{"corepack", "install", "-g", "pnpm"})

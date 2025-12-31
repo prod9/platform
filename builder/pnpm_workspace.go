@@ -19,7 +19,7 @@ func (PNPMWorkspace) Class() Class   { return ClassInterpreted }
 
 func (b PNPMWorkspace) Discover(wd string) (map[string]Interface, error) {
 	// PNPM decided to have a rename from pnpm-workspaces.yaml (with an s) to
-	// just pnpm-workspace.yaml (without the s) and it'll actually throw an error for this.
+	// just pnpm-workspace.yaml (without the s) and it'll actually throw an error for this
 	// so we have to have this pointless detection to patch pnpm failure to backcompat
 	if detected, err := fileutil.DetectFile(wd, "pnpm-workspace.yaml"); err != nil {
 		return nil, err
@@ -71,32 +71,16 @@ func (PNPMWorkspace) Build(sess *Session, job *Job) (container *dagger.Container
 		Exclude: job.Excludes,
 	})
 
-	base := BaseImageForJob(sess, job)
-
-	builder := withPNPMBase(base)
-	builder = withPNPMPkgCache(sess, builder)
-
+	// prepare job parameters
 	pkg := job.PackageName
 	if pkg == "" {
 		pkg = job.Name
 	}
 
-	builder = builder.
-		WithDirectory("/app", host).
-		WithExec([]string{"pnpm", "-r", "install"}).
-		WithExec([]string{"pnpm", "-r", "build"})
-
 	outdir := strings.TrimSpace(job.BuildDir)
 	if outdir == "" {
 		outdir = "build"
 	}
-
-	runner := withPNPMBase(base)
-	runner = withJobEnv(runner, job)
-
-	runner = runner.
-		WithDirectory("/app", builder.Directory("/app/"+job.Name+"/"+outdir)).
-		WithDirectory("/app/node_modules", builder.Directory("/app/"+job.Name+"/node_modules"))
 
 	cmd := strings.TrimSpace(job.CommandName)
 	if cmd == "" {
@@ -109,6 +93,22 @@ func (PNPMWorkspace) Build(sess *Session, job *Job) (container *dagger.Container
 	} else {
 		args = append(args, ".")
 	}
+
+	// build
+	base := BaseImageForJob(sess, job)
+	base = withPNPMBase(base)
+	base = withPNPMPkgCache(sess, base)
+	base = withJobEnv(base, job)
+
+	builder := withBuildPkgs(base).
+		WithDirectory("/app", host).
+		WithExec([]string{"pnpm", "-r", "install"}).
+		WithExec([]string{"pnpm", "-r", "build"})
+
+	// run
+	runner := withRunnerPkgs(base).
+		WithDirectory("/app", builder.Directory("/app/"+job.Name+"/"+outdir)).
+		WithDirectory("/app/node_modules", builder.Directory("/app/"+job.Name+"/node_modules"))
 
 	runner = withTypeModulePackageJSON(runner)
 	for _, dir := range job.AssetDirs {
