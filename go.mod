@@ -1,6 +1,6 @@
 module platform.prodigy9.co
 
-go 1.24.2
+go 1.25.5
 
 require (
 	dagger.io/dagger v0.18.7
