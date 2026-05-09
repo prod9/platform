@@ -7,6 +7,92 @@ Skills and conventions are provided by the **PRODIGY9 Coding School** school and
 `.claude/skills/`. Skill edits go through symlinks into the school clone — propose
 changes back to the school repo when ready. Run `ace config` or `ace paths` to debug
 configuration issues.
+
 ## RTK (token saver)
 
 Prefix every shell command with `rtk`. Full reference: [`RTK.md`](RTK.md).
+
+## Project Overview
+
+`platform` is PRODIGY9's self-contained build/CI tool — a Go CLI (module
+`platform.prodigy9.co`, Go 1.25.5) that auto-detects project type, builds containers via
+Dagger, manages releases via git tags, and bootstraps new repos into Buildkite CI.
+
+Goal: zero per-project build config; new repos onboard quickly; no tech-stack lock-in.
+
+### Entry point
+
+- `main.go` — Cobra root, wires subcommands, persistent `-q`/`-v` and `-f` (alt `platform.toml`).
+- `cmd/` — one file per subcommand. All read `project.Configure(".")` first.
+
+### Subcommands
+
+| Cmd | Purpose |
+|-----------|------------------------------------------------------------------|
+| bootstrap | Discover project type, write `platform.toml` + `platform` script + `.buildkite/pipeline.yaml`. |
+| build     | Build container(s) for module(s) via Dagger.                     |
+| configure | Print effective parsed config.                                   |
+| deploy    | Build+publish image tagged `:env` and set/push environment git tag. |
+| discover  | Print detected modules and their builder.                        |
+| export    | Build and export container as `.docker` tarball.                 |
+| ls        | List files inside built container (debugging).                   |
+| preview   | Build and serve container locally via Dagger tunnel.             |
+| publish   | Build+publish image tagged `:release-name` from latest release tag. |
+| release   | Create new release tag (semver/timestamp/datestamp); supports `-p/-m/--major`. |
+| vanity    | Hidden HTTP server: redirects `go get platform.prodigy9.co` to GitHub. |
+
+### Packages
+
+- `project/` — `platform.toml` parser. `Project` (maintainer, repository, strategy,
+  environments, excludes, modules) and `Module` (workdir, builder, env, port, cmd, args,
+  asset_dirs, build_dir, image, package). `Configure(wd)` walks up to find file,
+  applies defaults, env overrides (`PLATFORM`), and inferred values (e.g. `ghcr.io`
+  image name from `github.com` repository).
+- `builder/` — Dagger-based build pipeline.
+  - `Interface`: `Name/Layout/Class/Discover/Build`.
+  - Layouts: `basic` (single module) | `workspace` (multi-module).
+  - Classes: `native` (Go/Rust) | `bytecode` (JVM-likes) | `interpreted` (Node/Ruby) |
+    `custom` (Dockerfile).
+  - Known builders (order-sensitive for discovery): `GoWorkspace`, `PNPMWorkspace`,
+    `GoBasic`, `PNPMStatic`, `PNPMBasic`, `Dockerfile`.
+  - `base.go` — Wolfi base image (`cgr.dev/chainguard/wolfi-base`), apk cache mount,
+    `CacheBuster` const for global cache invalidation.
+  - `Build/Publish` use `internal.Multiplexer` for parallel job execution.
+  - Registry creds via fx env config: `REGISTRY`, `REGISTRY_USERNAME`, `REGISTRY_PASSWORD`.
+- `bootstrapper/` — Embeds templates (`platform.template`,
+  `buildkite.pipeline.yaml.template`); discovers builders, writes `platform.toml`,
+  executable `platform` script, and `.buildkite/pipeline.yaml`.
+- `releases/` — Release strategies: `semver`, `timestamp`, `datestamp`. `Generate`
+  diffs commits since last tag, `Create` tags + pushes. `collection.go` recovers
+  history from git tags.
+- `gitctx/` — Wraps `gitcmd/` shell helpers; caches current branch and tracking
+  remote via `sync.OnceValues`. Distinguishes version tags (annotated, push) vs
+  environment tags (force-updated, force-pushed).
+- `internal/` — `plog` (structured logger), `multiplexer` (parallel job runner),
+  `timeouts` (TOML duration), `fileutil`, `dateref`, `timeref`.
+- `testbeds/` — Sample projects per builder type, exercised by smoke tests.
+
+### Testing
+
+`./test.sh` → runs `cue eval tests.cue → tests.yml` → `chakrit/smoke` runner. Tests
+build the binary, then for each testbed run `discover`/`bootstrap`/`build` checking
+exitcode/stdout/expected-files. `./testbed.sh <dir> <args>` runs platform inside a
+specific testbed.
+
+### Key dependencies
+
+`dagger.io/dagger` (container builds), `fx.prodigy9.co` (config + cmd prompts +
+ctrlc), `BurntSushi/toml`, `spf13/cobra`, `pterm/pterm`, `go.jonnrb.io/vanity`.
+
+## Load these skills
+
+Default skill set for this project (consumed by `ace.toml`):
+
+- `ace*` — session workflow, save, audit, realign, school
+- `general-coding` — per-slice workflow + cross-language conventions
+- `go-coding` — Go is the implementation language
+- `prod9-fx` — `fx.prodigy9.co v0.4.0` is in `go.mod`
+- `cue-coding` — `tests.cue` drives the smoke harness
+- `shell` — `test.sh`, `testbed.sh`, embedded `platform` script template
+- `markdown-writing` — for editing this file and `RTK.md`
+- `rtk` — RTK is configured at the project level
