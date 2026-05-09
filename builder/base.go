@@ -1,3 +1,17 @@
+// Package builder produces container images for projects discovered by platform.
+//
+// # Base image policy
+//
+// Every builder in this package starts from Chainguard's Wolfi base image
+// (cgr.dev/chainguard/wolfi-base) via [BaseImageForJob]. This is the standard
+// and gives us a small, regularly-patched, glibc-free base shared across all
+// language stacks (Go native, Go workspace, pnpm basic/static/workspace).
+//
+// The sole exception is the [Dockerfile] builder, which by definition uses the
+// user-supplied Dockerfile's FROM line. That builder is intentionally
+// discouraged: it bypasses Wolfi, the apk cache mount, and our package
+// conventions in [withBuildPkgs] / [withRunnerPkgs]. It emits a runtime warning
+// when invoked. Prefer one of the language-specific builders whenever possible.
 package builder
 
 import "dagger.io/dagger"

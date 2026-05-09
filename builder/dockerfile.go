@@ -7,6 +7,7 @@ import (
 	"dagger.io/dagger"
 	"fx.prodigy9.co/errutil"
 	"platform.prodigy9.co/builder/fileutil"
+	"platform.prodigy9.co/internal/plog"
 )
 
 type Dockerfile struct{}
@@ -30,6 +31,11 @@ func (d Dockerfile) Discover(wd string) (map[string]Interface, error) {
 
 func (d Dockerfile) Build(sess *Session, job *Job) (container *dagger.Container, err error) {
 	defer errutil.Wrap("dockerfile", &err)
+
+	plog.Logger().Warn("dockerfile builder bypasses the Wolfi base image and platform package conventions; prefer a language-specific builder (go/basic, go/workspace, pnpm/basic, pnpm/static, pnpm/workspace) when possible",
+		"module", job.Name,
+		"workdir", job.WorkDir,
+	)
 
 	host := sess.Client().Host().Directory(job.WorkDir, dagger.HostDirectoryOpts{
 		Exclude: job.Excludes,
