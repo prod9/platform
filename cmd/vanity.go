@@ -48,7 +48,7 @@ func runVanityCmd(cmd *cobra.Command, args []string) {
 		Handler: wrapped,
 	}
 
-	sigs := make(chan os.Signal)
+	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		<-sigs
