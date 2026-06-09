@@ -6,9 +6,7 @@ tests.yml
 !.rtk/filters.toml
 
 # ACE-managed — do not edit this block.
-# These folders are symlinks to the school clone managed by `ace setup`.
-# To update skills, update the school repo instead.
-# See: https://github.com/ace-rs/ace
+# Managed by ACE. See https://github.com/ace-rs/ace
 .agents/agents
 .agents/commands
 .agents/rules
@@ -17,5 +15,9 @@ tests.yml
 .claude/commands
 .claude/rules
 .claude/skills
+.opencode/agents
+.opencode/commands
+.opencode/rules
+.opencode/skills
 ace.local.toml
 # end ACE
