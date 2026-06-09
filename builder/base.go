@@ -18,15 +18,24 @@ import "dagger.io/dagger"
 
 const (
 	// SEE: https://edu.chainguard.dev/open-source/wolfi/overview/
-	BaseImageName = "cgr.dev/chainguard/wolfi-base"
-
-	// CacheBuster can be updated when we need to ensure that both Dagger and Docker
-	// are not caching bad old images in all environments.
 	//
-	// This should rarely need to be updated, but sometimes is necessary. For example,
-	// chainguard might have a bad image uploaded to Docker Hub, and we need to force
-	// a rebuild of the image in all environments.
-	CacheBuster = "cache-buster-1aef8838"
+	// Pinned by digest (the multi-arch index digest — Dagger picks the right
+	// per-platform manifest at build time). Chainguard's :latest is a floating
+	// ref, so reproducibility wins over readability here. Refresh manually on a
+	// monthly cadence to absorb base-layer CVEs; userland is already refreshed
+	// every build via `apk update && apk upgrade` in [BaseImageForJob].
+	//
+	// To refresh:
+	//   docker buildx imagetools inspect cgr.dev/chainguard/wolfi-base:latest
+	// then update both BaseImageName and CacheBuster (keep them in sync — the
+	// cache buster's hex is the first 8 chars of the digest below).
+	BaseImageName = "cgr.dev/chainguard/wolfi-base@sha256:b78bb982194828b6c9c214230bf34d51944e2102ea8468f01ac21e5f99328efd"
+
+	// CacheBuster forces Dagger and Docker to invalidate cached base layers
+	// across all environments. Bumped in lockstep with [BaseImageName] above so
+	// a base-image refresh always re-pulls; can also be bumped on its own if
+	// Chainguard ships a bad image at the same digest (rare).
+	CacheBuster = "cache-buster-b78bb982"
 )
 
 func BaseImageForJob(sess *Session, job *Job) *dagger.Container {
