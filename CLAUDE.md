@@ -79,6 +79,12 @@ build the binary, then for each testbed run `discover`/`bootstrap`/`build` check
 exitcode/stdout/expected-files. `./testbed.sh <dir> <args>` runs platform inside a
 specific testbed.
 
+The 1m per-test timeout in `tests.cue` is deliberately tight — it keeps builds honest.
+Never raise it to make a slow build pass: fix the slowness (cache reuse, unnecessary
+work, network pulls) instead, since a slowdown landed by one person taxes everyone's
+local and CI cycles. Cold-cache pulls of a freshly pinned image are the one accepted
+cause — verify by warming the cache and re-running, not by touching the timeout.
+
 ### Key dependencies
 
 `dagger.io/dagger` (container builds), `fx.prodigy9.co` (config + cmd prompts +
