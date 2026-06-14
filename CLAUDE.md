@@ -12,6 +12,12 @@ configuration issues.
 
 Prefix every shell command with `rtk`. Full reference: [`RTK.md`](RTK.md).
 
+## Durable artifacts
+
+`docs/` — usage docs (`guides/`, `reference/`; sorted by type) and a design
+record (`spec/`, `decisions/`, `notes/`; sorted by permanence). Default to
+`notes/`. See [`docs/README.md`](docs/README.md) and per-dir READMEs for routing.
+
 ## Project Overview
 
 `platform` is PRODIGY9's self-contained build/CI tool — a Go CLI (module
