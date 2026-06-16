@@ -1,7 +1,7 @@
 # platformv2 — Implementation Plan
 
-**Status:** confirmed (2026-06-16) · execution not started (Red on Slice 1 next) ·
-supersedes the ad-hoc ordering in `PLANS.md`. **Reads against:** `docs/spec/platform.md`,
+**Status:** confirmed (2026-06-16) · Slice 1 render half landed (`615caa4`); publish half
+next · supersedes the ad-hoc ordering in `PLANS.md`. **Reads against:** `docs/spec/platform.md`,
 `config-allocation.md`, `gitops-build-plan.md`, and `docs/decisions/*`.
 
 ## Framing

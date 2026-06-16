@@ -56,11 +56,26 @@ Approve one at a time; each lands as its own commit sequence.
 **Plan locked, decisions taken** —
 `docs/notes/2026-06-16-platformv2-implementation-plan.md`. timoni dropped (`7a9e13b`):
 renderer = `cue export` over infra-defs + a Go multi-doc emit; foreign installs patched by
-the manifest patch DSL (`docs/spec/manifest-patch-dsl.md`, design locked, Phase C). Next:
-**Red on Slice 1 — render + publish** (`core/gitops` render/publish cmd + a
-`testbeds/infra-basic` infra-defs consumer fixture). Open sub-task: write the DSL
-reference interpreter over infra-cli's `yamleditor` when Phase C lands. Legacy #3–#7 fold
-into Phase B/C — detail below.
+the manifest patch DSL (`docs/spec/manifest-patch-dsl.md`, design locked, Phase C).
+
+**Slice 1 render half — DONE** (`615caa4`): `platform render [dir] --image x:y` →
+`core/gitops.Render` shells `cue export -e objects --out yaml` (CUE_REGISTRY defaults to
+`prodigy9.co=ghcr.io/prod9`, ambient wins), splits via `yaml.Node` walk. Fixture
+`testbeds/infra-basic` (one `#WebApp`, `@tag(image)`); `Render` smoke case green. Also fixed
+a pre-existing flag bug (`cd67002`): root `ParseFlags` pre-parse broke ALL subcommand-local
+flags — now `PersistentPreRun`. Fixture gotchas hit: `#WebApp` is list-valued (needs `[...]`
+embed in the input); `#image: #image` self-cycles (inject into a distinct field). cue export
+of a list → YAML *sequence* not multi-doc, so Go does the `---` split.
+
+Next: **Slice 1 publish half** — push rendered manifests as the OCI config artifact
+(moving per-env tag), oras-go or `oras`-in-Dagger; reuse `builder/` REGISTRY* fx creds.
+Then `core/gitops/publish.go` + red→green via smoke (push, pull back, diff). Open sub-task:
+DSL reference interpreter over infra-cli's `yamleditor` when Phase C lands. Legacy #3–#7
+fold into Phase B/C — detail below.
+
+Note: re-running `./test.sh -c` rewrites the whole lock with single-quote YAML (emitter
+drift vs the committed double-quoted entries) — harmless (smoke compares parsed values), but
+to avoid churn, add new lock entries surgically rather than full `-c`.
 
 Session state as of 2026-06-14:
 - platformv2 design walk complete; docs committed `0742a03` (spec + config map + 5 ADRs).
