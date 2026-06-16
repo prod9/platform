@@ -6,9 +6,12 @@
 
 > **Revised 2026-06-16:** the *renderer* is no longer timoni — see
 > [renderer ADR](2026-06-16-renderer-cue-export-not-timoni.md) (`cue export` + a manifest
-> patch DSL). Everything else in this ADR — pull-based delivery, Flux (`OCIRepository` +
-> kustomize-controller), the moving config tag + immutable app images, no inbound cluster
-> creds, Keel retirement — **stands**.
+> patch DSL). Read `timoni build` as `cue export` and "timoni module" as "infra CUE
+> module" throughout the body below. Everything else in this ADR — pull-based delivery,
+> Flux (`OCIRepository` + kustomize-controller), the moving config tag + immutable app
+> images, no inbound cluster creds, Keel retirement — **stands**. The render+publish
+> mechanics landed 2026-06-17 as `platform ops render` / `ops publish` (`cue export` +
+> oras-go).
 
 ## Context
 

@@ -19,8 +19,8 @@ choice is visible and reversible.
 
 3. **Creds source.** gitops-local `REGISTRY` / `REGISTRY_USERNAME` / `REGISTRY_PASSWORD`
    fx config vars, reading the **same env names** as `builder/` but defined independently
-   in `core/gitops` (no import of `builder/`). *Reason:* keeps the spine decoupled from the
-   legacy package (B1 moves it anyway); same env contract.
+   in `core/gitops` (no import of `builder/`). *Reason:* keeps the spine decoupled from
+   the legacy package (B1 moves it anyway); same env contract.
 
 4. **Artifact format — Flux-native.** tar+gzip layer (`manifests.yaml`), config media type
    `application/vnd.cncf.flux.config.v1+json`, layer media type

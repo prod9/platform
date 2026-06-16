@@ -1,8 +1,9 @@
 # platformv2 — Implementation Plan
 
-**Status:** confirmed (2026-06-16) · Slice 1 render half landed (`615caa4`); publish half
-next · supersedes the ad-hoc ordering in `PLANS.md`. **Reads against:** `docs/spec/platform.md`,
-`config-allocation.md`, `gitops-build-plan.md`, and `docs/decisions/*`.
+**Status:** confirmed (2026-06-16) · **Slice 1 landed** (render `615caa4`, publish
+`c9ffc0c`); Slice 2 (reconcile + cutover) next · supersedes the ad-hoc ordering in
+`PLANS.md`. **Reads against:** `docs/spec/platform.md`, `config-allocation.md`,
+`gitops-build-plan.md`, and `docs/decisions/*`.
 
 ## Framing
 
@@ -36,14 +37,18 @@ slice sizes below.
   consumable OCI config artifact end-to-end, not render-only.
 - **Package name `core/gitops` ** — *taken* (2026-06-16, adjustable). Names the delivery
   mechanism (pull-based GitOps via `cue export` + Flux + OCI), matching the spec framing.
+- **CLI namespace `ops` ** — *taken* (2026-06-17). The delivery spine is grouped under
+  `platform ops` (`ops render`, `ops publish`); `render` moved there from top-level.
+  Avoids colliding with the existing container-release `publish`. Full rationale and
+  parked follow-ups in [slice-1 open questions](2026-06-17-slice1-open-questions.md).
 
 ## Phases
 
 ### Phase A — delivery spine (no server)
 
-- **Slice 1 — render + publish.** `cue export` an infra CUE module → multi-doc manifests →
-  push as the OCI config artifact under a **moving** per-env tag. Pure code; locally
-  testable; no cluster. Detailed below.
+- **Slice 1 — render + publish.** ✅ **Landed 2026-06-17.** `cue export` an infra CUE
+  module → multi-doc manifests → push as the OCI config artifact under a **moving**
+  per-env tag. Pure code; locally testable; no cluster. Detailed below.
 - **Slice 2 — reconcile + cutover.** Install Flux (source + kustomize controllers, OCI),
   `OCIRepository` on the moving tag, `prune: true`; inventory Keel workloads; migrate
   workload-by-workload; retire Keel (they fight over the image field otherwise). **Env
@@ -78,22 +83,27 @@ infra-cli generators → `platform-init` baseline · **#7** version/provenance i
 runner images · **#4** container hardening (non-root etc.) · **#5** plog → fxlog (rides
 B's fx bump).
 
-## Slice 1 — render + publish (ready to execute)
+## Slice 1 — render + publish (landed 2026-06-17)
 
 **Goal:** render an infra CUE module to manifests via `cue export`, then publish them as
-the OCI config artifact. Start with render → stdout, then add publish — one slice, two
-commits.
+the OCI config artifact. Landed as two commits — render → stdout (`615caa4`), then publish
+(`c9ffc0c`).
 
-**Code (born in `core/`):**
+**Code (born in `core/`), as landed:**
 
-- `core/gitops/render.go` — run `cue export` over the module (cue is on the host), then
-  emit the resulting object list as a multi-doc (`---`) YAML stream. Image/env
-  parameterized via `cue` tags or injected values. No Dagger required for render.
-- `core/gitops/publish.go` — push the rendered manifests as an OCI artifact (moving
-  per-env tag). Reuse the registry-creds pattern from `builder/` (`REGISTRY*` fx config);
-  oras-style push (oras-go, or an `oras` container via Dagger).
-- `cmd/render.go` (+ `cmd/publish.go`, or one combined command) — cobra wiring; stays in
-  `cmd/`, no premature `cli/` split. Package name `core/gitops` is adjustable.
+- `core/gitops/render.go` — runs `cue export -e objects --out yaml` over the module (cue
+  is on the host), then walks the YAML sequence and emits each object as one multi-doc
+  (`---`) document. Image injected via `--inject image=` into the module's `@tag(image)`.
+  No Dagger.
+- `core/gitops/publish.go` — packages the manifest stream as a single gzipped-tar layer
+  and packs it with **Flux media types** (`…flux.config.v1+json`,
+  `…flux.content.v1.tar+gzip`) via **oras-go**, pushed to any `oras.Target` under the
+  moving per-env tag.
+- `core/gitops/registry.go` — resolves `oci://host/repo:tag` and authenticates from
+  `REGISTRY_USERNAME`/`REGISTRY_PASSWORD` (registry host comes from the ref; defined
+  locally, not imported from `builder/`, to keep the spine decoupled).
+- `cmd/ops.go` (parent), `cmd/ops_render.go`, `cmd/ops_publish.go` — cobra wiring under
+  the `platform ops` namespace; stays in `cmd/`, no premature `cli/` split.
 
 **Fixture:** `testbeds/infra-basic/` — a thin CUE module depending on `prodigy9.co/defs`
 (infra-defs), declaring one app (Deployment + Service via a pack or wrappers) with a
@@ -101,19 +111,20 @@ parameterized image tag, exposing an `objects` list. The real work/risk is the
 `cue export → multi-doc emit` shape and the infra-defs `CUE_REGISTRY` wiring, **not**
 vendoring schemas — there are none to vendor.
 
-**Test plan (TDD via the smoke harness):**
+**Test plan (TDD), as landed:**
 
-- **Red:** add a `render` case to `tests.cue` —
-  `platform render testbeds/infra-basic --image x:y` → exit 0, output contains the
-  Deployment with `image: x:y`. Fails (no cmd).
-- **Green:** implement until it passes. Then repeat red→green for `publish` (push, then
-  pull the artifact back and diff).
-- **Broad:** `./test.sh` full suite stays green.
+- **Render:** smoke case in `tests.cue` —
+  `./testbed.sh infra-basic ops render --image x:y` → exit 0, stdout snapshot contains the
+  Deployment with `image: x:y`.
+- **Publish:** Go unit test (`core/gitops/publish_test.go`) round-trips the manifests
+  through a filesystem `oci.Store` — pushes, pulls every layer back, and asserts byte
+  identity plus Flux media types. **No publish smoke:** a live-registry round-trip needs
+  creds + network, which the 1m honest-timeout harness forbids; live push is validated
+  manually / in Slice 2.
+- **Broad:** `./test.sh` full suite stays green; `go test ./...` covers the unit side.
 - **Caveat:** the fixture resolves `prodigy9.co/defs` from `ghcr.io/prod9` on first run —
   if the module fetch brushes the 1m `tests.cue` timeout, warm the CUE module cache and
   re-run; do **not** raise the timeout.
-- Multi-doc emit is plain Go → unit-testable directly; the `cue export` shell-out is
-  covered at the smoke level.
 
 The manifest patch DSL ([spec](../spec/manifest-patch-dsl.md)) is **not** in this slice —
 it adapts third-party installs and lands with the infra-cli fold-in (Phase C). Slice 1 is
@@ -124,7 +135,7 @@ author-our-own-manifests only.
 | Need              | State          | Action                                           |
 | ----------------- | -------------- | ------------------------------------------------ |
 | cue, dagger, tofu | present        | ok — render uses host `cue`, no timoni           |
-| oras              | absent on host | oras-go lib, or run `oras` in Dagger for publish |
+| oras-go           | in go.mod (v2) | publish via the oras-go lib; no host `oras`      |
 | kubectl, flux     | broken/absent  | Slice 2 only; run from a cluster-admin context   |
 | fx                | v0.4.0         | bump to v0.8.2 before Phase B                    |
 | cluster           | —              | Slice 2 prereq (Flux install + cutover)          |
@@ -135,7 +146,7 @@ author-our-own-manifests only.
   opportunistic.
 - ~~Package naming: `core/gitops` vs `core/delivery` ~~ — resolved: `core/gitops`.
 - ~~Renderer: timoni vs `cue export` ~~ — resolved: `cue export` (see renderer ADR).
-- `cue export` multi-doc emit shape — top-level `objects` list convention in the
-  infra-defs consumer module; confirm against infra-defs `packs/` while authoring the
-  fixture.
+- ~~`cue export` multi-doc emit shape~~ — resolved: top-level `objects` list, exported
+  with `-e objects --out yaml` and split per element (`testbeds/infra-basic/infra.cue`,
+  `core/gitops/render.go`).
 - Two root trackers (`PLANS.md` + `TODOs.md`) — consolidate.

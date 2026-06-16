@@ -42,6 +42,7 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
 | discover  | Print detected modules and their builder.                        |
 | export    | Build and export container as `.docker` tarball.                 |
 | ls        | List files inside built container (debugging).                   |
+| ops       | GitOps delivery namespace: `ops render` (infra CUE → manifests), `ops publish` (push as OCI config artifact). |
 | preview   | Build and serve container locally via Dagger tunnel.             |
 | publish   | Build+publish image tagged `:release-name` from latest release tag. |
 | release   | Create new release tag (semver/timestamp/datestamp); supports `-p/-m/--major`. |
@@ -74,6 +75,10 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
 - `gitctx/` — Wraps `gitcmd/` shell helpers; caches current branch and tracking
   remote via `sync.OnceValues`. Distinguishes version tags (annotated, push) vs
   environment tags (force-updated, force-pushed).
+- `core/gitops/` — pull-based GitOps delivery (Slice 1). `Render` (`cue export -e objects`
+  → multi-doc YAML), `Publish` (gzipped-tar layer + Flux media types, pushed via oras-go),
+  `RemoteRepository` (`oci://` ref + `REGISTRY_USERNAME`/`REGISTRY_PASSWORD` auth). Wired
+  as `platform ops render`/`publish`.
 - `internal/` — `plog` (structured logger), `multiplexer` (parallel job runner),
   `timeouts` (TOML duration), `fileutil`, `dateref`, `timeref`.
 - `testbeds/` — Sample projects per builder type, exercised by smoke tests.

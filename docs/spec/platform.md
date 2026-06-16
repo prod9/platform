@@ -62,7 +62,7 @@ No credential reaches into the cluster — the cluster pulls everything.
 - **`ui/` — SvelteKit (plain JS)**, adapter-static, `go:embed` 'd into `api`. v1: Login,
   Projects, Access, Deploys, Target status.
 - **`core/` — shared Go.** builder (Dagger), project (`platform.toml`), releases, gitctx,
-  api-client, types.
+  gitops (`cue export` render + OCI publish), api-client, types.
 - **Flux** — source-controller + kustomize-controller. Reconciles config artifacts;
   prunes; corrects drift. Its own lifecycle is *not* self-managed. No Argo, no Helm.
 - **Dagger engine** — in-cluster; builds run inside the engine pod (engine-opaque); the
