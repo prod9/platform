@@ -1,16 +1,18 @@
-# GitOps Platform Build Plan — CI + timoni + Flux (OCI)
+# GitOps Platform Build Plan — CI + `cue export` + Flux (OCI)
 
 **Status:** build brief for agents. Folded into the repo from the original Downloads draft
-and corrected against the 2026-06 design walk (see [`config-allocation.md`](config-allocation.md)
-and [`platform.md`](platform.md)).
-**Date:** 2026-06-13 (folded 2026-06-14)
-**Owner:** Chakrit / P9
+and corrected against the 2026-06 design walk (see
+[`config-allocation.md`](config-allocation.md) and [`platform.md`](platform.md)).
+**Date:** 2026-06-13 (folded 2026-06-14) **Owner:** Chakrit / P9
 
-> **Correction vs the original draft:** the OCI artifact Flux pulls holds **rendered
-> manifests** (CI runs `timoni build`), not the raw timoni module — Flux's
-> kustomize-controller can't render CUE, and no native timoni-Flux controller exists yet
-> (timoni's author confirms one is only planned once its CUE APIs stabilize). timoni is
-> used as the **CUE renderer in CI**.
+> **Renderer superseded (2026-06-16):** this brief predates the renderer decision. The
+> renderer is now **`cue export` over infra-defs** + a Go multi-doc emitter, with
+> third-party installs adapted by the [manifest patch DSL](manifest-patch-dsl.md) — **not
+> timoni**. See the
+> [renderer ADR](../decisions/2026-06-16-renderer-cue-export-not-timoni.md). The Flux +
+> OCI + pull-based mechanics below stand unchanged; read `timoni build` as `cue export`
+> throughout. The OCI artifact still holds **rendered manifests** (Flux's
+> kustomize-controller applies them; it never renders CUE).
 
 ---
 
@@ -23,8 +25,8 @@ Replaces current Keel.sh tag-watching with full desired-state reconciliation.
 
 - **Infra repo (CUE/timoni module):** single source of truth for desired state — image
   tags, components, env, replicas, etc.
-- **CI:** validates CUE, **renders it (`timoni build`)**, pushes the **rendered manifests**
-  as an OCI artifact. Never touches the cluster (no kubeconfig in CI).
+- **CI:** validates CUE, **renders it (`timoni build`)**, pushes the **rendered
+  manifests** as an OCI artifact. Never touches the cluster (no kubeconfig in CI).
 - **Registry (OCI):** holds the rendered config artifact. Source the cluster pulls from.
 - **Flux (in-cluster):** `OCIRepository` watches the artifact tag; kustomize-controller
   applies/prunes the full manifest set continuously (drift correction).
@@ -51,42 +53,43 @@ deploy flow to couple them so it can't reference an unbuilt image).
 ## 4. Build tasks (for agents)
 
 ### 4.1 timoni module
-- [ ] Scaffold timoni module from existing CUE export (`timoni mod init` or port existing).
-- [ ] Parameterize: image tag, component toggles, env, namespace, replicas.
-- [ ] Verify `timoni build` produces expected manifests locally (diff against current k8s
+- [] Scaffold timoni module from existing CUE export (`timoni mod init` or port existing).
+- [] Parameterize: image tag, component toggles, env, namespace, replicas.
+- [] Verify `timoni build` produces expected manifests locally (diff against current k8s
   state).
 - [x] Tag strategy: **both layers** — config artifact = **moving** per-env tag (Flux
   follows); app image refs *inside* = **immutable** versions/digests.
 
 ### 4.2 CI pipeline (infra repo)
-- [ ] On push: `cue vet` / `timoni mod vet` — fail fast on invalid CUE.
-- [ ] `timoni build` → push the **rendered manifests** as `oci://<registry>/<artifact>:<env>`
-  via a registry token (write-only, NOT cluster creds).
-- [ ] Tag policy: push to the per-env **moving** tag so Flux's `OCIRepository` catches it.
-- [ ] Confirm: no kubeconfig / cluster credentials anywhere in CI.
+- [] On push: `cue vet` / `timoni mod vet` — fail fast on invalid CUE.
+- [] `timoni build` → push the **rendered manifests** as
+  `oci://<registry>/<artifact>:<env>` via a registry token (write-only, NOT cluster
+  creds).
+- [] Tag policy: push to the per-env **moving** tag so Flux's `OCIRepository` catches it.
+- [] Confirm: no kubeconfig / cluster credentials anywhere in CI.
 
 ### 4.3 Flux install + config
-- [ ] Bootstrap Flux (source-controller + kustomize-controller; OCI support). No
+- [] Bootstrap Flux (source-controller + kustomize-controller; OCI support). No
   helm-controller (Helm banned).
-- [ ] `OCIRepository`: registry URL, moving per-env tag, `interval`, registry **read**
+- [] `OCIRepository`: registry URL, moving per-env tag, `interval`, registry **read**
   secret (held by cluster, outbound only).
 - [x] Reconciler = **kustomize-controller consuming the rendered manifests** (no native
   timoni-Flux controller exists).
-- [ ] Set `prune: true` for full GitOps delete-on-removal.
+- [] Set `prune: true` for full GitOps delete-on-removal.
 
 ### 4.4 Keel cutover
-- [ ] Inventory workloads currently managed by Keel.
-- [ ] Move image-tag selection into the deploy flow (platform writes the immutable tag into
+- [] Inventory workloads currently managed by Keel.
+- [] Move image-tag selection into the deploy flow (platform writes the immutable tag into
   CUE).
-- [ ] Migrate workload-by-workload; **retire Keel** for anything Flux owns (they fight over
+- [] Migrate workload-by-workload; **retire Keel** for anything Flux owns (they fight over
   the image field otherwise — Flux reverts Keel).
-- [ ] Decommission Keel once migrated. (Local deploy is gone — it depended on Keel.)
+- [] Decommission Keel once migrated. (Local deploy is gone — it depended on Keel.)
 
 ### 4.5 Secrets / RBAC
-- [ ] Registry read secret for Flux (outbound pull).
-- [ ] Flux controller ServiceAccount RBAC scoped to managed namespaces.
-- [ ] App-repo CI: registry write secret only.
-- [ ] Workload secrets: **platform-pull init-container** — pulls values from the platform
+- [] Registry read secret for Flux (outbound pull).
+- [] Flux controller ServiceAccount RBAC scoped to managed namespaces.
+- [] App-repo CI: registry write secret only.
+- [] Workload secrets: **platform-pull init-container** — pulls values from the platform
   API at pod start (outbound), values stay in platform. No SOPS/ESO/controller.
 
 ## 5. Open decisions — resolved in the design walk
@@ -107,8 +110,8 @@ deploy flow to couple them so it can't reference an unbuilt image).
 
 ## 7. Acceptance criteria
 
-- [ ] Dev pushes CUE change → within poll interval, cluster reflects it, no manual step.
-- [ ] Removing a resource from CUE → Flux prunes it.
-- [ ] Manual `kubectl edit` to a managed resource → Flux reverts (drift correction).
-- [ ] No cluster credentials exist outside the cluster.
-- [ ] Keel retired (or strictly scoped); no image-field fighting.
+- [] Dev pushes CUE change → within poll interval, cluster reflects it, no manual step.
+- [] Removing a resource from CUE → Flux prunes it.
+- [] Manual `kubectl edit` to a managed resource → Flux reverts (drift correction).
+- [] No cluster credentials exist outside the cluster.
+- [] Keel retired (or strictly scoped); no image-field fighting.

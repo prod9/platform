@@ -21,48 +21,49 @@ below is chosen to preserve this.
 Top (closest to the human) to bottom (closest to the metal). One owner each.
 
 - **platform server** (in-cluster, pod SA, Postgres) — the control plane. Owns Project
-  entities, identity/RBAC/access, audit, secret *values*, deploy history. Three clients
-  of one API: **UI** (SvelteKit), **CLI**, **OpenTofu provider** — same backbone, no
-  separate state.
+  entities, identity/RBAC/access, audit, secret *values*, deploy history. Three clients of
+  one API: **UI** (SvelteKit), **CLI**, **OpenTofu provider** — same backbone, no separate
+  state.
 - **`platform.toml`** (in each source repo, git) — per-repo build/project metadata + the
   infra pointer + which Project it binds to. Changes with the code.
-- **`infra/` repo|path** (CUE/timoni, git) — per-target desired state: app image refs,
-  components, replicas, env. The thing CI renders. No committed rendered YAML.
-- **`tf/` repo|path** (OpenTofu, git) — the env/target list (and later cloud/DNS).
-  Applied **manually, locally** in v2.
+- **`infra/` repo|path** (CUE, git) — per-target desired state: app image refs,
+  components, replicas, env. The thing CI renders (`cue export`). No committed rendered
+  YAML.
+- **`tf/` repo|path** (OpenTofu, git) — the env/target list (and later cloud/DNS). Applied
+  **manually, locally** in v2.
 - **OCI registry** — app images (immutable tags) + the rendered config artifact (moving
   per-env tag). The source Flux pulls.
 - **Flux** (in-cluster: source-controller + kustomize-controller) — reconciles the config
   artifact onto the cluster; applies/prunes; drift correction. No Argo. No Helm.
-- **`platform-init` repo** (CUE/timoni, git) — the cluster baseline: Flux, cert-manager,
-  NGF, the Dagger engine, platform itself. Seeded once (manual), then Flux-reconciled
-  (except Flux's own lifecycle — never self-managed).
+- **`platform-init` repo** (CUE, git) — the cluster baseline: Flux, cert-manager, NGF, the
+  Dagger engine, platform itself. Seeded once (manual), then Flux-reconciled (except
+  Flux's own lifecycle — never self-managed).
 
 ## Allocation table
 
-| Config kind                            | Owner                         | Form                          |
-|----------------------------------------|-------------------------------|-------------------------------|
-| How to build a module                  | `platform.toml`               | TOML in source repo           |
-| Project ↔ repo binding, infra pointer  | `platform.toml`               | TOML in source repo           |
-| Project entity, members, roles         | platform server               | Postgres (UI/CLI/tf-provider) |
-| Identity, linked accounts, audit       | platform server               | Postgres (`users`/`identities`) |
-| Secret *values*                        | platform server               | Postgres, encrypted at rest   |
-| Secret *references*                    | `infra/`                      | CUE (init-container pulls)     |
-| Per-target desired state (image, env)  | `infra/`                      | CUE/timoni → OCI artifact      |
-| Env/target list                        | `tf/`                         | OpenTofu (manual local apply)  |
-| App image (the container)              | OCI registry                  | immutable tag/digest           |
-| Config artifact (Flux source)          | OCI registry                  | moving per-env tag             |
-| What's deployed where, drift           | Flux                          | reconciles from OCI            |
-| Cluster baseline (Flux/CM/NGF/engine)  | `platform-init`               | CUE/timoni, Flux-reconciled    |
-| Cloud / DNS                            | `tf/` (**v2.1**)              | OpenTofu                       |
+| Config kind                           | Owner            | Form                            |
+| ------------------------------------- | ---------------- | ------------------------------- |
+| How to build a module                 | `platform.toml`  | TOML in source repo             |
+| Project ↔ repo binding, infra pointer | `platform.toml`  | TOML in source repo             |
+| Project entity, members, roles        | platform server  | Postgres (UI/CLI/tf-provider)   |
+| Identity, linked accounts, audit      | platform server  | Postgres (`users`/`identities`) |
+| Secret *values*                       | platform server  | Postgres, encrypted at rest     |
+| Secret *references*                   | `infra/`         | CUE (init-container pulls)      |
+| Per-target desired state (image, env) | `infra/`         | CUE (`cue export`) → OCI        |
+| Env/target list                       | `tf/`            | OpenTofu (manual local apply)   |
+| App image (the container)             | OCI registry     | immutable tag/digest            |
+| Config artifact (Flux source)         | OCI registry     | moving per-env tag              |
+| What's deployed where, drift          | Flux             | reconciles from OCI             |
+| Cluster baseline (Flux/CM/NGF/engine) | `platform-init`  | CUE, Flux-reconciled            |
+| Cloud / DNS                           | `tf/` (**v2.1**) | OpenTofu                        |
 
 ## Repos & artifacts
 
 - **source repo** — app code + `platform.toml`. App CI (Dagger) builds the immutable
   image.
-- **`infra/`** — per-target CUE/timoni. CI (= platform) runs `timoni build` → rendered
-  manifests → pushed as the OCI config artifact under a **moving** per-env tag. App image
-  refs *inside* are **immutable**.
+- **`infra/`** — per-target CUE. CI (= platform) runs `cue export` → multi-doc manifests →
+  pushed as the OCI config artifact under a **moving** per-env tag. App image refs
+  *inside* are **immutable**.
 - **`tf/`** — OpenTofu env/target list; manual local apply in v2.
 - **`platform-init`** — cluster baseline; one manual seed, then Flux.
 

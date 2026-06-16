@@ -1,8 +1,14 @@
 # ADR: Pull-based GitOps via timoni + Flux + OCI
 
-- **Status:** Accepted
+- **Status:** Revised
 - **Date:** 2026-06-14
 - **From:** 2026-06 platformv2 design walk
+
+> **Revised 2026-06-16:** the *renderer* is no longer timoni — see
+> [renderer ADR](2026-06-16-renderer-cue-export-not-timoni.md) (`cue export` + a manifest
+> patch DSL). Everything else in this ADR — pull-based delivery, Flux (`OCIRepository` +
+> kustomize-controller), the moving config tag + immutable app images, no inbound cluster
+> creds, Keel retirement — **stands**.
 
 ## Context
 
@@ -12,10 +18,10 @@ the cluster**. An earlier draft assumed ArgoCD; we switched to Flux.
 
 ## Decision
 
-Delivery is pull-based: **CI renders CUE (`timoni build`) → pushes the rendered manifests as
-an OCI artifact → Flux (`OCIRepository` + kustomize-controller) pulls and reconciles.** The
-config artifact uses a **moving** per-env tag; app image refs inside are **immutable**. CI
-never holds a kubeconfig. Keel is retired.
+Delivery is pull-based: **CI renders CUE (`timoni build`) → pushes the rendered manifests
+as an OCI artifact → Flux (`OCIRepository` + kustomize-controller) pulls and reconciles.**
+The config artifact uses a **moving** per-env tag; app image refs inside are
+**immutable**. CI never holds a kubeconfig. Keel is retired.
 
 ## Alternatives rejected
 

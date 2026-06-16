@@ -13,7 +13,7 @@ and ESO were considered.
 ## Decision
 
 Secret **values** live in platform (Postgres, encrypted at rest, RBAC'd, audited). The
-timoni module templates a per-workload **init-container** that **pulls** the workload's
+`infra/` CUE templates a per-workload **init-container** that **pulls** the workload's
 secrets from platform's API at pod start (outbound, authed by the pod identity) and writes
 them for the main container. Git holds only references.
 
@@ -21,7 +21,8 @@ them for the main container. Git holds only references.
 
 - **SOPS + KSOPS in the reconciler** — puts the decrypt key + rendered plaintext in the
   reconciler; opaque blobs in git.
-- **External Secrets Operator** — a controller + CRDs (plan non-goal); heavier than needed.
+- **External Secrets Operator** — a controller + CRDs (plan non-goal); heavier than
+  needed.
 - **Platform pushes the Secret at deploy** — requires inbound cluster creds; rejected.
 
 ## Consequences
