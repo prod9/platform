@@ -1,8 +1,6 @@
 package main
 
 import (
-	"os"
-
 	fxcmd "fx.prodigy9.co/cmd"
 	"github.com/spf13/cobra"
 	"platform.prodigy9.co/cmd"
@@ -23,6 +21,10 @@ var (
 func init() {
 	rootCmd.PersistentFlags().CountVarP(&quietness, "quiet", "q", "less verbose logging")
 	rootCmd.PersistentFlags().CountVarP(&verbosity, "verbose", "v", "more verbose logging")
+
+	rootCmd.PersistentPreRun = func(*cobra.Command, []string) {
+		plog.SetVerbosity(verbosity - quietness)
+	}
 
 	rootCmd.PersistentFlags().StringVarP(&project.PlatformFilename, "file", "f",
 		project.PlatformFilename, "specify a different platform.toml to load")
@@ -46,11 +48,6 @@ func init() {
 
 func main() {
 	defer plog.Event("exited")
-	if err := rootCmd.ParseFlags(os.Args[1:]); err != nil {
-		plog.Fatalln(err)
-	}
-
-	plog.SetVerbosity(verbosity - quietness)
 	if err := rootCmd.Execute(); err != nil {
 		plog.Fatalln(err)
 	}
