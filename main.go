@@ -37,10 +37,10 @@ func init() {
 		cmd.DiscoverCmd,
 		cmd.ExportCmd,
 		cmd.ListCmd,
+		cmd.OpsCmd,
 		cmd.PreviewCmd,
 		cmd.PublishCmd,
 		cmd.ReleaseCmd,
-		cmd.RenderCmd,
 		cmd.VanityCmd,
 
 		fxcmd.PrintConfigCmd,

@@ -71,7 +71,7 @@ let testbeds = [...{name: string, dir: string}] &
 			name: "Render"
 			checks: ["exitcode", "stdout"]
 			commands: [
-				"./testbed.sh infra-basic render --image x:y",
+				"./testbed.sh infra-basic ops render --image x:y",
 			]
 		},
 	]

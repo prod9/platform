@@ -7,12 +7,14 @@ require (
 	fx.prodigy9.co v0.4.0
 	github.com/BurntSushi/toml v1.4.0
 	github.com/felixge/httpsnoop v1.0.4
+	github.com/opencontainers/image-spec v1.1.1
 	github.com/pterm/pterm v0.12.79
 	github.com/spf13/cobra v1.8.1
 	github.com/stretchr/testify v1.11.1
 	go.jonnrb.io/vanity v0.2.0
 	golang.org/x/mod v0.33.0
 	gopkg.in/yaml.v3 v3.0.1
+	oras.land/oras-go/v2 v2.6.1
 )
 
 require (
@@ -43,6 +45,7 @@ require (
 	github.com/lithammer/fuzzysearch v1.1.8 // indirect
 	github.com/mattn/go-runewidth v0.0.16 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
+	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/rs/cors v1.11.0 // indirect
