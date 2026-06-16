@@ -12,6 +12,7 @@ require (
 	github.com/stretchr/testify v1.11.1
 	go.jonnrb.io/vanity v0.2.0
 	golang.org/x/mod v0.33.0
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
@@ -59,5 +60,4 @@ require (
 	golang.org/x/sys v0.42.0 // indirect
 	golang.org/x/term v0.40.0 // indirect
 	golang.org/x/text v0.34.0 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

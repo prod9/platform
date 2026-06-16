@@ -40,6 +40,7 @@ func init() {
 		cmd.PreviewCmd,
 		cmd.PublishCmd,
 		cmd.ReleaseCmd,
+		cmd.RenderCmd,
 		cmd.VanityCmd,
 
 		fxcmd.PrintConfigCmd,
