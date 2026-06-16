@@ -53,11 +53,14 @@ Approve one at a time; each lands as its own commit sequence.
 
 ## Resume hint
 
-**Plan is written** — `docs/notes/2026-06-16-platformv2-implementation-plan.md`. Next
-session: confirm its `proposed` decisions, then Red on **Slice 1 — render + publish**
-(`core/gitops` + a `render` /`publish` cmd + a `testbeds/infra-basic` infra-defs fixture).
-Harness settings being adjusted first (chakrit). Legacy #3–#7 fold into Phase B/C — detail
-below.
+**Plan locked, decisions taken** —
+`docs/notes/2026-06-16-platformv2-implementation-plan.md`. timoni dropped (`7a9e13b`):
+renderer = `cue export` over infra-defs + a Go multi-doc emit; foreign installs patched by
+the manifest patch DSL (`docs/spec/manifest-patch-dsl.md`, design locked, Phase C). Next:
+**Red on Slice 1 — render + publish** (`core/gitops` render/publish cmd + a
+`testbeds/infra-basic` infra-defs consumer fixture). Open sub-task: write the DSL
+reference interpreter over infra-cli's `yamleditor` when Phase C lands. Legacy #3–#7 fold
+into Phase B/C — detail below.
 
 Session state as of 2026-06-14:
 - platformv2 design walk complete; docs committed `0742a03` (spec + config map + 5 ADRs).
