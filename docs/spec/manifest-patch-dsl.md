@@ -34,14 +34,15 @@ when DaemonSet mode is on) happens at *assembly* time — the layer emitting the
 list decides which lines to include. `${var}` substitution supplies values; substitution
 only, no expressions.
 
-**Where `${var}` values come from (proposed, see open-questions #10):** the infra repo's
-`settings.toml` — already a typed, per-component store (`settings.Settings`:
-`[cert_manager].version`, `[nginx_gateway].{version,gateway_api_version,experimental,…}`).
-The per-component assembly layer reads it, maps versions → the `${var}` map, and gates
-which directive lines to emit on the bools (`experimental`/`daemonset`). `platform.toml`'s
-`[ops]` stays scoped to the publish target, not versions. An env-var override over
-settings (e.g. `NGINX_GATEWAY_VERSION=…`) is a candidate convenience, not the primary
-store.
+**Where `${var}` values come from
+([generic-ops-vars ADR](../decisions/2026-06-17-generic-ops-vars-single-config.md)):**
+`platform.toml`'s `[ops.vars]` — a **generic open `map[string]string`**, stored verbatim
+by the config processor (no per-software fields). The DSL owns its own variable
+vocabulary; adding/removing a `${var}` edits the directive file and `[ops.vars]`, never
+the Go DTO. Values are strings — bools too (`experimental = "true"`), which the
+per-component assembly layer interprets to gate which directive lines it emits.
+`[ops].image`/`tag` stay typed (publish target, not a DSL var). `settings.toml` is
+eliminated.
 
 ## Path grammar
 

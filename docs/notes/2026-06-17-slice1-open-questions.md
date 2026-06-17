@@ -66,19 +66,15 @@ Still open (none block D1):
    the git remote). Deeper convention worth weighing: have `ops publish` infer
    `repository` straight from `git remote get-url` when the toml omits it — zero-config in
    any infra repo. Decide alongside D3/bootstrap.
-10. **DSL `${var}` value source — `settings.toml` vs `[ops]` vars (chakrit raised
-    2026-06-17).** The infra repo already carries `settings.toml` with typed per-component
-    versions/flags (`infra-cli/settings.Settings`: `cert_manager.version`,
-    `nginx_gateway.{version,gateway_api_version,experimental,daemonset,annotations}`, …).
-    *My recommendation:* make `settings.toml` the canonical var source — port
-    `settings/settings.go`; the per-component assembly layer maps it to the `${var}` map
-    and gates directive lines on the bools; keep `platform.toml [ops]` scoped to the
-    publish target. *chakrit's instinct:* env vars in `[ops]` (e.g. `NGINX_VERSION`).
-    Reconcile as settings.toml canonical + optional **env override**
-    (`NGINX_GATEWAY_VERSION=…`) for one-off pins. Sub-question: two per-repo config files
-    (`platform.toml` + `settings.toml`) — consolidate later, or keep separate
-    (platform-tool config vs infra-baseline knobs)? Defer; folding now would churn the
-    infra-cli-compatible format mid-port. Decide at D3.
+10. **~~DSL `${var}` value source~~ — RESOLVED 2026-06-17 (chakrit).** Eliminate
+    `settings.toml`; one file (`platform.toml`). `[ops.vars]` is a **generic open
+    `map[string]string`** — the processor stores it verbatim, no per-software fields, so
+    the DSL owns its var vocabulary and adding/removing a `${var}` never touches the Go
+    DTO.
+    Values are strings (bools too: `experimental = "true"`, interpreted by the assembly
+    layer). `[ops].image`/`tag` stay typed (publish target ≠ DSL var). See the
+    [generic-ops-vars ADR](../decisions/2026-06-17-generic-ops-vars-single-config.md).
+    settings.toml content migrates into `[ops.vars]` at D3.
 
 ## Higher-altitude flag (chakrit raised, 2026-06-17)
 
