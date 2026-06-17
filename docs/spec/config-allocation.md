@@ -35,9 +35,11 @@ Top (closest to the human) to bottom (closest to the metal). One owner each.
   per-env tag). The source Flux pulls.
 - **Flux** (in-cluster: source-controller + kustomize-controller) — reconciles the config
   artifact onto the cluster; applies/prunes; drift correction. No Argo. No Helm.
-- **`platform-init` repo** (CUE, git) — the cluster baseline: Flux, cert-manager, NGF, the
-  Dagger engine, platform itself. Seeded once (manual), then Flux-reconciled (except
-  Flux's own lifecycle — never self-managed).
+- **`platform-init`** (embedded in the tool) — the cluster baseline: Flux, cert-manager,
+  NGF, the Dagger engine, platform itself. **Embedded** in platform (not a separate repo)
+  and shipped as an **init DSL package**; bootstrap writes it into the infra repo. Seeded
+  once (manual), then Flux-reconciled (except Flux's own lifecycle — never self-managed).
+  See the [appliance ADR](../decisions/2026-06-17-opinionated-appliance-embedded-init.md).
 
 ## Allocation table
 
@@ -54,7 +56,7 @@ Top (closest to the human) to bottom (closest to the metal). One owner each.
 | App image (the container)             | OCI registry     | immutable tag/digest            |
 | Config artifact (Flux source)         | OCI registry     | moving per-env tag              |
 | What's deployed where, drift          | Flux             | reconciles from OCI             |
-| Cluster baseline (Flux/CM/NGF/engine) | `platform-init`  | CUE, Flux-reconciled            |
+| Cluster baseline (Flux/CM/NGF/engine) | embedded         | init DSL → infra repo           |
 | Cloud / DNS                           | `tf/` (**v2.1**) | OpenTofu                        |
 
 ## Repos & artifacts
@@ -65,7 +67,8 @@ Top (closest to the human) to bottom (closest to the metal). One owner each.
   pushed as the OCI config artifact under a **moving** per-env tag. App image refs
   *inside* are **immutable**.
 - **`tf/`** — OpenTofu env/target list; manual local apply in v2.
-- **`platform-init`** — cluster baseline; one manual seed, then Flux.
+- **`platform-init`** — cluster baseline, **embedded in the tool** and emitted as an init
+  DSL package into the infra repo; one manual seed, then Flux.
 
 ## Deploy flow (where the surfaces meet)
 

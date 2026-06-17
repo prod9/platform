@@ -46,14 +46,42 @@ slice sizes below.
 
 ### Phase A — delivery spine (no server)
 
+Order: Slice 1 (done) → the patch-DSL slices D1–D3 (Phase A′) → Slice 2. D1–D3 come
+before Slice 2 because Slice 2 installs the baseline, and the baseline is the DSL's first
+consumer.
+
 - **Slice 1 — render + publish.** ✅ **Landed 2026-06-17.** `cue export` an infra CUE
   module → multi-doc manifests → push as the OCI config artifact under a **moving**
   per-env tag. Pure code; locally testable; no cluster. Detailed below.
 - **Slice 2 — reconcile + cutover.** Install Flux (source + kustomize controllers, OCI),
-  `OCIRepository` on the moving tag, `prune: true`; inventory Keel workloads; migrate
-  workload-by-workload; retire Keel (they fight over the image field otherwise). **Env
-  prereq:** a reachable cluster + working `flux` /`kubectl` (host `kubectl` is broken —
-  run from a cluster-admin context). Mostly manifests + ops; lands in `platform-init`.
+  `OCIRepository` on the moving tag, `prune: true`; inventory Keel/argocd workloads;
+  migrate workload-by-workload; retire Keel (they fight over the image field otherwise).
+  **Depends on:** D1–D3 (the baseline install). **Env prereq:** a reachable cluster +
+  working `flux`/`kubectl` (host `kubectl` is broken — run from a cluster-admin context).
+  Mostly manifests + ops; seeded via the embedded baseline.
+
+### Phase A′ — patch DSL + embedded init (the appliance baseline)
+
+Pulled forward from Phase C (2026-06-17). The [manifest patch DSL](../spec/manifest-patch-dsl.md)
+is the primitive for adapting foreign installs; the embedded baseline (the
+[appliance ADR](../decisions/2026-06-17-opinionated-appliance-embedded-init.md)) is its
+first consumer; bootstrap writes it into the infra repo. Port source:
+`infra-cli/pipelines/*` + `pipelines/yamleditor`. Dogfood target: the real `infra` repo.
+
+- **Slice D1 — DSL core (hermetic).** Port `yamleditor` path-walk (`Get`/`Set` over
+  `map[string]any`/`[]any`, incl. the new `[name=v]` field-select form) + the in-buffer
+  verbs (`select`, `set`, `set-if-absent`, `append`, `append-unique`, `delete`,
+  `delete-doc`) + the directive parser. No network. Unit-tested on inline multi-doc
+  fixtures. Born in `core/` (proposed `core/patch`). Detailed below.
+- **Slice D2 — I/O verbs + emit.** `download URL` (port `pipelines/download.go`),
+  `extract-zip`, `${var}` substitution from CUE/config, and `emit` → hand the buffer to
+  Slice 1's publish pipeline. Network verbs fixtured/cached for tests, real fetch at
+  runtime; checksum guard is an open question (below).
+- **Slice D3 — init DSL package + bootstrap-writes-DSL.** Author the embedded baseline
+  (Flux seed + cert-manager + NGF + engine) as directive files; `go:embed` them; bootstrap
+  writes them into the infra repo (write-once-then-owned, like `bootstrapper/`). Baseline
+  bits we author (namespaces, RBAC, Gateway, platform Deployment) stay CUE; foreign ones
+  are DSL. Dogfood: reproduce `infra`'s `k8s/{cert-manager,nginx-gateway}` via directives.
 
 ### Phase B — control plane (the RBAC justification)
 
@@ -79,9 +107,10 @@ and the cmd-API drift. Chunk aggressively:
 
 ### Phase C — fold-ins (detail in `PLANS.md`)
 
-infra-cli generators → `platform-init` baseline · **#7** version/provenance injection into
-runner images · **#4** container hardening (non-root etc.) · **#5** plog → fxlog (rides
-B's fx bump).
+The patch DSL + init baseline moved to **Phase A′** (2026-06-17). Remaining: **#7**
+version/provenance injection into runner images · **#4** container hardening (non-root
+etc.) · **#5** plog → fxlog (rides B's fx bump) · residual infra-cli generators not
+covered by the DSL port.
 
 ## Slice 1 — render + publish (landed 2026-06-17)
 
@@ -127,8 +156,45 @@ vendoring schemas — there are none to vendor.
   re-run; do **not** raise the timeout.
 
 The manifest patch DSL ([spec](../spec/manifest-patch-dsl.md)) is **not** in this slice —
-it adapts third-party installs and lands with the infra-cli fold-in (Phase C). Slice 1 is
+it adapts third-party installs and lands next, in **Phase A′** (Slices D1–D3). Slice 1 is
 author-our-own-manifests only.
+
+## Slice D1 — DSL core (ready to execute, next)
+
+**Goal:** a hermetic, in-memory manifest patch engine — parse a directive file, apply the
+buffer-editing verbs to a multi-doc YAML stream, no network. This is the bulk of the DSL
+and the part that is cleanly unit-testable.
+
+**Port source (read, don't import — separate repo):** `infra-cli/pipelines/yamleditor/`
+(`yamleditor.go` 129 LOC, `_test.go` 138 LOC — path-walk `Get`/`Set` with int-index and
+create-if-absent) and the verb shapes in `infra-cli/pipelines/edit_yaml.go`. The pipeline
+ops there are imperative structs; D1 keeps the path-walk backend and replaces the
+front-end with the directive parser.
+
+**Code (born in `core/`, proposed `core/patch`):**
+
+- `core/patch/yamledit.go` — port of `yamleditor`: `Get`/`Set` over `map[string]any` /
+  `[]any`, plus the **new** field-select form `[name=v]` (the load-bearing path form —
+  upstream reorders lists between versions, so int-index targeting is a latent bug).
+- `core/patch/verbs.go` — the in-buffer verbs over a multi-doc stream: `select` (scope by
+  `kind=`/`name=`/…), `set`, `set-if-absent`, `append`, `append-unique`, `delete`,
+  `delete-doc`.
+- `core/patch/parse.go` — the directive parser: one verb per line, `${var}` substitution
+  (substitution only, no expressions), comments/blank-line handling.
+- I/O verbs (`download`, `extract-zip`, `emit`) are **D2**, not here.
+
+**Test plan (TDD, hermetic):**
+
+- **Red→Green** per verb against inline multi-doc fixtures: assert the path-walk + each
+  verb mutate the buffer correctly, incl. `[name=v]` selection, idempotency of
+  `append-unique`/`set-if-absent`, and `delete-doc` dropping scoped docs. Pure Go, no
+  network — runs under `go test ./core/patch/`.
+- Reuse the existing `yamleditor_test.go` cases as a baseline for the ported path-walk.
+- No smoke case (no CLI surface yet; the DSL gets wired to a command in D2/D3).
+
+**Acceptance:** a directive file like the cert-manager example in the
+[DSL spec](../spec/manifest-patch-dsl.md) parses and applies end-to-end in memory, verified
+by unit assertions on the resulting stream.
 
 ## Environment & prerequisites
 

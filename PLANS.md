@@ -12,10 +12,12 @@ in-cluster control plane delivering via pull-based GitOps (`cue export` + Flux +
 retiring BuildKite/Keel/Argo; **no inbound cluster creds**; platform runs in-cluster via
 its pod SA. (Renderer is `cue export`, not timoni — see the renderer ADR.)
 
-**Implementation plan** → `docs/notes/2026-06-16-platformv2-implementation-plan.md`:
-phased (A spine → B control plane → C fold-ins), **Slice 1 = render + publish** ready to
-execute. Spine-first, not big-bang. Confirm its `proposed` decisions, then start Red.
-Build backlog (now folded into those phases):
+**Implementation plan** → `docs/notes/2026-06-16-platformv2-implementation-plan.md` (the
+living roadmap): phased (A spine → **A′ patch DSL + embedded init** → B control plane → C
+fold-ins). **Slice 1 (render + publish) landed 2026-06-17.** The DSL was pulled forward to
+A′ (it is the primitive the embedded baseline depends on — see the
+[appliance ADR](docs/decisions/2026-06-17-opinionated-appliance-embedded-init.md)).
+Spine-first, not big-bang. Build backlog (now folded into those phases):
 
 - **Monorepo restructure** — `api/` `cli/` `ui/` `core/`, one Go module; SvelteKit-**JS**
   `ui/` via adapter-static `go:embed` 'd into `api`. Touches test.sh/tests.cue/testbeds,
@@ -31,8 +33,9 @@ Build backlog (now folded into those phases):
   deploy (git dance, author-as-user via GitHub App).
 - **UI v1** — Login, Projects, Access, Deploys, Target status (Flux CR status).
 - **infra-cli generators** (cert-manager/nginx-gateway/generate) → fold into the
-  `platform-init` baseline, NOT CLI subcommands (supersedes #3); the `argocd` generator →
-  Flux.
+  **embedded** `platform-init` baseline as an **init DSL package**, NOT CLI subcommands
+  (supersedes #3); the `argocd` generator → Flux. The DSL backend is a port of
+  `infra-cli/pipelines/*` + `yamleditor` — see Phase A′ in the roadmap.
 
 Fold the legacy tasks into v2: **#7 version injection** (build provenance — design into
 the v2 build pipeline), **#4 container hardening** (apply to v2 runner images), **#5
@@ -54,24 +57,27 @@ Approve one at a time; each lands as its own commit sequence.
 ## Resume hint
 
 **Plan locked, decisions taken** —
-`docs/notes/2026-06-16-platformv2-implementation-plan.md`. timoni dropped (`7a9e13b`):
-renderer = `cue export` over infra-defs + a Go multi-doc emit; foreign installs patched by
-the manifest patch DSL (`docs/spec/manifest-patch-dsl.md`, design locked, Phase C).
+`docs/notes/2026-06-16-platformv2-implementation-plan.md` (living roadmap). timoni dropped
+(`7a9e13b`): renderer = `cue export` over infra-defs + a Go multi-doc emit; foreign
+installs patched by the manifest patch DSL (`docs/spec/manifest-patch-dsl.md`). Platform
+is an **opinionated appliance** — the cluster baseline is embedded and shipped as an init
+DSL package (appliance ADR `2026-06-17`).
 
-**Slice 1 render half — DONE** (`615caa4`): `platform render [dir] --image x:y` →
-`core/gitops.Render` shells `cue export -e objects --out yaml` (CUE_REGISTRY defaults to
-`prodigy9.co=ghcr.io/prod9`, ambient wins), splits via `yaml.Node` walk. Fixture
-`testbeds/infra-basic` (one `#WebApp`, `@tag(image)`); `Render` smoke case green. Also fixed
-a pre-existing flag bug (`cd67002`): root `ParseFlags` pre-parse broke ALL subcommand-local
-flags — now `PersistentPreRun`. Fixture gotchas hit: `#WebApp` is list-valued (needs `[...]`
-embed in the input); `#image: #image` self-cycles (inject into a distinct field). cue export
-of a list → YAML *sequence* not multi-doc, so Go does the `---` split.
+**Slice 1 — DONE.** Render half (`615caa4`): `core/gitops.Render` shells
+`cue export -e objects --out yaml`, splits via `yaml.Node` walk. Publish half (`c9ffc0c`):
+`core/gitops.Publish` packs manifests as a Flux-shaped OCI artifact via oras-go;
+`core/gitops.RemoteRepository` does `oci://` + `REGISTRY_USERNAME/PASSWORD` auth. Both
+under the `platform ops` namespace (`ops render` / `ops publish`). Unit round-trip via
+`oci.Store`; no live-registry smoke. Docs realigned (`20ca12a` + the 2026-06-17 alignment
+pass).
 
-Next: **Slice 1 publish half** — push rendered manifests as the OCI config artifact
-(moving per-env tag), oras-go or `oras`-in-Dagger; reuse `builder/` REGISTRY* fx creds.
-Then `core/gitops/publish.go` + red→green via smoke (push, pull back, diff). Open sub-task:
-DSL reference interpreter over infra-cli's `yamleditor` when Phase C lands. Legacy #3–#7
-fold into Phase B/C — detail below.
+Next: **Phase A′ — Slice D1 (DSL core)**, the hermetic patch engine: port
+`infra-cli/pipelines/yamleditor` (path-walk + new `[name=v]` field-select) + the in-buffer
+verbs + the directive parser, into `core/patch`. Unit-tested on inline fixtures, no
+network. Detail + acceptance criteria in the roadmap's "Slice D1" section. Then D2 (I/O
+verbs + `emit`), D3 (init DSL package + bootstrap-writes-DSL, dogfooded against the real
+`infra` repo), then Slice 2 (reconcile + cutover). Legacy #4/#5/#7 fold into Phase B/C —
+detail below.
 
 Note: re-running `./test.sh -c` rewrites the whole lock with single-quote YAML (emitter
 drift vs the committed double-quoted entries) — harmless (smoke compares parsed values), but

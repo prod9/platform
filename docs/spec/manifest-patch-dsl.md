@@ -1,13 +1,18 @@
 # Manifest Patch DSL
 
-**Status:** accepted (design 2026-06-16) · not yet implemented **Decided in:**
-[`../decisions/2026-06-16-renderer-cue-export-not-timoni.md`](../decisions/2026-06-16-renderer-cue-export-not-timoni.md)
+**Status:** accepted (design 2026-06-16) · **next up** — pulled forward from Phase C
+(2026-06-17), it is the primitive the embedded baseline / init package depends on.
+**Decided in:** [renderer ADR](../decisions/2026-06-16-renderer-cue-export-not-timoni.md),
+[appliance ADR](../decisions/2026-06-17-opinionated-appliance-embedded-init.md). Build plan:
+[roadmap](../notes/2026-06-16-platformv2-implementation-plan.md) Phase A′.
 
 A line-oriented directive language for adapting third-party Kubernetes manifests we don't
 own (cert-manager, NGINX Gateway Fabric, …) — fetch upstream, patch by name, emit. CUE
 handles manifests we author; this handles foreign ones. Folded from infra-cli's
-`pipelines`
-+ `pipelines/yamleditor`.
+`pipelines` + `pipelines/yamleditor` (~676 LOC incl. tests; the verbs already exist as Go
+pipeline ops — only the directive parser and the field-select path form are new code). Its
+first consumer is the **init DSL package** (the embedded cluster baseline), dogfooded
+against the real `infra` repo (`apps/cert-manager.cue`, `k8s/nginx-gateway`, …).
 
 ## Why a closed vocabulary, not a script
 

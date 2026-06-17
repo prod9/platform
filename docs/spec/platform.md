@@ -45,8 +45,8 @@ End-to-end, verbs and artifacts:
    short-lived SA token (exec-credential plugin), and see target status in the UI (Flux CR
    status).
 9. **Bootstrap.** Targets/envs are declared in `tf/` (OpenTofu, manual local apply in v2).
-   A new cluster is seeded once (manual: Flux + the `platform-init` baseline), then Flux
-   reconciles the rest.
+   Platform writes its embedded baseline (the init DSL package) into the infra repo; a new
+   cluster is seeded once (manual: Flux + that baseline), then Flux reconciles the rest.
 
 No credential reaches into the cluster — the cluster pulls everything.
 
@@ -70,8 +70,10 @@ No credential reaches into the cluster — the cluster pulls everything.
 - **Registry (OCI)** — app images (immutable) + config artifacts (moving per-env tag).
 - **Postgres** — platform state (projects, `users` /`identities`, secrets-encrypted,
   audit).
-- **`platform-init`** — the baseline (Flux, cert-manager, NGF, engine, platform), seeded
-  once then Flux-reconciled.
+- **`platform-init`** — the baseline (Flux, cert-manager, NGF, engine, platform),
+  **embedded in the tool** and emitted as an init DSL package into the infra repo; seeded
+  once then Flux-reconciled. Not a separate repo — see the
+  [appliance ADR](../decisions/2026-06-17-opinionated-appliance-embedded-init.md).
 
 ## Server scope
 
@@ -105,6 +107,11 @@ kube-token + secret brokering. It **triggers/feeds** the reconcilers (via git + 
 
 ## Anchors
 
+- **Opinionated appliance.** Platform ships *the* setup (Flux + cert-manager + NGF +
+  engine + a specific Gateway topology) and does not work against any other. The cluster
+  baseline is platform's opinion, embedded and version-locked with the tool — not external
+  operator config. See the
+  [appliance ADR](../decisions/2026-06-17-opinionated-appliance-embedded-init.md).
 - **Language: Go** (+ CUE via `cue export`; UI in SvelteKit/JS — no TypeScript, no Helm,
   no timoni — see
   [renderer ADR](../decisions/2026-06-16-renderer-cue-export-not-timoni.md)).
