@@ -1,8 +1,8 @@
 # platformv2 — Implementation Plan
 
 **Status:** confirmed (2026-06-16) · **Slice 1 landed** (render `615caa4`, publish
-`c9ffc0c`); Slice 2 (reconcile + cutover) next · supersedes the ad-hoc ordering in
-`PLANS.md`. **Reads against:** `docs/spec/platform.md`, `config-allocation.md`,
+`c9ffc0c`) · **Slice D1 (DSL core) landed** in `core/dsl`; D2 (I/O verbs) next, then D3,
+then Slice 2 (reconcile + cutover) · supersedes the ad-hoc ordering in `PLANS.md`. **Reads against:** `docs/spec/platform.md`, `config-allocation.md`,
 `gitops-build-plan.md`, and `docs/decisions/*`.
 
 ## Framing
@@ -68,21 +68,24 @@ is the primitive for adapting foreign installs; the embedded baseline (the
 first consumer; bootstrap writes it into the infra repo. Port source:
 `infra-cli/pipelines/*` + `pipelines/yamleditor`. Dogfood target: the real `infra` repo.
 
-- **Slice D1 — DSL core (hermetic).** Port `yamleditor` path-walk (`Get`/`Set` over
-  `map[string]any`/`[]any`, incl. the new `[name=v]` field-select form) + the in-buffer
-  verbs (`select`, `set`, `set-if-absent`, `append`, `append-unique`, `delete`,
-  `delete-doc`) + the directive parser. No network. Unit-tested on inline multi-doc
-  fixtures. Born in `core/` (proposed `core/patch`). Detailed below.
-- **Slice D2 — I/O verbs + emit.** `download URL` (port `pipelines/download.go`),
-  `extract-zip`, `${var}` substitution, and `emit` → hand the buffer to Slice 1's publish
-  pipeline. `${var}` values come from `platform.toml`'s generic `[ops.vars]`
-  (`project.Ops.Vars map[string]string` — see the
+- **Slice D1 — DSL core (hermetic).** ✅ **Landed.** Path-walk (`Get`/`Set`/`Remove`/
+  `Append` over `map[string]any`/`[]any`, incl. the `[name=v]` field-select form), the
+  in-buffer verbs (`select`, `reset`, `set`, `set-if-absent`, `append`, `append-if-absent`,
+  `remove`, `remove-doc`), the lexer, and the directive parser. No network. Built from
+  scratch (the `yamleditor` API didn't fit the spec'd shape — see below), unit-tested on
+  inline multi-doc fixtures. Lives in `core/dsl`.
+- **Slice D2 — I/O verbs.** `download URL` (port `pipelines/download.go`), `extract`
+  (polymorphic: magic-byte zip/tar/gz), `\(var)` interpolation (string-only, CUE syntax),
+  and `emit "FILENAME"` → write the buffer to a named file (replace). The DSL is a yaml
+  editor: it writes files and is done — delivery (how those files reach a registry/cluster)
+  is a separate pipeline, not part of the DSL. `\(var)` values come from `platform.toml`'s
+  generic `[ops.vars]` (`project.Ops.Vars map[string]string` — see the
   [generic-ops-vars ADR](../decisions/2026-06-17-generic-ops-vars-single-config.md)); no
-  typed DTO. Network verbs fixtured/cached for tests, real fetch at runtime; checksum
-  guard is an open question (below).
+  typed DTO. Network verbs fixtured/cached for tests, real fetch at runtime; checksum guard
+  and the `\\(`-escape vs `\\`-unescape ordering are open questions (below).
 - **Slice D3 — init DSL package + bootstrap-writes-DSL.** Add `Ops.Vars map[string]string`
   (generic, no per-software fields); the per-component assembly layer reads it → fills the
-  `${var}` map + gates directive lines on string-valued bools (`vars["nginx_experimental"]
+  `\(var)` map + gates directive lines on string-valued bools (`vars["nginx_experimental"]
   == "true"`). Author the embedded baseline (Flux seed + cert-manager + NGF + engine) as
   directive files; `go:embed` them; bootstrap writes them into the infra repo
   (write-once-then-owned, like `bootstrapper/`). Baseline bits we author (namespaces,
@@ -172,42 +175,42 @@ The manifest patch DSL ([spec](../spec/manifest-patch-dsl.md)) is **not** in thi
 it adapts third-party installs and lands next, in **Phase A′** (Slices D1–D3). Slice 1 is
 author-our-own-manifests only.
 
-## Slice D1 — DSL core (ready to execute, next)
+## Slice D1 — DSL core (landed)
 
 **Goal:** a hermetic, in-memory manifest patch engine — parse a directive file, apply the
 buffer-editing verbs to a multi-doc YAML stream, no network. This is the bulk of the DSL
 and the part that is cleanly unit-testable.
 
-**Port source (read, don't import — separate repo):** `infra-cli/pipelines/yamleditor/`
-(`yamleditor.go` 129 LOC, `_test.go` 138 LOC — path-walk `Get`/`Set` with int-index and
-create-if-absent) and the verb shapes in `infra-cli/pipelines/edit_yaml.go`. The pipeline
-ops there are imperative structs; D1 keeps the path-walk backend and replaces the
-front-end with the directive parser.
+**Built from scratch, not ported.** `infra-cli/pipelines/yamleditor` was read for verb
+*semantics*, but its generic variadic-`any` `Get`/`Set` API didn't fit the spec'd shape
+(field-select `[name=v]`, cumulative `select` scope, the directive model), so the path-walk
+is native. Reference only: `infra-cli/pipelines/{yamleditor,edit_yaml}.go`.
 
-**Code (born in `core/`, proposed `core/patch`):**
+**Code (`core/dsl`), as landed:**
 
-- `core/patch/yamledit.go` — port of `yamleditor`: `Get`/`Set` over `map[string]any` /
-  `[]any`, plus the **new** field-select form `[name=v]` (the load-bearing path form —
-  upstream reorders lists between versions, so int-index targeting is a latent bug).
-- `core/patch/verbs.go` — the in-buffer verbs over a multi-doc stream: `select` (scope by
-  `kind=`/`name=`/…), `set`, `set-if-absent`, `append`, `append-unique`, `delete`,
-  `delete-doc`.
-- `core/patch/parse.go` — the directive parser: one verb per line, `${var}` substitution
-  (substitution only, no expressions), comments/blank-line handling.
-- I/O verbs (`download`, `extract-zip`, `emit`) are **D2**, not here.
+- `path.go` — parse the dotted path syntax into a closed `Step` sum type
+  (`Key`/`Index`/`Select`); `[name=v]` is the load-bearing field-select form.
+- `walk.go` — `Get`/`Set`/`Remove`/`Append` over `map[string]any`/`[]any`; `Set` creates
+  intermediate maps; field-select resolves to a live index at walk time; list-element
+  `Remove` shortens and writes back.
+- `lex.go` — line tokenizer: shell-style splitting, optional double-quotes (`\"`/`\\`),
+  full-line + inline `#` comments. `\(…)` left verbatim (interpolation is D2).
+- `parse.go` — the engine (buffer + scope-by-indices) and verb dispatch: `select`, `reset`,
+  `set`, `set-if-absent`, `append`, `append-if-absent`, `remove`, `remove-doc`. Values are
+  coerced to typed YAML scalars (`set .spec.replicas 3` writes int 3). I/O verbs are unknown
+  until D2.
 
-**Test plan (TDD, hermetic):**
+**Test plan (TDD, hermetic) — as landed:**
 
-- **Red→Green** per verb against inline multi-doc fixtures: assert the path-walk + each
-  verb mutate the buffer correctly, incl. `[name=v]` selection, idempotency of
-  `append-unique`/`set-if-absent`, and `delete-doc` dropping scoped docs. Pure Go, no
-  network — runs under `go test ./core/patch/`.
-- Reuse the existing `yamleditor_test.go` cases as a baseline for the ported path-walk.
+- Red→Green per layer (`path` → `walk` → `lex` → `parse`) against inline multi-doc
+  fixtures: `[name=v]` selection, `append-if-absent`/`set-if-absent` idempotency, `reset` +
+  cumulative `select`, `remove-doc` dropping scoped docs. Pure Go — `go test ./core/dsl/`.
 - No smoke case (no CLI surface yet; the DSL gets wired to a command in D2/D3).
 
-**Acceptance:** a directive file like the cert-manager example in the
-[DSL spec](../spec/manifest-patch-dsl.md) parses and applies end-to-end in memory, verified
-by unit assertions on the resulting stream.
+**Acceptance (met):** the cert-manager example from the
+[DSL spec](../spec/manifest-patch-dsl.md) (minus `download`/`emit`, which are D2) applies
+end-to-end in memory, asserting the controller container's `args` gained both flags and that
+a second apply is a no-op.
 
 ## Environment & prerequisites
 

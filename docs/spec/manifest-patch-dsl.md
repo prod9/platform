@@ -242,7 +242,7 @@ The DSL lands across Phase A′ (see the
 - **D1 — DSL core (hermetic).** Path-walk + `[field=val]`, the in-buffer verbs (`select`,
   `reset`, `set`, `set-if-absent`, `append`, `append-if-absent`, `remove`, `remove-doc`),
   the lexer, and the directive parser. No network. Unit-tested on inline multi-doc
-  fixtures. Born in `core/patch`.
+  fixtures. Born in `core/dsl`.
 - **D2 — I/O verbs.** `download`, `extract`, `emit FILENAME`, and `\(var)` interpolation.
   Network verbs fixtured for tests, real fetch at runtime; `emit` writes into a
   runner-provided output dir. How the emitted files reach a registry/cluster is a separate
