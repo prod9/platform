@@ -8,9 +8,11 @@ Skills and conventions are provided by the **PRODIGY9 Coding School** school and
 changes back to the school repo when ready. Run `ace config` or `ace paths` to debug
 configuration issues.
 
-## RTK (token saver)
+## lowfat (token saver)
 
-Prefix every shell command with `rtk`. Full reference: [`RTK.md`](RTK.md).
+Command output is compacted by [lowfat](https://github.com/zdk/lowfat) via a user-scope
+hook — no prefix needed; output passes through unchanged when no filter matches. Project
+config lives in [`.lowfat`](.lowfat); re-sync pantry filters with the `/lowfat-pantry` skill.
 
 ## Durable artifacts
 
@@ -120,5 +122,4 @@ Default skill set for this project (consumed by `ace.toml`):
 - `prod9-fx` — `fx.prodigy9.co v0.4.0` is in `go.mod`
 - `cue-coding` — `tests.cue` drives the smoke harness
 - `shell` — `test.sh`, `testbed.sh`, embedded `platform` script template
-- `markdown-writing` — for editing this file and `RTK.md`
-- `rtk` — RTK is configured at the project level
+- `markdown-writing` — for editing this file
