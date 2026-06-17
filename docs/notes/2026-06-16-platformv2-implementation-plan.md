@@ -74,14 +74,19 @@ first consumer; bootstrap writes it into the infra repo. Port source:
   `delete-doc`) + the directive parser. No network. Unit-tested on inline multi-doc
   fixtures. Born in `core/` (proposed `core/patch`). Detailed below.
 - **Slice D2 — I/O verbs + emit.** `download URL` (port `pipelines/download.go`),
-  `extract-zip`, `${var}` substitution from CUE/config, and `emit` → hand the buffer to
-  Slice 1's publish pipeline. Network verbs fixtured/cached for tests, real fetch at
-  runtime; checksum guard is an open question (below).
-- **Slice D3 — init DSL package + bootstrap-writes-DSL.** Author the embedded baseline
-  (Flux seed + cert-manager + NGF + engine) as directive files; `go:embed` them; bootstrap
-  writes them into the infra repo (write-once-then-owned, like `bootstrapper/`). Baseline
-  bits we author (namespaces, RBAC, Gateway, platform Deployment) stay CUE; foreign ones
-  are DSL. Dogfood: reproduce `infra`'s `k8s/{cert-manager,nginx-gateway}` via directives.
+  `extract-zip`, `${var}` substitution, and `emit` → hand the buffer to Slice 1's publish
+  pipeline. `${var}` values come from `settings.toml` (see D3); network verbs
+  fixtured/cached for tests, real fetch at runtime; checksum guard is an open question
+  (below).
+- **Slice D3 — init DSL package + bootstrap-writes-DSL.** Port `infra-cli/settings` as the
+  typed per-component values store (`settings.toml`: cert-manager/NGF/argocd versions,
+  flags); the per-component assembly layer reads it → the `${var}` map + gates directive
+  lines on the bools (`experimental`/`daemonset`). Author the embedded baseline (Flux seed
+  + cert-manager + NGF + engine) as directive files; `go:embed` them; bootstrap writes
+  them into the infra repo (write-once-then-owned, like `bootstrapper/`). Baseline bits we
+  author (namespaces, RBAC, Gateway, platform Deployment) stay CUE; foreign ones are DSL.
+  Var source (settings.toml vs `[ops]`) is open-question #10. Dogfood: reproduce `infra`'s
+  `k8s/{cert-manager,nginx-gateway}` via directives.
 
 ### Phase B — control plane (the RBAC justification)
 

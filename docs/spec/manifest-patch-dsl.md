@@ -31,8 +31,17 @@ back-end is the existing `yamleditor` path-walk (`Get`/`Set` over `map[string]an
 
 Branch-free by design: no conditionals, no loops. Config-gating (include this edit only
 when DaemonSet mode is on) happens at *assembly* time — the layer emitting the directive
-list decides which lines to include. `${var}` substitution supplies values from
-CUE/config; substitution only, no expressions.
+list decides which lines to include. `${var}` substitution supplies values; substitution
+only, no expressions.
+
+**Where `${var}` values come from (proposed, see open-questions #10):** the infra repo's
+`settings.toml` — already a typed, per-component store (`settings.Settings`:
+`[cert_manager].version`, `[nginx_gateway].{version,gateway_api_version,experimental,…}`).
+The per-component assembly layer reads it, maps versions → the `${var}` map, and gates
+which directive lines to emit on the bools (`experimental`/`daemonset`). `platform.toml`'s
+`[ops]` stays scoped to the publish target, not versions. An env-var override over
+settings (e.g. `NGINX_GATEWAY_VERSION=…`) is a candidate convenience, not the primary
+store.
 
 ## Path grammar
 

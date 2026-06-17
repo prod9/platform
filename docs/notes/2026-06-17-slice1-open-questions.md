@@ -16,8 +16,8 @@ choice is visible and reversible.
    (`image`, `tag`), where `image` is **inferred from `repository`** (`github.com/x` →
    `ghcr.io/x`, the same rule as `ImageName`) and `tag` defaults to `latest`. So
    `platform ops publish` needs no target flag; `--tag <env>` overrides the moving tag for
-   a per-env publish. *Dependency:* this presumes a `platform.toml` in the infra repo — see
-   fork #9.
+   a per-env publish. *Dependency:* this presumes a `platform.toml` in the infra repo —
+   see fork #9.
 
 3. **Creds source.** gitops-local `REGISTRY` / `REGISTRY_USERNAME` / `REGISTRY_PASSWORD`
    fx config vars, reading the **same env names** as `builder/` but defined independently
@@ -66,6 +66,19 @@ Still open (none block D1):
    the git remote). Deeper convention worth weighing: have `ops publish` infer
    `repository` straight from `git remote get-url` when the toml omits it — zero-config in
    any infra repo. Decide alongside D3/bootstrap.
+10. **DSL `${var}` value source — `settings.toml` vs `[ops]` vars (chakrit raised
+    2026-06-17).** The infra repo already carries `settings.toml` with typed per-component
+    versions/flags (`infra-cli/settings.Settings`: `cert_manager.version`,
+    `nginx_gateway.{version,gateway_api_version,experimental,daemonset,annotations}`, …).
+    *My recommendation:* make `settings.toml` the canonical var source — port
+    `settings/settings.go`; the per-component assembly layer maps it to the `${var}` map
+    and gates directive lines on the bools; keep `platform.toml [ops]` scoped to the
+    publish target. *chakrit's instinct:* env vars in `[ops]` (e.g. `NGINX_VERSION`).
+    Reconcile as settings.toml canonical + optional **env override**
+    (`NGINX_GATEWAY_VERSION=…`) for one-off pins. Sub-question: two per-repo config files
+    (`platform.toml` + `settings.toml`) — consolidate later, or keep separate
+    (platform-tool config vs infra-baseline knobs)? Defer; folding now would churn the
+    infra-cli-compatible format mid-port. Decide at D3.
 
 ## Higher-altitude flag (chakrit raised, 2026-06-17)
 
