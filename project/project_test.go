@@ -22,6 +22,36 @@ func TestProject_inferValues(t *testing.T) {
 	r.Equal(t, "ghcr.io/prod9/platform/"+ModNames[1], proj.Modules[ModNames[1]].ImageName)
 }
 
+func TestProject_opsTarget(t *testing.T) {
+	// Convention: the config-artifact target is inferred from the repository,
+	// same rule as ImageName, with a default moving tag of "latest".
+	proj := testProject(1)
+	proj.inferValues()
+	r.Equal(t, "ghcr.io/prod9/platform", proj.Ops.Image)
+	r.Equal(t, "latest", proj.Ops.Tag)
+
+	ref, err := proj.Ops.Ref("")
+	r.NoError(t, err)
+	r.Equal(t, "ghcr.io/prod9/platform:latest", ref)
+
+	ref, err = proj.Ops.Ref("staging")
+	r.NoError(t, err)
+	r.Equal(t, "ghcr.io/prod9/platform:staging", ref)
+
+	// Explicit [ops] config wins over the convention.
+	proj = testProject(1)
+	proj.Ops = Ops{Image: "ghcr.io/prod9/infra-stage9", Tag: "prod"}
+	proj.inferValues()
+	r.Equal(t, "ghcr.io/prod9/infra-stage9", proj.Ops.Image)
+	r.Equal(t, "prod", proj.Ops.Tag)
+
+	// No repository and no [ops] image → no inferable target.
+	proj = &Project{Modules: map[string]*Module{}}
+	proj.inferValues()
+	_, err = proj.Ops.Ref("")
+	r.ErrorIs(t, err, ErrNoOpsImage)
+}
+
 func testProject(modCount int) *Project {
 	proj := &Project{
 		Repository: "github.com/prod9/platform",

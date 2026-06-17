@@ -132,7 +132,11 @@ the OCI config artifact. Landed as two commits — render → stdout (`615caa4`)
   `REGISTRY_USERNAME`/`REGISTRY_PASSWORD` (registry host comes from the ref; defined
   locally, not imported from `builder/`, to keep the spine decoupled).
 - `cmd/ops.go` (parent), `cmd/ops_render.go`, `cmd/ops_publish.go` — cobra wiring under
-  the `platform ops` namespace; stays in `cmd/`, no premature `cli/` split.
+  the `platform ops` namespace; stays in `cmd/`, no premature `cli/` split. The publish
+  target is **convention-over-configuration** (2026-06-17): no `--to` flag — it comes from
+  the `[ops]` section of `platform.toml`, where `image` is inferred from `repository`
+  (`ghcr.io/x`) and `tag` defaults to `latest` (`project.Ops.Ref`). `--tag` overrides the
+  moving tag for a per-env publish.
 
 **Fixture:** `testbeds/infra-basic/` — a thin CUE module depending on `prodigy9.co/defs`
 (infra-defs), declaring one app (Deployment + Service via a pack or wrappers) with a

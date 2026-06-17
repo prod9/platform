@@ -2,20 +2,18 @@ package cmd
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
 	"platform.prodigy9.co/core/gitops"
 	"platform.prodigy9.co/internal/plog"
+	"platform.prodigy9.co/project"
 )
-
-var errMissingTo = errors.New("ops publish: --to oci://host/repo:tag is required")
 
 var (
 	opsPublishImage string
-	opsPublishTo    string
+	opsPublishTag   string
 )
 
 var OpsPublishCmd = &cobra.Command{
@@ -27,8 +25,8 @@ var OpsPublishCmd = &cobra.Command{
 func init() {
 	OpsPublishCmd.Flags().StringVar(&opsPublishImage, "image", "",
 		"image tag to inject into the module's @tag(image)")
-	OpsPublishCmd.Flags().StringVar(&opsPublishTo, "to", "",
-		"OCI reference to push to, e.g. oci://ghcr.io/org/infra:staging")
+	OpsPublishCmd.Flags().StringVar(&opsPublishTag, "tag", "",
+		"override the moving per-env tag (defaults to [ops] tag, else \"latest\")")
 }
 
 func runOpsPublish(cmd *cobra.Command, args []string) {
@@ -36,8 +34,14 @@ func runOpsPublish(cmd *cobra.Command, args []string) {
 	if len(args) > 0 {
 		dir = args[0]
 	}
-	if opsPublishTo == "" {
-		plog.Fatalln(errMissingTo)
+
+	cfg, err := project.Configure(dir)
+	if err != nil {
+		plog.Fatalln(err)
+	}
+	ref, err := cfg.Ops.Ref(opsPublishTag)
+	if err != nil {
+		plog.Fatalln(err)
 	}
 
 	manifests, err := gitops.Render(dir, opsPublishImage)
@@ -45,7 +49,7 @@ func runOpsPublish(cmd *cobra.Command, args []string) {
 		plog.Fatalln(err)
 	}
 
-	target, tag, err := gitops.RemoteRepository(opsPublishTo)
+	target, tag, err := gitops.RemoteRepository(ref)
 	if err != nil {
 		plog.Fatalln(err)
 	}
@@ -55,5 +59,5 @@ func runOpsPublish(cmd *cobra.Command, args []string) {
 		plog.Fatalln(err)
 	}
 
-	fmt.Fprintf(os.Stdout, "published %s@%s\n", opsPublishTo, desc.Digest)
+	fmt.Fprintf(os.Stdout, "published %s@%s\n", ref, desc.Digest)
 }

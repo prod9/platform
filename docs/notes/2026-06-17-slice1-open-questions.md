@@ -11,11 +11,13 @@ choice is visible and reversible.
    is untouched. *Default reason:* sidesteps the name collision; groups the delivery
    spine; leaves room for Slice 2 verbs (reconcile/cutover).
 
-2. **Publish target flag shape.** `platform ops publish [dir] --image <ref> --to
-   oci://<host>/<repo>:<env>`. Single `--to` carrying the moving per-env tag, parsed via
-   `registry.ParseReference`. *Alternative not taken:* split `--repo` + `--tag`. Revisit
-   if the env tag should be derived from `platform.toml` environments rather than passed
-   explicitly.
+2. **~~Publish target flag shape~~ — superseded 2026-06-17 (chakrit).** `--to` is gone.
+   The target is convention-over-configuration: an `[ops]` section in `platform.toml`
+   (`image`, `tag`), where `image` is **inferred from `repository`** (`github.com/x` →
+   `ghcr.io/x`, the same rule as `ImageName`) and `tag` defaults to `latest`. So
+   `platform ops publish` needs no target flag; `--tag <env>` overrides the moving tag for
+   a per-env publish. *Dependency:* this presumes a `platform.toml` in the infra repo — see
+   fork #9.
 
 3. **Creds source.** gitops-local `REGISTRY` / `REGISTRY_USERNAME` / `REGISTRY_PASSWORD`
    fx config vars, reading the **same env names** as `builder/` but defined independently
@@ -58,6 +60,12 @@ Still open (none block D1):
    (ours: namespaces, RBAC, Gateway, platform Deployment) vs DSL (foreign: Flux seed,
    cert-manager, NGF, engine). Sketched in the ADR; confirm exact split while authoring D3
    against the real `infra` repo.
+9. **`ops publish` presumes a `platform.toml` in the infra repo.** Today neither `infra`
+   nor `infra-stage9` has one, so the `[ops]`/`repository` convention has nothing to read
+   from. Bootstrap will write it (the `bootstrapper/` pattern, sourcing `repository` from
+   the git remote). Deeper convention worth weighing: have `ops publish` infer
+   `repository` straight from `git remote get-url` when the toml omits it — zero-config in
+   any infra repo. Decide alongside D3/bootstrap.
 
 ## Higher-altitude flag (chakrit raised, 2026-06-17)
 

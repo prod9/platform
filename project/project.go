@@ -1,6 +1,7 @@
 package project
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,6 +11,10 @@ import (
 	"platform.prodigy9.co/internal/plog"
 	"platform.prodigy9.co/internal/timeouts"
 )
+
+// ErrNoOpsImage is returned when `ops publish` has no target: neither an
+// explicit [ops] image nor a repository to infer one from.
+var ErrNoOpsImage = errors.New("project: no [ops] image and none inferable from repository")
 
 type (
 	Project struct {
@@ -24,6 +29,15 @@ type (
 
 		Excludes []string           `toml:"excludes"`
 		Modules  map[string]*Module `toml:"modules"`
+		Ops      Ops                `toml:"ops"`
+	}
+
+	// Ops configures `ops publish` — where rendered infra manifests land as the
+	// OCI config artifact. Both fields fall back to convention: Image is inferred
+	// from Repository (github.com/x → ghcr.io/x), Tag defaults to "latest".
+	Ops struct {
+		Image string `toml:"image,omitempty"`
+		Tag   string `toml:"tag,omitempty"`
 	}
 
 	Module struct {
@@ -137,4 +151,23 @@ func (p *Project) inferValues() {
 			}
 		}
 	}
+
+	if p.Ops.Image == "" {
+		p.Ops.Image = base
+	}
+	if p.Ops.Tag == "" {
+		p.Ops.Tag = "latest"
+	}
+}
+
+// Ref resolves the OCI reference `ops publish` pushes to. tag overrides the
+// configured/default Tag when non-empty (e.g. a per-env publish).
+func (o Ops) Ref(tag string) (string, error) {
+	if o.Image == "" {
+		return "", ErrNoOpsImage
+	}
+	if tag == "" {
+		tag = o.Tag
+	}
+	return o.Image + ":" + tag, nil
 }

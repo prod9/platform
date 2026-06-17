@@ -51,10 +51,12 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
 ### Packages
 
 - `project/` — `platform.toml` parser. `Project` (maintainer, repository, strategy,
-  environments, excludes, modules) and `Module` (workdir, builder, env, port, cmd, args,
-  asset_dirs, build_dir, image, package). `Configure(wd)` walks up to find file,
-  applies defaults, env overrides (`PLATFORM`), and inferred values (e.g. `ghcr.io`
-  image name from `github.com` repository).
+  environments, excludes, modules, `[ops]`) and `Module` (workdir, builder, env, port,
+  cmd, args, asset_dirs, build_dir, image, package). `[ops]` (`Ops.Image`/`Tag`) is the
+  `ops publish` target — inferred from `repository` (`ghcr.io/x`) with `tag` defaulting to
+  `latest`; `Ops.Ref(tag)` resolves the ref. `Configure(wd)` walks up to find file,
+  applies defaults, env overrides (`PLATFORM`), and inferred values (e.g. `ghcr.io` image
+  name from `github.com` repository).
 - `builder/` — Dagger-based build pipeline.
   - `Interface`: `Name/Layout/Class/Discover/Build`.
   - Layouts: `basic` (single module) | `workspace` (multi-module).
