@@ -1,52 +1,124 @@
 # Manifest Patch DSL
 
-**Status:** accepted (design 2026-06-16) · **next up** — pulled forward from Phase C
-(2026-06-17), it is the primitive the embedded baseline / init package depends on.
-**Decided in:** [renderer ADR](../decisions/2026-06-16-renderer-cue-export-not-timoni.md),
-[appliance ADR](../decisions/2026-06-17-opinionated-appliance-embedded-init.md). Build plan:
-[roadmap](../notes/2026-06-16-platformv2-implementation-plan.md) Phase A′.
+**Status:** accepted (rev. 2026-06-17) — verb set, grammar, lexer, and `\(var)`
+interpolation settled with chakrit; ready for Slice D1. **Decided in:**
+[renderer ADR](../decisions/2026-06-16-renderer-cue-export-not-timoni.md),
+[appliance ADR](../decisions/2026-06-17-opinionated-appliance-embedded-init.md). Build
+plan: [roadmap](../notes/2026-06-16-platformv2-implementation-plan.md) Phase A′.
 
 A line-oriented directive language for adapting third-party Kubernetes manifests we don't
-own (cert-manager, NGINX Gateway Fabric, …) — fetch upstream, patch by name, emit. CUE
-handles manifests we author; this handles foreign ones. Folded from infra-cli's
-`pipelines` + `pipelines/yamleditor` (~676 LOC incl. tests; the verbs already exist as Go
-pipeline ops — only the directive parser and the field-select path form are new code). Its
-first consumer is the **init DSL package** (the embedded cluster baseline), dogfooded
-against the real `infra` repo (`apps/cert-manager.cue`, `k8s/nginx-gateway`, …).
+own (cert-manager, NGINX Gateway Fabric, …) — fetch upstream, patch by name, write the
+result to yaml files. It is **a yaml editor and nothing more**: it knows nothing about how
+those files are later packaged or delivered (publish, OCI, Flux, git, `kubectl apply`) —
+that is entirely downstream and out of scope. CUE handles manifests we author; this handles
+foreign ones. Folded from infra-cli's `pipelines`
++ `pipelines/yamleditor` (~676 LOC incl. tests; the verbs already exist as Go pipeline ops
+— only the directive parser and the field-select path form are new code). Its first
+consumer is the **init DSL package** (the embedded cluster baseline), dogfooded against the
+real `infra` repo (`apps/cert-manager.cue`, `k8s/nginx-gateway`, …).
 
 ## Why a closed vocabulary, not a script
 
-A general-purpose embedded language (Lua, Starlark, CEL, yq-expr) can't be bounded by
-reading it — the reviewer must execute it mentally. A fixed set of verbs can: a directive
-file is fully understood top to bottom, no hidden control flow. That readability bound is
-the whole point, and the same reason Helm and TypeScript are banned here.
+With a general-purpose embedded language (Lua, Starlark, CEL, yq-expr) you can't tell what a
+script does without mentally running it — tracking variables through branches and loops to
+see what survives. A fixed set of verbs with no control flow removes that: each line does
+one stated thing, every path names exactly one location, and reading the file top to bottom
+*is* knowing its full effect. That's the whole point — directives stay auditable by reading,
+the same reason Helm and TypeScript are banned here.
 
 ## Model
 
-A directive file is a sequence of lines applied to a multi-document YAML stream held in a
-buffer. `select` sets the active document scope; subsequent edit verbs apply to every
-document in scope, at the path each names. Scope holds until the next `select`. The
-back-end is the existing `yamleditor` path-walk (`Get`/`Set` over `map[string]any` /
-`[]any`); the DSL is a thin front-end over it.
+A directive file is a sequence of lines that edits a **working buffer** holding a
+multi-document YAML stream, and writes results to **named output files**. `select` narrows
+the active document scope; `reset` widens it back to the whole stream; subsequent edit verbs
+apply to every document in scope, at the path each names. The back-end is the existing
+`yamleditor` path-walk (`Get`/`Set` over `map[string]any` / `[]any`); the DSL is a thin
+front-end over it.
 
-Branch-free by design: no conditionals, no loops. Config-gating (include this edit only
+**Two outputs, both explicit.**
+
+- **Working buffer** — `download`/`extract` *replace* it; edit verbs (`select`, `set`,
+  `remove`, …) mutate it.
+- **Output files** — `emit FILENAME` writes the current working buffer to a named file,
+  **replacing** it (truncate + write, not append). A script emits 0..N files; no `emit`
+  means no output. Re-running a script reproduces the same file set deterministically —
+  idempotent regeneration, like a codegen step. (Append-style accumulation was rejected: it
+  grows files unboundedly across re-runs.)
+
+`emit`'s filename is **relative**, resolved against an output directory the *runner*
+provides — directive files name files, never absolute paths or repo layout, so they stay
+portable. The command invoking the DSL decides where the tree lands. End-of-file is **not**
+a sink: nothing is written unless `emit` says so.
+
+A script's natural shape is therefore `download → patch → emit`, optionally repeated for
+several components, each `emit` to its own filename. `download`/`extract` replacing the
+working buffer is fine — the prior component was already captured to its file by `emit`
+before the next `download` overwrites the work area.
+
+**Branch-free by design:** no conditionals, no loops. Config-gating (include this edit only
 when DaemonSet mode is on) happens at *assembly* time — the layer emitting the directive
-list decides which lines to include. `${var}` substitution supplies values; substitution
-only, no expressions.
+list decides which lines to include. `\(var)` interpolation supplies values; interpolation
+only, no expressions (see **Variable interpolation**).
 
-**Where `${var}` values come from
+**Where `\(var)` values come from
 ([generic-ops-vars ADR](../decisions/2026-06-17-generic-ops-vars-single-config.md)):**
-`platform.toml`'s `[ops.vars]` — a **generic open `map[string]string`**, stored verbatim
-by the config processor (no per-software fields). The DSL owns its own variable
-vocabulary; adding/removing a `${var}` edits the directive file and `[ops.vars]`, never
-the Go DTO. Values are strings — bools too (`experimental = "true"`), which the
-per-component assembly layer interprets to gate which directive lines it emits.
-`[ops].image`/`tag` stay typed (publish target, not a DSL var). `settings.toml` is
-eliminated.
+`platform.toml`'s `[ops.vars]` — a **generic open `map[string]string`**, stored verbatim by
+the config processor (no per-software fields). The DSL owns its own variable vocabulary;
+adding/removing a `\(var)` edits the directive file and `[ops.vars]`, never the Go DTO.
+Values are strings — bools too (`experimental = "true"`), which the per-component assembly
+layer interprets to gate which directive lines it emits. `[ops].image`/`tag` stay typed
+(publish target, not a DSL var). `settings.toml` is eliminated.
+
+## Lexing
+
+Each line is `verb token token …`, tokenized shell-style:
+
+- Tokens are whitespace-separated.
+- A `"…"` groups a value containing whitespace or `#`. Double-quote only; escapes `\"` and
+  `\\`. No single-quote variant.
+- **Quotes are optional** — required only when the value contains whitespace or `#`. The
+  common case stays bare: `set .kind DaemonSet`.
+- An unquoted `#` begins a comment to end-of-line. Comments work both **full-line** (`#`
+  starts the line) and **inline** (after a token). Blank lines are skipped.
+- `\(var)` interpolation happens **only inside double-quoted strings** (see **Variable
+  interpolation**).
+
+```
+set .spec.replicas 3                       # inline comment
+append .args "--feature-gates=Foo=true"    # quotes only needed if value had a space/#
+# full-line comment
+```
+
+## Variable interpolation
+
+`\(NAME)` inside a double-quoted string is replaced by the value of var `NAME` — CUE's
+interpolation syntax, so directive files and the `.cue` the renderer runs read the same way.
+
+**Only inside strings.** Interpolation is a property of the string literal, so it is lexed
+as part of one quoted token — a value that expands to text with spaces stays a single token,
+never re-splitting a line's arity (the shell word-split footgun is structurally impossible).
+A bare, unquoted `\(x)` is **not** interpolated — it is literal text. To interpolate, quote
+the token:
+
+```
+set      .metadata.name "\(prefix)-controller"               # mid-string
+download "https://github.com/.../\(version)/install.yaml"    # URL must be quoted to interpolate
+```
+
+- **Name** — everything up to the closing `)` (e.g. `\(nginx-experimental)`).
+- **Undefined var is a hard error**, not empty — a typo'd `\(verison)` must fail loudly, not
+  silently blank a URL. (Lines are gated at assembly time, so any `\(x)` that reaches the
+  parser is expected to be set.)
+- **Literal `\(`** — escape the backslash: `\\(x)` renders the literal text `\(x)`. (Inside
+  strings `\\` and `\"` already escape; this is the same rule.)
+- **No expressions** — only `\(name)`. No defaults, no fallbacks, no arithmetic.
+- **Guard:** a bare token containing `\(` is almost certainly a forgotten quote; the parser
+  rejects it rather than silently emitting literal `\(x)`.
 
 ## Path grammar
 
-Dotted keys with two index forms:
+Dotted keys, matched **literally at exactly the level named** (no aliasing, no search), with
+two index forms:
 
 - `.spec.replicas` — map keys.
 - `.spec.containers[0]` — numeric list index.
@@ -54,61 +126,126 @@ Dotted keys with two index forms:
   `name` equals the value. This is the load-bearing form — upstream reorders containers
   between versions, so index targeting is a latent bug.
 
+Selection is by literal metadata path (`.metadata.name`, `.metadata.namespace`, `.kind`) —
+there is no `.name`→`.metadata.name` shorthand. The structure is fixed; spell it out.
+
+**Deferred extension — wildcard deep-select (`.*.name` / `.**`).** Not in D1. A wildcard
+would let a path match at unknown depth, but that reintroduces "execute it mentally to know
+what it hits" — the exact property the closed vocabulary exists to prevent — and we have no
+real case (doc selection is fixed-structure metadata; list reordering is already handled by
+`[field=val]`). If a need appears, pin the semantics (single-level `.*` vs recursive `.**`)
+before adding it.
+
 ## Verbs
 
-| Verb                   | Effect                                                       |
-| ---------------------- | ------------------------------------------------------------ |
-| `download URL`         | fetch into the buffer                                        |
-| `extract-zip P`        | replace the buffer with file `P` from a zip in the buffer    |
-| `select K=V …`         | scope to docs matching all `key=value` (`kind=`, `name=`, …) |
-| `set PATH V`           | set scalar at PATH, creating intermediates                   |
-| `set-if-absent PATH V` | set only when PATH is unset (idempotent guard)               |
-| `append PATH V`        | append V to the list at PATH, creating it if absent          |
-| `append-unique PATH V` | append only when V is not already present (idempotent)       |
-| `delete PATH`          | remove the field at PATH                                     |
-| `delete-doc`           | drop every document in scope from the stream                 |
-| `emit`                 | hand the buffer to the render/publish pipeline               |
+| Verb                      | Effect                                                          |
+| ------------------------- | -------------------------------------------------------------- |
+| `download URL`            | fetch into the buffer (replaces buffer)                        |
+| `extract [PATH]`          | decompress/unarchive the buffer; PATH selects a member         |
+| `select PATH V`           | narrow scope to docs where PATH equals V (cumulative AND)      |
+| `reset`                   | widen scope back to the whole stream                           |
+| `set PATH V`              | set scalar at PATH, creating intermediates                     |
+| `set-if-absent PATH V`    | set only when PATH is unset (idempotent guard)                 |
+| `append PATH V`           | append V to the list at PATH, creating it if absent            |
+| `append-if-absent PATH V` | append only when V is not already in the list (idempotent)     |
+| `remove PATH`             | remove the field or list element at PATH                       |
+| `remove-doc`              | drop every document in scope from the stream                   |
+| `emit "FILENAME"`         | write the working buffer to FILENAME (replace), relative to runner output dir |
 
-Changing kind is just `set .kind DaemonSet` — `.kind` is a path like any other; no
-dedicated verb.
+Notes on individual verbs:
+
+- **`extract`** detects the container format by **magic bytes on the buffer**, not the URL
+  extension: gzip (`1f 8b`), zip (`50 4b`), tar (`ustar` at offset 257), composed in two
+  layers (compression then archive) so `.tar.gz`, `.zip`, and a bare `.gz` all work. `PATH`
+  selects a member inside an archive; it is **optional** — omit it for a single-stream
+  decompression (bare `.gz`) where there is no inner member.
+- **`select` is cumulative** — each `select` narrows the current scope by ANDing its
+  constraint. Use **`reset`** to clear scope back to all docs before selecting a different
+  document. Scope holds across edit verbs until the next `select`/`reset`.
+- **Changing kind** is just `set .kind DaemonSet` — `.kind` is a path like any other; no
+  dedicated verb.
+- **`remove-doc`** is not expressible as `remove PATH`: a whole document is a top-level
+  *stream element*, not a field at any path. Foreign bundles routinely ship docs to strip
+  wholesale (a default `Secret`, a bundled `Namespace`, a `ServiceMonitor` you don't run).
+- **`emit`** takes a quoted string filename (so it can interpolate, `emit "\(name).yaml"`).
+  It replaces, never appends — emitting the same filename twice is last-wins. It is file I/O
+  (lands in D2 with `download`); the DSL writes the file and is done. What reads the emitted
+  tree is out of scope.
 
 ## Examples
 
 cert-manager — append controller flags to a named container, version-robust, idempotent:
 
 ```
-download https://github.com/cert-manager/cert-manager/releases/download/${version}/cert-manager.yaml
-select  kind=Deployment name=cert-manager
-append-unique .spec.template.spec.containers[name=cert-manager-controller].args --enable-gateway-api
-append-unique .spec.template.spec.containers[name=cert-manager-controller].args --feature-gates=ListenerSets=true
+download "https://github.com/cert-manager/cert-manager/releases/download/\(version)/cert-manager.yaml"
+select .kind "Deployment"
+select .metadata.name "cert-manager"
+append-if-absent .spec.template.spec.containers[name=cert-manager-controller].args "--enable-gateway-api"
+append-if-absent .spec.template.spec.containers[name=cert-manager-controller].args "--feature-gates=ListenerSets=true"
+emit "cert-manager.yaml"
 ```
 
-NGF → DaemonSet — set a field, delete siblings:
+NGF → DaemonSet — set a field, remove siblings:
 
 ```
-select kind=Deployment name=nginx-gateway
+select .kind "Deployment"
+select .metadata.name "nginx-gateway"
 set    .kind DaemonSet
-delete .spec.replicas
-delete .spec.strategy
+remove .spec.replicas
+remove .spec.strategy
+emit   "nginx-gateway.yaml"
 ```
 
-NGF serverTokens workaround / argo doc-drop:
+NGF serverTokens workaround, then argo doc-drop — `reset` between the two groups:
 
 ```
-select        kind=NginxProxy namespace=nginx-gateway
+reset
+select .kind "NginxProxy"
+select .metadata.namespace "nginx-gateway"
 set-if-absent .spec.serverTokens off
 
-select     kind=Secret name=argocd-secret
-delete-doc
+reset
+select .kind "Secret"
+select .metadata.name "argocd-secret"
+remove-doc
+```
+
+archive source — extract a member, then patch:
+
+```
+download "https://example.com/some-operator-\(version).zip"
+extract  manifests/install.yaml
+select   .kind "Deployment"
+set      .spec.replicas 2
+emit     "some-operator.yaml"
 ```
 
 ## Notes
 
 - **Idempotency matters** — directives re-run on every upstream version bump, so
-  `append-unique` / `set-if-absent` are first-class, not conveniences.
-- **v2 tail** — infra-cli ended pipelines with `write` + `kubectl apply` + `git commit`.
-  In v2 Flux applies, so the tail is `emit` into the publish artifact; `kubectl` / `git`
-  drop out. The `download → patch` head is unchanged.
-- **Back-end reuse** — `yamleditor.Get` /`Set` already do path-walk with int-index list
-  access and create-if-absent; the field-select form and the verb parser are the only new
-  code.
+  `append-if-absent` / `set-if-absent` are first-class, not conveniences. `emit` replacing
+  (not appending) its file is the same property at the output boundary: re-runs regenerate,
+  not accumulate.
+- **v2 tail** — infra-cli ended pipelines with `write` + `kubectl apply` + `git commit`. In
+  v2 only the `write` survives, as `emit FILENAME`; apply/commit drop out because the DSL no
+  longer delivers — it just writes files. The `download → extract → patch → emit` shape is
+  the whole language; what consumes the emitted tree is downstream and unknown to the DSL.
+- **Back-end reuse** — `yamleditor.Get`/`Set` already do path-walk with int-index list
+  access and create-if-absent; the field-select form, the directive parser, and the lexer
+  are the only new code.
+
+## Build slices
+
+The DSL lands across Phase A′ (see the
+[roadmap](../notes/2026-06-16-platformv2-implementation-plan.md)):
+
+- **D1 — DSL core (hermetic).** Path-walk + `[field=val]`, the in-buffer verbs (`select`,
+  `reset`, `set`, `set-if-absent`, `append`, `append-if-absent`, `remove`, `remove-doc`),
+  the lexer, and the directive parser. No network. Unit-tested on inline multi-doc
+  fixtures. Born in `core/patch`.
+- **D2 — I/O verbs.** `download`, `extract`, `emit FILENAME`, and `\(var)` interpolation.
+  Network verbs fixtured for tests, real fetch at runtime; `emit` writes into a
+  runner-provided output dir. How the emitted files reach a registry/cluster is a separate
+  pipeline (`ops render`/`publish`), not part of the DSL.
+- **D3 — init DSL package + bootstrap-writes-DSL.** The embedded baseline authored as
+  directive files, `go:embed`'d, written into the infra repo by bootstrap.
