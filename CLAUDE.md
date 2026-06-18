@@ -99,10 +99,10 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
   under `Options.OutDir`). Checksum guard deferred past D2. Spec:
   [`docs/spec/manifest-patch-dsl.md`](docs/spec/manifest-patch-dsl.md).
 - `core/baseline/` — the DSL assembly layer (Slice D3b-2): turns the embedded cluster
-  baseline's `.pdsl` (platform-DSL) directive files into the set to apply, gated by
+  baseline's `.platform` (platform-DSL) directive files into the set to apply, gated by
   `[ops.vars]` at **whole-file** granularity (DSL stays branch-free). Filename convention:
-  `name.pdsl` always applies, `name@variant.pdsl` is one variant of choice group `name`
-  (applied when `vars[name] == variant`), `name+flag.pdsl` is an overlay (applied when
+  `name.platform` always applies, `name@variant.platform` is one variant of choice group `name`
+  (applied when `vars[name] == variant`), `name+flag.platform` is an overlay (applied when
   `vars[flag] == "true"`). `ScanOptions` surfaces operator-selectable knobs (for bootstrap
   prompts), `Select` resolves the file set (unknown choice value = hard error). Running these
   directives (fetch upstream + patch + emit) is a **separate activity from `ops render`**

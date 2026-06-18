@@ -4,8 +4,8 @@
 `c9ffc0c`) · **Slices D1–D2 (DSL core + I/O verbs) landed** in `core/dsl` (D2: interp
 `fc835b8`, I/O verbs `f4edb4e`) · **D3a (`Ops.Vars` config passthrough) landed** ·
 **D3b-1 (bootstrap write-path) + D3b-2 (assembly layer, `core/baseline`) landed**; D3b-3
-(`ops render` from infra repo) next, then D3b-4 and Slice 2 (reconcile + cutover) ·
-supersedes the
+(run-the-DSL command, separate from `cue` render) next, then D3b-4 and Slice 2 (reconcile +
+cutover) · supersedes the
 ad-hoc ordering in `PLANS.md`. **Reads against:** `docs/spec/platform.md`, `config-allocation.md`,
 `gitops-build-plan.md`, and `docs/decisions/*`.
 
@@ -101,12 +101,12 @@ first consumer; bootstrap writes it into the infra repo. Port source:
   `bootstrapper.Analyze`/`Plan`/`Apply` with hard wd-validation (must be a git repo),
   surgical `[ops.vars]` merge on re-bootstrap, and a print-plan-then-confirm flow
   (`--force` skips). **D3b-2 (assembly layer, `core/baseline`) landed:** gating is
-  whole-file selection by filename convention (`name@variant.pdsl` choice / `name+flag.pdsl`
+  whole-file selection by filename convention (`name@variant.platform` choice / `name+flag.platform`
   toggle / plain), keyed off `[ops.vars]` — the DSL stays branch-free (chakrit, option C).
-  **D3b-3** run-the-DSL command (reads `.pdsl` from the infra repo → fetch/patch/emit foreign
+  **D3b-3** run-the-DSL command (reads `.platform` from the infra repo → fetch/patch/emit foreign
   manifests) + bootstrap option prompts — a **separate activity from `ops render`** (`cue
   export`), per chakrit (II); supersedes open #7's "render reads directives". **D3b-4**
-  baseline `.pdsl` content + `settings.toml` fold-in. Original combined spec follows.
+  baseline `.platform` content + `settings.toml` fold-in. Original combined spec follows.
   Author the embedded
   baseline (Flux seed + cert-manager + NGF + engine) as directive files plus a default
   `[ops.vars]`, with a per-component assembly layer that fills the `\(var)` map from

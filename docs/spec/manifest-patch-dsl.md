@@ -66,12 +66,12 @@ per-line, so a directive file is always read straight through. The assembly laye
 (`core/baseline`) selects which files to apply from a filename convention, keyed off
 `[ops.vars]`:
 
-- `name.pdsl` — always applied.
-- `name@variant.pdsl` — one variant of choice group `name`; applied when `vars[name] ==
+- `name.platform` — always applied.
+- `name@variant.platform` — one variant of choice group `name`; applied when `vars[name] ==
   variant` (the lexically-first variant is the default when unset).
-- `name+flag.pdsl` — an overlay; applied when `vars[flag] == "true"`.
+- `name+flag.platform` — an overlay; applied when `vars[flag] == "true"`.
 
-(Directive files carry the `.pdsl` extension — *platform DSL*.)
+(Directive files carry the `.platform` extension.)
 
 `bootstrap` discovers these options from the embedded baseline and prompts the operator,
 writing the chosen values into `[ops.vars]`; `--force` takes the defaults. `\(var)`
@@ -298,11 +298,11 @@ The DSL lands across Phase A′ (see the
     `bootstrap` prints the plan and confirms via fx prompt; `--force` applies unprompted. See
     **Defaults + re-bootstrap merge** and **Plan, then apply** above.
   - **D3b-2 — assembly layer.** ✅ **Landed** (`core/baseline`). Whole-file selection from a
-    filename convention (`name.pdsl` / `name@variant.pdsl` / `name+flag.pdsl`) keyed off
+    filename convention (`name.platform` / `name@variant.platform` / `name+flag.platform`) keyed off
     `[ops.vars]`; `ScanOptions` surfaces the operator-selectable knobs, `Select` resolves the
     file set (unknown choice value is a hard error). DSL stays branch-free.
   - **D3b-3 — run-the-DSL command (separate from `cue` render).** A distinct activity
-    (command name TBD) reads the `.pdsl` directive files from the infra repo, runs assembly
+    (command name TBD) reads the `.platform` directive files from the infra repo, runs assembly
     (`baseline.Select` over `[ops.vars]`) → `dsl.Apply` (download upstream + patch + `emit`),
     writing the adapted foreign manifests into the repo. **This is *not* `ops render`:**
     fetching/patching foreign installs and `cue export`-ing authored manifests are two
@@ -311,6 +311,6 @@ The DSL lands across Phase A′ (see the
     it is the run-DSL command, not render, that consumes the directives. Bootstrap option
     prompts (from `baseline.ScanOptions`, written into `[ops.vars]`) land here too.
   - **D3b-4 — baseline authoring + migration.** The embedded baseline (Flux/cert-manager/NGF/
-    engine) as `.pdsl` directive files + default `[ops.vars]`, `go:embed`'d, written by
+    engine) as `.platform` directive files + default `[ops.vars]`, `go:embed`'d, written by
     bootstrap; fold `settings.toml` into `platform.toml` and delete it. Follows D3b-3 so the
     directive files verify end-to-end.
