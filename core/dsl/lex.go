@@ -5,14 +5,24 @@ import (
 	"strings"
 )
 
+// Token is one lexed directive token. Quoted records whether it came from a
+// double-quoted run: quoting is what licenses \(var) interpolation and escape
+// resolution, both of which happen later in resolve() — not here.
+type Token struct {
+	Value  string
+	Quoted bool
+}
+
 // Lex splits one directive line into tokens. Tokens are whitespace-separated; a
 // double-quoted run groups a value containing spaces or '#'; an unquoted '#'
 // starts a comment to end of line. Blank and comment-only lines yield no tokens.
 //
-// Escapes inside quotes are \" and \\. Other backslash sequences — notably \( —
-// are preserved verbatim, since \(var) interpolation is layered on in D2.
-func Lex(line string) ([]string, error) {
-	var tokens []string
+// Quoted tokens keep their escapes (\\, \", \() verbatim — Lex only finds token
+// boundaries. Escape and \(var) resolution is deferred to resolve(), because
+// telling \\( (a literal) from \( (an interpolation) is undecidable once \\ has
+// already been collapsed to \.
+func Lex(line string) ([]Token, error) {
+	var tokens []Token
 
 	for i, n := 0, len(line); i < n; {
 		for i < n && isSpace(line[i]) {
@@ -23,17 +33,17 @@ func Lex(line string) ([]string, error) {
 		}
 
 		if line[i] == '"' {
-			value, next, err := scanString(line, i)
+			raw, next, err := scanString(line, i)
 			if err != nil {
 				return nil, err
 			}
-			tokens = append(tokens, value)
+			tokens = append(tokens, Token{raw, true})
 			i = next
 			continue
 		}
 
 		value, next := scanBare(line, i)
-		tokens = append(tokens, value)
+		tokens = append(tokens, Token{value, false})
 		i = next
 	}
 	return tokens, nil
@@ -50,30 +60,78 @@ func scanBare(line string, start int) (value string, next int) {
 	return line[start:i], i
 }
 
-// scanString reads a double-quoted token starting at the opening quote. It
-// resolves \" and \\, preserves other escapes verbatim, and returns the index
-// just past the closing quote.
-func scanString(line string, start int) (value string, next int, err error) {
-	var b strings.Builder
-
+// scanString reads a double-quoted token starting at the opening quote and
+// returns its raw inner content with escapes intact. It honors \\ and \" only
+// enough not to terminate early on an escaped quote; the bytes themselves are
+// preserved for resolve() to interpret.
+func scanString(line string, start int) (raw string, next int, err error) {
 	for i := start + 1; i < len(line); i++ {
-		switch c := line[i]; c {
+		switch line[i] {
 		case '\\':
 			if i+1 >= len(line) {
 				return "", 0, fmt.Errorf("dangling escape in string: %q", line[start:])
 			}
-			i++
-			if esc := line[i]; esc == '"' || esc == '\\' {
-				b.WriteByte(esc)
-			} else {
-				b.WriteByte('\\')
-				b.WriteByte(esc)
-			}
+			i++ // skip the escaped char so a \" does not close the string
 		case '"':
-			return b.String(), i + 1, nil
-		default:
-			b.WriteByte(c)
+			return line[start+1 : i], i + 1, nil
 		}
 	}
 	return "", 0, fmt.Errorf("unterminated string: %q", line[start:])
+}
+
+// resolve turns a lexed token into its final string value. Bare tokens pass
+// through verbatim, save for the forgotten-quote guard. Quoted tokens get escape
+// and \(var) resolution.
+func resolve(tok Token, vars map[string]string) (string, error) {
+	if !tok.Quoted {
+		if strings.Contains(tok.Value, `\(`) {
+			return "", fmt.Errorf("bare token %q contains \\( — quote it to interpolate", tok.Value)
+		}
+		return tok.Value, nil
+	}
+	return interpolate(tok.Value, vars)
+}
+
+// interpolate resolves escapes and \(var) references in one left-to-right pass,
+// so \\( is consumed as an escaped backslash before its '(' can read as an
+// interpolation. \(name) expands to vars[name]; an undefined name is a hard
+// error, never a silent blank.
+func interpolate(s string, vars map[string]string) (string, error) {
+	var b strings.Builder
+
+	for i := 0; i < len(s); i++ {
+		if s[i] != '\\' {
+			b.WriteByte(s[i])
+			continue
+		}
+		if i+1 >= len(s) {
+			return "", fmt.Errorf("dangling escape in %q", s)
+		}
+
+		switch n := s[i+1]; n {
+		case '\\':
+			b.WriteByte('\\')
+			i++
+		case '"':
+			b.WriteByte('"')
+			i++
+		case '(':
+			rel := strings.IndexByte(s[i+2:], ')')
+			if rel < 0 {
+				return "", fmt.Errorf("unterminated \\( in %q", s)
+			}
+			name := s[i+2 : i+2+rel]
+			val, ok := vars[name]
+			if !ok {
+				return "", fmt.Errorf("undefined var \\(%s)", name)
+			}
+			b.WriteString(val)
+			i += 2 + rel
+		default:
+			b.WriteByte('\\')
+			b.WriteByte(n)
+			i++
+		}
+	}
+	return b.String(), nil
 }

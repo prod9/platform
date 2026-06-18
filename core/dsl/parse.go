@@ -25,7 +25,14 @@ func Apply(directives string, docs []map[string]any) ([]map[string]any, error) {
 		if len(tokens) == 0 {
 			continue
 		}
-		if err := e.exec(tokens[0], tokens[1:]); err != nil {
+
+		args := make([]string, len(tokens))
+		for i, tok := range tokens {
+			if args[i], err = resolve(tok, e.vars); err != nil {
+				return nil, fmt.Errorf("line %d: %w", n+1, err)
+			}
+		}
+		if err := e.exec(args[0], args[1:]); err != nil {
 			return nil, fmt.Errorf("line %d: %w", n+1, err)
 		}
 	}
@@ -37,6 +44,7 @@ func Apply(directives string, docs []map[string]any) ([]map[string]any, error) {
 type engine struct {
 	buffer []map[string]any
 	scope  []int
+	vars   map[string]string
 }
 
 func (e *engine) exec(verb string, args []string) error {
