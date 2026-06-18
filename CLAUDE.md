@@ -79,13 +79,18 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
 - `gitctx/` — Wraps `gitcmd/` shell helpers; caches current branch and tracking
   remote via `sync.OnceValues`. Distinguishes version tags (annotated, push) vs
   environment tags (force-updated, force-pushed).
-- `core/dsl/` — manifest patch DSL (Slice D1): a hermetic, line-oriented directive
-  language for adapting foreign Kubernetes manifests. `Apply` runs directives against a
-  decoded multi-doc buffer; `Lex` tokenizes shell-style; `ParsePath` compiles the dotted
-  path syntax (`Key`/`Index`/`Select` steps, incl. `[field=val]` field-select);
-  `Get`/`Set`/`Remove`/`Append` walk it. In-buffer verbs only (`select`, `reset`, `set`,
-  `set-if-absent`, `append`, `append-if-absent`, `remove`, `remove-doc`); I/O verbs and
-  `\(var)` interpolation land in D2. Spec: [`docs/spec/manifest-patch-dsl.md`](docs/spec/manifest-patch-dsl.md).
+- `core/dsl/` — manifest patch DSL (Slices D1–D2): a hermetic, line-oriented directive
+  language for adapting foreign Kubernetes manifests. `Apply(directives, Options)` runs
+  directives against a two-state buffer (raw bytes after `download`/`extract`, decoded
+  lazily when an edit or `emit` needs docs); `Lex` tokenizes shell-style into `Token`s,
+  `resolve` does escape + `\(var)` interpolation (string-only, undefined = hard error,
+  `\\(` stays literal); `ParsePath` compiles the dotted path syntax
+  (`Key`/`Index`/`Select` steps, incl. `[field=val]` field-select);
+  `Get`/`Set`/`Remove`/`Append` walk it. In-buffer verbs (`select`, `reset`, `set`,
+  `set-if-absent`, `append`, `append-if-absent`, `remove`, `remove-doc`) plus I/O verbs
+  (`download` via `Options.Fetch`, `extract` magic-byte gzip/zip/tar, `emit` truncate-write
+  under `Options.OutDir`). Checksum guard deferred past D2. Spec:
+  [`docs/spec/manifest-patch-dsl.md`](docs/spec/manifest-patch-dsl.md).
 - `core/gitops/` — pull-based GitOps delivery (Slice 1). `Render` (`cue export -e objects`
   → multi-doc YAML), `Publish` (gzipped-tar layer + Flux media types, pushed via oras-go),
   `RemoteRepository` (`oci://` ref + `REGISTRY_USERNAME`/`REGISTRY_PASSWORD` auth). Wired

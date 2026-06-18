@@ -1,7 +1,9 @@
 # Manifest Patch DSL
 
 **Status:** accepted (rev. 2026-06-17) — verb set, grammar, lexer, and `\(var)`
-interpolation settled with chakrit; ready for Slice D1. **Decided in:**
+interpolation settled with chakrit. **Slices D1–D2 landed** (in-buffer verbs, lexer,
+path-walk, then `download`/`extract`/`emit` + interpolation); D3 (init DSL package) next.
+**Decided in:**
 [renderer ADR](../decisions/2026-06-16-renderer-cue-export-not-timoni.md),
 [appliance ADR](../decisions/2026-06-17-opinionated-appliance-embedded-init.md). Build
 plan: [roadmap](../notes/2026-06-16-platformv2-implementation-plan.md) Phase A′.
@@ -243,9 +245,11 @@ The DSL lands across Phase A′ (see the
   `reset`, `set`, `set-if-absent`, `append`, `append-if-absent`, `remove`, `remove-doc`),
   the lexer, and the directive parser. No network. Unit-tested on inline multi-doc
   fixtures. Born in `core/dsl`.
-- **D2 — I/O verbs.** `download`, `extract`, `emit FILENAME`, and `\(var)` interpolation.
-  Network verbs fixtured for tests, real fetch at runtime; `emit` writes into a
-  runner-provided output dir. How the emitted files reach a registry/cluster is a separate
-  pipeline (`ops render`/`publish`), not part of the DSL.
+- **D2 — I/O verbs.** ✅ **Landed.** `download` (behind an injectable fetcher), `extract`
+  (magic-byte gzip/zip/tar, two layers), `emit FILENAME` (truncate-write into a
+  runner-provided output dir, no `..` escape), and `\(var)` interpolation (resolved in one
+  left-to-right pass so `\\(` stays literal). Network verbs fixtured for tests, real fetch
+  at runtime. Checksum guard deferred. How the emitted files reach a registry/cluster is a
+  separate pipeline (`ops render`/`publish`), not part of the DSL.
 - **D3 — init DSL package + bootstrap-writes-DSL.** The embedded baseline authored as
   directive files, `go:embed`'d, written into the infra repo by bootstrap.

@@ -47,11 +47,12 @@ Settled in discussion, captured in the
 
 Still open (none block D1):
 
-6. **`download` reproducibility.** The DSL pins version in the URL but not a checksum;
-   live-fetch-at-render risks network flakiness and "upstream deleted the release."
-   Proposal: a `download URL sha256=…` guard so a render is reproducible and
-   tamper-evident. *My proposal, not yet your call.* Lands with D2 (the I/O verbs) if
-   accepted.
+6. **~~`download` reproducibility~~ — DEFERRED 2026-06-18 (chakrit).** The DSL pins
+   version in the URL but not a checksum; live-fetch-at-render risks network flakiness and
+   "upstream deleted the release." Proposal was a `download URL sha256=…` guard. D2 shipped
+   plain `download URL` without it. Revisit together with a body/size cap — `download`'s
+   unbounded `io.ReadAll` and `extract`'s uncapped decompression sit on the same
+   network+decompression trust boundary, so checksum + size limits are one design pass.
 7. **Baseline version-bump sync.** When platform's embedded baseline bumps a pinned
    upstream version, does it **rewrite** the infra repo's written DSL, or is it
    **write-once / operator-owns** after the first bootstrap (the `bootstrapper/` shape)?

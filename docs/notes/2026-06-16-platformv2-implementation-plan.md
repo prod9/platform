@@ -1,8 +1,9 @@
 # platformv2 — Implementation Plan
 
 **Status:** confirmed (2026-06-16) · **Slice 1 landed** (render `615caa4`, publish
-`c9ffc0c`) · **Slice D1 (DSL core) landed** in `core/dsl`; D2 (I/O verbs) next, then D3,
-then Slice 2 (reconcile + cutover) · supersedes the ad-hoc ordering in `PLANS.md`. **Reads against:** `docs/spec/platform.md`, `config-allocation.md`,
+`c9ffc0c`) · **Slices D1–D2 (DSL core + I/O verbs) landed** in `core/dsl` (D2: interp
+`fc835b8`, I/O verbs `f4edb4e`); D3 (init DSL package) next, then Slice 2 (reconcile +
+cutover) · supersedes the ad-hoc ordering in `PLANS.md`. **Reads against:** `docs/spec/platform.md`, `config-allocation.md`,
 `gitops-build-plan.md`, and `docs/decisions/*`.
 
 ## Framing
@@ -74,15 +75,19 @@ first consumer; bootstrap writes it into the infra repo. Port source:
   `remove`, `remove-doc`), the lexer, and the directive parser. No network. Built from
   scratch (the `yamleditor` API didn't fit the spec'd shape — see below), unit-tested on
   inline multi-doc fixtures. Lives in `core/dsl`.
-- **Slice D2 — I/O verbs.** `download URL` (port `pipelines/download.go`), `extract`
-  (polymorphic: magic-byte zip/tar/gz), `\(var)` interpolation (string-only, CUE syntax),
-  and `emit "FILENAME"` → write the buffer to a named file (replace). The DSL is a yaml
-  editor: it writes files and is done — delivery (how those files reach a registry/cluster)
-  is a separate pipeline, not part of the DSL. `\(var)` values come from `platform.toml`'s
-  generic `[ops.vars]` (`project.Ops.Vars map[string]string` — see the
+- **Slice D2 — I/O verbs.** ✅ **Landed.** `download URL` (behind `Options.Fetch`,
+  default HTTP GET; fixtured in tests), `extract` (polymorphic: magic-byte zip/tar/gz, two
+  layers), `\(var)` interpolation (string-only, CUE syntax), and `emit "FILENAME"` → write
+  the buffer to a named file under `Options.OutDir` (truncate/replace, no `..` escape). The
+  DSL is a yaml editor: it writes files and is done — delivery is a separate pipeline.
+  `\(var)` values come from `platform.toml`'s generic `[ops.vars]` (`project.Ops.Vars
+  map[string]string` — see the
   [generic-ops-vars ADR](../decisions/2026-06-17-generic-ops-vars-single-config.md)); no
-  typed DTO. Network verbs fixtured/cached for tests, real fetch at runtime; checksum guard
-  and the `\\(`-escape vs `\\`-unescape ordering are open questions (below).
+  typed DTO, wired in D3. **Decisions:** checksum guard **deferred** (chakrit, 2026-06-18 —
+  revisit alongside a body/size cap on the network+decompression trust boundary); the
+  `\\(`-escape vs `\\`-unescape ordering **resolved** by deferring all escape + interp
+  resolution out of the lexer into a single left-to-right `resolve` pass, so `\\(` is
+  consumed before its `(` can start an interpolation.
 - **Slice D3 — init DSL package + bootstrap-writes-DSL.** Add `Ops.Vars map[string]string`
   (generic, no per-software fields); the per-component assembly layer reads it → fills the
   `\(var)` map + gates directive lines on string-valued bools (`vars["nginx_experimental"]
