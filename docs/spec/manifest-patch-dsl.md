@@ -72,6 +72,23 @@ Values are strings — bools too (`experimental = "true"`), which the per-compon
 layer interprets to gate which directive lines it emits. `[ops].image`/`tag` stay typed
 (publish target, not a DSL var). `settings.toml` is eliminated.
 
+**Defaults + re-bootstrap merge.** The embed ships the baseline's *default* `[ops.vars]`
+(the versions/flags platform was tested against) alongside the directive files. First
+`bootstrap` writes both into the infra repo. A later re-`bootstrap` after a platform upgrade
+**overwrites the directive files** (platform's opinion, re-shipped) but **merges
+`[ops.vars]`**: new keys are appended with their defaults, existing keys keep the operator's
+value untouched. So a security bump (edit a var) survives the upgrade, and a newly
+introduced baseline knob arrives pre-set instead of failing at render. Customization is via
+vars — operator edits to a directive *file* are not preserved across re-bootstrap. The merge
+is a surgical append of new `key = "value"` lines under `[ops.vars]`, not a decode/re-encode
+(which would lose the operator's comments and ordering).
+
+**Plan, then apply.** Bootstrap runs an analysis pass and prints the plan it would execute
+— each file written or overwritten, each var appended vs. preserved — then confirms
+interactively before touching the working tree. `--force` skips the prompt and applies the
+plan unprompted (CI / non-interactive). The plan-and-confirm *is* the guard against a
+surprise directive overwrite; there is no separate write-once refusal.
+
 ## Lexing
 
 Each line is `verb token token …`, tokenized shell-style:
@@ -256,5 +273,10 @@ The DSL lands across Phase A′ (see the
   map[string]string` (`[ops.vars]`), stored verbatim — no defaults, no per-software fields.
   The source for `\(var)` values; the DSL already consumes it via `Options.Vars`.
 - **D3b — baseline authoring + bootstrap-writes-DSL.** The embedded baseline authored as
-  directive files, `go:embed`'d, written into the infra repo by bootstrap; the per-component
-  assembly layer fills the var map from `Ops.Vars` and gates lines on string-bools.
+  directive files plus a default `[ops.vars]`, `go:embed`'d, written into the infra repo by
+  bootstrap; the per-component assembly layer fills the var map from `Ops.Vars` and gates
+  lines on string-bools. `ops render` sources directives from the infra repo, never the
+  embed (so edits need no recompile). Re-`bootstrap` overwrites directive files but merges
+  `[ops.vars]` (append new keys, preserve existing values); it prints an analysis plan and
+  confirms before writing, `--force` applies unprompted — see **Defaults + re-bootstrap
+  merge** and **Plan, then apply** above.

@@ -59,6 +59,10 @@ repos. The cluster baseline is the same move, one layer down.
 - **The port is bounded.** The DSL backend is a port of `infra-cli/pipelines/*` +
   `pipelines/yamleditor` (~676 LOC incl. tests); only the directive parser and the
   field-select path form are new code.
-- **Open:** `download` checksum-pinning, baseline version-bump sync (rewrite vs
-  write-once), and the CUE/DSL boundary for baseline components — tracked in the
-  [slice-1 open questions](../notes/2026-06-17-slice1-open-questions.md).
+- **Baseline version-bump sync is merge** (resolved 2026-06-18, open #7): re-`bootstrap`
+  overwrites the directive files but merges `[ops.vars]` (append new keys, preserve existing
+  operator values); `ops render` reads directives from the infra repo, not the embed, so
+  edits need no recompile. Bootstrap prints an analysis plan and confirms before writing;
+  `--force` applies unprompted.
+- **Open:** `download` checksum-pinning and the CUE/DSL boundary for baseline components —
+  tracked in the [slice-1 open questions](../notes/2026-06-17-slice1-open-questions.md).

@@ -53,10 +53,22 @@ Still open (none block D1):
    plain `download URL` without it. Revisit together with a body/size cap — `download`'s
    unbounded `io.ReadAll` and `extract`'s uncapped decompression sit on the same
    network+decompression trust boundary, so checksum + size limits are one design pass.
-7. **Baseline version-bump sync.** When platform's embedded baseline bumps a pinned
-   upstream version, does it **rewrite** the infra repo's written DSL, or is it
-   **write-once / operator-owns** after the first bootstrap (the `bootstrapper/` shape)?
-   Default leaning: write-once, matching the existing template precedent. Decide at D3.
+7. **~~Baseline version-bump sync~~ — RESOLVED 2026-06-18 (chakrit). Merge, not rewrite or
+   pure write-once.** The embed ships a default `[ops.vars]` alongside the directive files.
+   First `bootstrap` writes both. Re-`bootstrap --force` after a platform upgrade
+   **overwrites the directive files** (platform's opinion, re-shipped) but **merges
+   `[ops.vars]`**: new keys appended with their defaults, existing keys keep the operator's
+   value. A security bump (edit a var) thus survives an upgrade, and a newly introduced
+   baseline knob arrives pre-set instead of failing at render. Customization is via vars —
+   operator edits to a directive *file* are not preserved. Two D3b constraints follow: (a)
+   `ops render` sources directives from the infra repo, never the embed, so edits need no
+   recompile; (b) the var merge is a surgical append of new `key = "value"` lines under
+   `[ops.vars]`, not a decode/re-encode (which loses operator comments/ordering). **Bootstrap
+   UX:** an analysis pass prints the plan (files written/overwritten, vars appended vs.
+   preserved) and confirms interactively before writing; `--force` skips the prompt and
+   applies unprompted (CI). The plan-and-confirm *is* the guard — no separate write-once
+   refusal. Folded into the [DSL spec](../spec/manifest-patch-dsl.md) and the D3b roadmap
+   bullet.
 8. **CUE/DSL boundary for the baseline.** Which baseline components are authored as CUE
    (ours: namespaces, RBAC, Gateway, platform Deployment) vs DSL (foreign: Flux seed,
    cert-manager, NGF, engine). Sketched in the ADR; confirm exact split while authoring D3

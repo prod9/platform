@@ -95,14 +95,21 @@ first consumer; bootstrap writes it into the infra repo. Port source:
   the per-component assembly layer (gating on string-bools) is per-component Go and lands
   with the baseline in D3b, not here.
 - **Slice D3b — baseline authoring + embed + bootstrap-writes-DSL.** Author the embedded
-  baseline (Flux seed + cert-manager + NGF + engine) as directive files, with a
-  per-component assembly layer that fills the `\(var)` map from `Ops.Vars` + gates directive
-  lines on string-valued bools (`vars["nginx_experimental"] == "true"`); `go:embed` them;
-  bootstrap writes them into the infra repo (write-once-then-owned, like `bootstrapper/`).
-  Baseline bits we author (namespaces, RBAC, Gateway, platform Deployment) stay CUE; foreign
-  ones are DSL. **Migration:** fold the infra repo's `settings.toml` into `platform.toml`
-  (versions/flags → `[ops.vars]`; `maintainers`/`repo.url` → existing
-  `maintainer`/`repository`) and delete it. Dogfood: reproduce `infra`'s
+  baseline (Flux seed + cert-manager + NGF + engine) as directive files plus a default
+  `[ops.vars]`, with a per-component assembly layer that fills the `\(var)` map from
+  `Ops.Vars` + gates directive lines on string-valued bools (`vars["nginx_experimental"] ==
+  "true"`); `go:embed` them; bootstrap writes them into the infra repo. **Edit-without-recompile
+  (open #7, resolved):** `ops render` sources directives from the infra repo, never the
+  embed; re-`bootstrap` overwrites directive files but **merges** `[ops.vars]` — appends new
+  keys with their defaults, leaves existing operator values untouched (surgical append, no
+  decode/re-encode). **Bootstrap flow:** an analysis pass prints the plan (files
+  written/overwritten, vars appended vs. preserved) and confirms via fx's cmd prompt before
+  writing; `--force` applies unprompted (CI). Uniform across fresh and re-run — auto-proceed
+  on an all-additive (fresh-repo) plan is a possible later refinement, not v1. Baseline bits
+  we author (namespaces, RBAC, Gateway, platform
+  Deployment) stay CUE; foreign ones are DSL. **Migration:** fold the infra repo's
+  `settings.toml` into `platform.toml` (versions/flags → `[ops.vars]`; `maintainers`/`repo.url`
+  → existing `maintainer`/`repository`) and delete it. Dogfood: reproduce `infra`'s
   `k8s/{cert-manager,nginx-gateway}` via directives.
 
 ### Phase B — control plane (the RBAC justification)
