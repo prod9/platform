@@ -98,8 +98,8 @@ first consumer; bootstrap writes it into the infra repo. Port source:
 - **Slice D3a — `Ops.Vars` config passthrough. ✅ Landed.** Added `Ops.Vars
   map[string]string` (`[ops.vars]`, generic, no per-software fields), stored verbatim by
   the processor — no defaults, no inference. The DSL already consumes it via `Options.Vars`;
-  the per-component assembly layer (gating on string-bools) is per-component Go and lands
-  with the baseline in D3b, not here.
+  the assembly layer (gating) landed in D3b-2 as whole-file selection in `core/baseline`, not
+  here.
 - **Slice D3b — baseline authoring + embed + bootstrap-writes-DSL.** Split into D3b-1..4
   (hermetic mechanics first, content last). **D3b-1 (bootstrap write-path) landed:**
   `bootstrapper.Analyze`/`Plan`/`Apply` with hard wd-validation (must be a git repo),
@@ -113,24 +113,20 @@ first consumer; bootstrap writes it into the infra repo. Port source:
   bootstrap option prompts. See the
   [render-routing ADR](../decisions/2026-06-18-render-routes-cue-and-platform-by-extension.md);
   supersedes the interim model-II "separate run-DSL command" framing. **D3b-4** baseline
-  `.platform` content + `settings.toml` fold-in. Original combined spec follows.
-  Author the embedded
-  baseline (Flux seed + cert-manager + NGF + engine) as directive files plus a default
-  `[ops.vars]`, with a per-component assembly layer that fills the `\(var)` map from
-  `Ops.Vars` + gates directive lines on string-valued bools (`vars["nginx_experimental"] ==
-  "true"`); `go:embed` them; bootstrap writes them into the infra repo. **Edit-without-recompile
-  (open #7, resolved):** `ops render` sources directives from the infra repo, never the
-  embed; re-`bootstrap` overwrites directive files but **merges** `[ops.vars]` — appends new
-  keys with their defaults, leaves existing operator values untouched (surgical append, no
-  decode/re-encode). **Bootstrap flow:** an analysis pass prints the plan (files
-  written/overwritten, vars appended vs. preserved) and confirms via fx's cmd prompt before
-  writing; `--force` applies unprompted (CI). Uniform across fresh and re-run — auto-proceed
-  on an all-additive (fresh-repo) plan is a possible later refinement, not v1. Baseline bits
-  we author (namespaces, RBAC, Gateway, platform
-  Deployment) stay CUE; foreign ones are DSL. **Migration:** fold the infra repo's
+  `.platform` content + `settings.toml` fold-in.
+
+  **D3b-4 detail** — authoritative gating/render detail lives in the
+  [spec](../spec/manifest-patch-dsl.md) and the
+  [render ADR](../decisions/2026-06-18-render-routes-cue-and-platform-by-extension.md):
+  author the baseline (Flux seed + cert-manager + NGF + engine) as `.platform` directive
+  files + a default `[ops.vars]`, `go:embed` them, bootstrap writes them into the infra repo.
+  Authored bits (namespaces, RBAC, Gateway, platform Deployment) stay CUE; foreign installs
+  are `.platform`. **Choice-default note:** `baseline.Select`'s default for an unset choice is
+  the lexically-first variant (e.g. `nginx-gateway` → `experimental`); add an explicit default
+  marker if that turns out to be the wrong safe default. **Migration:** fold the infra repo's
   `settings.toml` into `platform.toml` (versions/flags → `[ops.vars]`; `maintainers`/`repo.url`
-  → existing `maintainer`/`repository`) and delete it. Dogfood: reproduce `infra`'s
-  `k8s/{cert-manager,nginx-gateway}` via directives.
+  → existing `maintainer`/`repository`) and delete it — cross-repo, attended only. Dogfood:
+  reproduce `infra`'s `k8s/{cert-manager,nginx-gateway}` via directives.
 
 ### Phase B — control plane (the RBAC justification)
 
