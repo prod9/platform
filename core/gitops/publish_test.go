@@ -15,21 +15,17 @@ import (
 	"platform.prodigy9.co/core/gitops"
 )
 
-const sampleManifests = `apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: demo
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: demo
-`
+// sampleTree is a two-component render output: each file lands at its
+// <component>/<filename> path inside the published layer tarball.
+var sampleTree = gitops.Tree{
+	"gateway/gateway.yaml": []byte("apiVersion: v1\nkind: Gateway\nmetadata:\n  name: gw\n"),
+	"demo/deploy.yaml":     []byte("apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: demo\n"),
+}
 
-// TestPublishRoundTrip pushes the rendered manifests as a Flux-shaped OCI
-// artifact into a filesystem oci.Store, then pulls every layer back out and
-// asserts the manifests survive byte-for-byte and the media types match what
-// Flux's OCIRepository expects to consume in Slice 2.
+// TestPublishRoundTrip pushes a rendered tree as a Flux-shaped OCI artifact into
+// a filesystem oci.Store, then pulls the layer back out and asserts every
+// component file survives byte-for-byte at its tree path and the media types
+// match what Flux's OCIRepository expects to consume in Slice 2.
 func TestPublishRoundTrip(t *testing.T) {
 	ctx := context.Background()
 	store, err := oci.New(t.TempDir())
@@ -38,7 +34,7 @@ func TestPublishRoundTrip(t *testing.T) {
 	}
 
 	const tag = "staging"
-	if _, err := gitops.Publish(ctx, store, tag, sampleManifests); err != nil {
+	if _, err := gitops.Publish(ctx, store, tag, sampleTree); err != nil {
 		t.Fatalf("Publish: %v", err)
 	}
 
@@ -53,8 +49,16 @@ func TestPublishRoundTrip(t *testing.T) {
 		t.Errorf("layer media type = %q, want %q", got, gitops.FluxLayerMediaType)
 	}
 
-	if got := extractManifests(t, ctx, store, manifest.Layers[0]); got != sampleManifests {
-		t.Errorf("round-tripped manifests mismatch:\n got: %q\nwant: %q", got, sampleManifests)
+	files := extractLayer(t, ctx, store, manifest.Layers[0])
+	for rel, want := range sampleTree {
+		if got, ok := files[rel]; !ok {
+			t.Errorf("layer missing %q", rel)
+		} else if got != string(want) {
+			t.Errorf("%s round-trip mismatch:\n got: %q\nwant: %q", rel, got, want)
+		}
+	}
+	if len(files) != len(sampleTree) {
+		t.Errorf("layer has %d files, want %d", len(files), len(sampleTree))
 	}
 }
 
@@ -76,7 +80,9 @@ func resolveManifest(t *testing.T, ctx context.Context, store *oci.Store, tag st
 	return manifest
 }
 
-func extractManifests(t *testing.T, ctx context.Context, store *oci.Store, layer ocispec.Descriptor) string {
+// extractLayer ungzips and untars the layer, returning every entry keyed by its
+// tar path (the tree's <component>/<filename>).
+func extractLayer(t *testing.T, ctx context.Context, store *oci.Store, layer ocispec.Descriptor) map[string]string {
 	t.Helper()
 	raw, err := content.FetchAll(ctx, store, layer)
 	if err != nil {
@@ -88,13 +94,21 @@ func extractManifests(t *testing.T, ctx context.Context, store *oci.Store, layer
 		t.Fatalf("gzip: %v", err)
 	}
 	tr := tar.NewReader(gz)
-	if _, err := tr.Next(); err != nil {
-		t.Fatalf("tar next: %v", err)
-	}
 
-	body, err := io.ReadAll(tr)
-	if err != nil {
-		t.Fatalf("read tar body: %v", err)
+	files := map[string]string{}
+	for {
+		header, err := tr.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			t.Fatalf("tar next: %v", err)
+		}
+		body, err := io.ReadAll(tr)
+		if err != nil {
+			t.Fatalf("read %s: %v", header.Name, err)
+		}
+		files[header.Name] = string(body)
 	}
-	return string(body)
+	return files
 }

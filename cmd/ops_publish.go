@@ -44,7 +44,7 @@ func runOpsPublish(cmd *cobra.Command, args []string) {
 		plog.Fatalln(err)
 	}
 
-	manifests, err := gitops.Render(dir, opsPublishImage)
+	tree, err := gitops.Render(dir, opsPublishImage)
 	if err != nil {
 		plog.Fatalln(err)
 	}
@@ -54,7 +54,7 @@ func runOpsPublish(cmd *cobra.Command, args []string) {
 		plog.Fatalln(err)
 	}
 
-	desc, err := gitops.Publish(context.Background(), target, tag, manifests)
+	desc, err := gitops.Publish(context.Background(), target, tag, tree)
 	if err != nil {
 		plog.Fatalln(err)
 	}

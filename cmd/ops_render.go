@@ -3,23 +3,29 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 	"platform.prodigy9.co/core/gitops"
 	"platform.prodigy9.co/internal/plog"
 )
 
-var renderImage string
+var (
+	renderImage string
+	renderOut   string
+)
 
 var RenderCmd = &cobra.Command{
 	Use:   "render [dir]",
-	Short: "Render an infra CUE module to Kubernetes manifests",
+	Short: "Render an infra CUE module's apps to a Kubernetes manifest tree",
 	Run:   runRender,
 }
 
 func init() {
 	RenderCmd.Flags().StringVar(&renderImage, "image", "",
-		"image tag to inject into the module's @tag(image)")
+		"image tag to inject into the apps' @tag(image)")
+	RenderCmd.Flags().StringVar(&renderOut, "out", "k8s",
+		"output directory for the rendered <component>/<file> tree")
 }
 
 func runRender(cmd *cobra.Command, args []string) {
@@ -28,10 +34,15 @@ func runRender(cmd *cobra.Command, args []string) {
 		dir = args[0]
 	}
 
-	manifests, err := gitops.Render(dir, renderImage)
+	tree, err := gitops.Render(dir, renderImage)
 	if err != nil {
 		plog.Fatalln(err)
 	}
+	if err := tree.WriteDir(renderOut); err != nil {
+		plog.Fatalln(err)
+	}
 
-	fmt.Fprintln(os.Stdout, manifests)
+	for _, rel := range tree.Paths() {
+		fmt.Fprintln(os.Stdout, filepath.Join(renderOut, rel))
+	}
 }

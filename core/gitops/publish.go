@@ -17,17 +17,14 @@ import (
 const (
 	FluxConfigMediaType = "application/vnd.cncf.flux.config.v1+json"
 	FluxLayerMediaType  = "application/vnd.cncf.flux.content.v1.tar+gzip"
-
-	// manifestsFilename names the single multi-doc file inside the layer
-	// tarball; kustomize-controller applies every YAML doc it extracts.
-	manifestsFilename = "manifests.yaml"
 )
 
-// Publish packages manifests (a multi-doc YAML stream from Render) as a
-// Flux-shaped OCI artifact and pushes it into target under tag — the moving
-// per-env tag Flux's OCIRepository follows.
-func Publish(ctx context.Context, target oras.Target, tag, manifests string) (ocispec.Descriptor, error) {
-	layer, err := tarGzip(manifests)
+// Publish packages a rendered tree from Render as a Flux-shaped OCI artifact and
+// pushes it into target under tag — the moving per-env tag Flux's OCIRepository
+// follows. Each tree entry lands at its <component>/<filename> path inside the
+// layer tarball; kustomize-controller applies every YAML doc it extracts.
+func Publish(ctx context.Context, target oras.Target, tag string, tree Tree) (ocispec.Descriptor, error) {
+	layer, err := tarGzip(tree)
 	if err != nil {
 		return ocispec.Descriptor{}, err
 	}
@@ -58,22 +55,24 @@ func Publish(ctx context.Context, target oras.Target, tag, manifests string) (oc
 	return manifestDesc, nil
 }
 
-// tarGzip wraps the manifest stream in a single-entry gzipped tarball — the
-// payload shape Flux extracts and applies. Header fields are fixed (no mtime,
-// no uid) so identical manifests yield an identical digest.
-func tarGzip(manifests string) ([]byte, error) {
-	body := []byte(manifests)
-
+// tarGzip wraps the rendered tree in a gzipped tarball — the payload shape Flux
+// extracts and applies. Entries are written in sorted path order with fixed
+// header fields (no mtime, no uid) so an identical tree yields an identical
+// digest.
+func tarGzip(tree Tree) ([]byte, error) {
 	var buf bytes.Buffer
 	gz := gzip.NewWriter(&buf)
 	tw := tar.NewWriter(gz)
 
-	header := &tar.Header{Name: manifestsFilename, Mode: 0o644, Size: int64(len(body))}
-	if err := tw.WriteHeader(header); err != nil {
-		return nil, err
-	}
-	if _, err := tw.Write(body); err != nil {
-		return nil, err
+	for _, rel := range tree.Paths() {
+		body := tree[rel]
+		header := &tar.Header{Name: rel, Mode: 0o644, Size: int64(len(body))}
+		if err := tw.WriteHeader(header); err != nil {
+			return nil, err
+		}
+		if _, err := tw.Write(body); err != nil {
+			return nil, err
+		}
 	}
 
 	if err := tw.Close(); err != nil {

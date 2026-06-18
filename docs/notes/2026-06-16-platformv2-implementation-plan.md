@@ -3,8 +3,9 @@
 **Status:** confirmed (2026-06-16) · **Slice 1 landed** (render `615caa4`, publish
 `c9ffc0c`) · **Slices D1–D2 (DSL core + I/O verbs) landed** in `core/dsl` (D2: interp
 `fc835b8`, I/O verbs `f4edb4e`) · **D3a (`Ops.Vars` config passthrough) landed** ·
-**D3b-1 (bootstrap write-path) + D3b-2 (assembly layer, `core/baseline`) landed**; D3b-3
-(`ops render` routes `.cue`/`.platform` by extension) next, then D3b-4 and Slice 2 (reconcile
+**D3b-1 (bootstrap write-path) + D3b-2 (assembly layer, `core/baseline`) landed**. D3b-3
+split into **3a (CUE file-map render+publish rework) — landed**, **3b (extension router +
+`.platform` path) next**, prompts folded into D3b-4. Then D3b-4 and Slice 2 (reconcile
 + cutover) · supersedes the
 ad-hoc ordering in `PLANS.md`. **Reads against:** `docs/spec/platform.md`, `config-allocation.md`,
 `gitops-build-plan.md`, and `docs/decisions/*`.
@@ -110,7 +111,13 @@ first consumer; bootstrap writes it into the infra repo. Port source:
   **D3b-3** `ops render` routes by extension — `.cue` → file-map `cue export`, `.platform` →
   `baseline.Select` → `dsl.Apply` — both writing `k8s/<component>/*.yaml` into a render-output
   tree (model I, nothing committed; reworks Slice-1 render from the `-e objects` stream) +
-  bootstrap option prompts. See the
+  bootstrap option prompts. **Landed in three:** **3a** reworked `core/gitops` to the file-map
+  contract — `Render(srcDir,image)` exports the `apps` package (`<srcDir>/apps`, top-level field =
+  app/component, its keys = filenames → doc-or-list) into a `Tree` (`<component>/<filename>` →
+  multi-doc bytes); `Tree.WriteDir` + `Publish(tree)` (tarball walks the tree, drops the single
+  `manifests.yaml`); `ops render` gains `--out` (default `k8s`); testbed `infra-basic` migrated to
+  the `apps/` package, render output gitignored. **3b** adds the `.platform` route. **Prompts**
+  fold into D3b-4 (no baseline option files exist until then). See the
   [render-routing ADR](../decisions/2026-06-18-render-routes-cue-and-platform-by-extension.md);
   supersedes the interim model-II "separate run-DSL command" framing. **D3b-4** baseline
   `.platform` content + `settings.toml` fold-in.

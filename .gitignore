@@ -5,6 +5,9 @@ tests.yml
 .inbox.log
 .afk.log
 
+# Render output (model I: rendered manifests are never committed).
+testbeds/*/k8s
+
 # ACE-managed — do not edit this block.
 # Managed by ACE. See https://github.com/ace-rs/ace
 .agents/agents
