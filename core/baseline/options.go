@@ -4,9 +4,9 @@
 // whether it is always applied, one variant of a mutually-exclusive choice, or
 // an optional overlay.
 //
-//	name.dsl          always applied
-//	name@variant.dsl  choice group `name`; applied when vars[name] == variant
-//	name+flag.dsl     overlay; applied when vars[flag] == "true"
+//	name.pdsl          always applied
+//	name@variant.pdsl  choice group `name`; applied when vars[name] == variant
+//	name+flag.pdsl     overlay; applied when vars[flag] == "true"
 package baseline
 
 import (
@@ -16,7 +16,7 @@ import (
 	"strings"
 )
 
-const dslExt = ".dsl"
+const pdslExt = ".pdsl"
 
 // OptionKind is the shape of a selectable baseline option: pick one variant, or
 // flip an overlay on/off.
@@ -142,7 +142,7 @@ type entry struct {
 // parse classifies a baseline filename by its marker: '@' a choice variant, '+'
 // an overlay toggle, neither a plain always-on file.
 func parse(file string) entry {
-	stem := strings.TrimSuffix(file, dslExt)
+	stem := strings.TrimSuffix(file, pdslExt)
 
 	if group, variant, ok := strings.Cut(stem, "@"); ok {
 		return entry{kind: entryChoice, key: group, variant: variant}

@@ -8,11 +8,11 @@ import (
 
 // the discovered baseline file set used across the selection tests.
 var sampleFiles = []string{
-	"nginx-gateway+toleration.dsl",
-	"flux.dsl",
-	"nginx-gateway@experimental.dsl",
-	"cert-manager.dsl",
-	"nginx-gateway@stable.dsl",
+	"nginx-gateway+toleration.pdsl",
+	"flux.pdsl",
+	"nginx-gateway@experimental.pdsl",
+	"cert-manager.pdsl",
+	"nginx-gateway@stable.pdsl",
 }
 
 func TestScanOptions(t *testing.T) {
@@ -39,9 +39,9 @@ func TestSelect_defaultsWhenUnset(t *testing.T) {
 	got, err := Select(sampleFiles, nil)
 	r.NoError(t, err)
 	r.Equal(t, []string{
-		"cert-manager.dsl",
-		"flux.dsl",
-		"nginx-gateway@experimental.dsl",
+		"cert-manager.pdsl",
+		"flux.pdsl",
+		"nginx-gateway@experimental.pdsl",
 	}, got)
 }
 
@@ -52,10 +52,10 @@ func TestSelect_honoursChoiceAndToggle(t *testing.T) {
 	})
 	r.NoError(t, err)
 	r.Equal(t, []string{
-		"cert-manager.dsl",
-		"flux.dsl",
-		"nginx-gateway+toleration.dsl",
-		"nginx-gateway@stable.dsl",
+		"cert-manager.pdsl",
+		"flux.pdsl",
+		"nginx-gateway+toleration.pdsl",
+		"nginx-gateway@stable.pdsl",
 	}, got)
 }
 
@@ -64,7 +64,7 @@ func TestSelect_toggleOffUnlessTrue(t *testing.T) {
 	// string-bool enables it.
 	got, err := Select(sampleFiles, map[string]string{"toleration": "yes"})
 	r.NoError(t, err)
-	r.NotContains(t, got, "nginx-gateway+toleration.dsl")
+	r.NotContains(t, got, "nginx-gateway+toleration.pdsl")
 }
 
 func TestSelect_unknownVariantIsError(t *testing.T) {

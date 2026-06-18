@@ -101,10 +101,12 @@ first consumer; bootstrap writes it into the infra repo. Port source:
   `bootstrapper.Analyze`/`Plan`/`Apply` with hard wd-validation (must be a git repo),
   surgical `[ops.vars]` merge on re-bootstrap, and a print-plan-then-confirm flow
   (`--force` skips). **D3b-2 (assembly layer, `core/baseline`) landed:** gating is
-  whole-file selection by filename convention (`name@variant.dsl` choice / `name+flag.dsl`
+  whole-file selection by filename convention (`name@variant.pdsl` choice / `name+flag.pdsl`
   toggle / plain), keyed off `[ops.vars]` — the DSL stays branch-free (chakrit, option C).
-  **D3b-3** `ops render` from infra repo + bootstrap option prompts · **D3b-4** baseline
-  content + `settings.toml` fold-in. Original combined spec follows.
+  **D3b-3** run-the-DSL command (reads `.pdsl` from the infra repo → fetch/patch/emit foreign
+  manifests) + bootstrap option prompts — a **separate activity from `ops render`** (`cue
+  export`), per chakrit (II); supersedes open #7's "render reads directives". **D3b-4**
+  baseline `.pdsl` content + `settings.toml` fold-in. Original combined spec follows.
   Author the embedded
   baseline (Flux seed + cert-manager + NGF + engine) as directive files plus a default
   `[ops.vars]`, with a per-component assembly layer that fills the `\(var)` map from
