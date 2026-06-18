@@ -4,8 +4,8 @@
 `c9ffc0c`) · **Slices D1–D2 (DSL core + I/O verbs) landed** in `core/dsl` (D2: interp
 `fc835b8`, I/O verbs `f4edb4e`) · **D3a (`Ops.Vars` config passthrough) landed** ·
 **D3b-1 (bootstrap write-path) + D3b-2 (assembly layer, `core/baseline`) landed**; D3b-3
-(run-the-DSL command, separate from `cue` render) next, then D3b-4 and Slice 2 (reconcile +
-cutover) · supersedes the
+(`ops render` routes `.cue`/`.platform` by extension) next, then D3b-4 and Slice 2 (reconcile
++ cutover) · supersedes the
 ad-hoc ordering in `PLANS.md`. **Reads against:** `docs/spec/platform.md`, `config-allocation.md`,
 `gitops-build-plan.md`, and `docs/decisions/*`.
 
@@ -56,7 +56,11 @@ consumer.
 
 - **Slice 1 — render + publish.** ✅ **Landed 2026-06-17.** `cue export` an infra CUE
   module → multi-doc manifests → push as the OCI config artifact under a **moving**
-  per-env tag. Pure code; locally testable; no cluster. Detailed below.
+  per-env tag. Pure code; locally testable; no cluster. Detailed below. **Revised in D3b-3:**
+  the flat `-e objects` single-stream render becomes a filename→docs **file-map** emitter
+  (`k8s/<component>/*.yaml`), matching the real infra layout, and `ops render` routes `.cue`
+  vs `.platform` by extension (see the
+  [render-routing ADR](../decisions/2026-06-18-render-routes-cue-and-platform-by-extension.md)).
 - **Slice 2 — reconcile + cutover.** Install Flux (source + kustomize controllers, OCI),
   `OCIRepository` on the moving tag, `prune: true`; inventory Keel/argocd workloads;
   migrate workload-by-workload; retire Keel (they fight over the image field otherwise).
@@ -103,10 +107,13 @@ first consumer; bootstrap writes it into the infra repo. Port source:
   (`--force` skips). **D3b-2 (assembly layer, `core/baseline`) landed:** gating is
   whole-file selection by filename convention (`name@variant.platform` choice / `name+flag.platform`
   toggle / plain), keyed off `[ops.vars]` — the DSL stays branch-free (chakrit, option C).
-  **D3b-3** run-the-DSL command (reads `.platform` from the infra repo → fetch/patch/emit foreign
-  manifests) + bootstrap option prompts — a **separate activity from `ops render`** (`cue
-  export`), per chakrit (II); supersedes open #7's "render reads directives". **D3b-4**
-  baseline `.platform` content + `settings.toml` fold-in. Original combined spec follows.
+  **D3b-3** `ops render` routes by extension — `.cue` → file-map `cue export`, `.platform` →
+  `baseline.Select` → `dsl.Apply` — both writing `k8s/<component>/*.yaml` into a render-output
+  tree (model I, nothing committed; reworks Slice-1 render from the `-e objects` stream) +
+  bootstrap option prompts. See the
+  [render-routing ADR](../decisions/2026-06-18-render-routes-cue-and-platform-by-extension.md);
+  supersedes the interim model-II "separate run-DSL command" framing. **D3b-4** baseline
+  `.platform` content + `settings.toml` fold-in. Original combined spec follows.
   Author the embedded
   baseline (Flux seed + cert-manager + NGF + engine) as directive files plus a default
   `[ops.vars]`, with a per-component assembly layer that fills the `\(var)` map from

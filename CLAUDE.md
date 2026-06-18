@@ -104,9 +104,11 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
   `name.platform` always applies, `name@variant.platform` is one variant of choice group `name`
   (applied when `vars[name] == variant`), `name+flag.platform` is an overlay (applied when
   `vars[flag] == "true"`). `ScanOptions` surfaces operator-selectable knobs (for bootstrap
-  prompts), `Select` resolves the file set (unknown choice value = hard error). Running these
-  directives (fetch upstream + patch + emit) is a **separate activity from `ops render`**
-  (`cue export`): foreign-install adaptation and authored-manifest rendering don't mix.
+  prompts), `Select` resolves the file set (unknown choice value = hard error). Will also own
+  the directive→output-dir mapping (`k8s/<component>/`, component = stem before any marker).
+  `ops render` routes by extension — `.cue` → file-map `cue export`, `.platform` → `Select` →
+  `dsl.Apply` — both emitting into one `k8s/` render tree (D3b-3; see the
+  [render-routing ADR](docs/decisions/2026-06-18-render-routes-cue-and-platform-by-extension.md)).
 - `core/gitops/` — pull-based GitOps delivery (Slice 1). `Render` (`cue export -e objects`
   → multi-doc YAML), `Publish` (gzipped-tar layer + Flux media types, pushed via oras-go),
   `RemoteRepository` (`oci://` ref + `REGISTRY_USERNAME`/`REGISTRY_PASSWORD` auth). Wired

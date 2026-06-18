@@ -5,7 +5,7 @@ interpolation settled with chakrit. **Slices D1–D2 landed** (in-buffer verbs, 
 path-walk, then `download`/`extract`/`emit` + interpolation) plus **D3a** (`Ops.Vars`
 config passthrough) and **D3b-1** (bootstrap write-path: wd-validation + `[ops.vars]`
 merge + plan/apply) and **D3b-2** (assembly layer: whole-file selection in `core/baseline`).
-D3b split into D3b-1..4; D3b-3 (run-the-DSL command, separate from `cue` render) next.
+D3b split into D3b-1..4; D3b-3 (`ops render` routes `.cue`/`.platform` by extension) next.
 **Decided in:**
 [renderer ADR](../decisions/2026-06-16-renderer-cue-export-not-timoni.md),
 [appliance ADR](../decisions/2026-06-17-opinionated-appliance-embedded-init.md). Build
@@ -301,15 +301,16 @@ The DSL lands across Phase A′ (see the
     filename convention (`name.platform` / `name@variant.platform` / `name+flag.platform`) keyed off
     `[ops.vars]`; `ScanOptions` surfaces the operator-selectable knobs, `Select` resolves the
     file set (unknown choice value is a hard error). DSL stays branch-free.
-  - **D3b-3 — run-the-DSL command (separate from `cue` render).** A distinct activity
-    (command name TBD) reads the `.platform` directive files from the infra repo, runs assembly
-    (`baseline.Select` over `[ops.vars]`) → `dsl.Apply` (download upstream + patch + `emit`),
-    writing the adapted foreign manifests into the repo. **This is *not* `ops render`:**
-    fetching/patching foreign installs and `cue export`-ing authored manifests are two
-    separate activities (chakrit, 2026-06-18). `ops render` stays `cue export`-only and
-    offline. This supersedes open #7's "`ops render` reads directives from the infra repo" —
-    it is the run-DSL command, not render, that consumes the directives. Bootstrap option
-    prompts (from `baseline.ScanOptions`, written into `[ops.vars]`) land here too.
+  - **D3b-3 — `ops render` routes by extension + bootstrap option prompts.** `ops render`
+    walks the infra repo and dispatches per input type: `.cue` → file-map `cue export`,
+    `.platform` → `baseline.Select` over `[ops.vars]` → `dsl.Apply` (download → patch →
+    `emit`). Both write named files into a `k8s/<component>/` render-output tree (`core/baseline`
+    owns the directive→dir mapping); `ops publish` packages it. Render-time, nothing rendered
+    committed (model I). Bootstrap option prompts (from `baseline.ScanOptions`, written into
+    `[ops.vars]`) land here too. Reworks Slice-1 render from the flat `-e objects` stream to
+    the file-map contract. See the
+    [render-routing ADR](../decisions/2026-06-18-render-routes-cue-and-platform-by-extension.md);
+    supersedes the interim "separate run-DSL command (model II)" framing.
   - **D3b-4 — baseline authoring + migration.** The embedded baseline (Flux/cert-manager/NGF/
     engine) as `.platform` directive files + default `[ops.vars]`, `go:embed`'d, written by
     bootstrap; fold `settings.toml` into `platform.toml` and delete it. Follows D3b-3 so the
