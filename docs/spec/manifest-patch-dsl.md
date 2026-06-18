@@ -3,7 +3,8 @@
 **Status:** accepted (rev. 2026-06-17) — verb set, grammar, lexer, and `\(var)`
 interpolation settled with chakrit. **Slices D1–D2 landed** (in-buffer verbs, lexer,
 path-walk, then `download`/`extract`/`emit` + interpolation) plus **D3a** (`Ops.Vars`
-config passthrough); D3b (baseline + embed + bootstrap) next.
+config passthrough) and **D3b-1** (bootstrap write-path: wd-validation + `[ops.vars]`
+merge + plan/apply). D3b split into D3b-1..4; D3b-2 (assembly layer) next.
 **Decided in:**
 [renderer ADR](../decisions/2026-06-16-renderer-cue-export-not-timoni.md),
 [appliance ADR](../decisions/2026-06-17-opinionated-appliance-embedded-init.md). Build
@@ -272,11 +273,19 @@ The DSL lands across Phase A′ (see the
 - **D3a — `Ops.Vars` config passthrough.** ✅ **Landed.** `project.Ops` gained `Vars
   map[string]string` (`[ops.vars]`), stored verbatim — no defaults, no per-software fields.
   The source for `\(var)` values; the DSL already consumes it via `Options.Vars`.
-- **D3b — baseline authoring + bootstrap-writes-DSL.** The embedded baseline authored as
-  directive files plus a default `[ops.vars]`, `go:embed`'d, written into the infra repo by
-  bootstrap; the per-component assembly layer fills the var map from `Ops.Vars` and gates
-  lines on string-bools. `ops render` sources directives from the infra repo, never the
-  embed (so edits need no recompile). Re-`bootstrap` overwrites directive files but merges
-  `[ops.vars]` (append new keys, preserve existing values); it prints an analysis plan and
-  confirms before writing, `--force` applies unprompted — see **Defaults + re-bootstrap
-  merge** and **Plan, then apply** above.
+- **D3b — baseline authoring + bootstrap-writes-DSL.** Split into four sub-slices, landing
+  the hermetic mechanics before the content:
+  - **D3b-1 — bootstrap write-path.** ✅ **Landed.** `bootstrapper.Analyze` computes a
+    `Plan` (files written/overwritten, vars appended/preserved) without mutating; `Plan.Apply`
+    writes it. wd-validation is a hard gate (target must exist, be a dir, live in a git repo);
+    re-`bootstrap` merges `[ops.vars]` surgically (`mergeOpsVars`: append new keys, preserve
+    operator values + comments/order, no decode/re-encode) instead of clobbering platform.toml.
+    `bootstrap` prints the plan and confirms via fx prompt; `--force` applies unprompted. See
+    **Defaults + re-bootstrap merge** and **Plan, then apply** above.
+  - **D3b-2 — assembly layer.** Fills the `\(var)` map from `Ops.Vars` and gates directive
+    lines on string-bools (`vars["nginx_experimental"] == "true"`).
+  - **D3b-3 — `ops render` from the infra repo.** Render sources directives from the infra
+    repo (never the embed, so edits need no recompile) → assembly → `dsl.Apply`.
+  - **D3b-4 — baseline authoring + migration.** The embedded baseline (Flux/cert-manager/NGF/
+    engine) as directive files + default `[ops.vars]`, `go:embed`'d, written by bootstrap;
+    fold `settings.toml` into `platform.toml` and delete it.

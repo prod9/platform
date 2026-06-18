@@ -2,8 +2,9 @@
 
 **Status:** confirmed (2026-06-16) · **Slice 1 landed** (render `615caa4`, publish
 `c9ffc0c`) · **Slices D1–D2 (DSL core + I/O verbs) landed** in `core/dsl` (D2: interp
-`fc835b8`, I/O verbs `f4edb4e`) · **D3a (`Ops.Vars` config passthrough) landed**; D3b
-(baseline + embed + bootstrap) next, then Slice 2 (reconcile + cutover) · supersedes the
+`fc835b8`, I/O verbs `f4edb4e`) · **D3a (`Ops.Vars` config passthrough) landed** ·
+**D3b-1 (bootstrap write-path) landed**; D3b-2 (assembly layer) next, then D3b-3/4 and
+Slice 2 (reconcile + cutover) · supersedes the
 ad-hoc ordering in `PLANS.md`. **Reads against:** `docs/spec/platform.md`, `config-allocation.md`,
 `gitops-build-plan.md`, and `docs/decisions/*`.
 
@@ -94,7 +95,13 @@ first consumer; bootstrap writes it into the infra repo. Port source:
   the processor — no defaults, no inference. The DSL already consumes it via `Options.Vars`;
   the per-component assembly layer (gating on string-bools) is per-component Go and lands
   with the baseline in D3b, not here.
-- **Slice D3b — baseline authoring + embed + bootstrap-writes-DSL.** Author the embedded
+- **Slice D3b — baseline authoring + embed + bootstrap-writes-DSL.** Split into D3b-1..4
+  (hermetic mechanics first, content last). **D3b-1 (bootstrap write-path) landed:**
+  `bootstrapper.Analyze`/`Plan`/`Apply` with hard wd-validation (must be a git repo),
+  surgical `[ops.vars]` merge on re-bootstrap, and a print-plan-then-confirm flow
+  (`--force` skips). **D3b-2** assembly layer · **D3b-3** `ops render` from infra repo ·
+  **D3b-4** baseline content + `settings.toml` fold-in. Original combined spec follows.
+  Author the embedded
   baseline (Flux seed + cert-manager + NGF + engine) as directive files plus a default
   `[ops.vars]`, with a per-component assembly layer that fills the `\(var)` map from
   `Ops.Vars` + gates directive lines on string-valued bools (`vars["nginx_experimental"] ==

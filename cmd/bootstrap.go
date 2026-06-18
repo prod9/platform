@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -12,14 +11,20 @@ import (
 	"platform.prodigy9.co/internal/plog"
 )
 
+var bootstrapForce bool
+
 var BootstrapCmd = &cobra.Command{
 	Use:   "bootstrap",
 	Short: "Bootstraps the project for building with the platform app",
 	Run:   runBootstrapCmd,
 }
 
+func init() {
+	BootstrapCmd.Flags().BoolVar(&bootstrapForce, "force", false,
+		"apply the bootstrap plan without confirming (CI / non-interactive)")
+}
+
 func runBootstrapCmd(cmd *cobra.Command, args []string) {
-	fmt.Println(args)
 	wd, err := os.Getwd()
 	if err != nil {
 		plog.Fatalln(err)
@@ -34,7 +39,21 @@ func runBootstrapCmd(cmd *cobra.Command, args []string) {
 		Repository:      sess.Str("github repository address (without https:// prefix)"),
 		ImagePrefix:     sess.Str("docker image prefix (e.g. ghcr.io/prod9/)"),
 	}
-	if err := bootstrapper.Bootstrap(wd, info); err != nil {
+
+	plan, err := bootstrapper.Analyze(wd, info, nil)
+	if err != nil {
 		plog.Fatalln(err)
+	}
+
+	plan.Print(os.Stdout)
+	if !bootstrapForce && !sess.YesNo("apply this plan?") {
+		return
+	}
+
+	if err := plan.Apply(); err != nil {
+		plog.Fatalln(err)
+	}
+	for _, f := range plan.Files {
+		plog.File(f.Action.String(), f.Path)
 	}
 }

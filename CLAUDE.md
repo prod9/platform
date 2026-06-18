@@ -74,7 +74,12 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
   - Registry creds via fx env config: `REGISTRY`, `REGISTRY_USERNAME`, `REGISTRY_PASSWORD`.
 - `bootstrapper/` — Embeds templates (`platform.template`,
   `buildkite.pipeline.yaml.template`); discovers builders, writes `platform.toml`,
-  executable `platform` script, and `.buildkite/pipeline.yaml`.
+  executable `platform` script, and `.buildkite/pipeline.yaml`. `Analyze` validates the
+  target wd (must exist, be a dir, live in a git repo — hard gate) and computes a `Plan`
+  (files to write/overwrite, baseline vars appended/preserved) without mutating; `Plan.Apply`
+  writes it. Re-bootstrap merges `[ops.vars]` surgically (`mergeOpsVars`: append new default
+  keys, preserve operator values + comments/order) rather than clobbering platform.toml. The
+  `bootstrap` cmd prints the plan and confirms (fx prompt); `--force` applies unprompted.
 - `releases/` — Release strategies: `semver`, `timestamp`, `datestamp`. `Generate`
   diffs commits since last tag, `Create` tags + pushes. `collection.go` recovers
   history from git tags.
