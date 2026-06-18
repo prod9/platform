@@ -4,7 +4,8 @@
 interpolation settled with chakrit. **Slices D1–D2 landed** (in-buffer verbs, lexer,
 path-walk, then `download`/`extract`/`emit` + interpolation) plus **D3a** (`Ops.Vars`
 config passthrough) and **D3b-1** (bootstrap write-path: wd-validation + `[ops.vars]`
-merge + plan/apply). D3b split into D3b-1..4; D3b-2 (assembly layer) next.
+merge + plan/apply) and **D3b-2** (assembly layer: whole-file selection in `core/baseline`).
+D3b split into D3b-1..4; D3b-3 (`ops render` from the infra repo) next.
 **Decided in:**
 [renderer ADR](../decisions/2026-06-16-renderer-cue-export-not-timoni.md),
 [appliance ADR](../decisions/2026-06-17-opinionated-appliance-embedded-init.md). Build
@@ -59,18 +60,30 @@ several components, each `emit` to its own filename. `download`/`extract` replac
 working buffer is fine — the prior component was already captured to its file by `emit`
 before the next `download` overwrites the work area.
 
-**Branch-free by design:** no conditionals, no loops. Config-gating (include this edit only
-when DaemonSet mode is on) happens at *assembly* time — the layer emitting the directive
-list decides which lines to include. `\(var)` interpolation supplies values; interpolation
-only, no expressions (see **Variable interpolation**).
+**Branch-free by design:** no conditionals, no loops. Config-gating (include this patch only
+in experimental mode) happens at *assembly* time, and at **whole-file** granularity — never
+per-line, so a directive file is always read straight through. The assembly layer
+(`core/baseline`) selects which files to apply from a filename convention, keyed off
+`[ops.vars]`:
+
+- `name.dsl` — always applied.
+- `name@variant.dsl` — one variant of choice group `name`; applied when `vars[name] ==
+  variant` (the lexically-first variant is the default when unset).
+- `name+flag.dsl` — an overlay; applied when `vars[flag] == "true"`.
+
+`bootstrap` discovers these options from the embedded baseline and prompts the operator,
+writing the chosen values into `[ops.vars]`; `--force` takes the defaults. `\(var)`
+interpolation supplies values *within* a selected file; interpolation only, no expressions
+(see **Variable interpolation**).
 
 **Where `\(var)` values come from
 ([generic-ops-vars ADR](../decisions/2026-06-17-generic-ops-vars-single-config.md)):**
 `platform.toml`'s `[ops.vars]` — a **generic open `map[string]string`**, stored verbatim by
 the config processor (no per-software fields). The DSL owns its own variable vocabulary;
 adding/removing a `\(var)` edits the directive file and `[ops.vars]`, never the Go DTO.
-Values are strings — bools too (`experimental = "true"`), which the per-component assembly
-layer interprets to gate which directive lines it emits. `[ops].image`/`tag` stay typed
+Values are strings — bools too (`experimental = "true"`), which the assembly layer
+interprets to gate which directive *files* it applies (see **Branch-free by design**).
+`[ops].image`/`tag` stay typed
 (publish target, not a DSL var). `settings.toml` is eliminated.
 
 **Defaults + re-bootstrap merge.** The embed ships the baseline's *default* `[ops.vars]`
@@ -282,8 +295,10 @@ The DSL lands across Phase A′ (see the
     operator values + comments/order, no decode/re-encode) instead of clobbering platform.toml.
     `bootstrap` prints the plan and confirms via fx prompt; `--force` applies unprompted. See
     **Defaults + re-bootstrap merge** and **Plan, then apply** above.
-  - **D3b-2 — assembly layer.** Fills the `\(var)` map from `Ops.Vars` and gates directive
-    lines on string-bools (`vars["nginx_experimental"] == "true"`).
+  - **D3b-2 — assembly layer.** ✅ **Landed** (`core/baseline`). Whole-file selection from a
+    filename convention (`name.dsl` / `name@variant.dsl` / `name+flag.dsl`) keyed off
+    `[ops.vars]`; `ScanOptions` surfaces the operator-selectable knobs, `Select` resolves the
+    file set (unknown choice value is a hard error). DSL stays branch-free.
   - **D3b-3 — `ops render` from the infra repo.** Render sources directives from the infra
     repo (never the embed, so edits need no recompile) → assembly → `dsl.Apply`.
   - **D3b-4 — baseline authoring + migration.** The embedded baseline (Flux/cert-manager/NGF/

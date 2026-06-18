@@ -98,6 +98,13 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
   (`download` via `Options.Fetch`, `extract` magic-byte gzip/zip/tar, `emit` truncate-write
   under `Options.OutDir`). Checksum guard deferred past D2. Spec:
   [`docs/spec/manifest-patch-dsl.md`](docs/spec/manifest-patch-dsl.md).
+- `core/baseline/` — the DSL assembly layer (Slice D3b-2): turns the embedded cluster
+  baseline's directive files into the set to apply, gated by `[ops.vars]` at **whole-file**
+  granularity (DSL stays branch-free). Filename convention: `name.dsl` always applies,
+  `name@variant.dsl` is one variant of choice group `name` (applied when `vars[name] ==
+  variant`), `name+flag.dsl` is an overlay (applied when `vars[flag] == "true"`).
+  `ScanOptions` surfaces operator-selectable knobs (for bootstrap prompts), `Select`
+  resolves the file set (unknown choice value = hard error).
 - `core/gitops/` — pull-based GitOps delivery (Slice 1). `Render` (`cue export -e objects`
   → multi-doc YAML), `Publish` (gzipped-tar layer + Flux media types, pushed via oras-go),
   `RemoteRepository` (`oci://` ref + `REGISTRY_USERNAME`/`REGISTRY_PASSWORD` auth). Wired
