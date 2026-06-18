@@ -33,7 +33,7 @@ func decodeDocs(t *testing.T, src string) []map[string]any {
 
 func mustApply(t *testing.T, directives string, docs []map[string]any) []map[string]any {
 	t.Helper()
-	out, err := Apply(directives, docs)
+	out, err := Apply(directives, Options{Docs: docs})
 	if err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
@@ -184,7 +184,7 @@ func TestApplyScalarTyping(t *testing.T) {
 }
 
 func TestApplyUnknownVerb(t *testing.T) {
-	if _, err := Apply("download http://x", decodeDocs(t, "kind: X\n")); err == nil {
-		t.Error("expected error for verb not available in D1")
+	if _, err := Apply("frobnicate .x", Options{Docs: decodeDocs(t, "kind: X\n")}); err == nil {
+		t.Error("expected error for unknown verb")
 	}
 }

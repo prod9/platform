@@ -7,14 +7,32 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Apply runs a directive file against a decoded multi-document buffer, mutating
-// the docs in place, and returns the resulting stream. Scope starts at the whole
-// stream; select narrows it, reset widens it back.
-//
-// D1 implements the in-buffer verbs only. The I/O verbs (download, extract, emit)
-// and \(var) interpolation arrive in D2; until then an unknown verb is an error.
-func Apply(directives string, docs []map[string]any) ([]map[string]any, error) {
-	e := &engine{buffer: docs}
+// Options carries the run context for a directive file: the initial decoded
+// buffer (download replaces it), the \(var) interpolation table, the output
+// directory emit writes under, and an optional fetcher for download (nil uses a
+// plain HTTP GET; tests inject fixtures).
+type Options struct {
+	Docs   []map[string]any
+	Vars   map[string]string
+	OutDir string
+	Fetch  func(url string) ([]byte, error)
+}
+
+// Apply runs a directive file against the buffer described by opts and returns
+// the resulting decoded stream. Scope starts at the whole stream; select
+// narrows it, reset widens it back. download/extract replace the buffer with raw
+// bytes, decoded lazily the next time an edit or emit needs documents.
+func Apply(directives string, opts Options) ([]map[string]any, error) {
+	e := &engine{
+		docs:    opts.Docs,
+		decoded: true,
+		vars:    opts.Vars,
+		outDir:  opts.OutDir,
+		fetch:   opts.Fetch,
+	}
+	if e.fetch == nil {
+		e.fetch = httpGet
+	}
 	e.resetScope()
 
 	for n, line := range strings.Split(directives, "\n") {
@@ -36,19 +54,35 @@ func Apply(directives string, docs []map[string]any) ([]map[string]any, error) {
 			return nil, fmt.Errorf("line %d: %w", n+1, err)
 		}
 	}
-	return e.buffer, nil
+
+	if err := e.ensureDecoded(); err != nil {
+		return nil, err
+	}
+	return e.docs, nil
 }
 
-// engine carries the directive interpreter's state: the document buffer and the
-// indices of the documents currently in scope.
+// engine carries the directive interpreter's state. The buffer is two-state:
+// raw holds undecoded bytes after download/extract; docs holds the decoded
+// stream once an edit or emit forces a decode. decoded says which is live.
 type engine struct {
-	buffer []map[string]any
-	scope  []int
+	raw     []byte
+	docs    []map[string]any
+	decoded bool
+	scope   []int
+
 	vars   map[string]string
+	outDir string
+	fetch  func(url string) ([]byte, error)
 }
 
 func (e *engine) exec(verb string, args []string) error {
 	switch verb {
+	case "download":
+		return e.execDownload(args)
+	case "extract":
+		return e.execExtract(args)
+	case "emit":
+		return e.execEmit(args)
 	case "select":
 		return e.execSelect(args)
 	case "reset":
@@ -83,10 +117,59 @@ func (e *engine) exec(verb string, args []string) error {
 	}
 }
 
+// download URL — fetch into the buffer, replacing it with raw bytes.
+func (e *engine) execDownload(args []string) error {
+	if len(args) != 1 {
+		return fmt.Errorf("download: want URL, got %d args", len(args))
+	}
+	data, err := e.fetch(args[0])
+	if err != nil {
+		return fmt.Errorf("download %s: %w", args[0], err)
+	}
+	e.setRaw(data)
+	return nil
+}
+
+// extract [PATH] — decompress/unarchive the raw buffer in place. PATH selects an
+// archive member; omit it for a bare compressed stream.
+func (e *engine) execExtract(args []string) error {
+	if len(args) > 1 {
+		return fmt.Errorf("extract: want [PATH], got %d args", len(args))
+	}
+	if e.decoded {
+		return fmt.Errorf("extract: nothing to extract (no prior download)")
+	}
+
+	member := ""
+	if len(args) == 1 {
+		member = args[0]
+	}
+	data, err := extract(e.raw, member)
+	if err != nil {
+		return err
+	}
+	e.setRaw(data)
+	return nil
+}
+
+// emit FILENAME — write the working buffer to a runner-relative file.
+func (e *engine) execEmit(args []string) error {
+	if len(args) != 1 {
+		return fmt.Errorf("emit: want FILENAME, got %d args", len(args))
+	}
+	if err := e.ensureDecoded(); err != nil {
+		return err
+	}
+	return emit(e.outDir, args[0], e.docs)
+}
+
 // select PATH VALUE — narrow scope to in-scope docs whose PATH equals VALUE.
 func (e *engine) execSelect(args []string) error {
 	if len(args) != 2 {
 		return fmt.Errorf("select: want PATH VALUE, got %d args", len(args))
+	}
+	if err := e.ensureDecoded(); err != nil {
+		return err
 	}
 	path, err := ParsePath(args[0])
 	if err != nil {
@@ -96,7 +179,7 @@ func (e *engine) execSelect(args []string) error {
 	value := args[1]
 	var kept []int
 	for _, idx := range e.scope {
-		if got, ok := Get(e.buffer[idx], path); ok && fmt.Sprint(got) == value {
+		if got, ok := Get(e.docs[idx], path); ok && fmt.Sprint(got) == value {
 			kept = append(kept, idx)
 		}
 	}
@@ -108,6 +191,9 @@ func (e *engine) execReset(args []string) error {
 	if len(args) != 0 {
 		return fmt.Errorf("reset: takes no args, got %d", len(args))
 	}
+	if err := e.ensureDecoded(); err != nil {
+		return err
+	}
 	e.resetScope()
 	return nil
 }
@@ -118,19 +204,22 @@ func (e *engine) execRemoveDoc(args []string) error {
 	if len(args) != 0 {
 		return fmt.Errorf("remove-doc: takes no args, got %d", len(args))
 	}
+	if err := e.ensureDecoded(); err != nil {
+		return err
+	}
 
 	dropped := make(map[int]bool, len(e.scope))
 	for _, idx := range e.scope {
 		dropped[idx] = true
 	}
 
-	kept := make([]map[string]any, 0, len(e.buffer))
-	for i, doc := range e.buffer {
+	kept := make([]map[string]any, 0, len(e.docs))
+	for i, doc := range e.docs {
 		if !dropped[i] {
 			kept = append(kept, doc)
 		}
 	}
-	e.buffer = kept
+	e.docs = kept
 	e.resetScope()
 	return nil
 }
@@ -141,22 +230,47 @@ func (e *engine) execEdit(args []string, want int, fn func(map[string]any, Path)
 	if len(args) != want {
 		return fmt.Errorf("want %d args, got %d", want, len(args))
 	}
+	if err := e.ensureDecoded(); err != nil {
+		return err
+	}
 	path, err := ParsePath(args[0])
 	if err != nil {
 		return err
 	}
 
 	for _, idx := range e.scope {
-		if err := fn(e.buffer[idx], path); err != nil {
+		if err := fn(e.docs[idx], path); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
+// setRaw parks raw bytes in the buffer, marking the decoded view stale.
+func (e *engine) setRaw(data []byte) {
+	e.raw = data
+	e.decoded = false
+}
+
+// ensureDecoded materializes the decoded document stream from raw bytes the
+// first time an edit or emit needs it, resetting scope to the fresh stream.
+func (e *engine) ensureDecoded() error {
+	if e.decoded {
+		return nil
+	}
+	docs, err := decodeStream(e.raw)
+	if err != nil {
+		return err
+	}
+	e.docs = docs
+	e.decoded = true
+	e.resetScope()
+	return nil
+}
+
 func (e *engine) resetScope() {
-	e.scope = make([]int, len(e.buffer))
-	for i := range e.buffer {
+	e.scope = make([]int, len(e.docs))
+	for i := range e.docs {
 		e.scope[i] = i
 	}
 }
