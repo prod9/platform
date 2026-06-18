@@ -122,7 +122,7 @@ emit "nested/out.yaml"
 `
 	var gotURL string
 	opts := Options{
-		Vars:   map[string]string{"version": "v1.2.3"},
+		Vars:   Vars{"version": "v1.2.3"},
 		OutDir: tmp,
 		Fetch: func(url string) ([]byte, error) {
 			gotURL = url

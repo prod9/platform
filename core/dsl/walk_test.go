@@ -5,14 +5,14 @@ import (
 	"testing"
 )
 
-func sampleDoc() map[string]any {
-	return map[string]any{
+func sampleDoc() Doc {
+	return Doc{
 		"kind": "Deployment",
-		"spec": map[string]any{
+		"spec": Doc{
 			"replicas": 3,
 			"containers": []any{
-				map[string]any{"name": "ctl", "args": []any{"--a"}},
-				map[string]any{"name": "side"},
+				Doc{"name": "ctl", "args": []any{"--a"}},
+				Doc{"name": "side"},
 			},
 		},
 	}

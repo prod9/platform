@@ -82,7 +82,7 @@ func scanString(line string, start int) (raw string, next int, err error) {
 // resolve turns a lexed token into its final string value. Bare tokens pass
 // through verbatim, save for the forgotten-quote guard. Quoted tokens get escape
 // and \(var) resolution.
-func resolve(tok Token, vars map[string]string) (string, error) {
+func resolve(tok Token, vars Vars) (string, error) {
 	if !tok.Quoted {
 		if strings.Contains(tok.Value, `\(`) {
 			return "", fmt.Errorf("bare token %q contains \\( — quote it to interpolate", tok.Value)
@@ -96,7 +96,7 @@ func resolve(tok Token, vars map[string]string) (string, error) {
 // so \\( is consumed as an escaped backslash before its '(' can read as an
 // interpolation. \(name) expands to vars[name]; an undefined name is a hard
 // error, never a silent blank.
-func interpolate(s string, vars map[string]string) (string, error) {
+func interpolate(s string, vars Vars) (string, error) {
 	var b strings.Builder
 
 	for i := 0; i < len(s); i++ {

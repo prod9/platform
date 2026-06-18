@@ -10,13 +10,13 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func decodeDocs(t *testing.T, src string) []map[string]any {
+func decodeDocs(t *testing.T, src string) []Doc {
 	t.Helper()
 	dec := yaml.NewDecoder(strings.NewReader(src))
 
-	var docs []map[string]any
+	var docs []Doc
 	for {
-		var d map[string]any
+		var d Doc
 		err := dec.Decode(&d)
 		if errors.Is(err, io.EOF) {
 			break
@@ -31,7 +31,7 @@ func decodeDocs(t *testing.T, src string) []map[string]any {
 	return docs
 }
 
-func mustApply(t *testing.T, directives string, docs []map[string]any) []map[string]any {
+func mustApply(t *testing.T, directives string, docs []Doc) []Doc {
 	t.Helper()
 	out, err := Apply(directives, Options{Docs: docs})
 	if err != nil {

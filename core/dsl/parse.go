@@ -12,8 +12,8 @@ import (
 // directory emit writes under, and an optional fetcher for download (nil uses a
 // plain HTTP GET; tests inject fixtures).
 type Options struct {
-	Docs   []map[string]any
-	Vars   map[string]string
+	Docs   []Doc
+	Vars   Vars
 	OutDir string
 	Fetch  func(url string) ([]byte, error)
 }
@@ -22,7 +22,7 @@ type Options struct {
 // the resulting decoded stream. Scope starts at the whole stream; select
 // narrows it, reset widens it back. download/extract replace the buffer with raw
 // bytes, decoded lazily the next time an edit or emit needs documents.
-func Apply(directives string, opts Options) ([]map[string]any, error) {
+func Apply(directives string, opts Options) ([]Doc, error) {
 	e := &engine{
 		docs:    opts.Docs,
 		decoded: true,
@@ -66,11 +66,11 @@ func Apply(directives string, opts Options) ([]map[string]any, error) {
 // stream once an edit or emit forces a decode. decoded says which is live.
 type engine struct {
 	raw     []byte
-	docs    []map[string]any
+	docs    []Doc
 	decoded bool
 	scope   []int
 
-	vars   map[string]string
+	vars   Vars
 	outDir string
 	fetch  func(url string) ([]byte, error)
 }
@@ -88,26 +88,26 @@ func (e *engine) exec(verb string, args []string) error {
 	case "reset":
 		return e.execReset(args)
 	case "set":
-		return e.execEdit(args, 2, func(doc map[string]any, p Path) error {
+		return e.execEdit(args, 2, func(doc Doc, p Path) error {
 			return Set(doc, p, scalar(args[1]))
 		})
 	case "set-if-absent":
-		return e.execEdit(args, 2, func(doc map[string]any, p Path) error {
+		return e.execEdit(args, 2, func(doc Doc, p Path) error {
 			if _, ok := Get(doc, p); ok {
 				return nil
 			}
 			return Set(doc, p, scalar(args[1]))
 		})
 	case "append":
-		return e.execEdit(args, 2, func(doc map[string]any, p Path) error {
+		return e.execEdit(args, 2, func(doc Doc, p Path) error {
 			return Append(doc, p, scalar(args[1]), false)
 		})
 	case "append-if-absent":
-		return e.execEdit(args, 2, func(doc map[string]any, p Path) error {
+		return e.execEdit(args, 2, func(doc Doc, p Path) error {
 			return Append(doc, p, scalar(args[1]), true)
 		})
 	case "remove":
-		return e.execEdit(args, 1, func(doc map[string]any, p Path) error {
+		return e.execEdit(args, 1, func(doc Doc, p Path) error {
 			return Remove(doc, p)
 		})
 	case "remove-doc":
@@ -213,7 +213,7 @@ func (e *engine) execRemoveDoc(args []string) error {
 		dropped[idx] = true
 	}
 
-	kept := make([]map[string]any, 0, len(e.docs))
+	kept := make([]Doc, 0, len(e.docs))
 	for i, doc := range e.docs {
 		if !dropped[i] {
 			kept = append(kept, doc)
@@ -226,7 +226,7 @@ func (e *engine) execRemoveDoc(args []string) error {
 
 // execEdit applies fn to every in-scope doc, after validating arg count and
 // parsing args[0] as the target path.
-func (e *engine) execEdit(args []string, want int, fn func(map[string]any, Path) error) error {
+func (e *engine) execEdit(args []string, want int, fn func(Doc, Path) error) error {
 	if len(args) != want {
 		return fmt.Errorf("want %d args, got %d", want, len(args))
 	}

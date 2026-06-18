@@ -117,7 +117,7 @@ func zipMember(b []byte, member string) ([]byte, error) {
 // emit writes the working buffer to name under outDir, replacing any existing
 // file (truncate, never append). name is relative and may not escape outDir;
 // intermediate directories are created.
-func emit(outDir, name string, docs []map[string]any) error {
+func emit(outDir, name string, docs []Doc) error {
 	if err := checkRelPath(name); err != nil {
 		return err
 	}
@@ -152,12 +152,12 @@ func checkRelPath(name string) error {
 
 // decodeStream splits a multi-document YAML buffer into one map per document,
 // skipping empty documents (a bare `---` or trailing separator).
-func decodeStream(buf []byte) ([]map[string]any, error) {
+func decodeStream(buf []byte) ([]Doc, error) {
 	dec := yaml.NewDecoder(bytes.NewReader(buf))
 
-	var docs []map[string]any
+	var docs []Doc
 	for {
-		var d map[string]any
+		var d Doc
 		err := dec.Decode(&d)
 		if errors.Is(err, io.EOF) {
 			break
@@ -174,7 +174,7 @@ func decodeStream(buf []byte) ([]map[string]any, error) {
 
 // encodeStream renders docs as a multi-document YAML stream, the inverse of
 // decodeStream.
-func encodeStream(docs []map[string]any) ([]byte, error) {
+func encodeStream(docs []Doc) ([]byte, error) {
 	var buf bytes.Buffer
 	enc := yaml.NewEncoder(&buf)
 	enc.SetIndent(2)

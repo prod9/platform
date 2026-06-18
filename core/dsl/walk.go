@@ -5,9 +5,17 @@ import (
 	"slices"
 )
 
+// Doc is one decoded YAML document — and, recursively, any mapping node within
+// it. A directive file edits a stream of these ([]Doc).
+type Doc = map[string]any
+
+// Vars is the \(var) interpolation table, sourced from platform.toml's
+// [ops.vars]. Values are strings; the assembly layer interprets bools.
+type Vars = map[string]string
+
 // Get walks path from doc and returns the value it names, or ok=false if any
-// step is missing. Lists decode as []any, maps as map[string]any.
-func Get(doc map[string]any, path Path) (any, bool) {
+// step is missing. Lists decode as []any, maps as Doc.
+func Get(doc Doc, path Path) (any, bool) {
 	var node any = doc
 	for _, s := range path {
 		next, ok := stepInto(node, s)
@@ -22,7 +30,7 @@ func Get(doc map[string]any, path Path) (any, bool) {
 // Set assigns value at path, creating missing intermediate maps along the way.
 // It cannot fabricate list elements: a missing Index/Select intermediate is an
 // error, since there is nothing to address.
-func Set(doc map[string]any, path Path, value any) error {
+func Set(doc Doc, path Path, value any) error {
 	parent, last, err := walkToParent(doc, path, true)
 	if err != nil {
 		return err
@@ -32,7 +40,7 @@ func Set(doc map[string]any, path Path, value any) error {
 
 // Remove deletes the field or list element at path. Removing a list element
 // shortens the slice and writes the shortened list back to its container.
-func Remove(doc map[string]any, path Path) error {
+func Remove(doc Doc, path Path) error {
 	last := path[len(path)-1]
 	prefix := path[:len(path)-1]
 
@@ -47,7 +55,7 @@ func Remove(doc map[string]any, path Path) error {
 
 	switch s := last.(type) {
 	case Key:
-		m, ok := container.(map[string]any)
+		m, ok := container.(Doc)
 		if !ok {
 			return fmt.Errorf("remove: cannot delete key %q from non-map", s.Name)
 		}
@@ -71,7 +79,7 @@ func Remove(doc map[string]any, path Path) error {
 
 // Append adds value to the list at path, creating an empty list if path is
 // absent. unique=true skips the append when value is already present.
-func Append(doc map[string]any, path Path, value any, unique bool) error {
+func Append(doc Doc, path Path, value any, unique bool) error {
 	existing, _ := Get(doc, path)
 	list, _ := existing.([]any)
 
@@ -85,7 +93,7 @@ func Append(doc map[string]any, path Path, value any, unique bool) error {
 func stepInto(node any, s Step) (any, bool) {
 	switch s := s.(type) {
 	case Key:
-		m, ok := node.(map[string]any)
+		m, ok := node.(Doc)
 		if !ok {
 			return nil, false
 		}
@@ -108,7 +116,7 @@ func stepInto(node any, s Step) (any, bool) {
 
 // walkToParent returns the container holding path's final step, plus that step.
 // With create set, missing intermediate map keys are created en route.
-func walkToParent(doc map[string]any, path Path, create bool) (parent any, last Step, err error) {
+func walkToParent(doc Doc, path Path, create bool) (parent any, last Step, err error) {
 	var node any = doc
 	for _, s := range path[:len(path)-1] {
 		next, ok := stepInto(node, s)
@@ -121,11 +129,11 @@ func walkToParent(doc map[string]any, path Path, create bool) (parent any, last 
 		if !create || !isKey {
 			return nil, nil, fmt.Errorf("path step not found: %v", s)
 		}
-		m, ok := node.(map[string]any)
+		m, ok := node.(Doc)
 		if !ok {
 			return nil, nil, fmt.Errorf("cannot create %q under non-map", key.Name)
 		}
-		child := map[string]any{}
+		child := Doc{}
 		m[key.Name] = child
 		node = child
 	}
@@ -136,7 +144,7 @@ func walkToParent(doc map[string]any, path Path, create bool) (parent any, last 
 func assign(parent any, last Step, value any) error {
 	switch s := last.(type) {
 	case Key:
-		m, ok := parent.(map[string]any)
+		m, ok := parent.(Doc)
 		if !ok {
 			return fmt.Errorf("cannot set key %q on non-map", s.Name)
 		}
@@ -170,7 +178,7 @@ func stepIndex(list []any, s Step) int {
 
 	case Select:
 		for i, elem := range list {
-			m, ok := elem.(map[string]any)
+			m, ok := elem.(Doc)
 			if !ok {
 				continue
 			}

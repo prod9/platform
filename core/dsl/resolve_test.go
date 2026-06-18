@@ -3,7 +3,7 @@ package dsl
 import "testing"
 
 func TestResolve(t *testing.T) {
-	vars := map[string]string{"y": "z", "prefix": "cm", "version": "v1.2.3"}
+	vars := Vars{"y": "z", "prefix": "cm", "version": "v1.2.3"}
 
 	cases := []struct {
 		name string
@@ -35,7 +35,7 @@ func TestResolve(t *testing.T) {
 }
 
 func TestResolveErrors(t *testing.T) {
-	vars := map[string]string{"y": "z"}
+	vars := Vars{"y": "z"}
 
 	cases := []struct {
 		name string
