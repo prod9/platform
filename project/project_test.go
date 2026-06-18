@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/BurntSushi/toml"
 	r "github.com/stretchr/testify/require"
 	"platform.prodigy9.co/internal/timeouts"
 )
@@ -50,6 +51,30 @@ func TestProject_opsTarget(t *testing.T) {
 	proj.inferValues()
 	_, err = proj.Ops.Ref("")
 	r.ErrorIs(t, err, ErrNoOpsImage)
+}
+
+func TestProject_opsVars(t *testing.T) {
+	// [ops.vars] is the verbatim DSL \(var) table — a pure passthrough map.
+	// Bools and numbers are strings (TOML has no untyped scalar the DSL wants),
+	// and the processor stores them as-is, no per-software fields.
+	const config = `
+repository = "github.com/prod9/platform"
+
+[ops.vars]
+cert_manager_version = "v1.16.0"
+nginx_experimental   = "true"
+`
+	proj := &Project{}
+	_, err := toml.Decode(config, proj)
+	r.NoError(t, err)
+	r.Equal(t, "v1.16.0", proj.Ops.Vars["cert_manager_version"])
+	r.Equal(t, "true", proj.Ops.Vars["nginx_experimental"])
+
+	// No [ops.vars] → nil map, not an empty allocation: true passthrough.
+	proj = &Project{}
+	_, err = toml.Decode(`repository = "github.com/prod9/platform"`, proj)
+	r.NoError(t, err)
+	r.Nil(t, proj.Ops.Vars)
 }
 
 func testProject(modCount int) *Project {

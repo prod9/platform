@@ -33,11 +33,15 @@ type (
 	}
 
 	// Ops configures `ops publish` — where rendered infra manifests land as the
-	// OCI config artifact. Both fields fall back to convention: Image is inferred
-	// from Repository (github.com/x → ghcr.io/x), Tag defaults to "latest".
+	// OCI config artifact. Image/Tag fall back to convention: Image is inferred
+	// from Repository (github.com/x → ghcr.io/x), Tag defaults to "latest". Vars
+	// is the verbatim DSL \(var) table from [ops.vars] — a generic open map stored
+	// as-is (bools/numbers are strings); the per-component assembly layer, not the
+	// processor, interprets them.
 	Ops struct {
-		Image string `toml:"image,omitempty"`
-		Tag   string `toml:"tag,omitempty"`
+		Image string            `toml:"image,omitempty"`
+		Tag   string            `toml:"tag,omitempty"`
+		Vars  map[string]string `toml:"vars,omitempty"`
 	}
 
 	Module struct {

@@ -2,8 +2,9 @@
 
 **Status:** confirmed (2026-06-16) · **Slice 1 landed** (render `615caa4`, publish
 `c9ffc0c`) · **Slices D1–D2 (DSL core + I/O verbs) landed** in `core/dsl` (D2: interp
-`fc835b8`, I/O verbs `f4edb4e`); D3 (init DSL package) next, then Slice 2 (reconcile +
-cutover) · supersedes the ad-hoc ordering in `PLANS.md`. **Reads against:** `docs/spec/platform.md`, `config-allocation.md`,
+`fc835b8`, I/O verbs `f4edb4e`) · **D3a (`Ops.Vars` config passthrough) landed**; D3b
+(baseline + embed + bootstrap) next, then Slice 2 (reconcile + cutover) · supersedes the
+ad-hoc ordering in `PLANS.md`. **Reads against:** `docs/spec/platform.md`, `config-allocation.md`,
 `gitops-build-plan.md`, and `docs/decisions/*`.
 
 ## Framing
@@ -88,17 +89,21 @@ first consumer; bootstrap writes it into the infra repo. Port source:
   `\\(`-escape vs `\\`-unescape ordering **resolved** by deferring all escape + interp
   resolution out of the lexer into a single left-to-right `resolve` pass, so `\\(` is
   consumed before its `(` can start an interpolation.
-- **Slice D3 — init DSL package + bootstrap-writes-DSL.** Add `Ops.Vars map[string]string`
-  (generic, no per-software fields); the per-component assembly layer reads it → fills the
-  `\(var)` map + gates directive lines on string-valued bools (`vars["nginx_experimental"]
-  == "true"`). Author the embedded baseline (Flux seed + cert-manager + NGF + engine) as
-  directive files; `go:embed` them; bootstrap writes them into the infra repo
-  (write-once-then-owned, like `bootstrapper/`). Baseline bits we author (namespaces,
-  RBAC, Gateway, platform Deployment) stay CUE; foreign ones are DSL. **Migration:** fold
-  the
-  infra repo's `settings.toml` into `platform.toml` (versions/flags → `[ops.vars]`;
-  `maintainers`/`repo.url` → existing `maintainer`/`repository`) and delete it. Dogfood:
-  reproduce `infra`'s `k8s/{cert-manager,nginx-gateway}` via directives.
+- **Slice D3a — `Ops.Vars` config passthrough. ✅ Landed.** Added `Ops.Vars
+  map[string]string` (`[ops.vars]`, generic, no per-software fields), stored verbatim by
+  the processor — no defaults, no inference. The DSL already consumes it via `Options.Vars`;
+  the per-component assembly layer (gating on string-bools) is per-component Go and lands
+  with the baseline in D3b, not here.
+- **Slice D3b — baseline authoring + embed + bootstrap-writes-DSL.** Author the embedded
+  baseline (Flux seed + cert-manager + NGF + engine) as directive files, with a
+  per-component assembly layer that fills the `\(var)` map from `Ops.Vars` + gates directive
+  lines on string-valued bools (`vars["nginx_experimental"] == "true"`); `go:embed` them;
+  bootstrap writes them into the infra repo (write-once-then-owned, like `bootstrapper/`).
+  Baseline bits we author (namespaces, RBAC, Gateway, platform Deployment) stay CUE; foreign
+  ones are DSL. **Migration:** fold the infra repo's `settings.toml` into `platform.toml`
+  (versions/flags → `[ops.vars]`; `maintainers`/`repo.url` → existing
+  `maintainer`/`repository`) and delete it. Dogfood: reproduce `infra`'s
+  `k8s/{cert-manager,nginx-gateway}` via directives.
 
 ### Phase B — control plane (the RBAC justification)
 

@@ -56,7 +56,9 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
   environments, excludes, modules, `[ops]`) and `Module` (workdir, builder, env, port,
   cmd, args, asset_dirs, build_dir, image, package). `[ops]` (`Ops.Image`/`Tag`) is the
   `ops publish` target — inferred from `repository` (`ghcr.io/x`) with `tag` defaulting to
-  `latest`; `Ops.Ref(tag)` resolves the ref. `Configure(wd)` walks up to find file,
+  `latest`; `Ops.Ref(tag)` resolves the ref. `Ops.Vars` (`[ops.vars]`) is the verbatim DSL
+  `\(var)` table — a generic `map[string]string`, pure passthrough (no defaults/inference).
+  `Configure(wd)` walks up to find file,
   applies defaults, env overrides (`PLATFORM`), and inferred values (e.g. `ghcr.io` image
   name from `github.com` repository).
 - `builder/` — Dagger-based build pipeline.

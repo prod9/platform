@@ -2,7 +2,8 @@
 
 **Status:** accepted (rev. 2026-06-17) — verb set, grammar, lexer, and `\(var)`
 interpolation settled with chakrit. **Slices D1–D2 landed** (in-buffer verbs, lexer,
-path-walk, then `download`/`extract`/`emit` + interpolation); D3 (init DSL package) next.
+path-walk, then `download`/`extract`/`emit` + interpolation) plus **D3a** (`Ops.Vars`
+config passthrough); D3b (baseline + embed + bootstrap) next.
 **Decided in:**
 [renderer ADR](../decisions/2026-06-16-renderer-cue-export-not-timoni.md),
 [appliance ADR](../decisions/2026-06-17-opinionated-appliance-embedded-init.md). Build
@@ -251,5 +252,9 @@ The DSL lands across Phase A′ (see the
   left-to-right pass so `\\(` stays literal). Network verbs fixtured for tests, real fetch
   at runtime. Checksum guard deferred. How the emitted files reach a registry/cluster is a
   separate pipeline (`ops render`/`publish`), not part of the DSL.
-- **D3 — init DSL package + bootstrap-writes-DSL.** The embedded baseline authored as
-  directive files, `go:embed`'d, written into the infra repo by bootstrap.
+- **D3a — `Ops.Vars` config passthrough.** ✅ **Landed.** `project.Ops` gained `Vars
+  map[string]string` (`[ops.vars]`), stored verbatim — no defaults, no per-software fields.
+  The source for `\(var)` values; the DSL already consumes it via `Options.Vars`.
+- **D3b — baseline authoring + bootstrap-writes-DSL.** The embedded baseline authored as
+  directive files, `go:embed`'d, written into the infra repo by bootstrap; the per-component
+  assembly layer fills the var map from `Ops.Vars` and gates lines on string-bools.
