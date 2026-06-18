@@ -5,7 +5,7 @@
 `fc835b8`, I/O verbs `f4edb4e`) · **D3a (`Ops.Vars` config passthrough) landed** ·
 **D3b-1 (bootstrap write-path) + D3b-2 (assembly layer, `core/baseline`) landed**. D3b-3
 split into **3a (CUE file-map render+publish rework) — landed**, **3b (extension router +
-`.platform` path) next**, prompts folded into D3b-4. Then D3b-4 and Slice 2 (reconcile
+`.platform` route) — landed**, prompts folded into D3b-4. Then D3b-4 and Slice 2 (reconcile
 + cutover) · supersedes the
 ad-hoc ordering in `PLANS.md`. **Reads against:** `docs/spec/platform.md`, `config-allocation.md`,
 `gitops-build-plan.md`, and `docs/decisions/*`.
@@ -116,8 +116,14 @@ first consumer; bootstrap writes it into the infra repo. Port source:
   app/component, its keys = filenames → doc-or-list) into a `Tree` (`<component>/<filename>` →
   multi-doc bytes); `Tree.WriteDir` + `Publish(tree)` (tarball walks the tree, drops the single
   `manifests.yaml`); `ops render` gains `--out` (default `k8s`); testbed `infra-basic` migrated to
-  the `apps/` package, render output gitignored. **3b** adds the `.platform` route. **Prompts**
-  fold into D3b-4 (no baseline option files exist until then). See the
+  the `apps/` package, render output gitignored. **3b** added the `.platform` route:
+  `Render(srcDir, RenderOptions{Image, Vars, Fetch})` fuses both routes into one `Tree` —
+  the apps CUE export plus the `baseline/` directive set (`baseline.Select` over `[ops.vars]` →
+  `dsl.Apply` into a per-component temp dir, read back as `<component>/<emitted>`). `baseline.Component`
+  owns the directive→`k8s/<component>` mapping (stem before `@`/`+`); either route skips when its
+  package dir is absent; `ops render`/`publish` pass `cfg.Ops.Vars`. The `Fetch` seam keeps the
+  route hermetically testable. **Prompts** fold into D3b-4 (no baseline option files exist until
+  then). See the
   [render-routing ADR](../decisions/2026-06-18-render-routes-cue-and-platform-by-extension.md);
   supersedes the interim model-II "separate run-DSL command" framing. **D3b-4** baseline
   `.platform` content + `settings.toml` fold-in.

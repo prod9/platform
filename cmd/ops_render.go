@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 	"platform.prodigy9.co/core/gitops"
 	"platform.prodigy9.co/internal/plog"
+	"platform.prodigy9.co/project"
 )
 
 var (
@@ -34,7 +35,15 @@ func runRender(cmd *cobra.Command, args []string) {
 		dir = args[0]
 	}
 
-	tree, err := gitops.Render(dir, renderImage)
+	cfg, err := project.Configure(dir)
+	if err != nil {
+		plog.Fatalln(err)
+	}
+
+	tree, err := gitops.Render(dir, gitops.RenderOptions{
+		Image: renderImage,
+		Vars:  cfg.Ops.Vars,
+	})
 	if err != nil {
 		plog.Fatalln(err)
 	}

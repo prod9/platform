@@ -125,6 +125,20 @@ func resolveChoices(files []string, vars map[string]string) (map[string]string, 
 	return chosen, nil
 }
 
+// Component is the output directory a directive file renders into: the filename
+// stem before any @variant or +flag marker, so every variant and overlay of one
+// component co-locates under k8s/<component>/.
+func Component(file string) string {
+	stem := strings.TrimSuffix(file, platformExt)
+	if base, _, ok := strings.Cut(stem, "@"); ok {
+		return base
+	}
+	if base, _, ok := strings.Cut(stem, "+"); ok {
+		return base
+	}
+	return stem
+}
+
 type entryKind int
 
 const (

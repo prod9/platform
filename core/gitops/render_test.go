@@ -60,7 +60,7 @@ func TestRenderFileMap(t *testing.T) {
 	dir := t.TempDir()
 	writeModule(t, dir, sampleApps)
 
-	tree, err := gitops.Render(dir, "demo:v1")
+	tree, err := gitops.Render(dir, gitops.RenderOptions{Image: "demo:v1"})
 	if err != nil {
 		t.Fatalf("Render: %v", err)
 	}
@@ -93,7 +93,7 @@ func TestTreeWriteDir(t *testing.T) {
 	src := t.TempDir()
 	writeModule(t, src, sampleApps)
 
-	tree, err := gitops.Render(src, "demo:v1")
+	tree, err := gitops.Render(src, gitops.RenderOptions{Image: "demo:v1"})
 	if err != nil {
 		t.Fatalf("Render: %v", err)
 	}

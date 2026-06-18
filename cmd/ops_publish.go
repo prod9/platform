@@ -44,7 +44,10 @@ func runOpsPublish(cmd *cobra.Command, args []string) {
 		plog.Fatalln(err)
 	}
 
-	tree, err := gitops.Render(dir, opsPublishImage)
+	tree, err := gitops.Render(dir, gitops.RenderOptions{
+		Image: opsPublishImage,
+		Vars:  cfg.Ops.Vars,
+	})
 	if err != nil {
 		plog.Fatalln(err)
 	}

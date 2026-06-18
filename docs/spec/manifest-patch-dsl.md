@@ -302,7 +302,7 @@ The DSL lands across Phase A′ (see the
     `[ops.vars]`; `ScanOptions` surfaces the operator-selectable knobs, `Select` resolves the
     file set (unknown choice value is a hard error). DSL stays branch-free.
   - **D3b-3 — `ops render` routes by extension + bootstrap option prompts.** Split in three:
-    **3a (CUE file-map render+publish rework) landed**, **3b (`.platform` route) next**, prompts
+    **3a (CUE file-map render+publish rework) landed**, **3b (`.platform` route) landed**, prompts
     → D3b-4. `ops render` walks the infra repo and dispatches per input type: `.cue` → file-map `cue export`,
     `.platform` → `baseline.Select` over `[ops.vars]` → `dsl.Apply` (download → patch →
     `emit`). Both write named files into a `k8s/<component>/` render-output tree (`core/baseline`
