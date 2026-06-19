@@ -79,41 +79,38 @@ func scanString(line string, start int) (raw string, next int, err error) {
 	return "", 0, fmt.Errorf("unterminated string: %q", line[start:])
 }
 
-// resolve turns a lexed token into its value. \(var) interpolation lives only
-// inside double-quoted strings (a bare \( is a forgotten-quote error). A quoted
-// token that is exactly one \(name) reference resolves to that var's native type
-// (string/int/bool), so a typed [ops.vars] value reaches set unchanged; any
-// quoted token with surrounding text interpolates to a string. A plain bare
-// token is its literal text.
-func resolve(tok Token, vars Vars) (any, error) {
+// resolveString resolves a structural token (verb, path, URL, filename) to text.
+// A bare token is its literal text; a quoted token has its escapes and \(var)
+// references interpolated. \(var) lives only inside quotes — a bare \( is a
+// forgotten-quote error.
+func resolveString(tok Token, vars Vars) (string, error) {
 	if !tok.Quoted {
 		if strings.Contains(tok.Value, `\(`) {
-			return nil, fmt.Errorf("bare token %q contains \\( — quote it to interpolate", tok.Value)
+			return "", fmt.Errorf("bare token %q contains \\( — quote it to interpolate", tok.Value)
 		}
 		return tok.Value, nil
-	}
-
-	if name, ok := soleVarRef(tok.Value); ok {
-		val, set := vars[name]
-		if !set {
-			return nil, fmt.Errorf("undefined var \\(%s)", name)
-		}
-		return val, nil
 	}
 	return interpolate(tok.Value, vars)
 }
 
-// soleVarRef reports whether v is exactly one \(name) reference (no surrounding
-// text, no nesting), returning the bare name.
-func soleVarRef(v string) (string, bool) {
-	if len(v) < 4 || !strings.HasPrefix(v, `\(`) || !strings.HasSuffix(v, ")") {
-		return "", false
+// resolveValue resolves a value token (the right-hand side of set/append/select).
+// A bare token is a variable reference, yielding the var's native type
+// (string/int/bool) — it must be declared, else it is an error (no silent
+// literal fallback). A quoted token is a string (escapes + \(var) interpolated),
+// the only way to write a string-literal value.
+func resolveValue(tok Token, vars Vars) (any, error) {
+	if tok.Quoted {
+		return interpolate(tok.Value, vars)
 	}
-	name := v[2 : len(v)-1]
-	if name == "" || strings.ContainsAny(name, `()\`) {
-		return "", false
+	if strings.Contains(tok.Value, `\(`) {
+		return nil, fmt.Errorf("bare token %q contains \\( — quote it to interpolate", tok.Value)
 	}
-	return name, true
+
+	val, ok := vars[tok.Value]
+	if !ok {
+		return nil, fmt.Errorf("undefined var %q (a bare value is a variable reference; quote a string literal as %q)", tok.Value, tok.Value)
+	}
+	return val, nil
 }
 
 // interpolate resolves escapes and \(var) references in one left-to-right pass,

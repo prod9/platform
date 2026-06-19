@@ -42,17 +42,11 @@ func Apply(directives string, opts Options) ([]Doc, error) {
 			continue
 		}
 
-		args := make([]any, len(tokens))
-		for i, tok := range tokens {
-			if args[i], err = resolve(tok, e.vars); err != nil {
-				return nil, fmt.Errorf("line %d: %w", n+1, err)
-			}
+		verb, err := resolveString(tokens[0], e.vars)
+		if err != nil {
+			return nil, fmt.Errorf("line %d: %w", n+1, err)
 		}
-		verb, ok := args[0].(string)
-		if !ok {
-			return nil, fmt.Errorf("line %d: verb must be text", n+1)
-		}
-		if err := e.exec(verb, args[1:]); err != nil {
+		if err := e.exec(verb, tokens[1:]); err != nil {
 			return nil, fmt.Errorf("line %d: %w", n+1, err)
 		}
 	}
@@ -77,54 +71,54 @@ type engine struct {
 	fetch  func(url string) ([]byte, error)
 }
 
-func (e *engine) exec(verb string, args []any) error {
+func (e *engine) exec(verb string, toks []Token) error {
 	switch verb {
 	case "download":
-		return e.execDownload(args)
+		return e.execDownload(toks)
 	case "extract":
-		return e.execExtract(args)
+		return e.execExtract(toks)
 	case "emit":
-		return e.execEmit(args)
+		return e.execEmit(toks)
 	case "select":
-		return e.execSelect(args)
+		return e.execSelect(toks)
 	case "reset":
-		return e.execReset(args)
+		return e.execReset(toks)
 	case "set":
-		return e.execEdit(args, 2, func(doc Doc, p Path) error {
-			return Set(doc, p, args[1])
+		return e.execValueEdit(toks, func(doc Doc, p Path, v any) error {
+			return Set(doc, p, v)
 		})
 	case "set-if-absent":
-		return e.execEdit(args, 2, func(doc Doc, p Path) error {
+		return e.execValueEdit(toks, func(doc Doc, p Path, v any) error {
 			if _, ok := Get(doc, p); ok {
 				return nil
 			}
-			return Set(doc, p, args[1])
+			return Set(doc, p, v)
 		})
 	case "append":
-		return e.execEdit(args, 2, func(doc Doc, p Path) error {
-			return Append(doc, p, args[1], false)
+		return e.execValueEdit(toks, func(doc Doc, p Path, v any) error {
+			return Append(doc, p, v, false)
 		})
 	case "append-if-absent":
-		return e.execEdit(args, 2, func(doc Doc, p Path) error {
-			return Append(doc, p, args[1], true)
+		return e.execValueEdit(toks, func(doc Doc, p Path, v any) error {
+			return Append(doc, p, v, true)
 		})
 	case "remove":
-		return e.execEdit(args, 1, func(doc Doc, p Path) error {
+		return e.execPathEdit(toks, func(doc Doc, p Path) error {
 			return Remove(doc, p)
 		})
 	case "remove-doc":
-		return e.execRemoveDoc(args)
+		return e.execRemoveDoc(toks)
 	default:
 		return fmt.Errorf("unknown verb %q", verb)
 	}
 }
 
 // download URL — fetch into the buffer, replacing it with raw bytes.
-func (e *engine) execDownload(args []any) error {
-	if len(args) != 1 {
-		return fmt.Errorf("download: want URL, got %d args", len(args))
+func (e *engine) execDownload(toks []Token) error {
+	if len(toks) != 1 {
+		return fmt.Errorf("download: want URL, got %d args", len(toks))
 	}
-	url, err := argStr(args, 0)
+	url, err := resolveString(toks[0], e.vars)
 	if err != nil {
 		return fmt.Errorf("download: %w", err)
 	}
@@ -138,17 +132,17 @@ func (e *engine) execDownload(args []any) error {
 
 // extract [PATH] — decompress/unarchive the raw buffer in place. PATH selects an
 // archive member; omit it for a bare compressed stream.
-func (e *engine) execExtract(args []any) error {
-	if len(args) > 1 {
-		return fmt.Errorf("extract: want [PATH], got %d args", len(args))
+func (e *engine) execExtract(toks []Token) error {
+	if len(toks) > 1 {
+		return fmt.Errorf("extract: want [PATH], got %d args", len(toks))
 	}
 	if e.decoded {
 		return fmt.Errorf("extract: nothing to extract (no prior download)")
 	}
 
 	member := ""
-	if len(args) == 1 {
-		m, err := argStr(args, 0)
+	if len(toks) == 1 {
+		m, err := resolveString(toks[0], e.vars)
 		if err != nil {
 			return fmt.Errorf("extract: %w", err)
 		}
@@ -163,11 +157,11 @@ func (e *engine) execExtract(args []any) error {
 }
 
 // emit FILENAME — write the working buffer to a runner-relative file.
-func (e *engine) execEmit(args []any) error {
-	if len(args) != 1 {
-		return fmt.Errorf("emit: want FILENAME, got %d args", len(args))
+func (e *engine) execEmit(toks []Token) error {
+	if len(toks) != 1 {
+		return fmt.Errorf("emit: want FILENAME, got %d args", len(toks))
 	}
-	name, err := argStr(args, 0)
+	name, err := resolveString(toks[0], e.vars)
 	if err != nil {
 		return fmt.Errorf("emit: %w", err)
 	}
@@ -178,11 +172,15 @@ func (e *engine) execEmit(args []any) error {
 }
 
 // select PATH VALUE — narrow scope to in-scope docs whose PATH equals VALUE.
-func (e *engine) execSelect(args []any) error {
-	if len(args) != 2 {
-		return fmt.Errorf("select: want PATH VALUE, got %d args", len(args))
+func (e *engine) execSelect(toks []Token) error {
+	if len(toks) != 2 {
+		return fmt.Errorf("select: want PATH VALUE, got %d args", len(toks))
 	}
-	pathStr, err := argStr(args, 0)
+	pathStr, err := resolveString(toks[0], e.vars)
+	if err != nil {
+		return fmt.Errorf("select: %w", err)
+	}
+	want, err := resolveValue(toks[1], e.vars)
 	if err != nil {
 		return fmt.Errorf("select: %w", err)
 	}
@@ -194,7 +192,7 @@ func (e *engine) execSelect(args []any) error {
 		return err
 	}
 
-	value := fmt.Sprint(args[1])
+	value := fmt.Sprint(want)
 	var kept []int
 	for _, idx := range e.scope {
 		if got, ok := Get(e.docs[idx], path); ok && fmt.Sprint(got) == value {
@@ -205,9 +203,9 @@ func (e *engine) execSelect(args []any) error {
 	return nil
 }
 
-func (e *engine) execReset(args []any) error {
-	if len(args) != 0 {
-		return fmt.Errorf("reset: takes no args, got %d", len(args))
+func (e *engine) execReset(toks []Token) error {
+	if len(toks) != 0 {
+		return fmt.Errorf("reset: takes no args, got %d", len(toks))
 	}
 	if err := e.ensureDecoded(); err != nil {
 		return err
@@ -218,9 +216,9 @@ func (e *engine) execReset(args []any) error {
 
 // remove-doc — drop every in-scope doc from the buffer, then reset scope to the
 // remaining stream.
-func (e *engine) execRemoveDoc(args []any) error {
-	if len(args) != 0 {
-		return fmt.Errorf("remove-doc: takes no args, got %d", len(args))
+func (e *engine) execRemoveDoc(toks []Token) error {
+	if len(toks) != 0 {
+		return fmt.Errorf("remove-doc: takes no args, got %d", len(toks))
 	}
 	if err := e.ensureDecoded(); err != nil {
 		return err
@@ -242,17 +240,40 @@ func (e *engine) execRemoveDoc(args []any) error {
 	return nil
 }
 
-// execEdit applies fn to every in-scope doc, after validating arg count and
-// parsing args[0] as the target path. The value arg (args[1], if any) is left
-// untyped for fn — set/append assign it as-is, never coercing.
-func (e *engine) execEdit(args []any, want int, fn func(Doc, Path) error) error {
-	if len(args) != want {
-		return fmt.Errorf("want %d args, got %d", want, len(args))
+// execValueEdit handles the PATH VALUE verbs: resolve the path (a structural
+// string) and the value (a bare var reference or a quoted string), then apply fn
+// to every in-scope doc.
+func (e *engine) execValueEdit(toks []Token, fn func(Doc, Path, any) error) error {
+	if len(toks) != 2 {
+		return fmt.Errorf("want PATH VALUE, got %d args", len(toks))
 	}
-	pathStr, err := argStr(args, 0)
+	pathStr, err := resolveString(toks[0], e.vars)
 	if err != nil {
 		return err
 	}
+	val, err := resolveValue(toks[1], e.vars)
+	if err != nil {
+		return err
+	}
+	return e.applyOverScope(pathStr, func(doc Doc, p Path) error {
+		return fn(doc, p, val)
+	})
+}
+
+// execPathEdit handles the PATH-only verbs (remove).
+func (e *engine) execPathEdit(toks []Token, fn func(Doc, Path) error) error {
+	if len(toks) != 1 {
+		return fmt.Errorf("want PATH, got %d args", len(toks))
+	}
+	pathStr, err := resolveString(toks[0], e.vars)
+	if err != nil {
+		return err
+	}
+	return e.applyOverScope(pathStr, fn)
+}
+
+// applyOverScope parses pathStr and runs fn on every in-scope doc.
+func (e *engine) applyOverScope(pathStr string, fn func(Doc, Path) error) error {
 	if err := e.ensureDecoded(); err != nil {
 		return err
 	}
@@ -267,15 +288,6 @@ func (e *engine) execEdit(args []any, want int, fn func(Doc, Path) error) error 
 		}
 	}
 	return nil
-}
-
-// argStr asserts a string argument. Every directive arg except the set/append
-// value (paths, filenames, URLs) is text; a typed value there is a usage error.
-func argStr(args []any, i int) (string, error) {
-	if s, ok := args[i].(string); ok {
-		return s, nil
-	}
-	return "", fmt.Errorf("argument %d must be text, got %T", i+1, args[i])
 }
 
 // setRaw parks raw bytes in the buffer, marking the decoded view stale.

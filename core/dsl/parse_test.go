@@ -57,10 +57,10 @@ spec:
 `
 	directives := `
 # patch the controller
-select .kind Deployment
-select .metadata.name cert-manager
-append-if-absent .spec.template.spec.containers[name=cert-manager-controller].args --enable-gateway-api
-append-if-absent .spec.template.spec.containers[name=cert-manager-controller].args --feature-gates=ListenerSets=true
+select .kind "Deployment"
+select .metadata.name "cert-manager"
+append-if-absent .spec.template.spec.containers[name=cert-manager-controller].args "--enable-gateway-api"
+append-if-absent .spec.template.spec.containers[name=cert-manager-controller].args "--feature-gates=ListenerSets=true"
 `
 	want := []any{"--v=2", "--enable-gateway-api", "--feature-gates=ListenerSets=true"}
 
@@ -90,13 +90,13 @@ metadata:
   name: b
 `
 	directives := `
-select .kind Deployment
-select .metadata.name a
-set .marked true
+select .kind "Deployment"
+select .metadata.name "a"
+set .marked "true"
 `
 	out := mustApply(t, directives, decodeDocs(t, src))
 
-	// A bare literal value stays a string (set never coerces).
+	// A quoted value is a string literal.
 	if v, ok := Get(out[0], mustPath(t, ".marked")); !ok || v != "true" {
 		t.Errorf("doc a .marked = %#v (ok=%v), want \"true\"", v, ok)
 	}
@@ -118,13 +118,13 @@ metadata:
   name: nginx-gateway
 `
 	directives := `
-select .kind Deployment
-set .kind DaemonSet
+select .kind "Deployment"
+set .kind "DaemonSet"
 remove .spec.replicas
 
 reset
-select .kind NginxProxy
-set-if-absent .spec.serverTokens off
+select .kind "NginxProxy"
+set-if-absent .spec.serverTokens "off"
 `
 	out := mustApply(t, directives, decodeDocs(t, src))
 
@@ -145,7 +145,7 @@ kind: NginxProxy
 spec:
   serverTokens: on
 `
-	out := mustApply(t, "select .kind NginxProxy\nset-if-absent .spec.serverTokens off", decodeDocs(t, src))
+	out := mustApply(t, "select .kind \"NginxProxy\"\nset-if-absent .spec.serverTokens \"off\"", decodeDocs(t, src))
 	if v, _ := Get(out[0], mustPath(t, ".spec.serverTokens")); v != "on" {
 		t.Errorf("serverTokens = %v, want on (unchanged)", v)
 	}
@@ -162,8 +162,8 @@ metadata:
   name: argocd-secret
 `
 	directives := `
-select .kind Secret
-select .metadata.name argocd-secret
+select .kind "Secret"
+select .metadata.name "argocd-secret"
 remove-doc
 `
 	out := mustApply(t, directives, decodeDocs(t, src))
@@ -176,11 +176,11 @@ remove-doc
 	}
 }
 
-// set never coerces: a bare literal stays a string, while a bare \(var) ref
-// carries the var's native type into the manifest.
+// Value typing: a bare token is a variable reference (native type), a quoted
+// token is a string literal.
 func TestApplySetValueTyping(t *testing.T) {
 	src := "kind: Deployment\n"
-	directives := "select .kind Deployment\nset .spec.replicas \"\\(replicas)\"\nset .spec.note 3"
+	directives := "select .kind \"Deployment\"\nset .spec.replicas replicas\nset .spec.note \"3\""
 
 	out, err := Apply(directives, Options{Docs: decodeDocs(t, src), Vars: Vars{"replicas": 3}})
 	if err != nil {
@@ -188,10 +188,10 @@ func TestApplySetValueTyping(t *testing.T) {
 	}
 
 	if v, _ := Get(out[0], mustPath(t, ".spec.replicas")); v != 3 {
-		t.Errorf("replicas = %#v, want int 3 (from a typed var via quoted sole ref)", v)
+		t.Errorf("replicas = %#v, want int 3 (bare var reference)", v)
 	}
 	if v, _ := Get(out[0], mustPath(t, ".spec.note")); v != "3" {
-		t.Errorf("note = %#v, want string \"3\" (bare literal, uncoerced)", v)
+		t.Errorf("note = %#v, want string \"3\" (quoted literal)", v)
 	}
 }
 

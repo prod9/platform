@@ -139,21 +139,22 @@ set      .metadata.name "\(prefix)-controller"               # mid-string
 download "https://github.com/.../\(version)/install.yaml"    # URL must be quoted to interpolate
 ```
 
-**Value typing — `set` never coerces.** `[ops.vars]` is `map[string]any`, so a var keeps its
-TOML type. `\(var)` lives **only inside quotes** (a bare `\(` is a forgotten-quote error); how a
-value reaches `set`/`append` decides its type in the manifest:
+**Value typing — bare is a reference, quoted is a string.** `[ops.vars]` is `map[string]any`,
+so a var keeps its TOML type. The **value** position (the right side of `set`/`append`, the
+match side of `select`) reads like CUE:
 
-- A **quoted sole `"\(x)"`** (the whole token is one reference) resolves to the var's *native*
-  type — `set .spec.replicas "\(replicas)"` writes an int when `replicas = 3`. A string var
-  stays a string, so `set .…annotations."…/firewall-id" "\(firewall_id)"` keeps the id a string
-  (`firewall_id = "11222746"`), as k8s annotations require — no separate force-string needed.
-- A **quoted token with surrounding text** (`"\(prefix)-controller"`, a URL) interpolates to a
-  **string**.
-- A **bare literal** (`set .kind DaemonSet`, `set .marked true`) is its literal **string** — no
-  YAML re-typing. Want a typed literal? put it in `[ops.vars]` and reference it.
+- A **bare token is a variable reference** — `set .spec.replicas replicas` writes the var's
+  *native* type (int `3`, bool `true`, string). The name must be declared, else it is an error
+  — there is **no** silent literal fallback (a bare token is never an accidental literal).
+- A **quoted token is a string** — `set .spec.serverTokens "off"`, `select .kind "NginxProxy"`.
+  `\(var)` interpolates **inside the quotes** (`"\(prefix)-controller"`), always producing a
+  string. This is how a numeric-looking id stays a string: `firewall_id = "11222746"` (a string
+  var) set via `"\(firewall_id)"`.
+- A bare `\(x)` (interpolation sigil outside quotes) is a **syntax error** — quote it.
 
-(Type comes from the var, not from quoting — so there is no "force a string from an int var"
-form; if that's ever needed it's a dedicated verb, not punctuation.)
+`set` never re-types (no YAML coercion): the type comes from the var, period. Structural
+positions (the verb, paths, URLs, filenames) are *not* value positions — a bare `.kind` or
+`download example.com` is literal text, never a variable lookup.
 
 - **Name** — everything up to the closing `)` (e.g. `\(nginx-experimental)`).
 - **Undefined var is a hard error**, not empty — a typo'd `\(verison)` must fail loudly, not

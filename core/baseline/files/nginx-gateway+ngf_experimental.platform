@@ -8,8 +8,8 @@ emit "nginx-gateway-crds.yaml"
 
 # NGINX Gateway Fabric controller + NginxProxy config.
 download "https://raw.githubusercontent.com/nginx/nginx-gateway-fabric/\(nginx_gateway_version)/deploy/default/deploy.yaml"
-select .kind NginxProxy
-set .spec.serverTokens off
-set ".spec.kubernetes.service.patches[0].type" StrategicMerge
+select .kind "NginxProxy"
+set .spec.serverTokens "off"
+set ".spec.kubernetes.service.patches[0].type" "StrategicMerge"
 set ".spec.kubernetes.service.patches[0].value.metadata.annotations.\"service.beta.kubernetes.io/linode-loadbalancer-firewall-id\"" "\(nginx_gateway_firewall_id)"
 emit "nginx-gateway.yaml"
