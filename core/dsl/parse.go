@@ -16,45 +16,210 @@ type Options struct {
 	Fetch  func(url string) ([]byte, error)
 }
 
-// Apply runs a directive file against the buffer described by opts and returns
-// the resulting decoded stream. Scope starts at the whole stream; select
-// narrows it, reset widens it back. download/extract replace the buffer with raw
-// bytes, decoded lazily the next time an edit or emit needs documents.
-func Apply(directives string, opts Options) ([]Doc, error) {
-	e := &engine{
-		docs:    opts.Docs,
-		decoded: true,
-		vars:    opts.Vars,
-		outDir:  opts.OutDir,
-		fetch:   opts.Fetch,
-	}
-	if e.fetch == nil {
-		e.fetch = httpGet
-	}
-	e.resetScope()
+// argKind tags an argument by its surface syntax.
+type argKind int
 
-	for n, line := range strings.Split(directives, "\n") {
-		tokens, err := Lex(line)
+const (
+	argPath argKind = iota // .a.b[0]  — a selector
+	argStr                 // "quoted" — a string literal/interpolation
+	argVar                 // bare ident — a variable reference
+)
+
+// Arg is one parsed directive argument, resolved against vars at execution.
+type Arg struct {
+	kind argKind
+	path []pathSeg // argPath
+	str  []strPart  // argStr
+	name string     // argVar
+}
+
+// segKind tags a path segment.
+type segKind int
+
+const (
+	segKey segKind = iota
+	segIndex
+	segSelect
+)
+
+// pathSeg is one parsed path segment. A key carries string parts so a quoted
+// key may interpolate (\(var)); index/select are resolved literals.
+type pathSeg struct {
+	kind  segKind
+	key   []strPart // segKey
+	index int       // segIndex
+	field string    // segSelect
+	value string    // segSelect
+}
+
+// Directive is one parsed, executable line: a verb, its arguments, and the
+// source line number for diagnostics.
+type Directive struct {
+	Verb string
+	Args []Arg
+	Line int
+}
+
+// Parse compiles a directive file into executable directives. Syntax errors
+// surface here — before any download or disk write — with their line number.
+func Parse(src string) ([]Directive, error) {
+	var prog []Directive
+	for n, line := range strings.Split(src, "\n") {
+		toks, err := lexLine(line)
 		if err != nil {
 			return nil, fmt.Errorf("line %d: %w", n+1, err)
 		}
-		if len(tokens) == 0 {
+		if len(toks) == 0 {
 			continue
 		}
 
-		verb, err := resolveString(tokens[0], e.vars)
+		d, err := parseLine(toks)
 		if err != nil {
 			return nil, fmt.Errorf("line %d: %w", n+1, err)
 		}
-		if err := e.exec(verb, tokens[1:]); err != nil {
-			return nil, fmt.Errorf("line %d: %w", n+1, err)
+		d.Line = n + 1
+		prog = append(prog, *d)
+	}
+	return prog, nil
+}
+
+// parseLine turns a line's tokens into a Directive: a verb followed by
+// arguments, each dispatched by its leading token.
+func parseLine(toks []token) (*Directive, error) {
+	if toks[0].kind != tIdent {
+		return nil, fmt.Errorf("expected a directive name, got %s", toks[0].describe())
+	}
+
+	d := &Directive{Verb: toks[0].text}
+	for i := 1; i < len(toks); {
+		arg, next, err := parseArg(toks, i)
+		if err != nil {
+			return nil, err
+		}
+		d.Args = append(d.Args, arg)
+		i = next
+	}
+	return d, nil
+}
+
+// parseArg parses one argument starting at toks[i], returning the index past it.
+func parseArg(toks []token, i int) (Arg, int, error) {
+	switch toks[i].kind {
+	case tStr:
+		return Arg{kind: argStr, str: toks[i].parts}, i + 1, nil
+	case tIdent:
+		return Arg{kind: argVar, name: toks[i].text}, i + 1, nil
+	case tDot:
+		return parsePath(toks, i)
+	default:
+		return Arg{}, 0, fmt.Errorf("unexpected %s", toks[i].describe())
+	}
+}
+
+// parsePath parses a selector: a run of .key / [index] / [field=value] segments
+// that stays contiguous (a whitespace-led token ends the path, starting the next
+// argument).
+func parsePath(toks []token, i int) (Arg, int, error) {
+	var steps []pathSeg
+	for first := true; i < len(toks); first = false {
+		if !first && toks[i].spaced {
+			break
+		}
+
+		switch toks[i].kind {
+		case tDot:
+			i++
+			if i >= len(toks) || toks[i].kind != tIdent && toks[i].kind != tStr {
+				return Arg{}, 0, fmt.Errorf("expected a key after '.'")
+			}
+			key := toks[i]
+			if key.kind == tStr {
+				steps = append(steps, pathSeg{kind: segKey, key: key.parts})
+			} else {
+				steps = append(steps, pathSeg{kind: segKey, key: []strPart{{text: key.text}}})
+			}
+			i++
+
+		case tLBrack:
+			step, next, err := parseBracket(toks, i)
+			if err != nil {
+				return Arg{}, 0, err
+			}
+			steps = append(steps, step)
+			i = next
+
+		default:
+			return Arg{}, 0, fmt.Errorf("unexpected %s in path", toks[i].describe())
 		}
 	}
 
-	if err := e.ensureDecoded(); err != nil {
-		return nil, err
+	return Arg{kind: argPath, path: steps}, i, nil
+}
+
+// parseBracket parses a [index] or [field=value] segment.
+func parseBracket(toks []token, i int) (pathSeg, int, error) {
+	i++ // consume '['
+	if i >= len(toks) || toks[i].kind != tIdent || toks[i].text == "" {
+		return pathSeg{}, 0, fmt.Errorf("expected an index or field in '[]'")
 	}
-	return e.docs, nil
+	head := toks[i].text
+	i++
+
+	var step pathSeg
+	if i < len(toks) && toks[i].kind == tEq {
+		i++ // consume '='
+		if i >= len(toks) || toks[i].kind != tIdent {
+			return pathSeg{}, 0, fmt.Errorf("expected a value after '='")
+		}
+		step = pathSeg{kind: segSelect, field: head, value: toks[i].text}
+		i++
+	} else {
+		n, err := parseIndex(head)
+		if err != nil {
+			return pathSeg{}, 0, err
+		}
+		step = pathSeg{kind: segIndex, index: n}
+	}
+
+	if i >= len(toks) || toks[i].kind != tRBrack {
+		return pathSeg{}, 0, fmt.Errorf("expected ']'")
+	}
+	return step, i + 1, nil
+}
+
+func parseIndex(s string) (int, error) {
+	n := 0
+	if s == "" {
+		return 0, fmt.Errorf("empty list index")
+	}
+	for _, c := range s {
+		if c < '0' || c > '9' {
+			return 0, fmt.Errorf("invalid list index %q", s)
+		}
+		n = n*10 + int(c-'0')
+	}
+	return n, nil
+}
+
+// resolvePath materializes a parsed selector against vars: keys interpolate,
+// index/select are literal.
+func resolvePath(steps []pathSeg, vars Vars) (Path, error) {
+	path := make(Path, 0, len(steps))
+	for _, s := range steps {
+		switch s.kind {
+		case segKey:
+			name, err := resolveStr(s.key, vars)
+			if err != nil {
+				return nil, err
+			}
+			path = append(path, Key{Name: name})
+		case segIndex:
+			path = append(path, Index{N: s.index})
+		case segSelect:
+			path = append(path, Select{Field: s.field, Value: s.value})
+		}
+	}
+	return path, nil
 }
 
 // engine carries the directive interpreter's state. The buffer is two-state:
@@ -71,54 +236,88 @@ type engine struct {
 	fetch  func(url string) ([]byte, error)
 }
 
-func (e *engine) exec(verb string, toks []Token) error {
-	switch verb {
+// Apply parses directives and runs them against the buffer described by opts,
+// returning the resulting decoded stream. Scope starts at the whole stream;
+// select narrows it, reset widens it back. download/extract replace the buffer
+// with raw bytes, decoded lazily the next time an edit or emit needs documents.
+func Apply(directives string, opts Options) ([]Doc, error) {
+	program, err := Parse(directives)
+	if err != nil {
+		return nil, err
+	}
+
+	e := &engine{
+		docs:    opts.Docs,
+		decoded: true,
+		vars:    opts.Vars,
+		outDir:  opts.OutDir,
+		fetch:   opts.Fetch,
+	}
+	if e.fetch == nil {
+		e.fetch = httpGet
+	}
+	e.resetScope()
+
+	for _, d := range program {
+		if err := e.exec(d); err != nil {
+			return nil, fmt.Errorf("line %d: %w", d.Line, err)
+		}
+	}
+
+	if err := e.ensureDecoded(); err != nil {
+		return nil, err
+	}
+	return e.docs, nil
+}
+
+func (e *engine) exec(d Directive) error {
+	switch d.Verb {
 	case "download":
-		return e.execDownload(toks)
+		return e.execDownload(d.Args)
 	case "extract":
-		return e.execExtract(toks)
+		return e.execExtract(d.Args)
 	case "emit":
-		return e.execEmit(toks)
+		return e.execEmit(d.Args)
 	case "select":
-		return e.execSelect(toks)
+		return e.execSelect(d.Args)
 	case "reset":
-		return e.execReset(toks)
+		return e.execReset(d.Args)
 	case "set":
-		return e.execValueEdit(toks, func(doc Doc, p Path, v any) error {
+		return e.execValueEdit(d.Args, func(doc Doc, p Path, v any) error {
 			return Set(doc, p, v)
 		})
 	case "set-if-absent":
-		return e.execValueEdit(toks, func(doc Doc, p Path, v any) error {
+		return e.execValueEdit(d.Args, func(doc Doc, p Path, v any) error {
 			if _, ok := Get(doc, p); ok {
 				return nil
 			}
 			return Set(doc, p, v)
 		})
 	case "append":
-		return e.execValueEdit(toks, func(doc Doc, p Path, v any) error {
+		return e.execValueEdit(d.Args, func(doc Doc, p Path, v any) error {
 			return Append(doc, p, v, false)
 		})
 	case "append-if-absent":
-		return e.execValueEdit(toks, func(doc Doc, p Path, v any) error {
+		return e.execValueEdit(d.Args, func(doc Doc, p Path, v any) error {
 			return Append(doc, p, v, true)
 		})
 	case "remove":
-		return e.execPathEdit(toks, func(doc Doc, p Path) error {
+		return e.execPathEdit(d.Args, func(doc Doc, p Path) error {
 			return Remove(doc, p)
 		})
 	case "remove-doc":
-		return e.execRemoveDoc(toks)
+		return e.execRemoveDoc(d.Args)
 	default:
-		return fmt.Errorf("unknown verb %q", verb)
+		return fmt.Errorf("unknown directive %q", d.Verb)
 	}
 }
 
 // download URL — fetch into the buffer, replacing it with raw bytes.
-func (e *engine) execDownload(toks []Token) error {
-	if len(toks) != 1 {
-		return fmt.Errorf("download: want URL, got %d args", len(toks))
+func (e *engine) execDownload(args []Arg) error {
+	if len(args) != 1 {
+		return fmt.Errorf("download: want URL, got %d args", len(args))
 	}
-	url, err := resolveString(toks[0], e.vars)
+	url, err := e.argString(args[0])
 	if err != nil {
 		return fmt.Errorf("download: %w", err)
 	}
@@ -132,17 +331,17 @@ func (e *engine) execDownload(toks []Token) error {
 
 // extract [PATH] — decompress/unarchive the raw buffer in place. PATH selects an
 // archive member; omit it for a bare compressed stream.
-func (e *engine) execExtract(toks []Token) error {
-	if len(toks) > 1 {
-		return fmt.Errorf("extract: want [PATH], got %d args", len(toks))
+func (e *engine) execExtract(args []Arg) error {
+	if len(args) > 1 {
+		return fmt.Errorf("extract: want [PATH], got %d args", len(args))
 	}
 	if e.decoded {
 		return fmt.Errorf("extract: nothing to extract (no prior download)")
 	}
 
 	member := ""
-	if len(toks) == 1 {
-		m, err := resolveString(toks[0], e.vars)
+	if len(args) == 1 {
+		m, err := e.argString(args[0])
 		if err != nil {
 			return fmt.Errorf("extract: %w", err)
 		}
@@ -157,11 +356,11 @@ func (e *engine) execExtract(toks []Token) error {
 }
 
 // emit FILENAME — write the working buffer to a runner-relative file.
-func (e *engine) execEmit(toks []Token) error {
-	if len(toks) != 1 {
-		return fmt.Errorf("emit: want FILENAME, got %d args", len(toks))
+func (e *engine) execEmit(args []Arg) error {
+	if len(args) != 1 {
+		return fmt.Errorf("emit: want FILENAME, got %d args", len(args))
 	}
-	name, err := resolveString(toks[0], e.vars)
+	name, err := e.argString(args[0])
 	if err != nil {
 		return fmt.Errorf("emit: %w", err)
 	}
@@ -172,23 +371,19 @@ func (e *engine) execEmit(toks []Token) error {
 }
 
 // select PATH VALUE — narrow scope to in-scope docs whose PATH equals VALUE.
-func (e *engine) execSelect(toks []Token) error {
-	if len(toks) != 2 {
-		return fmt.Errorf("select: want PATH VALUE, got %d args", len(toks))
+func (e *engine) execSelect(args []Arg) error {
+	if len(args) != 2 {
+		return fmt.Errorf("select: want PATH VALUE, got %d args", len(args))
 	}
-	pathStr, err := resolveString(toks[0], e.vars)
+	path, err := e.argPath(args[0])
 	if err != nil {
 		return fmt.Errorf("select: %w", err)
 	}
-	want, err := resolveValue(toks[1], e.vars)
+	want, err := e.argValue(args[1])
 	if err != nil {
 		return fmt.Errorf("select: %w", err)
 	}
 	if err := e.ensureDecoded(); err != nil {
-		return err
-	}
-	path, err := ParsePath(pathStr)
-	if err != nil {
 		return err
 	}
 
@@ -203,9 +398,9 @@ func (e *engine) execSelect(toks []Token) error {
 	return nil
 }
 
-func (e *engine) execReset(toks []Token) error {
-	if len(toks) != 0 {
-		return fmt.Errorf("reset: takes no args, got %d", len(toks))
+func (e *engine) execReset(args []Arg) error {
+	if len(args) != 0 {
+		return fmt.Errorf("reset: takes no args, got %d", len(args))
 	}
 	if err := e.ensureDecoded(); err != nil {
 		return err
@@ -216,9 +411,9 @@ func (e *engine) execReset(toks []Token) error {
 
 // remove-doc — drop every in-scope doc from the buffer, then reset scope to the
 // remaining stream.
-func (e *engine) execRemoveDoc(toks []Token) error {
-	if len(toks) != 0 {
-		return fmt.Errorf("remove-doc: takes no args, got %d", len(toks))
+func (e *engine) execRemoveDoc(args []Arg) error {
+	if len(args) != 0 {
+		return fmt.Errorf("remove-doc: takes no args, got %d", len(args))
 	}
 	if err := e.ensureDecoded(); err != nil {
 		return err
@@ -240,54 +435,83 @@ func (e *engine) execRemoveDoc(toks []Token) error {
 	return nil
 }
 
-// execValueEdit handles the PATH VALUE verbs: resolve the path (a structural
-// string) and the value (a bare var reference or a quoted string), then apply fn
-// to every in-scope doc.
-func (e *engine) execValueEdit(toks []Token, fn func(Doc, Path, any) error) error {
-	if len(toks) != 2 {
-		return fmt.Errorf("want PATH VALUE, got %d args", len(toks))
+// execValueEdit handles the PATH VALUE verbs: resolve the path and the value (a
+// bare var reference or a quoted string), then apply fn to every in-scope doc.
+func (e *engine) execValueEdit(args []Arg, fn func(Doc, Path, any) error) error {
+	if len(args) != 2 {
+		return fmt.Errorf("want PATH VALUE, got %d args", len(args))
 	}
-	pathStr, err := resolveString(toks[0], e.vars)
+	path, err := e.argPath(args[0])
 	if err != nil {
 		return err
 	}
-	val, err := resolveValue(toks[1], e.vars)
+	val, err := e.argValue(args[1])
 	if err != nil {
 		return err
 	}
-	return e.applyOverScope(pathStr, func(doc Doc, p Path) error {
+	return e.applyOverScope(path, func(doc Doc, p Path) error {
 		return fn(doc, p, val)
 	})
 }
 
 // execPathEdit handles the PATH-only verbs (remove).
-func (e *engine) execPathEdit(toks []Token, fn func(Doc, Path) error) error {
-	if len(toks) != 1 {
-		return fmt.Errorf("want PATH, got %d args", len(toks))
+func (e *engine) execPathEdit(args []Arg, fn func(Doc, Path) error) error {
+	if len(args) != 1 {
+		return fmt.Errorf("want PATH, got %d args", len(args))
 	}
-	pathStr, err := resolveString(toks[0], e.vars)
+	path, err := e.argPath(args[0])
 	if err != nil {
 		return err
 	}
-	return e.applyOverScope(pathStr, fn)
+	return e.applyOverScope(path, fn)
 }
 
-// applyOverScope parses pathStr and runs fn on every in-scope doc.
-func (e *engine) applyOverScope(pathStr string, fn func(Doc, Path) error) error {
+// applyOverScope runs fn on every in-scope doc.
+func (e *engine) applyOverScope(path Path, fn func(Doc, Path) error) error {
 	if err := e.ensureDecoded(); err != nil {
 		return err
 	}
-	path, err := ParsePath(pathStr)
-	if err != nil {
-		return err
-	}
-
 	for _, idx := range e.scope {
 		if err := fn(e.docs[idx], path); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// argPath resolves a path argument; any other arg kind is a usage error.
+func (e *engine) argPath(a Arg) (Path, error) {
+	if a.kind != argPath {
+		return nil, fmt.Errorf("expected a path (.a.b)")
+	}
+	return resolvePath(a.path, e.vars)
+}
+
+// argValue resolves a value argument: a bare token is a variable reference
+// (native type), a quoted token is a string.
+func (e *engine) argValue(a Arg) (any, error) {
+	switch a.kind {
+	case argStr:
+		return resolveStr(a.str, e.vars)
+	case argVar:
+		v, ok := e.vars[a.name]
+		if !ok {
+			return nil, fmt.Errorf("undefined var %q (a bare value is a variable reference; quote a string literal as %q)", a.name, a.name)
+		}
+		return v, nil
+	default:
+		return nil, fmt.Errorf("expected a value (a var reference or a \"string\"), got a path")
+	}
+}
+
+// argString resolves an argument expected to be text (URL, filename): a quoted
+// string, or a variable reference stringified.
+func (e *engine) argString(a Arg) (string, error) {
+	v, err := e.argValue(a)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprint(v), nil
 }
 
 // setRaw parks raw bytes in the buffer, marking the decoded view stale.

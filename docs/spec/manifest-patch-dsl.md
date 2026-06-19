@@ -105,23 +105,29 @@ interactively before touching the working tree. `--force` skips the prompt and a
 plan unprompted (CI / non-interactive). The plan-and-confirm *is* the guard against a
 surprise directive overwrite; there is no separate write-once refusal.
 
-## Lexing
+## Lexing & parsing
 
-Each line is `verb token token …`, tokenized shell-style:
+A directive file compiles in three passes — **lex → parse → execute** — so a syntax error
+(a malformed path, an unknown directive) surfaces with its **line number** before any
+download or disk write: `line 3: unknown directive "ste"`.
 
-- Tokens are whitespace-separated.
-- A `"…"` groups a value containing whitespace or `#`. Double-quote only; escapes `\"` and
-  `\\`. No single-quote variant.
-- **Quotes are optional** — required only when the value contains whitespace or `#`. The
-  common case stays bare: `set .kind DaemonSet`.
-- An unquoted `#` begins a comment to end-of-line. Comments work both **full-line** (`#`
-  starts the line) and **inline** (after a token). Blank lines are skipped.
-- `\(var)` interpolation happens **only inside double-quoted strings** (see **Variable
-  interpolation**).
+Each line is `verb arg…`. The lexer emits tokens (`.` `[` `]` `=`, identifiers, strings) and
+records whitespace, so the parser knows where one argument ends and the next begins (a path's
+segments are contiguous; arguments are whitespace-separated). `#` starts a comment to
+end-of-line; blank lines are skipped. The parser builds a `Directive` (verb + typed args),
+dispatching each argument by its leading token:
+
+- **path** — leads with `.`; a **first-class selector** parsed into steps, never a string:
+  `set .spec.replicas v`, `set .a.b[0].type v`. A dotted/slashed key is a quoted *segment*
+  inside the otherwise-bare path: `set .metadata.annotations."acme.io/x" "y"`.
+- **string** — `"…"`; double-quote only, escapes `\"` `\\`, and `\(var)` interpolation (see
+  below). The only way to write a string-literal value.
+- **variable reference** — a bare identifier in a value position (see **Value typing**).
 
 ```
-set .spec.replicas 3                       # inline comment
-append .args "--feature-gates=Foo=true"    # quotes only needed if value had a space/#
+set .spec.replicas replicas                # path, then a var reference
+append .args "--feature-gates=Foo=true"    # path, then a string
+set .metadata.annotations."acme.io/x" "y"  # quoted path segment for a dotted key
 # full-line comment
 ```
 
@@ -250,7 +256,7 @@ NGF → DaemonSet — set a field, remove siblings:
 ```
 select .kind "Deployment"
 select .metadata.name "nginx-gateway"
-set    .kind DaemonSet
+set    .kind "DaemonSet"
 remove .spec.replicas
 remove .spec.strategy
 emit   "nginx-gateway.yaml"
@@ -262,7 +268,7 @@ NGF serverTokens workaround, then argo doc-drop — `reset` between the two grou
 reset
 select .kind "NginxProxy"
 select .metadata.namespace "nginx-gateway"
-set-if-absent .spec.serverTokens off
+set-if-absent .spec.serverTokens "off"
 
 reset
 select .kind "Secret"
@@ -274,9 +280,9 @@ archive source — extract a member, then patch:
 
 ```
 download "https://example.com/some-operator-\(version).zip"
-extract  manifests/install.yaml
+extract  "manifests/install.yaml"
 select   .kind "Deployment"
-set      .spec.replicas 2
+set      .spec.replicas replicas
 emit     "some-operator.yaml"
 ```
 

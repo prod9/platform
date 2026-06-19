@@ -20,9 +20,9 @@ func sampleDoc() Doc {
 
 func mustPath(t *testing.T, s string) Path {
 	t.Helper()
-	p, err := ParsePath(s)
+	p, err := pathFromString(s)
 	if err != nil {
-		t.Fatalf("ParsePath(%q): %v", s, err)
+		t.Fatalf("pathFromString(%q): %v", s, err)
 	}
 	return p
 }

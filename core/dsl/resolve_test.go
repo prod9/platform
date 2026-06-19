@@ -2,106 +2,64 @@ package dsl
 
 import "testing"
 
-// resolveString handles structural tokens (verb, path, URL, filename): bare is
-// literal text, quoted interpolates to a string.
-func TestResolveString(t *testing.T) {
-	vars := Vars{"y": "z", "prefix": "cm", "version": "v1.2.3"}
+func mustParts(t *testing.T, quoted string) []strPart {
+	t.Helper()
+	parts, next, err := scanString(quoted, 0)
+	if err != nil {
+		t.Fatalf("scanString(%q): %v", quoted, err)
+	}
+	if next != len(quoted) {
+		t.Fatalf("scanString(%q): trailing input past %d", quoted, next)
+	}
+	return parts
+}
+
+// TestResolveStr exercises the string pipeline: scanString parses escapes and
+// \(var) parts, resolveStr renders them against vars (interpolated values
+// stringified).
+func TestResolveStr(t *testing.T) {
+	vars := Vars{"y": "z", "prefix": "cm", "version": "v1.2.3", "count": 3}
 
 	cases := []struct {
-		name string
-		tok  Token
-		want string
+		name   string
+		quoted string
+		want   string
 	}{
-		// The escape-ordering case — \\( must win over \( so the literal stays literal.
-		{"literal escaped interp", Token{`\\(y)`, true}, `\(y)`},
-		{"interp", Token{`\(y)`, true}, "z"},
-		{"interp mid-string", Token{`\(prefix)-controller`, true}, "cm-controller"},
-		{"interp in url", Token{`u/\(version)/install.yaml`, true}, "u/v1.2.3/install.yaml"},
-		{"escaped backslash", Token{`x\\y`, true}, `x\y`},
-		{"escaped quote", Token{`he said \"hi\"`, true}, `he said "hi"`},
-		{"bare plain", Token{"DaemonSet", false}, "DaemonSet"},
-		{"bare with backslash not interp", Token{`x\\y`, false}, `x\\y`},
+		{"plain", `"off"`, "off"},
+		{"empty", `""`, ""},
+		// \\( must win over \( so the literal stays literal.
+		{"literal escaped interp", `"\\(y)"`, `\(y)`},
+		{"interp", `"\(y)"`, "z"},
+		{"interp mid-string", `"\(prefix)-controller"`, "cm-controller"},
+		{"interp in url", `"u/\(version)/install.yaml"`, "u/v1.2.3/install.yaml"},
+		{"interp stringifies typed", `"\(count)"`, "3"},
+		{"escaped backslash", `"x\\y"`, `x\y`},
+		{"escaped quote", `"he said \"hi\""`, `he said "hi"`},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := resolveString(tc.tok, vars)
+			got, err := resolveStr(mustParts(t, tc.quoted), vars)
 			if err != nil {
-				t.Fatalf("resolveString(%#v) error: %v", tc.tok, err)
+				t.Fatalf("resolveStr(%q): %v", tc.quoted, err)
 			}
 			if got != tc.want {
-				t.Fatalf("resolveString(%#v) = %q, want %q", tc.tok, got, tc.want)
+				t.Fatalf("resolveStr(%q) = %q, want %q", tc.quoted, got, tc.want)
 			}
 		})
 	}
 }
 
-func TestResolveStringErrors(t *testing.T) {
-	vars := Vars{"y": "z"}
-	cases := []struct {
-		name string
-		tok  Token
-	}{
-		{"undefined var", Token{`\(nope)`, true}},
-		{"bare forgotten quote", Token{`\(y)`, false}}, // bare \( is a missing quote
-		{"unterminated interp", Token{`\(y`, true}},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			if _, err := resolveString(tc.tok, vars); err == nil {
-				t.Fatalf("resolveString(%#v) expected error, got nil", tc.tok)
-			}
-		})
+func TestResolveStrUndefinedVar(t *testing.T) {
+	if _, err := resolveStr(mustParts(t, `"\(nope)"`), Vars{}); err == nil {
+		t.Fatal("expected error for undefined var, got nil")
 	}
 }
 
-// resolveValue handles the value position: a bare token is a variable reference
-// (native type), a quoted token is a string literal/interpolation.
-func TestResolveValue(t *testing.T) {
-	vars := Vars{"y": "z", "count": 3, "on": true}
-
-	cases := []struct {
-		name string
-		tok  Token
-		want any
-	}{
-		{"bare ref string var", Token{"y", false}, "z"},
-		{"bare ref int var", Token{"count", false}, 3},
-		{"bare ref bool var", Token{"on", false}, true},
-		{"quoted is string literal", Token{"off", true}, "off"},
-		{"quoted interpolation stringifies", Token{`\(count)`, true}, "3"},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			got, err := resolveValue(tc.tok, vars)
-			if err != nil {
-				t.Fatalf("resolveValue(%#v) error: %v", tc.tok, err)
-			}
-			if got != tc.want {
-				t.Fatalf("resolveValue(%#v) = %#v, want %#v", tc.tok, got, tc.want)
-			}
-		})
-	}
-}
-
-func TestResolveValueErrors(t *testing.T) {
-	vars := Vars{"y": "z"}
-	cases := []struct {
-		name string
-		tok  Token
-	}{
-		{"bare undefined var", Token{"nope", false}},     // strict: no literal fallback
-		{"bare interp not allowed", Token{`\(y)`, false}}, // quote it
-		{"quoted undefined var", Token{`\(nope)`, true}},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			if _, err := resolveValue(tc.tok, vars); err == nil {
-				t.Fatalf("resolveValue(%#v) expected error, got nil", tc.tok)
-			}
-		})
+func TestScanStringErrors(t *testing.T) {
+	for _, in := range []string{`"unterminated`, `"dangling\`, `"bad \(interp"`} {
+		if _, _, err := scanString(in, 0); err == nil {
+			t.Errorf("scanString(%q) expected error, got nil", in)
+		}
 	}
 }

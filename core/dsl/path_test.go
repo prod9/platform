@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestParsePath(t *testing.T) {
+func TestPathFromString(t *testing.T) {
 	cases := []struct {
 		name string
 		in   string
@@ -27,18 +27,18 @@ func TestParsePath(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := ParsePath(tc.in)
+			got, err := pathFromString(tc.in)
 			if err != nil {
-				t.Fatalf("ParsePath(%q) error: %v", tc.in, err)
+				t.Fatalf("pathFromString(%q) error: %v", tc.in, err)
 			}
 			if !reflect.DeepEqual(got, tc.want) {
-				t.Fatalf("ParsePath(%q) = %#v, want %#v", tc.in, got, tc.want)
+				t.Fatalf("pathFromString(%q) = %#v, want %#v", tc.in, got, tc.want)
 			}
 		})
 	}
 }
 
-func TestParsePathErrors(t *testing.T) {
+func TestPathFromStringErrors(t *testing.T) {
 	cases := []struct {
 		name string
 		in   string
@@ -49,12 +49,13 @@ func TestParsePathErrors(t *testing.T) {
 		{"non-numeric index", ".spec.containers[x]"},
 		{"empty key", ".spec..replicas"},
 		{"empty field select", ".spec.containers[=x]"},
+		{"trailing dot", ".spec."},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if _, err := ParsePath(tc.in); err == nil {
-				t.Fatalf("ParsePath(%q) expected error, got nil", tc.in)
+			if _, err := pathFromString(tc.in); err == nil {
+				t.Fatalf("pathFromString(%q) expected error, got nil", tc.in)
 			}
 		})
 	}
