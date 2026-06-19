@@ -133,13 +133,23 @@ interpolation syntax, so directive files and the `.cue` the renderer runs read t
 **Only inside strings.** Interpolation is a property of the string literal, so it is lexed
 as part of one quoted token — a value that expands to text with spaces stays a single token,
 never re-splitting a line's arity (the shell word-split footgun is structurally impossible).
-A bare, unquoted `\(x)` is **not** interpolated — it is literal text. To interpolate, quote
-the token:
 
 ```
 set      .metadata.name "\(prefix)-controller"               # mid-string
 download "https://github.com/.../\(version)/install.yaml"    # URL must be quoted to interpolate
 ```
+
+**Value typing — `set` never coerces.** `[ops.vars]` is `map[string]any`, so a var keeps its
+TOML type. How a value reaches `set`/`append` decides its type in the manifest:
+
+- A **bare sole `\(x)`** reference resolves to the var's *native* type — `set .spec.replicas
+  \(replicas)` writes an int when `replicas = 3`, a bool when `debug = true`.
+- A **quoted** token is always a string: `"\(x)"` stringifies the value. This is the
+  string-forcing escape hatch — `set .…annotations."…/firewall-id" "\(firewall_id)"` keeps a
+  numeric-looking id (`firewall_id = "11222746"`) a string, as k8s annotations require.
+- A **bare literal** (`set .kind DaemonSet`, `set .marked true`) is its literal **string** —
+  no YAML re-typing. Want a typed literal? put it in `[ops.vars]` and reference it.
+- A bare `\(x)` with surrounding text (`pre\(x)`) is a forgotten-quote **error** — quote it.
 
 - **Name** — everything up to the closing `)` (e.g. `\(nginx-experimental)`).
 - **Undefined var is a hard error**, not empty — a typo'd `\(verison)` must fail loudly, not

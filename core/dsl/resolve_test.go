@@ -3,12 +3,12 @@ package dsl
 import "testing"
 
 func TestResolve(t *testing.T) {
-	vars := Vars{"y": "z", "prefix": "cm", "version": "v1.2.3"}
+	vars := Vars{"y": "z", "prefix": "cm", "version": "v1.2.3", "count": 3}
 
 	cases := []struct {
 		name string
 		tok  Token
-		want string
+		want any
 	}{
 		// The escape-ordering case — \\( must win over \( so the literal stays literal.
 		{"literal escaped interp", Token{`\\(y)`, true}, `\(y)`},
@@ -19,6 +19,11 @@ func TestResolve(t *testing.T) {
 		{"escaped quote", Token{`he said \"hi\"`, true}, `he said "hi"`},
 		{"bare plain", Token{"DaemonSet", false}, "DaemonSet"},
 		{"bare with backslash not interp", Token{`x\\y`, false}, `x\\y`},
+		// A bare sole \(x) ref resolves to the var's native type.
+		{"bare sole ref string", Token{`\(y)`, false}, "z"},
+		{"bare sole ref typed", Token{`\(count)`, false}, 3},
+		// A quoted \(x) stringifies the typed value (the string-forcing escape hatch).
+		{"quoted forces string", Token{`\(count)`, true}, "3"},
 	}
 
 	for _, tc := range cases {
@@ -28,7 +33,7 @@ func TestResolve(t *testing.T) {
 				t.Fatalf("resolve(%#v) error: %v", tc.tok, err)
 			}
 			if got != tc.want {
-				t.Fatalf("resolve(%#v) = %q, want %q", tc.tok, got, tc.want)
+				t.Fatalf("resolve(%#v) = %#v, want %#v", tc.tok, got, tc.want)
 			}
 		})
 	}
@@ -42,7 +47,8 @@ func TestResolveErrors(t *testing.T) {
 		tok  Token
 	}{
 		{"undefined var", Token{`\(nope)`, true}},
-		{"forgotten quote", Token{`\(y)`, false}}, // bare \( is almost certainly a missing quote
+		{"bare undefined sole ref", Token{`\(nope)`, false}},
+		{"forgotten quote mid-token", Token{`pre\(y)post`, false}}, // bare \( with surrounding text
 		{"unterminated interp", Token{`\(y`, true}},
 	}
 

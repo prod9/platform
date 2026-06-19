@@ -96,8 +96,9 @@ set .marked true
 `
 	out := mustApply(t, directives, decodeDocs(t, src))
 
-	if v, ok := Get(out[0], mustPath(t, ".marked")); !ok || v != true {
-		t.Errorf("doc a .marked = %v (ok=%v), want true", v, ok)
+	// A bare literal value stays a string (set never coerces).
+	if v, ok := Get(out[0], mustPath(t, ".marked")); !ok || v != "true" {
+		t.Errorf("doc a .marked = %#v (ok=%v), want \"true\"", v, ok)
 	}
 	if _, ok := Get(out[1], mustPath(t, ".marked")); ok {
 		t.Error("doc b should not be marked")
@@ -175,11 +176,22 @@ remove-doc
 	}
 }
 
-func TestApplyScalarTyping(t *testing.T) {
+// set never coerces: a bare literal stays a string, while a bare \(var) ref
+// carries the var's native type into the manifest.
+func TestApplySetValueTyping(t *testing.T) {
 	src := "kind: Deployment\n"
-	out := mustApply(t, "select .kind Deployment\nset .spec.replicas 3", decodeDocs(t, src))
+	directives := "select .kind Deployment\nset .spec.replicas \\(replicas)\nset .spec.note 3"
+
+	out, err := Apply(directives, Options{Docs: decodeDocs(t, src), Vars: Vars{"replicas": 3}})
+	if err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+
 	if v, _ := Get(out[0], mustPath(t, ".spec.replicas")); v != 3 {
-		t.Errorf("replicas = %#v, want int 3", v)
+		t.Errorf("replicas = %#v, want int 3 (from a typed var)", v)
+	}
+	if v, _ := Get(out[0], mustPath(t, ".spec.note")); v != "3" {
+		t.Errorf("note = %#v, want string \"3\" (bare literal, uncoerced)", v)
 	}
 }
 

@@ -79,17 +79,40 @@ func scanString(line string, start int) (raw string, next int, err error) {
 	return "", 0, fmt.Errorf("unterminated string: %q", line[start:])
 }
 
-// resolve turns a lexed token into its final string value. Bare tokens pass
-// through verbatim, save for the forgotten-quote guard. Quoted tokens get escape
-// and \(var) resolution.
-func resolve(tok Token, vars Vars) (string, error) {
-	if !tok.Quoted {
-		if strings.Contains(tok.Value, `\(`) {
-			return "", fmt.Errorf("bare token %q contains \\( — quote it to interpolate", tok.Value)
-		}
-		return tok.Value, nil
+// resolve turns a lexed token into its value. A quoted token is always a string
+// (escapes + \(var) interpolated as text — this is how you force a string). A
+// bare token that is exactly one \(name) reference resolves to that var's native
+// type (string/int/bool), so a typed [ops.vars] value reaches set unchanged. Any
+// other bare \( is a forgotten-quote error; a plain bare token is its literal text.
+func resolve(tok Token, vars Vars) (any, error) {
+	if tok.Quoted {
+		return interpolate(tok.Value, vars)
 	}
-	return interpolate(tok.Value, vars)
+
+	if name, ok := soleVarRef(tok.Value); ok {
+		val, set := vars[name]
+		if !set {
+			return nil, fmt.Errorf("undefined var \\(%s)", name)
+		}
+		return val, nil
+	}
+	if strings.Contains(tok.Value, `\(`) {
+		return nil, fmt.Errorf("bare token %q contains \\( — quote it to interpolate", tok.Value)
+	}
+	return tok.Value, nil
+}
+
+// soleVarRef reports whether v is exactly one \(name) reference (no surrounding
+// text, no nesting), returning the bare name.
+func soleVarRef(v string) (string, bool) {
+	if len(v) < 4 || !strings.HasPrefix(v, `\(`) || !strings.HasSuffix(v, ")") {
+		return "", false
+	}
+	name := v[2 : len(v)-1]
+	if name == "" || strings.ContainsAny(name, `()\`) {
+		return "", false
+	}
+	return name, true
 }
 
 // interpolate resolves escapes and \(var) references in one left-to-right pass,
@@ -125,7 +148,7 @@ func interpolate(s string, vars Vars) (string, error) {
 			if !ok {
 				return "", fmt.Errorf("undefined var \\(%s)", name)
 			}
-			b.WriteString(fmt.Sprint(val))
+			fmt.Fprint(&b, val)
 			i += 2 + rel
 		default:
 			b.WriteByte('\\')

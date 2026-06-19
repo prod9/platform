@@ -3,8 +3,6 @@ package dsl
 import (
 	"fmt"
 	"strings"
-
-	"gopkg.in/yaml.v3"
 )
 
 // Options carries the run context for a directive file: the initial decoded
@@ -44,13 +42,17 @@ func Apply(directives string, opts Options) ([]Doc, error) {
 			continue
 		}
 
-		args := make([]string, len(tokens))
+		args := make([]any, len(tokens))
 		for i, tok := range tokens {
 			if args[i], err = resolve(tok, e.vars); err != nil {
 				return nil, fmt.Errorf("line %d: %w", n+1, err)
 			}
 		}
-		if err := e.exec(args[0], args[1:]); err != nil {
+		verb, ok := args[0].(string)
+		if !ok {
+			return nil, fmt.Errorf("line %d: verb must be text", n+1)
+		}
+		if err := e.exec(verb, args[1:]); err != nil {
 			return nil, fmt.Errorf("line %d: %w", n+1, err)
 		}
 	}
@@ -75,7 +77,7 @@ type engine struct {
 	fetch  func(url string) ([]byte, error)
 }
 
-func (e *engine) exec(verb string, args []string) error {
+func (e *engine) exec(verb string, args []any) error {
 	switch verb {
 	case "download":
 		return e.execDownload(args)
@@ -89,22 +91,22 @@ func (e *engine) exec(verb string, args []string) error {
 		return e.execReset(args)
 	case "set":
 		return e.execEdit(args, 2, func(doc Doc, p Path) error {
-			return Set(doc, p, scalar(args[1]))
+			return Set(doc, p, args[1])
 		})
 	case "set-if-absent":
 		return e.execEdit(args, 2, func(doc Doc, p Path) error {
 			if _, ok := Get(doc, p); ok {
 				return nil
 			}
-			return Set(doc, p, scalar(args[1]))
+			return Set(doc, p, args[1])
 		})
 	case "append":
 		return e.execEdit(args, 2, func(doc Doc, p Path) error {
-			return Append(doc, p, scalar(args[1]), false)
+			return Append(doc, p, args[1], false)
 		})
 	case "append-if-absent":
 		return e.execEdit(args, 2, func(doc Doc, p Path) error {
-			return Append(doc, p, scalar(args[1]), true)
+			return Append(doc, p, args[1], true)
 		})
 	case "remove":
 		return e.execEdit(args, 1, func(doc Doc, p Path) error {
@@ -118,13 +120,17 @@ func (e *engine) exec(verb string, args []string) error {
 }
 
 // download URL — fetch into the buffer, replacing it with raw bytes.
-func (e *engine) execDownload(args []string) error {
+func (e *engine) execDownload(args []any) error {
 	if len(args) != 1 {
 		return fmt.Errorf("download: want URL, got %d args", len(args))
 	}
-	data, err := e.fetch(args[0])
+	url, err := argStr(args, 0)
 	if err != nil {
-		return fmt.Errorf("download %s: %w", args[0], err)
+		return fmt.Errorf("download: %w", err)
+	}
+	data, err := e.fetch(url)
+	if err != nil {
+		return fmt.Errorf("download %s: %w", url, err)
 	}
 	e.setRaw(data)
 	return nil
@@ -132,7 +138,7 @@ func (e *engine) execDownload(args []string) error {
 
 // extract [PATH] — decompress/unarchive the raw buffer in place. PATH selects an
 // archive member; omit it for a bare compressed stream.
-func (e *engine) execExtract(args []string) error {
+func (e *engine) execExtract(args []any) error {
 	if len(args) > 1 {
 		return fmt.Errorf("extract: want [PATH], got %d args", len(args))
 	}
@@ -142,7 +148,11 @@ func (e *engine) execExtract(args []string) error {
 
 	member := ""
 	if len(args) == 1 {
-		member = args[0]
+		m, err := argStr(args, 0)
+		if err != nil {
+			return fmt.Errorf("extract: %w", err)
+		}
+		member = m
 	}
 	data, err := extract(e.raw, member)
 	if err != nil {
@@ -153,30 +163,38 @@ func (e *engine) execExtract(args []string) error {
 }
 
 // emit FILENAME — write the working buffer to a runner-relative file.
-func (e *engine) execEmit(args []string) error {
+func (e *engine) execEmit(args []any) error {
 	if len(args) != 1 {
 		return fmt.Errorf("emit: want FILENAME, got %d args", len(args))
 	}
+	name, err := argStr(args, 0)
+	if err != nil {
+		return fmt.Errorf("emit: %w", err)
+	}
 	if err := e.ensureDecoded(); err != nil {
 		return err
 	}
-	return emit(e.outDir, args[0], e.docs)
+	return emit(e.outDir, name, e.docs)
 }
 
 // select PATH VALUE — narrow scope to in-scope docs whose PATH equals VALUE.
-func (e *engine) execSelect(args []string) error {
+func (e *engine) execSelect(args []any) error {
 	if len(args) != 2 {
 		return fmt.Errorf("select: want PATH VALUE, got %d args", len(args))
+	}
+	pathStr, err := argStr(args, 0)
+	if err != nil {
+		return fmt.Errorf("select: %w", err)
 	}
 	if err := e.ensureDecoded(); err != nil {
 		return err
 	}
-	path, err := ParsePath(args[0])
+	path, err := ParsePath(pathStr)
 	if err != nil {
 		return err
 	}
 
-	value := args[1]
+	value := fmt.Sprint(args[1])
 	var kept []int
 	for _, idx := range e.scope {
 		if got, ok := Get(e.docs[idx], path); ok && fmt.Sprint(got) == value {
@@ -187,7 +205,7 @@ func (e *engine) execSelect(args []string) error {
 	return nil
 }
 
-func (e *engine) execReset(args []string) error {
+func (e *engine) execReset(args []any) error {
 	if len(args) != 0 {
 		return fmt.Errorf("reset: takes no args, got %d", len(args))
 	}
@@ -200,7 +218,7 @@ func (e *engine) execReset(args []string) error {
 
 // remove-doc — drop every in-scope doc from the buffer, then reset scope to the
 // remaining stream.
-func (e *engine) execRemoveDoc(args []string) error {
+func (e *engine) execRemoveDoc(args []any) error {
 	if len(args) != 0 {
 		return fmt.Errorf("remove-doc: takes no args, got %d", len(args))
 	}
@@ -225,15 +243,20 @@ func (e *engine) execRemoveDoc(args []string) error {
 }
 
 // execEdit applies fn to every in-scope doc, after validating arg count and
-// parsing args[0] as the target path.
-func (e *engine) execEdit(args []string, want int, fn func(Doc, Path) error) error {
+// parsing args[0] as the target path. The value arg (args[1], if any) is left
+// untyped for fn — set/append assign it as-is, never coercing.
+func (e *engine) execEdit(args []any, want int, fn func(Doc, Path) error) error {
 	if len(args) != want {
 		return fmt.Errorf("want %d args, got %d", want, len(args))
+	}
+	pathStr, err := argStr(args, 0)
+	if err != nil {
+		return err
 	}
 	if err := e.ensureDecoded(); err != nil {
 		return err
 	}
-	path, err := ParsePath(args[0])
+	path, err := ParsePath(pathStr)
 	if err != nil {
 		return err
 	}
@@ -244,6 +267,15 @@ func (e *engine) execEdit(args []string, want int, fn func(Doc, Path) error) err
 		}
 	}
 	return nil
+}
+
+// argStr asserts a string argument. Every directive arg except the set/append
+// value (paths, filenames, URLs) is text; a typed value there is a usage error.
+func argStr(args []any, i int) (string, error) {
+	if s, ok := args[i].(string); ok {
+		return s, nil
+	}
+	return "", fmt.Errorf("argument %d must be text, got %T", i+1, args[i])
 }
 
 // setRaw parks raw bytes in the buffer, marking the decoded view stale.
@@ -273,17 +305,4 @@ func (e *engine) resetScope() {
 	for i := range e.docs {
 		e.scope[i] = i
 	}
-}
-
-// scalar interprets a directive value token as a typed YAML scalar, so
-// `set .spec.replicas 3` writes int 3, not the string "3".
-func scalar(s string) any {
-	if s == "" {
-		return ""
-	}
-	var v any
-	if err := yaml.Unmarshal([]byte(s), &v); err != nil {
-		return s
-	}
-	return v
 }

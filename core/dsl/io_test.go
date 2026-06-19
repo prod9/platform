@@ -117,12 +117,12 @@ func TestApplyDownloadEmit(t *testing.T) {
 	directives := `
 download "https://example.com/\(version)/install.yaml"
 select .kind Deployment
-set .spec.replicas 2
+set .spec.replicas \(replicas)
 emit "nested/out.yaml"
 `
 	var gotURL string
 	opts := Options{
-		Vars:   Vars{"version": "v1.2.3"},
+		Vars:   Vars{"version": "v1.2.3", "replicas": 2}, // replicas is a typed int var
 		OutDir: tmp,
 		Fetch: func(url string) ([]byte, error) {
 			gotURL = url
