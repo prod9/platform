@@ -43,7 +43,10 @@ func ParsePath(s string) (Path, error) {
 	for len(rest) > 0 {
 		rest = rest[1:] // consume the leading '.'
 
-		name, after := scanKey(rest)
+		name, after, err := scanKey(rest)
+		if err != nil {
+			return nil, fmt.Errorf("%w in path %q", err, s)
+		}
 		if name == "" {
 			return nil, fmt.Errorf("empty key in path %q", s)
 		}
@@ -62,12 +65,22 @@ func ParsePath(s string) (Path, error) {
 	return path, nil
 }
 
-// scanKey reads a map key up to the next '.' or '[' boundary.
-func scanKey(s string) (name, rest string) {
-	if i := strings.IndexAny(s, ".["); i >= 0 {
-		return s[:i], s[i:]
+// scanKey reads a map key. A quoted key (`"…"`, jq-style) is taken verbatim so
+// dotted/slashed names like annotations survive; an unquoted key runs up to the
+// next '.' or '[' boundary.
+func scanKey(s string) (name, rest string, err error) {
+	if len(s) > 0 && s[0] == '"' {
+		end := strings.IndexByte(s[1:], '"')
+		if end < 0 {
+			return "", "", fmt.Errorf("unclosed quoted key")
+		}
+		return s[1 : 1+end], s[1+end+1:], nil
 	}
-	return s, ""
+
+	if i := strings.IndexAny(s, ".["); i >= 0 {
+		return s[:i], s[i:], nil
+	}
+	return s, "", nil
 }
 
 // scanBracket parses one "[...]" suffix into an Index or Select. full is the

@@ -27,15 +27,77 @@ func Get(doc Doc, path Path) (any, bool) {
 	return node, true
 }
 
-// Set assigns value at path, creating missing intermediate maps along the way.
-// It cannot fabricate list elements: a missing Index/Select intermediate is an
-// error, since there is nothing to address.
+// Set assigns value at path, auto-vivifying the route: missing map keys become
+// maps and missing Index slots extend the list (its element type follows the
+// next step), so a deep scalar Set can build a nested structure from nothing. A
+// missing Select element is still an error — there is no key to fabricate it by.
 func Set(doc Doc, path Path, value any) error {
-	parent, last, err := walkToParent(doc, path, true)
-	if err != nil {
-		return err
+	_, err := setPath(doc, path, value)
+	return err
+}
+
+// setPath sets value at path within node, returning the node it should be bound
+// to in its parent (the same map, or a possibly-reallocated list).
+func setPath(node any, path Path, value any) (any, error) {
+	if len(path) == 0 {
+		return value, nil
 	}
-	return assign(parent, last, value)
+
+	switch s := path[0].(type) {
+	case Key:
+		m, ok := emptyOr(node, Doc{})
+		if !ok {
+			return nil, fmt.Errorf("set: cannot descend key %q into non-map", s.Name)
+		}
+		child, err := setPath(m[s.Name], path[1:], value)
+		if err != nil {
+			return nil, err
+		}
+		m[s.Name] = child
+		return m, nil
+
+	case Index:
+		list, ok := emptyOr(node, []any(nil))
+		if !ok {
+			return nil, fmt.Errorf("set: cannot index into non-list")
+		}
+		for len(list) <= s.N {
+			list = append(list, nil)
+		}
+		child, err := setPath(list[s.N], path[1:], value)
+		if err != nil {
+			return nil, err
+		}
+		list[s.N] = child
+		return list, nil
+
+	case Select:
+		list, ok := node.([]any)
+		if !ok {
+			return nil, fmt.Errorf("set: cannot select from non-list")
+		}
+		i := stepIndex(list, s)
+		if i < 0 {
+			return nil, fmt.Errorf("set: element not found: %v", s)
+		}
+		child, err := setPath(list[i], path[1:], value)
+		if err != nil {
+			return nil, err
+		}
+		list[i] = child
+		return list, nil
+	}
+	return nil, fmt.Errorf("set: unknown step %v", path[0])
+}
+
+// emptyOr asserts node to T, substituting empty when node is absent (nil). It
+// reports false only when node holds a concrete value of a conflicting type.
+func emptyOr[T any](node any, empty T) (T, bool) {
+	if node == nil {
+		return empty, true
+	}
+	t, ok := node.(T)
+	return t, ok
 }
 
 // Remove deletes the field or list element at path. Removing a list element
@@ -112,58 +174,6 @@ func stepInto(node any, s Step) (any, bool) {
 		return list[i], true
 	}
 	return nil, false
-}
-
-// walkToParent returns the container holding path's final step, plus that step.
-// With create set, missing intermediate map keys are created en route.
-func walkToParent(doc Doc, path Path, create bool) (parent any, last Step, err error) {
-	var node any = doc
-	for _, s := range path[:len(path)-1] {
-		next, ok := stepInto(node, s)
-		if ok {
-			node = next
-			continue
-		}
-
-		key, isKey := s.(Key)
-		if !create || !isKey {
-			return nil, nil, fmt.Errorf("path step not found: %v", s)
-		}
-		m, ok := node.(Doc)
-		if !ok {
-			return nil, nil, fmt.Errorf("cannot create %q under non-map", key.Name)
-		}
-		child := Doc{}
-		m[key.Name] = child
-		node = child
-	}
-	return node, path[len(path)-1], nil
-}
-
-// assign writes value at last within parent.
-func assign(parent any, last Step, value any) error {
-	switch s := last.(type) {
-	case Key:
-		m, ok := parent.(Doc)
-		if !ok {
-			return fmt.Errorf("cannot set key %q on non-map", s.Name)
-		}
-		m[s.Name] = value
-		return nil
-
-	case Index, Select:
-		list, ok := parent.([]any)
-		if !ok {
-			return fmt.Errorf("cannot set element on non-list")
-		}
-		i := stepIndex(list, s)
-		if i < 0 {
-			return fmt.Errorf("cannot set: element not found: %v", s)
-		}
-		list[i] = value
-		return nil
-	}
-	return fmt.Errorf("unknown step %v", last)
 }
 
 // stepIndex resolves an Index or Select step against list to a concrete

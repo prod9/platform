@@ -19,6 +19,10 @@ func TestParsePath(t *testing.T) {
 		{"select then key", ".spec.containers[name=ctl].image",
 			Path{Key{"spec"}, Key{"containers"}, Select{"name", "ctl"}, Key{"image"}}},
 		{"value with equals", ".a[k=x=y]", Path{Key{"a"}, Select{"k", "x=y"}}},
+		{"quoted key with dots", `.metadata.annotations."svc.io/fw-id"`,
+			Path{Key{"metadata"}, Key{"annotations"}, Key{"svc.io/fw-id"}}},
+		{"quoted key then key", `."a.b".c`, Path{Key{"a.b"}, Key{"c"}}},
+		{"quoted key then index", `."a.b"[0]`, Path{Key{"a.b"}, Index{0}}},
 	}
 
 	for _, tc := range cases {

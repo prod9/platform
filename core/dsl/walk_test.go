@@ -95,6 +95,32 @@ func TestSetCannotCreateListElement(t *testing.T) {
 	}
 }
 
+// TestSetAutoVivifiesNestedListAndMaps builds the NGF firewall-annotation patch
+// shape from an empty doc: deep scalar Sets create the intermediate maps and the
+// [0] list slot, and a quoted key carries the dotted/slashed annotation name.
+func TestSetAutoVivifiesNestedListAndMaps(t *testing.T) {
+	d := Doc{}
+	const p = `.spec.kubernetes.service.patches[0].value.metadata.annotations."service.beta.kubernetes.io/linode-loadbalancer-firewall-id"`
+
+	if err := Set(d, mustPath(t, ".spec.kubernetes.service.patches[0].type"), "StrategicMerge"); err != nil {
+		t.Fatal(err)
+	}
+	if err := Set(d, mustPath(t, p), "11222746"); err != nil {
+		t.Fatal(err)
+	}
+
+	if got, _ := Get(d, mustPath(t, p)); got != "11222746" {
+		t.Errorf("annotation = %v, want 11222746", got)
+	}
+	if got, _ := Get(d, mustPath(t, ".spec.kubernetes.service.patches[0].type")); got != "StrategicMerge" {
+		t.Errorf("patch type = %v, want StrategicMerge", got)
+	}
+	patches, _ := Get(d, mustPath(t, ".spec.kubernetes.service.patches"))
+	if list, ok := patches.([]any); !ok || len(list) != 1 {
+		t.Errorf("patches = %#v, want a 1-element list", patches)
+	}
+}
+
 func TestRemove(t *testing.T) {
 	d := sampleDoc()
 

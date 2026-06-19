@@ -161,9 +161,18 @@ two index forms:
 - `.spec.containers[name=cert-manager-controller]` — field-select: the list element whose
   `name` equals the value. This is the load-bearing form — upstream reorders containers
   between versions, so index targeting is a latent bug.
+- `.metadata.annotations."service.beta.kubernetes.io/linode-loadbalancer-firewall-id"` —
+  **quoted key** (jq-style): a key containing `.`/`/` taken verbatim as one step. Needed for
+  annotation/label keys.
 
 Selection is by literal metadata path (`.metadata.name`, `.metadata.namespace`, `.kind`) —
 there is no `.name`→`.metadata.name` shorthand. The structure is fixed; spell it out.
+
+**`set` auto-vivifies the route.** A deep `set` creates missing intermediate maps and extends
+list slots (`[0]` on an absent list creates it; the new element's type follows the next step),
+so a structured value can be built from nothing via successive scalar `set`s — e.g. the NGF
+`NginxProxy.spec.kubernetes.service.patches[0]` StrategicMerge entry. A missing `[field=val]`
+element is still an error: there is no key to fabricate it by.
 
 **Deferred extension — wildcard deep-select (`.*.name` / `.**`).** Not in D1. A wildcard
 would let a path match at unknown depth, but that reintroduces "execute it mentally to know
