@@ -17,7 +17,7 @@ func TestPickOptions(t *testing.T) {
 	}
 
 	sess := prompts.New(nil, []string{"yes", "no", "linode"})
-	vars := map[string]string{}
+	vars := map[string]any{}
 	pickOptions(sess, opts, vars)
 
 	for key, want := range map[string]string{"argocd": "true", "nginx_gateway": "false", "registry": "linode"} {

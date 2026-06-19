@@ -43,7 +43,7 @@ func TestRenderBaselineRoute(t *testing.T) {
 	})
 
 	tree, err := gitops.Render(dir, gitops.RenderOptions{
-		Vars:  map[string]string{"nginx-gateway": "stable"},
+		Vars:  map[string]any{"nginx-gateway": "stable"},
 		Fetch: fixtureFetch,
 	})
 	if err != nil {
