@@ -91,6 +91,73 @@ func TestEmbeddedSelectGating(t *testing.T) {
 	}
 }
 
+// TestEmbeddedNginxGateway runs the embedded NGF directive end to end with a
+// fixture fetcher: it asserts the version vars interpolate into the three
+// download URLs, and that the NginxProxy patch lands serverTokens=off plus the
+// Linode firewall annotation as a STRING (the value-typing fix — a bare int
+// there would be invalid).
+func TestEmbeddedNginxGateway(t *testing.T) {
+	files, err := baseline.EmbeddedFiles()
+	if err != nil {
+		t.Fatalf("EmbeddedFiles: %v", err)
+	}
+	body, ok := files["nginx-gateway+ngf_experimental.platform"]
+	if !ok {
+		t.Fatalf("nginx-gateway directive not embedded; have %v", keys(files))
+	}
+
+	var urls []string
+	fetch := func(url string) ([]byte, error) {
+		urls = append(urls, url)
+		switch {
+		case strings.Contains(url, "experimental-install"):
+			return []byte("kind: CustomResourceDefinition\nmetadata:\n  name: gw\n"), nil
+		case strings.Contains(url, "deploy/crds.yaml"):
+			return []byte("kind: CustomResourceDefinition\nmetadata:\n  name: ngf\n"), nil
+		case strings.Contains(url, "deploy/default/deploy.yaml"):
+			return []byte("apiVersion: gateway.nginx.org/v1alpha2\nkind: NginxProxy\n" +
+				"metadata:\n  name: ngf-proxy\nspec:\n  ipFamily: dual\n"), nil
+		}
+		return nil, fmt.Errorf("unexpected url %s", url)
+	}
+
+	out := t.TempDir()
+	if _, err := dsl.Apply(string(body), dsl.Options{
+		Vars:   baseline.DefaultVars,
+		OutDir: out,
+		Fetch:  fetch,
+	}); err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+
+	joined := strings.Join(urls, "\n")
+	for _, want := range []string{
+		fmt.Sprint(baseline.DefaultVars["gateway_api_version"]),
+		fmt.Sprint(baseline.DefaultVars["nginx_gateway_version"]),
+	} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("version %q not interpolated into a download URL:\n%s", want, joined)
+		}
+	}
+
+	ngf, err := os.ReadFile(filepath.Join(out, "nginx-gateway.yaml"))
+	if err != nil {
+		t.Fatalf("read emitted NGF manifest: %v", err)
+	}
+	got := string(ngf)
+
+	if !strings.Contains(got, `serverTokens: "off"`) {
+		t.Errorf("serverTokens=off not patched:\n%s", got)
+	}
+	// The firewall id must stay a string — yaml quotes it; a bare int would be invalid.
+	if !strings.Contains(got, `linode-loadbalancer-firewall-id: "11222746"`) {
+		t.Errorf("firewall annotation missing or not a string:\n%s", got)
+	}
+	if !strings.Contains(got, "type: StrategicMerge") {
+		t.Errorf("StrategicMerge patch not built:\n%s", got)
+	}
+}
+
 func keys(m map[string][]byte) []string {
 	out := make([]string, 0, len(m))
 	for k := range m {

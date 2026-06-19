@@ -18,6 +18,11 @@ var DefaultVars = map[string]any{
 	"flux_version":         "v2.8.8",
 	"argocd_version":       "v3.4.1",
 	"argocd":               "false", // reference install; off by default (toggle)
+
+	"ngf_experimental":          "true", // NGINX Gateway Fabric; on by default (toggle)
+	"nginx_gateway_version":     "v2.6.0",
+	"gateway_api_version":       "v1.5.1",
+	"nginx_gateway_firewall_id": "11222746", // Linode LB firewall; string, not int
 }
 
 // EmbeddedFiles returns the baseline directive files shipped in the binary, keyed
