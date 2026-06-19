@@ -49,6 +49,35 @@ Foreign installs currently in `../infra/k8s/` (the `.platform` candidates):
 | `cert-manager`  | `cert-manager.yaml` (upstream), `cluster-issuer.yaml` (ours)        |
 | `nginx-gateway` | `gateway-api-crds.yaml`, `nginx-gateway-crds.yaml`, `nginx-gateway.yaml` |
 
+## D3b-4b decisions + progress (chakrit, 2026-06-19)
+
+- **Write path = `platform init`** (landed). A command distinct from `bootstrap`: git-inits the
+  target, writes `platform.toml` (with default `[ops.vars]`) + the embedded `baseline/*.platform`.
+  Does not write the app build script / CI pipeline.
+- **Options are pure DSL files + a generic checkbox picker** (landed). No per-component Go code:
+  `platform init` runs one `baseline.ScanOptions` loop, presenting each toggle as a yes/no
+  checkbox (pre-checked from the current `[ops.vars]` value) and each choice as pick-one;
+  `--force` keeps shipped defaults for CI.
+- **Always-on** (plain `name.platform`, no checkbox — "clearly needed for a functioning
+  cluster"): cert-manager, flux, engine. (cert-manager + flux landed; engine is CUE, deferred.)
+- **Optional toggles:** **argocd** (`argocd+argocd.platform`, default **off** — reference
+  install; landed) and **NGF-experimental** (default **on** — pending, see below).
+
+### NGF directive — finding + blockers (pending)
+
+The Linode firewall annotation in the real infra lives **inside the NGF install manifest**, in an
+`NginxProxy` resource at `spec.kubernetes.service.patches[].value.metadata.annotations`
+(`service.beta.kubernetes.io/linode-loadbalancer-firewall-id`), alongside `type: LoadBalancer`
+and `externalTrafficPolicy: Local`. So it's a DSL patch into the downloaded manifest, not a CUE
+Gateway annotation. Two things to resolve before authoring:
+
+1. **Manifest source** — NGF ships primarily via Helm (banned). Confirm there is a plain
+   experimental *manifest bundle* to `download`; if not, the gateway install becomes CUE
+   (ours), like the engine — not a `.platform`.
+2. **Patch feasibility** — the annotation sits in a created nested list-of-maps
+   (`patches: [{value:{metadata:{annotations:{…}}}}]`). Confirm the path-DSL `set`/`append`
+   verbs can build that, or whether it's a DSL gap to close first.
+
 ## Baseline file set + `[ops.vars]` (confirmed shape)
 
 Foreign upstream installs → DSL `baseline/*.platform`. Versions interpolated from `[ops.vars]`

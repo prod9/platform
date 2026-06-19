@@ -134,11 +134,13 @@ first consumer; bootstrap writes it into the infra repo. Port source:
   experimental-only, engine is CUE not DSL, versions via `[ops.vars]`). **D3b-4b in progress:** write-mode resolved as a
   distinct **`platform init`** command (git-inits the target, writes platform.toml[ops.vars] +
   embedded `baseline/*.platform`; not the app build script/pipeline) — landed. **`flux.platform`**
-  landed (download install.yaml by `\(flux_version)`, default v2.8.8). Still open: **nginx-gateway**
-  directive (option shape TBD — install always-on w/ vars, or a toggle?; patch = inject the Linode
-  LB firewall-id annotation `\(nginx_gateway_firewall_id)` onto the controller Service; toleration
-  is empty/placeholder, deferred), **argocd** as an off-by-default toggle, and the `ScanOptions`
-  prompts in `platform init` (a no-op until a choice/toggle directive exists).
+  landed (download install.yaml by `\(flux_version)`, default v2.8.8). The generic checkbox **picker** (`ScanOptions` loop in `platform init`, no per-component code) and
+  **argocd** (off-by-default toggle) landed. Still open: the **NGF-experimental** directive
+  (default-on toggle) — blocked on confirming NGF's manifest source (it ships via Helm; need a
+  plain bundle to `download`, else it becomes CUE like the engine) and whether the path-DSL can
+  inject the firewall annotation, which lives in an `NginxProxy` StrategicMerge patch
+  (`spec.kubernetes.service.patches[].value.metadata.annotations`) — a created nested list-of-maps.
+  Detail in the [design-prep note](2026-06-19-d3b4-baseline-design-prep.md).
 
   **D3b-4 detail** — authoritative gating/render detail lives in the
   [spec](../spec/manifest-patch-dsl.md) and the
