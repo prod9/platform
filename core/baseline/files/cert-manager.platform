@@ -1,0 +1,2 @@
+download "https://github.com/cert-manager/cert-manager/releases/download/\(cert_manager_version)/cert-manager.yaml"
+emit "cert-manager.yaml"
