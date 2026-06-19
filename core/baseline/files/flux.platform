@@ -1,0 +1,2 @@
+download "https://github.com/fluxcd/flux2/releases/download/\(flux_version)/install.yaml"
+emit "flux.yaml"

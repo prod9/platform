@@ -15,6 +15,7 @@ var embedded embed.FS
 // file via \(var) interpolation.
 var DefaultVars = map[string]string{
 	"cert_manager_version": "v1.20.2",
+	"flux_version":         "v2.8.8",
 }
 
 // EmbeddedFiles returns the baseline directive files shipped in the binary, keyed
