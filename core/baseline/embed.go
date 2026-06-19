@@ -16,6 +16,8 @@ var embedded embed.FS
 var DefaultVars = map[string]string{
 	"cert_manager_version": "v1.20.2",
 	"flux_version":         "v2.8.8",
+	"argocd_version":       "v3.4.1",
+	"argocd":               "false", // reference install; off by default (toggle)
 }
 
 // EmbeddedFiles returns the baseline directive files shipped in the binary, keyed

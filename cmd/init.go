@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -47,7 +48,14 @@ func runInitCmd(cmd *cobra.Command, args []string) {
 		plog.Fatalln(err)
 	}
 
-	plan, err := bootstrapper.AnalyzeInit(wd, info, files, baseline.DefaultVars)
+	// Pick the optional baseline components into [ops.vars]; --force keeps the
+	// shipped defaults (NGF-experimental on, argocd off) for CI.
+	vars := maps.Clone(baseline.DefaultVars)
+	if !initForce {
+		pickOptions(sess, baseline.ScanOptions(fileNames(files)), vars)
+	}
+
+	plan, err := bootstrapper.AnalyzeInit(wd, info, files, vars)
 	if err != nil {
 		plog.Fatalln(err)
 	}
@@ -66,6 +74,42 @@ func runInitCmd(cmd *cobra.Command, args []string) {
 	for _, f := range plan.Files {
 		plog.File(f.Action.String(), f.Path)
 	}
+}
+
+// pickOptions presents each baseline option as a picker entry and records the
+// operator's selection into vars. Toggles are a yes/no checkbox pre-set from the
+// current value; choices pick one variant. Generic over ScanOptions — adding a
+// baseline option file needs no change here.
+func pickOptions(sess *prompts.Session, opts []baseline.Option, vars map[string]string) {
+	for _, opt := range opts {
+		switch opt.Kind {
+		case baseline.OptionToggle:
+			checked := "no"
+			if vars[opt.Key] == "true" {
+				checked = "yes"
+			}
+			if sess.List("enable "+opt.Key+"?", checked, []string{"yes", "no"}) == "yes" {
+				vars[opt.Key] = "true"
+			} else {
+				vars[opt.Key] = "false"
+			}
+
+		case baseline.OptionChoice:
+			current := vars[opt.Key]
+			if current == "" {
+				current = opt.Default
+			}
+			vars[opt.Key] = sess.List(opt.Key, current, opt.Variants)
+		}
+	}
+}
+
+func fileNames(files map[string][]byte) []string {
+	out := make([]string, 0, len(files))
+	for n := range files {
+		out = append(out, n)
+	}
+	return out
 }
 
 // ensureGitRepo runs `git init` when dir is not already inside a git work tree —

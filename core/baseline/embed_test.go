@@ -3,6 +3,7 @@ package baseline_test
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -54,6 +55,38 @@ func TestEmbeddedCertManager(t *testing.T) {
 	}
 	if !strings.Contains(string(emitted), "kind: Namespace") {
 		t.Errorf("emit did not write the downloaded manifest:\n%s", emitted)
+	}
+}
+
+// TestEmbeddedSelectGating checks the shipped baseline gates correctly: the
+// always-on installs render unconditionally, while the argocd toggle is excluded
+// by default and included only when its [ops.vars] flag is set.
+func TestEmbeddedSelectGating(t *testing.T) {
+	files, err := baseline.EmbeddedFiles()
+	if err != nil {
+		t.Fatalf("EmbeddedFiles: %v", err)
+	}
+	names := keys(files)
+
+	off, err := baseline.Select(names, baseline.DefaultVars)
+	if err != nil {
+		t.Fatalf("Select (default): %v", err)
+	}
+	if slices.Contains(off, "argocd+argocd.platform") {
+		t.Errorf("argocd toggle rendered while off by default: %v", off)
+	}
+	for _, always := range []string{"cert-manager.platform", "flux.platform"} {
+		if !slices.Contains(off, always) {
+			t.Errorf("always-on %q missing from selection: %v", always, off)
+		}
+	}
+
+	on, err := baseline.Select(names, map[string]string{"argocd": "true"})
+	if err != nil {
+		t.Fatalf("Select (argocd on): %v", err)
+	}
+	if !slices.Contains(on, "argocd+argocd.platform") {
+		t.Errorf("argocd toggle not rendered when enabled: %v", on)
 	}
 }
 
