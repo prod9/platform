@@ -34,15 +34,15 @@ the same reason Helm and TypeScript are banned here.
 ## Model
 
 A directive file is a sequence of lines that edits a **working buffer** holding a
-multi-document YAML stream, and writes results to **named output files**. `select` narrows
-the active document scope; `reset` widens it back to the whole stream; subsequent edit verbs
-apply to every document in scope, at the path each names. The back-end is the existing
+multi-document YAML stream, and writes results to **named output files**. `focus` narrows the
+scope into the document tree (chaining to descend); `reset` returns it to the whole stream;
+subsequent edit verbs apply to every focused node, at the path each names relative to it. The back-end is the existing
 `yamleditor` path-walk (`Get`/`Set` over `map[string]any` / `[]any`); the DSL is a thin
 front-end over it.
 
 **Two outputs, both explicit.**
 
-- **Working buffer** — `download`/`extract` *replace* it; edit verbs (`select`, `set`,
+- **Working buffer** — `download`/`extract` *replace* it; edit verbs (`focus`, `set`,
   `remove`, …) mutate it.
 - **Output files** — `emit FILENAME` writes the current working buffer to a named file,
   **replacing** it (truncate + write, not append). A script emits 0..N files; no `emit`
@@ -147,12 +147,12 @@ download "https://github.com/.../\(version)/install.yaml"    # URL must be quote
 
 **Value typing — bare is a reference, quoted is a string.** `[ops.vars]` is `map[string]any`,
 so a var keeps its TOML type. The **value** position (the right side of `set`/`append`, the
-match side of `select`) reads like CUE:
+match side of `focus`) reads like CUE:
 
 - A **bare token is a variable reference** — `set .spec.replicas replicas` writes the var's
   *native* type (int `3`, bool `true`, string). The name must be declared, else it is an error
   — there is **no** silent literal fallback (a bare token is never an accidental literal).
-- A **quoted token is a string** — `set .spec.serverTokens "off"`, `select .kind "NginxProxy"`.
+- A **quoted token is a string** — `set .spec.serverTokens "off"`, `focus .[].kind "NginxProxy"`.
   `\(var)` interpolates **inside the quotes** (`"\(prefix)-controller"`), always producing a
   string. This is how a numeric-looking id stays a string: `firewall_id = "11222746"` (a string
   var) set via `"\(firewall_id)"`.
@@ -174,33 +174,24 @@ positions (the verb, paths, URLs, filenames) are *not* value positions — a bar
 
 ## Path grammar
 
-Dotted keys, matched **literally at exactly the level named** (no aliasing, no search), with
-two index forms:
+Dotted keys, matched **literally at exactly the level named** (no aliasing, no search), plus
+brackets for lists:
 
 - `.spec.replicas` — map keys.
-- `.spec.containers[0]` — numeric list index.
-- `.spec.containers[name=cert-manager-controller]` — field-select: the list element whose
-  `name` equals the value. This is the load-bearing form — upstream reorders containers
-  between versions, so index targeting is a latent bug.
+- `.spec.containers[0]` — numeric list index (glued to the key; or leading `.[0]`).
+- `.spec.containers[]` — **iterate** every element. Focus-only: an edit addresses one node, so
+  `[]` is rejected in a `set`/`append`/`remove` path.
 - `.metadata.annotations."service.beta.kubernetes.io/linode-loadbalancer-firewall-id"` —
-  **quoted key** (jq-style): a key containing `.`/`/` taken verbatim as one step. Needed for
-  annotation/label keys.
+  **quoted key** (jq-style): a key containing `.`/`/` taken verbatim as one step.
 
-Selection is by literal metadata path (`.metadata.name`, `.metadata.namespace`, `.kind`) —
-there is no `.name`→`.metadata.name` shorthand. The structure is fixed; spell it out.
+**There is no `[field=value]` selector.** Matching a list element by a field is `focus`'s job
+(see Scope): `focus .spec.containers[].name "cert-manager-controller"` narrows the scope to the
+matching container, then edits run relative to it. Find-by-identity lives in one place (`focus`),
+and the path grammar stays a tiny literal walk — no special bracket lexing, no `=`.
 
-**`set` auto-vivifies the route.** A deep `set` creates missing intermediate maps and extends
-list slots (`[0]` on an absent list creates it; the new element's type follows the next step),
-so a structured value can be built from nothing via successive scalar `set`s — e.g. the NGF
-`NginxProxy.spec.kubernetes.service.patches[0]` StrategicMerge entry. A missing `[field=val]`
-element is still an error: there is no key to fabricate it by.
-
-**Deferred extension — wildcard deep-select (`.*.name` / `.**`).** Not in D1. A wildcard
-would let a path match at unknown depth, but that reintroduces "execute it mentally to know
-what it hits" — the exact property the closed vocabulary exists to prevent — and we have no
-real case (doc selection is fixed-structure metadata; list reordering is already handled by
-`[field=val]`). If a need appears, pin the semantics (single-level `.*` vs recursive `.**`)
-before adding it.
+**`set` auto-vivifies the route** — missing maps are created and `[N]` extends the list — so a
+nested value can be built from nothing via successive scalar `set`s, e.g. the NGF
+`NginxProxy.spec.kubernetes.service.patches[0]` StrategicMerge entry.
 
 ## Verbs
 
@@ -208,8 +199,9 @@ before adding it.
 | ------------------------- | -------------------------------------------------------------- |
 | `download URL`            | fetch into the buffer (replaces buffer)                        |
 | `extract [PATH]`          | decompress/unarchive the buffer; PATH selects a member         |
-| `select PATH V`           | narrow scope to docs where PATH equals V (cumulative AND)      |
-| `reset`                   | widen scope back to the whole stream                           |
+| `focus PATH`              | narrow scope by navigating (`.[]`/`.key`/`[N]`) into the tree  |
+| `focus PATH V`            | narrow scope to nodes whose PATH-tail equals V (a filter)      |
+| `reset`                   | scope back to the whole document stream                        |
 | `set PATH V`              | set scalar at PATH, creating intermediates                     |
 | `set-if-absent PATH V`    | set only when PATH is unset (idempotent guard)                 |
 | `append PATH V`           | append V to the list at PATH, creating it if absent            |
@@ -225,10 +217,13 @@ Notes on individual verbs:
   layers (compression then archive) so `.tar.gz`, `.zip`, and a bare `.gz` all work. `PATH`
   selects a member inside an archive; it is **optional** — omit it for a single-stream
   decompression (bare `.gz`) where there is no inner member.
-- **`select` is cumulative** — each `select` narrows the current scope by ANDing its
-  constraint. Use **`reset`** to clear scope back to all docs before selecting a different
-  document. Scope holds across edit verbs until the next `select`/`reset`.
-- **Changing kind** is just `set .kind DaemonSet` — `.kind` is a path like any other; no
+- **`focus` chains** — each `focus` narrows *within* the current scope: navigate deeper
+  (`focus .spec.template.spec.containers[].name "ctl"`) or filter (`focus .[].kind "X"`).
+  Edits then apply to the focused nodes with paths **relative** to them. **`reset`** returns to
+  the whole stream; the usual shape is focus→edit→`reset`, repeated per group. `.[]` iterates
+  the current collection (the stream, or a list field); a leading `.[]` turns the document
+  stream into its individual documents.
+- **Changing kind** is just `set .kind "DaemonSet"` — `.kind` is a path like any other; no
   dedicated verb.
 - **`remove-doc`** is not expressible as `remove PATH`: a whole document is a top-level
   *stream element*, not a field at any path. Foreign bundles routinely ship docs to strip
@@ -240,22 +235,23 @@ Notes on individual verbs:
 
 ## Examples
 
-cert-manager — append controller flags to a named container, version-robust, idempotent:
+cert-manager — focus down to a named container, then append controller flags idempotently:
 
 ```
 download "https://github.com/cert-manager/cert-manager/releases/download/\(version)/cert-manager.yaml"
-select .kind "Deployment"
-select .metadata.name "cert-manager"
-append-if-absent .spec.template.spec.containers[name=cert-manager-controller].args "--enable-gateway-api"
-append-if-absent .spec.template.spec.containers[name=cert-manager-controller].args "--feature-gates=ListenerSets=true"
+focus .[].kind "Deployment"
+focus .metadata.name "cert-manager"
+focus .spec.template.spec.containers[].name "cert-manager-controller"
+append-if-absent .args "--enable-gateway-api"
+append-if-absent .args "--feature-gates=ListenerSets=true"
 emit "cert-manager.yaml"
 ```
 
-NGF → DaemonSet — set a field, remove siblings:
+NGF → DaemonSet — focus a doc, set a field, remove siblings:
 
 ```
-select .kind "Deployment"
-select .metadata.name "nginx-gateway"
+focus  .[].kind "Deployment"
+focus  .metadata.name "nginx-gateway"
 set    .kind "DaemonSet"
 remove .spec.replicas
 remove .spec.strategy
@@ -266,13 +262,12 @@ NGF serverTokens workaround, then argo doc-drop — `reset` between the two grou
 
 ```
 reset
-select .kind "NginxProxy"
-select .metadata.namespace "nginx-gateway"
+focus .[].kind "NginxProxy"
 set-if-absent .spec.serverTokens "off"
 
 reset
-select .kind "Secret"
-select .metadata.name "argocd-secret"
+focus .[].kind "Secret"
+focus .metadata.name "argocd-secret"
 remove-doc
 ```
 
@@ -281,7 +276,7 @@ archive source — extract a member, then patch:
 ```
 download "https://example.com/some-operator-\(version).zip"
 extract  "manifests/install.yaml"
-select   .kind "Deployment"
+focus    .[].kind "Deployment"
 set      .spec.replicas replicas
 emit     "some-operator.yaml"
 ```

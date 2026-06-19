@@ -30,8 +30,7 @@ func Get(doc Doc, path Path) (any, bool) {
 
 // Set assigns value at path, auto-vivifying the route: missing map keys become
 // maps and missing Index slots extend the list (its element type follows the
-// next step), so a deep scalar Set can build a nested structure from nothing. A
-// missing Select element is still an error — there is no key to fabricate it by.
+// next step), so a deep scalar Set can build a nested structure from nothing.
 func Set(doc Doc, path Path, value any) error {
 	_, err := setPath(doc, path, value)
 	return err
@@ -71,24 +70,8 @@ func setPath(node any, path Path, value any) (any, error) {
 		}
 		list[s.N] = child
 		return list, nil
-
-	case Select:
-		list, ok := node.([]any)
-		if !ok {
-			return nil, fmt.Errorf("set: cannot select from non-list")
-		}
-		i := stepIndex(list, s)
-		if i < 0 {
-			return nil, fmt.Errorf("set: element not found: %v", s)
-		}
-		child, err := setPath(list[i], path[1:], value)
-		if err != nil {
-			return nil, err
-		}
-		list[i] = child
-		return list, nil
 	}
-	return nil, fmt.Errorf("set: unknown step %v", path[0])
+	return nil, fmt.Errorf("set: unknown step %T", path[0])
 }
 
 // emptyOr asserts node to T, substituting empty when node is absent (nil). It
@@ -125,19 +108,18 @@ func Remove(doc Doc, path Path) error {
 		delete(m, s.Name)
 		return nil
 
-	case Index, Select:
+	case Index:
 		list, ok := container.([]any)
 		if !ok {
 			return fmt.Errorf("remove: cannot delete element from non-list")
 		}
-		i := stepIndex(list, s)
-		if i < 0 {
-			return fmt.Errorf("remove: element not found: %v", s)
+		if s.N < 0 || s.N >= len(list) {
+			return fmt.Errorf("remove: index %d out of range", s.N)
 		}
-		shortened := append(list[:i:i], list[i+1:]...)
+		shortened := append(list[:s.N:s.N], list[s.N+1:]...)
 		return Set(doc, prefix, shortened)
 	}
-	return fmt.Errorf("remove: unknown step %v", last)
+	return fmt.Errorf("remove: unknown step %T", last)
 }
 
 // Append adds value to the list at path, creating an empty list if path is
@@ -163,41 +145,12 @@ func stepInto(node any, s Step) (any, bool) {
 		v, ok := m[s.Name]
 		return v, ok
 
-	case Index, Select:
+	case Index:
 		list, ok := node.([]any)
-		if !ok {
+		if !ok || s.N < 0 || s.N >= len(list) {
 			return nil, false
 		}
-		i := stepIndex(list, s)
-		if i < 0 {
-			return nil, false
-		}
-		return list[i], true
+		return list[s.N], true
 	}
 	return nil, false
-}
-
-// stepIndex resolves an Index or Select step against list to a concrete
-// position, or -1 when out of range or unmatched.
-func stepIndex(list []any, s Step) int {
-	switch s := s.(type) {
-	case Index:
-		if s.N >= 0 && s.N < len(list) {
-			return s.N
-		}
-		return -1
-
-	case Select:
-		for i, elem := range list {
-			m, ok := elem.(Doc)
-			if !ok {
-				continue
-			}
-			if fmt.Sprint(m[s.Field]) == s.Value {
-				return i
-			}
-		}
-		return -1
-	}
-	return -1
 }

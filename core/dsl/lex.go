@@ -12,8 +12,7 @@ const (
 	tDot    tokKind = iota // .
 	tLBrack                // [
 	tRBrack                // ]
-	tEq                    // =
-	tIdent                 // bare word (verb, path key, var name, field/value)
+	tIdent                 // bare word (verb, path key, var name)
 	tStr                   // "quoted string" — carries interpolation parts
 )
 
@@ -42,8 +41,6 @@ func (t token) describe() string {
 		return "'['"
 	case tRBrack:
 		return "']'"
-	case tEq:
-		return "'='"
 	case tStr:
 		return "a string"
 	default:
@@ -52,8 +49,8 @@ func (t token) describe() string {
 }
 
 // lexLine tokenizes one directive line. Whitespace separates tokens (and is
-// recorded via spaced); '#' starts a comment to end of line. Brackets are lexed
-// as a unit so a field-select value may contain '=' (e.g. [k=x=y]).
+// recorded via spaced); '#' starts a comment to end of line. A bracket holds an
+// integer index ([0]) or nothing ([] iterate); there is no field-select form.
 func lexLine(line string) ([]token, error) {
 	var toks []token
 	spaced := true
@@ -72,41 +69,27 @@ func lexLine(line string) ([]token, error) {
 			spaced = false
 			i++
 
-		case ']':
-			toks = append(toks, token{kind: tRBrack, spaced: spaced})
-			spaced = false
-			i++
-
-		case '=':
-			toks = append(toks, token{kind: tEq, spaced: spaced})
-			spaced = false
-			i++
-
 		case '[':
 			toks = append(toks, token{kind: tLBrack, spaced: spaced})
 			spaced = false
 			i++
 
-			// field-or-index, raw up to '=' or ']'
 			start := i
-			for i < len(line) && line[i] != '=' && line[i] != ']' {
+			for i < len(line) && line[i] >= '0' && line[i] <= '9' {
 				i++
 			}
-			toks = append(toks, token{kind: tIdent, text: line[start:i]})
-
-			if i < len(line) && line[i] == '=' {
-				toks = append(toks, token{kind: tEq})
-				i++
-				vstart := i
-				for i < len(line) && line[i] != ']' {
-					i++
-				}
-				toks = append(toks, token{kind: tIdent, text: line[vstart:i]})
+			if i > start {
+				toks = append(toks, token{kind: tIdent, text: line[start:i]})
 			}
 			if i >= len(line) || line[i] != ']' {
-				return nil, fmt.Errorf("unclosed '['")
+				return nil, fmt.Errorf("'[' wants an integer index or '[]', then ']'")
 			}
 			toks = append(toks, token{kind: tRBrack})
+			i++
+
+		case ']':
+			toks = append(toks, token{kind: tRBrack, spaced: spaced})
+			spaced = false
 			i++
 
 		case '"':
@@ -132,7 +115,7 @@ func lexLine(line string) ([]token, error) {
 
 func structural(c byte) bool {
 	switch c {
-	case ' ', '\t', '\r', '#', '.', '[', ']', '=', '"':
+	case ' ', '\t', '\r', '#', '.', '[', ']', '"':
 		return true
 	}
 	return false

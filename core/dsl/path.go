@@ -2,11 +2,12 @@ package dsl
 
 import "fmt"
 
-// Path is a resolved selector into a decoded YAML document: a sequence of steps
-// walked left to right. The parser builds it from path tokens (see parsePath).
+// Path is a resolved selector to a single node within a document: a sequence of
+// steps walked left to right. Edits (set/append/remove) address one node, so a
+// Path holds only Key and Index — never the [] iterate, which belongs to focus.
 type Path []Step
 
-// Step is one segment of a Path. The set is closed: Key, Index, or Select.
+// Step is one segment of a Path. The set is closed: Key or Index.
 type Step interface{ step() }
 
 // Key selects a map entry by name: ".spec".
@@ -15,20 +16,12 @@ type Key struct{ Name string }
 // Index selects a list element by position: "[0]".
 type Index struct{ N int }
 
-// Select selects the list element whose Field equals Value: "[name=ctl]". It is
-// version-robust where Index is not, since upstream reorders lists between releases.
-type Select struct {
-	Field string
-	Value string
-}
+func (Key) step()   {}
+func (Index) step() {}
 
-func (Key) step()    {}
-func (Index) step()  {}
-func (Select) step() {}
-
-// pathFromString lexes and parses a single path expression — a convenience for
-// callers and tests holding a path as a string rather than directive tokens. It
-// runs the real lexer and parser, not a separate scanner.
+// pathFromString lexes and parses a single edit path — a convenience for callers
+// and tests holding a path as a string. It runs the real lexer and parser, not a
+// separate scanner; an iterate ([]) is rejected, as in any edit path.
 func pathFromString(s string) (Path, error) {
 	toks, err := lexLine(s)
 	if err != nil {

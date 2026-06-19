@@ -36,8 +36,8 @@ func TestGet(t *testing.T) {
 		{".kind", "Deployment"},
 		{".spec.replicas", 3},
 		{".spec.containers[0].name", "ctl"},
-		{".spec.containers[name=side].name", "side"},
-		{".spec.containers[name=ctl].args[0]", "--a"},
+		{".spec.containers[1].name", "side"},
+		{".spec.containers[0].args[0]", "--a"},
 	}
 
 	for _, tc := range cases {
@@ -54,7 +54,7 @@ func TestGet(t *testing.T) {
 
 func TestGetMissing(t *testing.T) {
 	d := sampleDoc()
-	for _, p := range []string{".nope", ".spec.nope", ".spec.containers[5]", ".spec.containers[name=zzz]"} {
+	for _, p := range []string{".nope", ".spec.nope", ".spec.containers[5]"} {
 		if _, ok := Get(d, mustPath(t, p)); ok {
 			t.Errorf("Get(%q) expected not found", p)
 		}
@@ -79,19 +79,12 @@ func TestSet(t *testing.T) {
 		t.Errorf("label = %v, want x", got)
 	}
 
-	// set a field inside a field-selected element
-	if err := Set(d, mustPath(t, ".spec.containers[name=ctl].image"), "img:1"); err != nil {
+	// set a field inside a list element addressed by index
+	if err := Set(d, mustPath(t, ".spec.containers[0].image"), "img:1"); err != nil {
 		t.Fatal(err)
 	}
-	if got, _ := Get(d, mustPath(t, ".spec.containers[name=ctl].image")); got != "img:1" {
+	if got, _ := Get(d, mustPath(t, ".spec.containers[0].image")); got != "img:1" {
 		t.Errorf("image = %v, want img:1", got)
-	}
-}
-
-func TestSetCannotCreateListElement(t *testing.T) {
-	d := sampleDoc()
-	if err := Set(d, mustPath(t, ".spec.containers[name=zzz].image"), "x"); err == nil {
-		t.Error("expected error creating a missing field-selected element")
 	}
 }
 
@@ -132,14 +125,14 @@ func TestRemove(t *testing.T) {
 	}
 
 	// removing a list element shortens the slice and writes it back
-	if err := Remove(d, mustPath(t, ".spec.containers[name=side]")); err != nil {
+	if err := Remove(d, mustPath(t, ".spec.containers[1]")); err != nil {
 		t.Fatal(err)
 	}
 	list, _ := Get(d, mustPath(t, ".spec.containers"))
 	if l, _ := list.([]any); len(l) != 1 {
 		t.Errorf("containers len = %d, want 1", len(l))
 	}
-	if _, ok := Get(d, mustPath(t, ".spec.containers[name=side]")); ok {
-		t.Error("side still present after remove")
+	if got, _ := Get(d, mustPath(t, ".spec.containers[0].name")); got != "ctl" {
+		t.Errorf("remaining container = %v, want ctl", got)
 	}
 }

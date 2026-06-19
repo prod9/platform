@@ -13,12 +13,10 @@ func TestPathFromString(t *testing.T) {
 	}{
 		{"single key", ".kind", Path{Key{"kind"}}},
 		{"nested keys", ".spec.replicas", Path{Key{"spec"}, Key{"replicas"}}},
-		{"list index", ".spec.containers[0]", Path{Key{"spec"}, Key{"containers"}, Index{0}}},
-		{"field select", ".spec.containers[name=ctl]",
-			Path{Key{"spec"}, Key{"containers"}, Select{"name", "ctl"}}},
-		{"select then key", ".spec.containers[name=ctl].image",
-			Path{Key{"spec"}, Key{"containers"}, Select{"name", "ctl"}, Key{"image"}}},
-		{"value with equals", ".a[k=x=y]", Path{Key{"a"}, Select{"k", "x=y"}}},
+		{"list index glued", ".spec.containers[0]", Path{Key{"spec"}, Key{"containers"}, Index{0}}},
+		{"index then key", ".spec.containers[0].image",
+			Path{Key{"spec"}, Key{"containers"}, Index{0}, Key{"image"}}},
+		{"leading index", ".[0]", Path{Index{0}}},
 		{"quoted key with dots", `.metadata.annotations."svc.io/fw-id"`,
 			Path{Key{"metadata"}, Key{"annotations"}, Key{"svc.io/fw-id"}}},
 		{"quoted key then key", `."a.b".c`, Path{Key{"a.b"}, Key{"c"}}},
@@ -48,8 +46,8 @@ func TestPathFromStringErrors(t *testing.T) {
 		{"unclosed bracket", ".spec.containers[0"},
 		{"non-numeric index", ".spec.containers[x]"},
 		{"empty key", ".spec..replicas"},
-		{"empty field select", ".spec.containers[=x]"},
 		{"trailing dot", ".spec."},
+		{"iterate not allowed in edit path", ".spec.containers[]"},
 	}
 
 	for _, tc := range cases {

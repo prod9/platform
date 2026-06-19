@@ -17,8 +17,6 @@ func summarize(toks []token) []string {
 			out = append(out, "[")
 		case tRBrack:
 			out = append(out, "]")
-		case tEq:
-			out = append(out, "=")
 		case tIdent:
 			out = append(out, t.text)
 		case tStr:
@@ -45,8 +43,8 @@ func TestLexLine(t *testing.T) {
 		{"simple", `set .kind "DaemonSet"`, []string{"set", ".", "kind", `"DaemonSet"`}},
 		{"path with index", "set .a[0].b foo", []string{"set", ".", "a", "[", "0", "]", ".", "b", "foo"}},
 		{"quoted key", `set .m.a."x.y" v`, []string{"set", ".", "m", ".", "a", ".", `"x.y"`, "v"}},
-		{"field select", "select .c[name=ctl] x", []string{"select", ".", "c", "[", "name", "=", "ctl", "]", "x"}},
-		{"value with equals", "select .a[k=x=y] z", []string{"select", ".", "a", "[", "k", "=", "x=y", "]", "z"}},
+		{"iterate", "focus .[].kind x", []string{"focus", ".", "[", "]", ".", "kind", "x"}},
+		{"index after key", "focus .c[0] x", []string{"focus", ".", "c", "[", "0", "]", "x"}},
 		{"inline comment", "set .x 1 # note", []string{"set", ".", "x", "1"}},
 		{"full-line comment", "# just a comment", nil},
 		{"blank", "   ", nil},

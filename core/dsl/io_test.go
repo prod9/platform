@@ -116,7 +116,7 @@ func TestApplyDownloadEmit(t *testing.T) {
 
 	directives := `
 download "https://example.com/\(version)/install.yaml"
-select .kind "Deployment"
+focus .[].kind "Deployment"
 set .spec.replicas replicas
 emit "nested/out.yaml"
 `

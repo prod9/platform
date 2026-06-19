@@ -56,16 +56,17 @@ spec:
             - --v=2
 `
 	directives := `
-# patch the controller
-select .kind "Deployment"
-select .metadata.name "cert-manager"
-append-if-absent .spec.template.spec.containers[name=cert-manager-controller].args "--enable-gateway-api"
-append-if-absent .spec.template.spec.containers[name=cert-manager-controller].args "--feature-gates=ListenerSets=true"
+# focus down to the controller container, then patch it relatively
+focus .[].kind "Deployment"
+focus .metadata.name "cert-manager"
+focus .spec.template.spec.containers.[].name "cert-manager-controller"
+append-if-absent .args "--enable-gateway-api"
+append-if-absent .args "--feature-gates=ListenerSets=true"
 `
 	want := []any{"--v=2", "--enable-gateway-api", "--feature-gates=ListenerSets=true"}
 
 	out := mustApply(t, directives, decodeDocs(t, src))
-	argsPath := mustPath(t, ".spec.template.spec.containers[name=cert-manager-controller].args")
+	argsPath := mustPath(t, ".spec.template.spec.containers[0].args")
 	got, _ := Get(out[0], argsPath)
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("args = %#v, want %#v", got, want)
@@ -79,7 +80,7 @@ append-if-absent .spec.template.spec.containers[name=cert-manager-controller].ar
 	}
 }
 
-func TestApplyCumulativeSelect(t *testing.T) {
+func TestApplyCumulativeFocus(t *testing.T) {
 	src := `
 kind: Deployment
 metadata:
@@ -90,8 +91,8 @@ metadata:
   name: b
 `
 	directives := `
-select .kind "Deployment"
-select .metadata.name "a"
+focus .[].kind "Deployment"
+focus .metadata.name "a"
 set .marked "true"
 `
 	out := mustApply(t, directives, decodeDocs(t, src))
@@ -118,12 +119,12 @@ metadata:
   name: nginx-gateway
 `
 	directives := `
-select .kind "Deployment"
+focus .[].kind "Deployment"
 set .kind "DaemonSet"
 remove .spec.replicas
 
 reset
-select .kind "NginxProxy"
+focus .[].kind "NginxProxy"
 set-if-absent .spec.serverTokens "off"
 `
 	out := mustApply(t, directives, decodeDocs(t, src))
@@ -145,7 +146,7 @@ kind: NginxProxy
 spec:
   serverTokens: on
 `
-	out := mustApply(t, "select .kind \"NginxProxy\"\nset-if-absent .spec.serverTokens \"off\"", decodeDocs(t, src))
+	out := mustApply(t, "focus .[].kind \"NginxProxy\"\nset-if-absent .spec.serverTokens \"off\"", decodeDocs(t, src))
 	if v, _ := Get(out[0], mustPath(t, ".spec.serverTokens")); v != "on" {
 		t.Errorf("serverTokens = %v, want on (unchanged)", v)
 	}
@@ -162,8 +163,8 @@ metadata:
   name: argocd-secret
 `
 	directives := `
-select .kind "Secret"
-select .metadata.name "argocd-secret"
+focus .[].kind "Secret"
+focus .metadata.name "argocd-secret"
 remove-doc
 `
 	out := mustApply(t, directives, decodeDocs(t, src))
@@ -180,7 +181,7 @@ remove-doc
 // token is a string literal.
 func TestApplySetValueTyping(t *testing.T) {
 	src := "kind: Deployment\n"
-	directives := "select .kind \"Deployment\"\nset .spec.replicas replicas\nset .spec.note \"3\""
+	directives := "focus .[].kind \"Deployment\"\nset .spec.replicas replicas\nset .spec.note \"3\""
 
 	out, err := Apply(directives, Options{Docs: decodeDocs(t, src), Vars: Vars{"replicas": 3}})
 	if err != nil {

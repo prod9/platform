@@ -2,6 +2,7 @@ package dsl
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 )
 
@@ -37,19 +38,17 @@ type Arg struct {
 type segKind int
 
 const (
-	segKey segKind = iota
-	segIndex
-	segSelect
+	segKey   segKind = iota // .name
+	segIndex                // [0]
+	segIter                 // []  — iterate a list (focus only)
 )
 
-// pathSeg is one parsed path segment. A key carries string parts so a quoted
-// key may interpolate (\(var)); index/select are resolved literals.
+// pathSeg is one parsed path segment. A key carries string parts so a quoted key
+// may interpolate (\(var)); index is a literal; iter carries nothing.
 type pathSeg struct {
 	kind  segKind
 	key   []strPart // segKey
 	index int       // segIndex
-	field string    // segSelect
-	value string    // segSelect
 }
 
 // Directive is one parsed, executable line: a verb, its arguments, and the
@@ -116,9 +115,9 @@ func parseArg(toks []token, i int) (Arg, int, error) {
 	}
 }
 
-// parsePath parses a selector: a run of .key / [index] / [field=value] segments
-// that stays contiguous (a whitespace-led token ends the path, starting the next
-// argument).
+// parsePath parses a selector: a contiguous run of .key, [N], or [] segments
+// (a whitespace-led token ends the path, starting the next argument). A bracket
+// follows either a '.' (.[]/.[ 0]) or a key (patches[0]) — both spellings parse.
 func parsePath(toks []token, i int) (Arg, int, error) {
 	var steps []pathSeg
 	for first := true; i < len(toks); first = false {
@@ -129,15 +128,16 @@ func parsePath(toks []token, i int) (Arg, int, error) {
 		switch toks[i].kind {
 		case tDot:
 			i++
-			if i >= len(toks) || toks[i].kind != tIdent && toks[i].kind != tStr {
+			if i >= len(toks) {
+				return Arg{}, 0, fmt.Errorf("expected a key or '[' after '.'")
+			}
+			if toks[i].kind == tLBrack {
+				continue // a bracket segment, handled below
+			}
+			if toks[i].kind != tIdent && toks[i].kind != tStr {
 				return Arg{}, 0, fmt.Errorf("expected a key after '.'")
 			}
-			key := toks[i]
-			if key.kind == tStr {
-				steps = append(steps, pathSeg{kind: segKey, key: key.parts})
-			} else {
-				steps = append(steps, pathSeg{kind: segKey, key: []strPart{{text: key.text}}})
-			}
+			steps = append(steps, keySeg(toks[i]))
 			i++
 
 		case tLBrack:
@@ -156,29 +156,30 @@ func parsePath(toks []token, i int) (Arg, int, error) {
 	return Arg{kind: argPath, path: steps}, i, nil
 }
 
-// parseBracket parses a [index] or [field=value] segment.
+func keySeg(t token) pathSeg {
+	if t.kind == tStr {
+		return pathSeg{kind: segKey, key: t.parts}
+	}
+	return pathSeg{kind: segKey, key: []strPart{{text: t.text}}}
+}
+
+// parseBracket parses a [N] index or [] iterate segment.
 func parseBracket(toks []token, i int) (pathSeg, int, error) {
 	i++ // consume '['
-	if i >= len(toks) || toks[i].kind != tIdent || toks[i].text == "" {
-		return pathSeg{}, 0, fmt.Errorf("expected an index or field in '[]'")
+	if i >= len(toks) {
+		return pathSeg{}, 0, fmt.Errorf("unclosed '['")
 	}
-	head := toks[i].text
-	i++
 
 	var step pathSeg
-	if i < len(toks) && toks[i].kind == tEq {
-		i++ // consume '='
-		if i >= len(toks) || toks[i].kind != tIdent {
-			return pathSeg{}, 0, fmt.Errorf("expected a value after '='")
-		}
-		step = pathSeg{kind: segSelect, field: head, value: toks[i].text}
-		i++
-	} else {
-		n, err := parseIndex(head)
+	if toks[i].kind == tIdent {
+		n, err := parseIndex(toks[i].text)
 		if err != nil {
 			return pathSeg{}, 0, err
 		}
 		step = pathSeg{kind: segIndex, index: n}
+		i++
+	} else {
+		step = pathSeg{kind: segIter}
 	}
 
 	if i >= len(toks) || toks[i].kind != tRBrack {
@@ -189,9 +190,6 @@ func parseBracket(toks []token, i int) (pathSeg, int, error) {
 
 func parseIndex(s string) (int, error) {
 	n := 0
-	if s == "" {
-		return 0, fmt.Errorf("empty list index")
-	}
 	for _, c := range s {
 		if c < '0' || c > '9' {
 			return 0, fmt.Errorf("invalid list index %q", s)
@@ -201,8 +199,9 @@ func parseIndex(s string) (int, error) {
 	return n, nil
 }
 
-// resolvePath materializes a parsed selector against vars: keys interpolate,
-// index/select are literal.
+// resolvePath materializes a parsed selector as an edit Path (a single node):
+// keys interpolate, index is literal. An iterate ([]) belongs to focus, not an
+// edit, so it is rejected here.
 func resolvePath(steps []pathSeg, vars Vars) (Path, error) {
 	path := make(Path, 0, len(steps))
 	for _, s := range steps {
@@ -215,8 +214,8 @@ func resolvePath(steps []pathSeg, vars Vars) (Path, error) {
 			path = append(path, Key{Name: name})
 		case segIndex:
 			path = append(path, Index{N: s.index})
-		case segSelect:
-			path = append(path, Select{Field: s.field, Value: s.value})
+		case segIter:
+			return nil, fmt.Errorf("'[]' iterate is not allowed in an edit path; focus into it first")
 		}
 	}
 	return path, nil
@@ -229,7 +228,7 @@ type engine struct {
 	raw     []byte
 	docs    []Doc
 	decoded bool
-	scope   []int
+	scope   []any // the focused nodes; reset is the whole doc stream
 
 	vars   Vars
 	outDir string
@@ -278,8 +277,8 @@ func (e *engine) exec(d Directive) error {
 		return e.execExtract(d.Args)
 	case "emit":
 		return e.execEmit(d.Args)
-	case "select":
-		return e.execSelect(d.Args)
+	case "focus":
+		return e.execFocus(d.Args)
 	case "reset":
 		return e.execReset(d.Args)
 	case "set":
@@ -370,32 +369,115 @@ func (e *engine) execEmit(args []Arg) error {
 	return emit(e.outDir, name, e.docs)
 }
 
-// select PATH VALUE — narrow scope to in-scope docs whose PATH equals VALUE.
-func (e *engine) execSelect(args []Arg) error {
-	if len(args) != 2 {
-		return fmt.Errorf("select: want PATH VALUE, got %d args", len(args))
+// focus PATH [VALUE] — narrow the scope into the document tree. With no VALUE it
+// navigates: the new scope is every node the path reaches (.[] iterates a list,
+// .key/[N] descend). With a VALUE it filters: the path's trailing .key is a
+// predicate, and the scope becomes the nodes whose that field equals VALUE.
+// focus chains — each one narrows within the previous; reset returns to the top.
+func (e *engine) execFocus(args []Arg) error {
+	if len(args) < 1 || len(args) > 2 {
+		return fmt.Errorf("focus: want PATH or PATH VALUE, got %d args", len(args))
 	}
-	path, err := e.argPath(args[0])
-	if err != nil {
-		return fmt.Errorf("select: %w", err)
-	}
-	want, err := e.argValue(args[1])
-	if err != nil {
-		return fmt.Errorf("select: %w", err)
+	if args[0].kind != argPath {
+		return fmt.Errorf("focus: first argument must be a path (.a.b)")
 	}
 	if err := e.ensureDecoded(); err != nil {
 		return err
 	}
+	segs := args[0].path
+
+	if len(args) == 1 {
+		scope, err := e.walkFocus(e.scope, segs)
+		if err != nil {
+			return fmt.Errorf("focus: %w", err)
+		}
+		e.scope = scope
+		return nil
+	}
+
+	// A filter splits at the last []: the segments up to it navigate to the
+	// candidate nodes (the kept ones), the segments after it form the predicate
+	// tested on each candidate. With no [], the candidates are the current scope
+	// and the whole path is the predicate.
+	nav, pred := splitAtLastIter(segs)
+	if len(pred) == 0 {
+		return fmt.Errorf("focus: a filter needs a field path after the iterate before the value")
+	}
+	predPath, err := resolvePath(pred, e.vars)
+	if err != nil {
+		return fmt.Errorf("focus: %w", err)
+	}
+	want, err := e.argValue(args[1])
+	if err != nil {
+		return fmt.Errorf("focus: %w", err)
+	}
+	candidates, err := e.walkFocus(e.scope, nav)
+	if err != nil {
+		return fmt.Errorf("focus: %w", err)
+	}
 
 	value := fmt.Sprint(want)
-	var kept []int
-	for _, idx := range e.scope {
-		if got, ok := Get(e.docs[idx], path); ok && fmt.Sprint(got) == value {
-			kept = append(kept, idx)
+	var kept []any
+	for _, c := range candidates {
+		m, ok := c.(Doc)
+		if !ok {
+			continue
+		}
+		if got, ok := Get(m, predPath); ok && fmt.Sprint(got) == value {
+			kept = append(kept, c)
 		}
 	}
 	e.scope = kept
 	return nil
+}
+
+// splitAtLastIter divides a focus path at its final [] segment: nav includes the
+// iterate (its elements are the filter candidates), pred is the predicate path
+// after it. With no iterate, nav is empty (candidates are the current scope) and
+// pred is the whole path.
+func splitAtLastIter(segs []pathSeg) (nav, pred []pathSeg) {
+	last := -1
+	for i, s := range segs {
+		if s.kind == segIter {
+			last = i
+		}
+	}
+	return segs[:last+1], segs[last+1:]
+}
+
+// walkFocus applies path segments across a node set, flattening: .key/[N] map
+// each node to a child, [] expands each list node into its elements.
+func (e *engine) walkFocus(scope []any, segs []pathSeg) ([]any, error) {
+	cur := scope
+	for _, s := range segs {
+		var next []any
+		for _, node := range cur {
+			switch s.kind {
+			case segKey:
+				name, err := resolveStr(s.key, e.vars)
+				if err != nil {
+					return nil, err
+				}
+				if m, ok := node.(Doc); ok {
+					if v, ok := m[name]; ok {
+						next = append(next, v)
+					}
+				}
+			case segIndex:
+				if list, ok := node.([]any); ok && s.index >= 0 && s.index < len(list) {
+					next = append(next, list[s.index])
+				}
+			case segIter:
+				list, ok := node.([]any)
+				if !ok {
+					return nil, fmt.Errorf("'[]' applied to a non-list")
+				}
+				next = append(next, list...)
+			}
+		}
+		cur = next
+	}
+	return cur, nil
 }
 
 func (e *engine) execReset(args []Arg) error {
@@ -419,20 +501,33 @@ func (e *engine) execRemoveDoc(args []Arg) error {
 		return err
 	}
 
-	dropped := make(map[int]bool, len(e.scope))
-	for _, idx := range e.scope {
-		dropped[idx] = true
+	dropped := map[uintptr]bool{}
+	for _, node := range e.scope {
+		if p, ok := docPtr(node); ok {
+			dropped[p] = true
+		}
 	}
 
 	kept := make([]Doc, 0, len(e.docs))
-	for i, doc := range e.docs {
-		if !dropped[i] {
-			kept = append(kept, doc)
+	for _, doc := range e.docs {
+		if p, ok := docPtr(doc); ok && dropped[p] {
+			continue
 		}
+		kept = append(kept, doc)
 	}
 	e.docs = kept
 	e.resetScope()
 	return nil
+}
+
+// docPtr returns a map's identity pointer, for matching focused nodes back to
+// the documents that hold them (maps are not == comparable).
+func docPtr(v any) (uintptr, bool) {
+	rv := reflect.ValueOf(v)
+	if rv.Kind() == reflect.Map {
+		return rv.Pointer(), true
+	}
+	return 0, false
 }
 
 // execValueEdit handles the PATH VALUE verbs: resolve the path and the value (a
@@ -466,13 +561,18 @@ func (e *engine) execPathEdit(args []Arg, fn func(Doc, Path) error) error {
 	return e.applyOverScope(path, fn)
 }
 
-// applyOverScope runs fn on every in-scope doc.
+// applyOverScope runs fn on every focused node, with the edit path relative to
+// that node. A focused node that is not a map can't be edited.
 func (e *engine) applyOverScope(path Path, fn func(Doc, Path) error) error {
 	if err := e.ensureDecoded(); err != nil {
 		return err
 	}
-	for _, idx := range e.scope {
-		if err := fn(e.docs[idx], path); err != nil {
+	for _, node := range e.scope {
+		m, ok := node.(Doc)
+		if !ok {
+			return fmt.Errorf("edit: focused node is not a map (focus into a document first)")
+		}
+		if err := fn(m, path); err != nil {
 			return err
 		}
 	}
@@ -536,9 +636,12 @@ func (e *engine) ensureDecoded() error {
 	return nil
 }
 
+// resetScope returns the scope to the whole document stream — a single node, the
+// list of all docs, which a leading .[] iterates into the individual documents.
 func (e *engine) resetScope() {
-	e.scope = make([]int, len(e.docs))
+	docs := make([]any, len(e.docs))
 	for i := range e.docs {
-		e.scope[i] = i
+		docs[i] = e.docs[i]
 	}
+	e.scope = []any{docs}
 }
