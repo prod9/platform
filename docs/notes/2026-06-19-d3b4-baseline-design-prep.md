@@ -63,20 +63,46 @@ Foreign installs currently in `../infra/k8s/` (the `.platform` candidates):
 - **Optional toggles:** **argocd** (`argocd+argocd.platform`, default **off** — reference
   install; landed) and **NGF-experimental** (default **on** — pending, see below).
 
-### NGF directive — finding + blockers (pending)
+### NGF directive — recipe + remaining blocker
 
-The Linode firewall annotation in the real infra lives **inside the NGF install manifest**, in an
-`NginxProxy` resource at `spec.kubernetes.service.patches[].value.metadata.annotations`
-(`service.beta.kubernetes.io/linode-loadbalancer-firewall-id`), alongside `type: LoadBalancer`
-and `externalTrafficPolicy: Local`. So it's a DSL patch into the downloaded manifest, not a CUE
-Gateway annotation. Two things to resolve before authoring:
+**Source of truth:** `prod9/infra-cli/cmd/nginx_gateway_cmd.go` (the cli platform replaces). It
+**downloads plain manifests** (no Helm at render time — the manifests are pre-baked upstream):
 
-1. **Manifest source** — NGF ships primarily via Helm (banned). Confirm there is a plain
-   experimental *manifest bundle* to `download`; if not, the gateway install becomes CUE
-   (ours), like the engine — not a `.platform`.
-2. **Patch feasibility** — the annotation sits in a created nested list-of-maps
-   (`patches: [{value:{metadata:{annotations:{…}}}}]`). Confirm the path-DSL `set`/`append`
-   verbs can build that, or whether it's a DSL gap to close first.
+| step | URL | emit |
+|------|-----|------|
+| Gateway API CRDs | `…/kubernetes-sigs/gateway-api/releases/download/\(gateway_api_version)/experimental-install.yaml` | `gateway-api-crds.yaml` |
+| NGF CRDs | `…/nginx/nginx-gateway-fabric/\(nginx_gateway_version)/deploy/crds.yaml` (raw) | `nginx-gateway-crds.yaml` |
+| NGF controller | `…/nginx/nginx-gateway-fabric/\(nginx_gateway_version)/deploy/default/deploy.yaml` (raw) | `nginx-gateway.yaml` |
+
+(Experimental gateway-api install is required for TCPRoute — hence `experimental-install.yaml`.)
+Patches on the NGF controller manifest (cli does these via `pipelines.EditYAML`):
+
+- **serverTokens=off** — `select ".kind" "NginxProxy"` → `set ".spec.serverTokens" "off"` (NGF
+  2.5.1 bug workaround).
+- **firewall annotation** — append a StrategicMerge entry to
+  `NginxProxy.spec.kubernetes.service.patches`, carrying
+  `metadata.annotations."service.beta.kubernetes.io/linode-loadbalancer-firewall-id"` =
+  `\(nginx_gateway_firewall_id)`. NGF v2's CRD has no `service.annotations` field — the patches
+  list is the only hatch.
+- *(cli also has conditional toleration + Deployment→DaemonSet; both off in current infra —
+  defer.)*
+
+**Verified working** for this recipe: `select PATH VALUE` (doc filter), escaped quotes in
+tokens, quoted keys, and the new auto-vivify `set` (builds `patches[0]…` from nothing).
+
+**Remaining blocker — string-forcing.** `set`'s `scalar()` runs the value through
+`yaml.Unmarshal`, so `\(nginx_gateway_firewall_id)` = `"11222746"` coerces to **int**. But a
+k8s annotation value must be a **string** (`annotations` is `map[string]string`) — an int there
+is invalid. The DSL has no way to force a string-typed scalar for a numeric-looking value.
+Options (a design call): a `set-string` verb; make `scalar()` respect an already-quoted input
+(`set … "\"\(x)\""`); or a typed-set syntax. **Needs a decision before the NGF directive can
+emit a valid firewall annotation.** Everything else is ready.
+
+### Earlier framing (superseded by the recipe above)
+
+NGF does *not* ship a tarball/release-asset install manifest — but it serves plain YAML from the
+repo tree (`deploy/crds.yaml`, `deploy/default/deploy.yaml`) + gateway-api's release assets, so
+`download` works without Helm. The "Helm-only → must be CUE" worry is resolved: it stays DSL.
 
 ## Baseline file set + `[ops.vars]` (confirmed shape)
 
