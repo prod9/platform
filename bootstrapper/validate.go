@@ -23,16 +23,29 @@ func validateWD(dir string) error {
 	if !info.IsDir() {
 		return ErrWDNotDir
 	}
-	if !isGitRepo(dir) {
+	if !IsGitRepo(dir) {
 		return ErrWDNotGit
 	}
 	return nil
 }
 
-// isGitRepo reports whether dir is inside a git work tree, walking up toward the
+// validateInitWD checks the `platform init` target exists and is a directory.
+// Unlike validateWD it does not require a git repository — init creates one.
+func validateInitWD(dir string) error {
+	info, err := os.Stat(dir)
+	if err != nil {
+		return err
+	}
+	if !info.IsDir() {
+		return ErrWDNotDir
+	}
+	return nil
+}
+
+// IsGitRepo reports whether dir is inside a git work tree, walking up toward the
 // filesystem root looking for a .git entry (a directory in a normal clone, a
 // file in a worktree/submodule — os.Stat accepts both).
-func isGitRepo(dir string) bool {
+func IsGitRepo(dir string) bool {
 	for {
 		if _, err := os.Stat(filepath.Join(dir, ".git")); err == nil {
 			return true
