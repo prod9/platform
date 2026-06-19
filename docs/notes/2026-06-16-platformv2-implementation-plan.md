@@ -126,7 +126,15 @@ first consumer; bootstrap writes it into the infra repo. Port source:
   then). See the
   [render-routing ADR](../decisions/2026-06-18-render-routes-cue-and-platform-by-extension.md);
   supersedes the interim model-II "separate run-DSL command" framing. **D3b-4** baseline
-  `.platform` content + `settings.toml` fold-in.
+  `.platform` content + `settings.toml` fold-in. **D3b-4a landed:** `core/baseline` `go:embed`s
+  the directive set + ships `DefaultVars`, exposed via `EmbeddedFiles`/`DefaultVars`; seeded with
+  `cert-manager.platform` (download upstream by `\(cert_manager_version)`, emit; cluster-issuer
+  stays CUE), dogfooded against live upstream. Decisions confirmed in the
+  [D3b-4 design-prep note](2026-06-19-d3b4-baseline-design-prep.md) (nginx-gateway
+  experimental-only, engine is CUE not DSL, versions via `[ops.vars]`). **D3b-4b (blocked on
+  decisions):** the nginx-gateway/flux/argocd directives + the bootstrap write-path wiring +
+  `ScanOptions` prompts. Open: bootstrap write-*mode* (baseline into every bootstrapped repo, or
+  only infra repos?), flux version pin, argocd toggle semantics, nginx-gateway patch details.
 
   **D3b-4 detail** — authoritative gating/render detail lives in the
   [spec](../spec/manifest-patch-dsl.md) and the
