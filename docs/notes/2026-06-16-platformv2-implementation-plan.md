@@ -131,15 +131,18 @@ first consumer; bootstrap writes it into the infra repo. Port source:
   `cert-manager.platform` (download upstream by `\(cert_manager_version)`, emit; cluster-issuer
   stays CUE), dogfooded against live upstream. Decisions confirmed in the
   [D3b-4 design-prep note](2026-06-19-d3b4-baseline-design-prep.md) (nginx-gateway
-  experimental-only, engine is CUE not DSL, versions via `[ops.vars]`). **D3b-4b in progress:** write-mode resolved as a
-  distinct **`platform init`** command (git-inits the target, writes platform.toml[ops.vars] +
-  embedded `baseline/*.platform`; not the app build script/pipeline) — landed. **`flux.platform`**
-  landed (download install.yaml by `\(flux_version)`, default v2.8.8). The generic checkbox **picker** (`ScanOptions` loop in `platform init`, no per-component code) and
-  **argocd** (off-by-default toggle) landed. Still open: the **NGF-experimental** directive
-  (default-on toggle) — blocked on confirming NGF's manifest source (it ships via Helm; need a
-  plain bundle to `download`, else it becomes CUE like the engine) and whether the path-DSL can
-  inject the firewall annotation, which lives in an `NginxProxy` StrategicMerge patch
-  (`spec.kubernetes.service.patches[].value.metadata.annotations`) — a created nested list-of-maps.
+  experimental-only, engine is CUE not DSL, versions via `[ops.vars]`). **D3b-4b landed:**
+  `platform init` (git-inits, writes platform.toml[ops.vars] + embedded `baseline/*.platform`,
+  runs a generic `ScanOptions` checkbox picker; not the app build script/pipeline). Directives:
+  **cert-manager** + **flux** (v2.8.8) always-on; **argocd** off-by-default toggle;
+  **nginx-gateway** (NGF experimental) on-by-default toggle — downloads experimental gateway-api
+  CRDs + NGF CRDs + controller and patches the `NginxProxy` (serverTokens=off + Linode firewall
+  annotation as a StrategicMerge service patch). All dogfooded against live upstream; NGF output
+  matches the infra repo's committed `k8s/nginx-gateway/nginx-gateway.yaml`. DSL enablers:
+  `[ops.vars]` widened to `map[string]any` (typed); `set` stopped coercing (bare `\(x)` keeps the
+  var type, `"\(x)"` forces string); path nav gained jq-style quoted keys + auto-vivifying `set`.
+  **Deferred:** the Dagger **engine** (CUE DaemonSet, ours — Phase B-ish) and the cross-repo
+  `settings.toml` → `platform.toml` migration (attended-only).
   Detail in the [design-prep note](2026-06-19-d3b4-baseline-design-prep.md).
 
   **D3b-4 detail** — authoritative gating/render detail lives in the
