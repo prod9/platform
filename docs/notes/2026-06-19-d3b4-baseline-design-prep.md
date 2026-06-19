@@ -1,10 +1,27 @@
 # D3b-4 baseline — design prep (derived from real `infra`)
 
-**Status:** proposal, parked for chakrit's confirmation · drafted 2026-06-19 during an
-autonomous (AFK) run, after D3b-3a/3b landed. D3b-4 itself was **not** implemented: it needs
-the option-matrix / CUE-vs-DSL split confirmed (open question #8), and the `settings.toml`
-migration is cross-repo + attended-only. This note extracts the facts from `../infra` so the
-confirmation is a quick yes/no rather than a discovery exercise.
+**Status:** confirmed by chakrit 2026-06-19 (see Decisions). Drafted during an autonomous (AFK)
+run after D3b-3a/3b landed; D3b-4 itself not yet implemented. This note extracts the facts from
+`../infra` and now records the confirmed design.
+
+## Decisions (chakrit, 2026-06-19)
+
+1. **argocd** — keep a **reference** `argocd.platform` (version-pinned), not the active delivery
+   tool (Flux is). Open micro-point: applied-by-default vs an opt-in toggle — see below.
+2. **nginx-gateway** — **experimental only.** Stable lacks a feature we require (TCPRoute) and
+   "doesn't even work." So there is **no choice group**: a single plain `nginx-gateway.platform`
+   pinned to the experimental manifests. The whole experimental-vs-stable matrix drops.
+3. **engine = Dagger engine, authored in CUE, not DSL.** Per the
+   [2026-06-12 design](2026-06-12-platformv2-design.md) (Helm banned → no Dagger Helm chart →
+   the engine installs via our own CUE manifests as a DaemonSet, "just more managed infra").
+   So **drop `engine.platform`**; the engine is a CUE app, ours.
+4. **Versions live in `[ops.vars]`**, string-interpolated as `\(var)` into the directive
+   `download` URLs (confirmed).
+5. **Migration is minimal.** The tooling (argo/flux) needs no migration; nginx-gateway has
+   existing guides/skills for the ingress→gateway-api move; cert-manager is ~a no-op. Workloads
+   stay put, CUE is unchanged, namespaces/yaml are same-ish (formatting diffs). So D3b-4's
+   "migration" is just folding the `settings.toml` values into `platform.toml` `[ops.vars]`;
+   the real cutover (delete Buildkite once Flux + platform CI are up) is later (Slice 2).
 
 ## What the real `infra` actually ships
 
@@ -32,61 +49,68 @@ Foreign installs currently in `../infra/k8s/` (the `.platform` candidates):
 | `cert-manager`  | `cert-manager.yaml` (upstream), `cluster-issuer.yaml` (ours)        |
 | `nginx-gateway` | `gateway-api-crds.yaml`, `nginx-gateway-crds.yaml`, `nginx-gateway.yaml` |
 
-## Proposed baseline file set + `[ops.vars]` (CONFIRM)
+## Baseline file set + `[ops.vars]` (confirmed shape)
 
-Mapping the above onto the D3b-2 filename convention and the generic-vars model:
+Foreign upstream installs → DSL `baseline/*.platform`. Versions interpolated from `[ops.vars]`
+into the `download` URLs:
 
 ```
 baseline/
-  cert-manager.platform              # download upstream cert-manager.yaml, emit it
-  nginx-gateway@experimental.platform # experimental manifests (TCPRoute support)
-  nginx-gateway@stable.platform       # stable manifests
-  flux.platform                       # NEW — Flux seed (source + kustomize controllers)
-  engine.platform                     # NEW — engine install (scope TBD)
+  cert-manager.platform     # download cert-manager \(cert_manager_version), emit (~no-op)
+  nginx-gateway.platform    # gateway-api CRDs + nginx-gateway CRDs + experimental install,
+                            #   patched with the firewall-id annotation + toleration
+  flux.platform             # NEW — Flux controllers (source + kustomize); version TBD
+  argocd.platform           # reference only; download argocd \(argocd_version)
 ```
 
-Default `[ops.vars]` the embed ships (versions live in the download URLs as `\(var)`):
+Default `[ops.vars]` the embed ships:
 
 ```toml
 [ops.vars]
 cert_manager_version      = "v1.20.2"
-nginx_gateway             = "experimental"   # choice: experimental | stable
 nginx_gateway_version     = "v2.6.0"
 gateway_api_version       = "v1.5.1"
 nginx_gateway_firewall_id = "11222746"
 nginx_gateway_toleration  = ""
+argocd_version            = "v3.4.1"
+flux_version              = "?"          # no infra precedent — pick a current Flux release
 ```
 
-`nginx-gateway` as a **choice group** (not a `+experimental` toggle) matches the roadmap's
-lexically-first-default note (`experimental` sorts before `stable`, so the unset default is
-`experimental` — which is what `infra` runs today). Confirm choice-vs-toggle; if `stable`
-should be the safe default, D3b-2's `Select` needs an explicit default marker (it has none
-yet).
+No `nginx-gateway` choice group (decision #2: experimental-only). The lexically-first-default
+note in the roadmap is therefore moot for nginx-gateway.
 
-## CUE vs DSL split (open question #8 — CONFIRM)
+Ours, authored in CUE (`apps/`) — bootstrap may seed these, but they are not `.platform`:
+cluster-issuer, namespaces, RBAC, the `Gateway`/`GatewayClass` instances, the **Dagger engine
+DaemonSet** (decision #3), and (Phase B) the platform control-plane Deployment.
 
-- **DSL (`baseline/*.platform`, foreign installs):** cert-manager, nginx-gateway (+ its CRDs
-  and the gateway-api CRDs), Flux seed, engine. Pinned by version-in-URL, patched as needed.
-- **CUE (`apps/*.cue`, ours):** `cluster-issuer.yaml`, namespaces, RBAC, the `Gateway`/
-  `GatewayClass` resources, the platform Deployment. These already exist as CUE in `infra`.
+## CUE vs DSL split (open question #8 — resolved)
 
-Boundary question: the gateway-api CRDs and nginx-gateway CRDs — one `.platform` each, or
-folded into `nginx-gateway@*.platform` as extra `download`+`emit` steps? Folding keeps one
-component dir (`k8s/nginx-gateway/`) matching today's layout; confirm.
+This was prep-note Q3 ("what do you mean?"). Two parts:
 
-## Open confirmations before authoring D3b-4
+- **The boundary** — which manifests we *author ourselves in CUE* (`apps/`) vs *pull-and-patch
+  from upstream via the DSL* (`baseline/*.platform`):
+  - **DSL (foreign upstream installs):** cert-manager, nginx-gateway (+ its CRDs + the
+    gateway-api CRDs), Flux controllers, argocd (reference). Version-pinned in the URL, patched
+    where needed.
+  - **CUE (ours):** cluster-issuer, namespaces, RBAC, `Gateway`/`GatewayClass`, the Dagger
+    engine DaemonSet, the platform control-plane Deployment. Already CUE in `infra` today.
+- **The CRDs-folding sub-question** — nginx-gateway upstream ships three files
+  (`gateway-api-crds.yaml`, `nginx-gateway-crds.yaml`, `nginx-gateway.yaml`). Author them as
+  **one `nginx-gateway.platform`** doing three `download`→`emit` steps (all three land in
+  `k8s/nginx-gateway/`, matching today's layout), rather than three separate directive files.
+  *Default taken; reversible.*
 
-1. **argocd** — drop from the baseline entirely (Flux replaces it), or keep an argocd
-   `.platform`? The pull-based-GitOps ADRs point to Flux, so this note assumes drop.
-2. **Choice vs toggle** for `nginx-gateway`, and whether `experimental` or `stable` is the
-   safe unset default.
-3. **CUE/DSL boundary** above, incl. the CRDs folding question.
-4. **`flux.platform` / `engine.platform` scope** — these have no `infra` precedent to mirror;
-   they need their own design (which controllers, which engine, versions).
-5. **Migration mechanics** (cross-repo, attended): fold `settings.toml` → `platform.toml`
-   per the table, delete `settings.toml`, then dogfood — `ops render` the authored directives
-   and diff against `../infra/k8s/{cert-manager,nginx-gateway}`.
+## Remaining open before authoring
 
-Once 1–4 are confirmed, authoring the directives + default `[ops.vars]`, the `go:embed`, the
-bootstrap write-path hook, and the `ScanOptions` prompts is mechanical and in-envelope; the
-migration (5) stays attended.
+- **flux version** — no `infra` precedent; pick a current Flux release to pin `flux_version`.
+- **argocd** — applied-by-default (plain `argocd.platform`) vs opt-in
+  (`argocd+enabled.platform` toggle, off by default). Since Flux is the delivery tool and
+  argocd is "reference," an off-by-default toggle is the safer read — confirm.
+- **CUE baseline bits scope** — is the Dagger engine DaemonSet (and platform Deployment)
+  authored as part of D3b-4's embedded baseline, or deferred (engine alongside Phase B)? The
+  foreign `.platform` set + the embed/bootstrap mechanism can land without them.
+
+Authoring the directives + default `[ops.vars]`, the `go:embed`, the bootstrap write-path hook,
+and the `ScanOptions` prompts is mechanical and in-envelope once the above settle. The migration
+(fold `settings.toml` → `platform.toml`, delete it; dogfood `ops render` vs
+`../infra/k8s/{cert-manager,nginx-gateway}`) stays cross-repo + attended.
