@@ -15,7 +15,7 @@ func TestAnalyzeInit_writesBaselineAndProjectFileOnly(t *testing.T) {
 		"cert-manager.platform": []byte("download \"u\"\nemit \"cert-manager.yaml\"\n"),
 		"flux.platform":         []byte("download \"u\"\nemit \"flux.yaml\"\n"),
 	}
-	defaults := map[string]string{"cert_manager_version": "v1.20.2", "flux_version": "v2.8.8"}
+	defaults := map[string]any{"cert_manager_version": "v1.20.2", "flux_version": "v2.8.8"}
 
 	plan, err := AnalyzeInit(dir, testInfo(), baselineFiles, defaults)
 	r.NoError(t, err)

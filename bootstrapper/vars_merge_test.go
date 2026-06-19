@@ -14,7 +14,7 @@ repository = "github.com/prod9/infra"
 # operator bumped this for a CVE
 cert_manager_version = "v1.16.0"
 `
-	defaults := map[string]string{
+	defaults := map[string]any{
 		"cert_manager_version": "v1.15.0", // operator's value must win
 		"flux_version":         "v2.3.0",  // new key, appended
 		"nginx_experimental":   "true",    // new key, appended
@@ -42,10 +42,26 @@ cert_manager_version = "v1.16.0"
 	r.True(t, byKey["nginx_experimental"].Appended)
 }
 
+func TestMergeOpsVars_encodesByType(t *testing.T) {
+	defaults := map[string]any{
+		"firewall_id": "11222746", // string → quoted, even though it looks numeric
+		"replicas":    int64(3),   // int → bare
+		"debug":       true,       // bool → bare
+	}
+
+	merged, _ := mergeOpsVars([]byte("[ops.vars]\n"), defaults)
+	got := string(merged)
+
+	r.Contains(t, got, `firewall_id = "11222746"`)
+	r.Contains(t, got, `replicas = 3`)
+	r.Contains(t, got, `debug = true`)
+	r.NotContains(t, got, `replicas = "3"`)
+}
+
 func TestMergeOpsVars_createsSectionWhenAbsent(t *testing.T) {
 	existing := `repository = "github.com/prod9/infra"
 `
-	defaults := map[string]string{"flux_version": "v2.3.0"}
+	defaults := map[string]any{"flux_version": "v2.3.0"}
 
 	merged, changes := mergeOpsVars([]byte(existing), defaults)
 	got := string(merged)
@@ -71,7 +87,7 @@ func TestMergeOpsVars_idempotent(t *testing.T) {
 	existing := `[ops.vars]
 flux_version = "v2.3.0"
 `
-	defaults := map[string]string{"flux_version": "v2.3.0", "cert_manager_version": "v1.16.0"}
+	defaults := map[string]any{"flux_version": "v2.3.0", "cert_manager_version": "v1.16.0"}
 
 	once, _ := mergeOpsVars([]byte(existing), defaults)
 	twice, changes := mergeOpsVars(once, defaults)

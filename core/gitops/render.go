@@ -38,7 +38,7 @@ const (
 // a plain HTTP GET; tests inject fixtures).
 type RenderOptions struct {
 	Image string
-	Vars  map[string]string
+	Vars  map[string]any
 	Fetch func(url string) ([]byte, error)
 }
 
@@ -102,7 +102,7 @@ func exportApps(srcDir, image string) ([]byte, error) {
 // baseline.Select gates the files by vars, then each is run with dsl.Apply into a
 // per-component output directory. Results are collected into a tree keyed by
 // <component>/<emitted-file>. An absent baseline package renders nothing.
-func renderBaseline(srcDir string, vars map[string]string, fetch func(string) ([]byte, error)) (Tree, error) {
+func renderBaseline(srcDir string, vars map[string]any, fetch func(string) ([]byte, error)) (Tree, error) {
 	dir := filepath.Join(srcDir, baselinePackage)
 	names, err := platformFiles(dir)
 	if err != nil || len(names) == 0 {
@@ -130,7 +130,7 @@ func renderBaseline(srcDir string, vars map[string]string, fetch func(string) ([
 
 // applyDirective runs one directive file into outRoot/<component>, where
 // component is the file's stem before any @variant / +flag marker.
-func applyDirective(srcDir, outRoot, name string, vars map[string]string, fetch func(string) ([]byte, error)) error {
+func applyDirective(srcDir, outRoot, name string, vars map[string]any, fetch func(string) ([]byte, error)) error {
 	directives, err := os.ReadFile(filepath.Join(srcDir, name))
 	if err != nil {
 		return err

@@ -17,14 +17,17 @@ split config across two per-repo files (`platform.toml` + `settings.toml`).
 ## Decision
 
 1. **Eliminate `settings.toml`.** All per-repo config lives in `platform.toml`.
-2. **`[ops.vars]` is a generic open `map[string]string`.** The config processor stores it
+2. **`[ops.vars]` is a generic open `map[string]any`.** The config processor stores it
    verbatim — no per-software fields, no typed component structs. The DSL owns its own
    variable vocabulary; adding/removing a `${var}` means editing the directive file and
    the `[ops.vars]` table, never the Go DTO.
-3. **Values are strings.** Bools and numbers are strings in TOML
-   (`experimental = "true"`); the per-component assembly layer interprets them (e.g. gates
-   a directive line on `vars["nginx_experimental"] == "true"`). This keeps substitution
-   type-free and the processor a pure passthrough.
+3. **Values keep their TOML type** (`map[string]any`) — *amended 2026-06-19, was
+   `map[string]string`.* TOML gives `string`/`int64`/`bool` natively; the DSL `set` assigns
+   a value at the type it arrives, so a manifest int field gets an int. Interpolation into a
+   quoted string stringifies (`"\(x)"` forces a string — the escape hatch for numeric-looking
+   strings like a Linode firewall-id), and the gating layer compares via `fmt.Sprint` so a
+   toggle reads the same whether written `experimental = "true"` or `= true`. The processor
+   stays a pure passthrough; only the *type* widened.
 4. **`[ops].image`/`tag` stay typed.** The publish target is platform's own concern, not a
    DSL var — it remains structured config, distinct from the generic `[ops.vars]` bag.
 

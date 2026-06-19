@@ -46,7 +46,7 @@ func TestSelect_defaultsWhenUnset(t *testing.T) {
 }
 
 func TestSelect_honoursChoiceAndToggle(t *testing.T) {
-	got, err := Select(sampleFiles, map[string]string{
+	got, err := Select(sampleFiles, map[string]any{
 		"nginx-gateway": "stable",
 		"toleration":    "true",
 	})
@@ -62,13 +62,13 @@ func TestSelect_honoursChoiceAndToggle(t *testing.T) {
 func TestSelect_toggleOffUnlessTrue(t *testing.T) {
 	// Any value other than "true" leaves the overlay out — only the exact
 	// string-bool enables it.
-	got, err := Select(sampleFiles, map[string]string{"toleration": "yes"})
+	got, err := Select(sampleFiles, map[string]any{"toleration": "yes"})
 	r.NoError(t, err)
 	r.NotContains(t, got, "nginx-gateway+toleration.platform")
 }
 
 func TestSelect_unknownVariantIsError(t *testing.T) {
 	// A typo'd choice must fail loudly, not silently fall back to a default.
-	_, err := Select(sampleFiles, map[string]string{"nginx-gateway": "bogus"})
+	_, err := Select(sampleFiles, map[string]any{"nginx-gateway": "bogus"})
 	r.Error(t, err)
 }

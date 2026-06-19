@@ -52,7 +52,7 @@ type Plan struct {
 // without writing anything. defaultVars is the baseline's default [ops.vars];
 // on a fresh repo they seed platform.toml, on a re-bootstrap they merge in
 // (new keys appended, operator values preserved).
-func Analyze(dir string, info *Info, defaultVars map[string]string) (*Plan, error) {
+func Analyze(dir string, info *Info, defaultVars map[string]any) (*Plan, error) {
 	dir, err := resolveWD(dir)
 	if err != nil {
 		return nil, err
@@ -105,7 +105,7 @@ func (p *Plan) Print(w io.Writer) {
 	}
 	for _, v := range p.Vars {
 		if v.Appended {
-			fmt.Fprintf(w, "  append    [ops.vars] %s = %q\n", v.Key, v.Value)
+			fmt.Fprintf(w, "  append    [ops.vars] %s = %v\n", v.Key, v.Value)
 		} else {
 			fmt.Fprintf(w, "  keep      [ops.vars] %s (operator value)\n", v.Key)
 		}
@@ -115,7 +115,7 @@ func (p *Plan) Print(w io.Writer) {
 // planProjectFile decides how platform.toml changes: a surgical [ops.vars]
 // merge when it already exists (preserving operator edits), or a freshly
 // generated file otherwise.
-func planProjectFile(dir string, info *Info, defaultVars map[string]string) (FileChange, []VarChange, error) {
+func planProjectFile(dir string, info *Info, defaultVars map[string]any) (FileChange, []VarChange, error) {
 	path := filepath.Join(dir, "platform.toml")
 
 	existing, err := os.ReadFile(path)
@@ -136,7 +136,7 @@ func planProjectFile(dir string, info *Info, defaultVars map[string]string) (Fil
 
 // generateProjectFile builds a fresh platform.toml from defaults, the operator
 // info, discovered modules, and the seeded baseline vars.
-func generateProjectFile(dir string, info *Info, defaultVars map[string]string) ([]byte, []VarChange, error) {
+func generateProjectFile(dir string, info *Info, defaultVars map[string]any) ([]byte, []VarChange, error) {
 	proj := *project.ProjectDefaults
 	proj.Modules = map[string]*project.Module{} // don't mutate the shared default map
 	proj.Maintainer = fmt.Sprintf("%s <%s>", info.Maintainer, info.MaintainerEmail)

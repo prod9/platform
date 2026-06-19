@@ -57,7 +57,7 @@ cert_manager_version = "v1.16.0"
 `
 	r.NoError(t, os.WriteFile(filepath.Join(dir, "platform.toml"), []byte(existing), 0644))
 
-	defaults := map[string]string{
+	defaults := map[string]any{
 		"cert_manager_version": "v1.15.0",
 		"flux_version":         "v2.3.0",
 	}

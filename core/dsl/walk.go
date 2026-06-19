@@ -10,8 +10,9 @@ import (
 type Doc = map[string]any
 
 // Vars is the \(var) interpolation table, sourced from platform.toml's
-// [ops.vars]. Values are strings; the assembly layer interprets bools.
-type Vars = map[string]string
+// [ops.vars]. Values keep their TOML type (string/int/bool): interpolation into
+// a quoted string stringifies them, while a bare \(x) value preserves the type.
+type Vars = map[string]any
 
 // Get walks path from doc and returns the value it names, or ok=false if any
 // step is missing. Lists decode as []any, maps as Doc.

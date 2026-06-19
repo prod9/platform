@@ -74,7 +74,7 @@ func ScanOptions(files []string) []Option {
 // variant of each choice group (its default when unset), and each enabled
 // overlay. An unknown choice value is a hard error rather than a silent
 // fallback.
-func Select(files []string, vars map[string]string) ([]string, error) {
+func Select(files []string, vars map[string]any) ([]string, error) {
 	chosen, err := resolveChoices(files, vars)
 	if err != nil {
 		return nil, err
@@ -93,7 +93,7 @@ func Select(files []string, vars map[string]string) ([]string, error) {
 				selected = append(selected, f)
 			}
 		case entryToggle:
-			if vars[e.key] == "true" {
+			if fmt.Sprint(vars[e.key]) == "true" {
 				selected = append(selected, f)
 			}
 		}
@@ -104,18 +104,19 @@ func Select(files []string, vars map[string]string) ([]string, error) {
 // resolveChoices picks the active variant for every choice group: the operator's
 // value when set (validated against the group's variants), otherwise the group
 // default.
-func resolveChoices(files []string, vars map[string]string) (map[string]string, error) {
+func resolveChoices(files []string, vars map[string]any) (map[string]string, error) {
 	chosen := map[string]string{}
 	for _, opt := range ScanOptions(files) {
 		if opt.Kind != OptionChoice {
 			continue
 		}
 
-		want, set := vars[opt.Key]
+		raw, set := vars[opt.Key]
 		if !set {
 			chosen[opt.Key] = opt.Default
 			continue
 		}
+		want := fmt.Sprint(raw)
 		if !slices.Contains(opt.Variants, want) {
 			return nil, fmt.Errorf("baseline: %q is not a variant of %q (have %v)",
 				want, opt.Key, opt.Variants)

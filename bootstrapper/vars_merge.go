@@ -1,6 +1,7 @@
 package bootstrapper
 
 import (
+	"fmt"
 	"regexp"
 	"sort"
 	"strings"
@@ -8,10 +9,10 @@ import (
 
 // VarChange records the disposition of one baseline default var during a
 // re-bootstrap merge: Appended means it was newly added, otherwise the
-// operator's existing value was preserved.
+// operator's existing value was preserved. Value keeps the default's TOML type.
 type VarChange struct {
 	Key      string
-	Value    string
+	Value    any
 	Appended bool
 }
 
@@ -24,7 +25,7 @@ var varKeyPattern = regexp.MustCompile(`^([A-Za-z0-9_-]+)\s*=`)
 // keys keep the operator's value, and everything else (comments, ordering,
 // other tables) is left byte-for-byte. A decode/re-encode would lose the
 // operator's formatting, so the merge is a surgical line insert instead.
-func mergeOpsVars(existing []byte, defaults map[string]string) ([]byte, []VarChange) {
+func mergeOpsVars(existing []byte, defaults map[string]any) ([]byte, []VarChange) {
 	if len(defaults) == 0 {
 		return existing, nil
 	}
@@ -62,7 +63,7 @@ func mergeOpsVars(existing []byte, defaults map[string]string) ([]byte, []VarCha
 
 // classifyVars reports, for each default key in sorted order, whether it would
 // be appended (absent) or preserved (already present).
-func classifyVars(defaults map[string]string, present map[string]bool) []VarChange {
+func classifyVars(defaults map[string]any, present map[string]bool) []VarChange {
 	keys := make([]string, 0, len(defaults))
 	for k := range defaults {
 		keys = append(keys, k)
@@ -80,7 +81,7 @@ func appendedLines(changes []VarChange) []string {
 	var lines []string
 	for _, c := range changes {
 		if c.Appended {
-			lines = append(lines, c.Key+" = "+quoteTOML(c.Value))
+			lines = append(lines, c.Key+" = "+tomlValue(c.Value))
 		}
 	}
 	return lines
@@ -126,6 +127,23 @@ func varKey(line string) string {
 		return m[1]
 	}
 	return ""
+}
+
+// tomlValue renders a baseline default as a TOML scalar: strings are quoted and
+// escaped, bools and numbers are emitted bare, preserving their type on the
+// re-bootstrap append.
+func tomlValue(v any) string {
+	switch x := v.(type) {
+	case string:
+		return quoteTOML(x)
+	case bool:
+		if x {
+			return "true"
+		}
+		return "false"
+	default:
+		return fmt.Sprint(x)
+	}
 }
 
 func quoteTOML(s string) string {

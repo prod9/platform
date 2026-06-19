@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"maps"
 	"os"
 	"os/exec"
@@ -80,12 +81,12 @@ func runInitCmd(cmd *cobra.Command, args []string) {
 // operator's selection into vars. Toggles are a yes/no checkbox pre-set from the
 // current value; choices pick one variant. Generic over ScanOptions — adding a
 // baseline option file needs no change here.
-func pickOptions(sess *prompts.Session, opts []baseline.Option, vars map[string]string) {
+func pickOptions(sess *prompts.Session, opts []baseline.Option, vars map[string]any) {
 	for _, opt := range opts {
 		switch opt.Kind {
 		case baseline.OptionToggle:
 			checked := "no"
-			if vars[opt.Key] == "true" {
+			if fmt.Sprint(vars[opt.Key]) == "true" {
 				checked = "yes"
 			}
 			if sess.List("enable "+opt.Key+"?", checked, []string{"yes", "no"}) == "yes" {
@@ -95,9 +96,9 @@ func pickOptions(sess *prompts.Session, opts []baseline.Option, vars map[string]
 			}
 
 		case baseline.OptionChoice:
-			current := vars[opt.Key]
-			if current == "" {
-				current = opt.Default
+			current := opt.Default
+			if v, ok := vars[opt.Key]; ok {
+				current = fmt.Sprint(v)
 			}
 			vars[opt.Key] = sess.List(opt.Key, current, opt.Variants)
 		}

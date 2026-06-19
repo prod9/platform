@@ -1,6 +1,7 @@
 package baseline_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -25,8 +26,8 @@ func TestEmbeddedCertManager(t *testing.T) {
 		t.Fatalf("cert-manager.platform not embedded; have %v", keys(files))
 	}
 
-	version := baseline.DefaultVars["cert_manager_version"]
-	if version == "" {
+	version := fmt.Sprint(baseline.DefaultVars["cert_manager_version"])
+	if version == "" || version == "<nil>" {
 		t.Fatal("DefaultVars missing cert_manager_version")
 	}
 
@@ -81,7 +82,7 @@ func TestEmbeddedSelectGating(t *testing.T) {
 		}
 	}
 
-	on, err := baseline.Select(names, map[string]string{"argocd": "true"})
+	on, err := baseline.Select(names, map[string]any{"argocd": "true"})
 	if err != nil {
 		t.Fatalf("Select (argocd on): %v", err)
 	}

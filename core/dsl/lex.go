@@ -125,7 +125,7 @@ func interpolate(s string, vars Vars) (string, error) {
 			if !ok {
 				return "", fmt.Errorf("undefined var \\(%s)", name)
 			}
-			b.WriteString(val)
+			b.WriteString(fmt.Sprint(val))
 			i += 2 + rel
 		default:
 			b.WriteByte('\\')

@@ -13,7 +13,7 @@ var embedded embed.FS
 // seeds these into a fresh platform.toml and merges them on re-bootstrap (new
 // keys appended, operator values preserved). Each key is consumed by a directive
 // file via \(var) interpolation.
-var DefaultVars = map[string]string{
+var DefaultVars = map[string]any{
 	"cert_manager_version": "v1.20.2",
 	"flux_version":         "v2.8.8",
 	"argocd_version":       "v3.4.1",

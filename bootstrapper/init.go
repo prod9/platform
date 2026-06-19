@@ -10,7 +10,7 @@ import (
 // written under baseline/. Unlike Analyze (app onboarding) it writes neither the
 // platform build script nor the CI pipeline, and it does not require an existing
 // git repository — `platform init` creates one.
-func AnalyzeInit(dir string, info *Info, baselineFiles map[string][]byte, defaultVars map[string]string) (*Plan, error) {
+func AnalyzeInit(dir string, info *Info, baselineFiles map[string][]byte, defaultVars map[string]any) (*Plan, error) {
 	dir, err := resolveWD(dir)
 	if err != nil {
 		return nil, err
