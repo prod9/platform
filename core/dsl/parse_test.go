@@ -180,7 +180,7 @@ remove-doc
 // carries the var's native type into the manifest.
 func TestApplySetValueTyping(t *testing.T) {
 	src := "kind: Deployment\n"
-	directives := "select .kind Deployment\nset .spec.replicas \\(replicas)\nset .spec.note 3"
+	directives := "select .kind Deployment\nset .spec.replicas \"\\(replicas)\"\nset .spec.note 3"
 
 	out, err := Apply(directives, Options{Docs: decodeDocs(t, src), Vars: Vars{"replicas": 3}})
 	if err != nil {
@@ -188,7 +188,7 @@ func TestApplySetValueTyping(t *testing.T) {
 	}
 
 	if v, _ := Get(out[0], mustPath(t, ".spec.replicas")); v != 3 {
-		t.Errorf("replicas = %#v, want int 3 (from a typed var)", v)
+		t.Errorf("replicas = %#v, want int 3 (from a typed var via quoted sole ref)", v)
 	}
 	if v, _ := Get(out[0], mustPath(t, ".spec.note")); v != "3" {
 		t.Errorf("note = %#v, want string \"3\" (bare literal, uncoerced)", v)

@@ -12,18 +12,16 @@ func TestResolve(t *testing.T) {
 	}{
 		// The escape-ordering case — \\( must win over \( so the literal stays literal.
 		{"literal escaped interp", Token{`\\(y)`, true}, `\(y)`},
-		{"interp", Token{`\(y)`, true}, "z"},
 		{"interp mid-string", Token{`\(prefix)-controller`, true}, "cm-controller"},
 		{"interp in url", Token{`u/\(version)/install.yaml`, true}, "u/v1.2.3/install.yaml"},
 		{"escaped backslash", Token{`x\\y`, true}, `x\y`},
 		{"escaped quote", Token{`he said \"hi\"`, true}, `he said "hi"`},
 		{"bare plain", Token{"DaemonSet", false}, "DaemonSet"},
 		{"bare with backslash not interp", Token{`x\\y`, false}, `x\\y`},
-		// A bare sole \(x) ref resolves to the var's native type.
-		{"bare sole ref string", Token{`\(y)`, false}, "z"},
-		{"bare sole ref typed", Token{`\(count)`, false}, 3},
-		// A quoted \(x) stringifies the typed value (the string-forcing escape hatch).
-		{"quoted forces string", Token{`\(count)`, true}, "3"},
+		// A quoted sole \(x) ref resolves to the var's native type; a string var
+		// stays a string, an int var stays an int.
+		{"quoted sole ref string var", Token{`\(y)`, true}, "z"},
+		{"quoted sole ref typed var", Token{`\(count)`, true}, 3},
 	}
 
 	for _, tc := range cases {

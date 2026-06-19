@@ -79,14 +79,18 @@ func scanString(line string, start int) (raw string, next int, err error) {
 	return "", 0, fmt.Errorf("unterminated string: %q", line[start:])
 }
 
-// resolve turns a lexed token into its value. A quoted token is always a string
-// (escapes + \(var) interpolated as text — this is how you force a string). A
-// bare token that is exactly one \(name) reference resolves to that var's native
-// type (string/int/bool), so a typed [ops.vars] value reaches set unchanged. Any
-// other bare \( is a forgotten-quote error; a plain bare token is its literal text.
+// resolve turns a lexed token into its value. \(var) interpolation lives only
+// inside double-quoted strings (a bare \( is a forgotten-quote error). A quoted
+// token that is exactly one \(name) reference resolves to that var's native type
+// (string/int/bool), so a typed [ops.vars] value reaches set unchanged; any
+// quoted token with surrounding text interpolates to a string. A plain bare
+// token is its literal text.
 func resolve(tok Token, vars Vars) (any, error) {
-	if tok.Quoted {
-		return interpolate(tok.Value, vars)
+	if !tok.Quoted {
+		if strings.Contains(tok.Value, `\(`) {
+			return nil, fmt.Errorf("bare token %q contains \\( — quote it to interpolate", tok.Value)
+		}
+		return tok.Value, nil
 	}
 
 	if name, ok := soleVarRef(tok.Value); ok {
@@ -96,10 +100,7 @@ func resolve(tok Token, vars Vars) (any, error) {
 		}
 		return val, nil
 	}
-	if strings.Contains(tok.Value, `\(`) {
-		return nil, fmt.Errorf("bare token %q contains \\( — quote it to interpolate", tok.Value)
-	}
-	return tok.Value, nil
+	return interpolate(tok.Value, vars)
 }
 
 // soleVarRef reports whether v is exactly one \(name) reference (no surrounding

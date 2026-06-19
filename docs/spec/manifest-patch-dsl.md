@@ -140,16 +140,20 @@ download "https://github.com/.../\(version)/install.yaml"    # URL must be quote
 ```
 
 **Value typing — `set` never coerces.** `[ops.vars]` is `map[string]any`, so a var keeps its
-TOML type. How a value reaches `set`/`append` decides its type in the manifest:
+TOML type. `\(var)` lives **only inside quotes** (a bare `\(` is a forgotten-quote error); how a
+value reaches `set`/`append` decides its type in the manifest:
 
-- A **bare sole `\(x)`** reference resolves to the var's *native* type — `set .spec.replicas
-  \(replicas)` writes an int when `replicas = 3`, a bool when `debug = true`.
-- A **quoted** token is always a string: `"\(x)"` stringifies the value. This is the
-  string-forcing escape hatch — `set .…annotations."…/firewall-id" "\(firewall_id)"` keeps a
-  numeric-looking id (`firewall_id = "11222746"`) a string, as k8s annotations require.
-- A **bare literal** (`set .kind DaemonSet`, `set .marked true`) is its literal **string** —
-  no YAML re-typing. Want a typed literal? put it in `[ops.vars]` and reference it.
-- A bare `\(x)` with surrounding text (`pre\(x)`) is a forgotten-quote **error** — quote it.
+- A **quoted sole `"\(x)"`** (the whole token is one reference) resolves to the var's *native*
+  type — `set .spec.replicas "\(replicas)"` writes an int when `replicas = 3`. A string var
+  stays a string, so `set .…annotations."…/firewall-id" "\(firewall_id)"` keeps the id a string
+  (`firewall_id = "11222746"`), as k8s annotations require — no separate force-string needed.
+- A **quoted token with surrounding text** (`"\(prefix)-controller"`, a URL) interpolates to a
+  **string**.
+- A **bare literal** (`set .kind DaemonSet`, `set .marked true`) is its literal **string** — no
+  YAML re-typing. Want a typed literal? put it in `[ops.vars]` and reference it.
+
+(Type comes from the var, not from quoting — so there is no "force a string from an int var"
+form; if that's ever needed it's a dedicated verb, not punctuation.)
 
 - **Name** — everything up to the closing `)` (e.g. `\(nginx-experimental)`).
 - **Undefined var is a hard error**, not empty — a typo'd `\(verison)` must fail loudly, not
