@@ -5,10 +5,20 @@
 `fc835b8`, I/O verbs `f4edb4e`) · **D3a (`Ops.Vars` config passthrough) landed** ·
 **D3b-1 (bootstrap write-path) + D3b-2 (assembly layer, `core/baseline`) landed**. D3b-3
 split into **3a (CUE file-map render+publish rework) — landed**, **3b (extension router +
-`.platform` route) — landed**, prompts folded into D3b-4. Then D3b-4 and Slice 2 (reconcile
-+ cutover) · supersedes the
-ad-hoc ordering in `PLANS.md`. **Reads against:** `docs/spec/platform.md`, `config-allocation.md`,
+`.platform` route) — landed**. **D3b-4a/4b landed** (`platform init` + checkbox picker; baseline
+directives cert-manager/flux/argocd-toggle/nginx-gateway; `[ops.vars]` → `map[string]any`). The
+**DSL front-end was redesigned mid-D3b-4** (2026-06-20) — real lexer/parser, first-class paths,
+strict `bare=var / quoted=string` values, and `focus`/`reset` scope (no `[field=value]`); see the
+[DSL-scope ADR](../decisions/2026-06-20-dsl-focus-scope-strict-values.md) and the
+[DSL spec](../spec/manifest-patch-dsl.md) (authoritative). · supersedes the ad-hoc ordering in
+`PLANS.md`. **Reads against:** `docs/spec/platform.md`, `config-allocation.md`,
 `gitops-build-plan.md`, and `docs/decisions/*`.
+
+**Next (resume here):** (1) the **CUE-authored baseline bits** still deferred — the Dagger
+**engine** DaemonSet + the platform control-plane Deployment (ours, Phase-B-adjacent); (2) the
+cross-repo **`settings.toml` → `platform.toml` migration** (attended-only; mechanics in the
+[D3b-4 design-prep note](2026-06-19-d3b4-baseline-design-prep.md)); (3) **Slice 2** — Flux
+reconcile + cutover. Tree is clean, all green; 64 commits ahead of `gh/main` (unpushed).
 
 ## Framing
 

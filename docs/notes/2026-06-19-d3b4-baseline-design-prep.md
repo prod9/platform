@@ -1,8 +1,13 @@
 # D3b-4 baseline — design prep (derived from real `infra`)
 
-**Status:** confirmed by chakrit 2026-06-19 (see Decisions). Drafted during an autonomous (AFK)
-run after D3b-3a/3b landed; D3b-4 itself not yet implemented. This note extracts the facts from
-`../infra` and now records the confirmed design.
+**Status:** D3b-4a/4b landed (2026-06-20); the foreign baseline directives + `platform init` are
+in. Drafted during an autonomous (AFK) run after D3b-3a/3b. The facts below (settings.toml knobs,
+NGF recipe, the `settings.toml → platform.toml` migration mechanics) remain the reference for the
+**still-deferred** bits: the CUE engine/platform Deployment and the attended cross-repo migration.
+**Note:** directive syntax in the examples below predates the 2026-06-20 DSL redesign — `select`
+is now `focus`, `[field=value]` is gone; see the
+[DSL-scope ADR](../decisions/2026-06-20-dsl-focus-scope-strict-values.md) and
+[spec](../spec/manifest-patch-dsl.md) for current syntax.
 
 ## Decisions (chakrit, 2026-06-19)
 
