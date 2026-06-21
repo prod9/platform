@@ -43,6 +43,10 @@ type (
 		Job       *Job
 		Container *dagger.Container
 		Err       error
+
+		// engine is the per-job pool view that built Container. Publish reuses it so the
+		// registry secret comes from the same engine client the container belongs to.
+		engine *Session
 	}
 
 	PublishResult struct {
@@ -140,19 +144,20 @@ func Build(sess *Session, jobs ...*Job) ([]BuildResult, error) {
 	m := &internal.Multiplexer[*Job, BuildResult]{}
 	m.Reset(jobs)
 	return m.Start(func(idx int, job *Job) BuildResult {
-		ctx, cancel := sess.JobContext(job)
+		eng := sess.forEngine(idx)
+		ctx, cancel := eng.JobContext(job)
 		defer cancel()
 
-		container, err := job.Builder.Build(sess, job)
+		container, err := job.Builder.Build(eng, job)
 		if err != nil {
-			return BuildResult{Job: job, Container: nil, Err: err}
+			return BuildResult{Job: job, Container: nil, Err: err, engine: eng}
 		}
 
 		container, err = container.Sync(ctx)
 		if err != nil {
-			return BuildResult{Job: job, Container: nil, Err: err}
+			return BuildResult{Job: job, Container: nil, Err: err, engine: eng}
 		} else {
-			return BuildResult{Job: job, Container: container, Err: nil}
+			return BuildResult{Job: job, Container: container, Err: nil, engine: eng}
 		}
 	}), nil
 }
@@ -163,10 +168,9 @@ func Publish(sess *Session, builds ...BuildResult) ([]PublishResult, error) {
 	}
 
 	fxcfg := fxconfig.Configure()
-	registryPassword := sess.Client().SetSecret(
-		RegistryPasswordConfig.Name(),
-		fxconfig.Get(fxcfg, RegistryPasswordConfig),
-	)
+	registry := fxconfig.Get(fxcfg, RegistryConfig)
+	username := fxconfig.Get(fxcfg, RegistryUsernameConfig)
+	password := fxconfig.Get(fxcfg, RegistryPasswordConfig)
 
 	m := &internal.Multiplexer[BuildResult, PublishResult]{}
 	m.Reset(builds)
@@ -175,16 +179,20 @@ func Publish(sess *Session, builds ...BuildResult) ([]PublishResult, error) {
 			return PublishResult{BuildResult: build}
 		}
 
-		container := build.Container
-		if fxconfig.Get(fxcfg, RegistryUsernameConfig) != "" {
-			container = container.WithRegistryAuth(
-				fxconfig.Get(fxcfg, RegistryConfig),
-				fxconfig.Get(fxcfg, RegistryUsernameConfig),
-				registryPassword,
-			)
+		// the container is bound to the engine that built it — its registry secret must
+		// be created by that same engine's client, not an arbitrary pool member.
+		eng := build.engine
+		if eng == nil {
+			eng = sess.forEngine(idx)
 		}
 
-		hash, err := container.Publish(sess.Context(), build.Job.ImageName)
+		container := build.Container
+		if username != "" {
+			secret := eng.Client().SetSecret(RegistryPasswordConfig.Name(), password)
+			container = container.WithRegistryAuth(registry, username, secret)
+		}
+
+		hash, err := container.Publish(eng.Context(), build.Job.ImageName)
 		if err != nil {
 			build.Err = err
 			return PublishResult{BuildResult: build}
