@@ -20,23 +20,27 @@ headless TCP `:1234`, round-robin dispatcher via `WithRunnerHost`), broken into 
 below. Then (2) cross-repo **`settings.toml` → `platform.toml` migration** (attended-only); (3)
 **Slice 2** — Flux reconcile + cutover. Tree clean, all green.
 
-**Engine slice plan (2026-06-21):** order **E1 → E0 → E2 → E3**.
-- **E1 — engine manifest.** `infra-defs` mixins (privileged + `CAP_SYS_ADMIN`, `--addr tcp://…:1234`,
-  `volumeClaimTemplates`→`/var/lib/dagger`, headless `#Service`, preferred `podAntiAffinity`) +
-  `apps/dagger-engine.cue` on `defs.#StatefulSet` (`replicas: 2`, image pinned to SDK `v0.20.8`).
-  Render-verify standalone. Zero fx coupling.
-- **E0 — fx bump.** `replace fx.prodigy9.co => ../fx` (chakrit's local tree, commit `ea91e67`:
-  prompts reimplemented on x/term, `MultiSelect` added — unreleased; drop the replace once fx tags
-  it). Fix platform's 5 fx touchpoints (`cmd/prompts`×7, `errutil`×6, `config`×2, `ctrlc`, `cmd`);
-  retires roadmap **#5 plog→fxlog**. Adopt + bug-test the new prompts, feed bugs back to chakrit.
-- **E2 — appliance wiring.** Embed `engine.cue` into `core/baseline`; generalize the init picker to
-  list CUE apps via `prompts.MultiSelect`; `platform init` scaffolds CUE via `cue mod init`/`cue mod
-  get` (never hand-writes `module.cue`) + a greenfield-only module-name prompt (cue.mod is the
-  source of truth — no `[ops]` field). Brownfield-test against `../infra` (already has cue.mod +
-  `defs@v0.3.19` → detect-and-skip).
-- **E3 — dispatcher.** `builder/session.go` client pool + DNS discovery of headless A-records;
-  `builder/builder.go` per-job `idx % n` selection. Dogfood-verified: build platform through its own
-  in-cluster pool.
+**Engine slice plan (2026-06-21):** ran **E1 → E0 → E3**, E2 next.
+- **E1 — engine manifest** · *authored `afece7d`; render-verify pending defs.* `apps/dagger-engine.cue`
+  (in `core/baseline/files/apps/`, inert until E2 wires the embed) on `defs.#StatefulSet`: `replicas: 2`,
+  privileged, `--addr tcp://…:1234`, inline `volumeClaimTemplates`→`/var/lib/dagger`, `parts.#PodSpread`,
+  `platform` namespace, headless `#Service`. The one blocker — `#Service` `#headless` (closed spec) — is
+  handed to the **infra-defs agent** as a wishlist (`docs/notes/2026-06-21-defs-wishlist-dagger-engine.md`);
+  it ships + pings, then platform pins the new `defs@vX` and finishes render-verify in `../infra`.
+- **E0 — fx bump** · *landed `4734846`.* `replace fx.prodigy9.co => ../fx` (`ea91e67`: prompts on x/term +
+  `MultiSelect`); zero code changes — the 5 touchpoints stayed API-compatible; build + tests green. Drop the
+  replace for a tagged fx later. **plog→fxlog (#5) NOT done** — now unblocked, left as its own slice.
+- **E3 — dispatcher** · *landed `58a60db`.* `builder/engine.go` (DNS discovery of headless A-records,
+  gated on `KUBERNETES_SERVICE_HOST`; pure + unit-tested) + `builder/session.go` engine-client pool +
+  per-job `idx%n` via `forEngine`; `BuildResult.engine` so Publish mints the registry secret on the same
+  engine. Off-cluster → single auto-provisioned engine (cold-start path). Live round-robin verified at the
+  dogfood deploy.
+- **E2 — appliance wiring** · *NEXT, mostly unblocked.* Embed `files/apps/*.cue` into `core/baseline`
+  (glob + `EmbeddedFiles` + init writer); generalize the init picker to list CUE apps via
+  `prompts.MultiSelect`; `platform init` scaffolds CUE via `cue mod init`/`cue mod get` (never hand-writes
+  `module.cue`) + greenfield-only module-name prompt (cue.mod is the source of truth — no `[ops]` field).
+  Brownfield-test against `../infra` (has cue.mod + `defs@v0.3.19` → detect-and-skip). Full engine
+  render-verify here waits on the defs `#headless` ship.
 
 **Dogfood (2026-06-21):** platform self-hosts — it is one of the rendered `apps/*` and is
 built/published/delivered by its own pipeline + engine pool. Cold-start has no unbreakable cycle
