@@ -3,10 +3,13 @@ package baseline
 import (
 	"embed"
 	"io/fs"
+	"strings"
 )
 
-//go:embed files/*.platform
+//go:embed files/*.platform files/apps/*.cue
 var embedded embed.FS
+
+const appExt = ".cue"
 
 // DefaultVars is the baseline's shipped [ops.vars]: platform's opinionated
 // defaults (version pins and knobs) for the embedded directive set. Bootstrap
@@ -25,17 +28,34 @@ var DefaultVars = map[string]any{
 	"nginx_gateway_firewall_id": "11222746", // Linode LB firewall; string, not int
 }
 
-// EmbeddedFiles returns the baseline directive files shipped in the binary, keyed
-// by filename. Bootstrap writes these into a target infra repo's baseline/.
+// EmbeddedFiles returns the baseline directive files (`*.platform`) shipped in the
+// binary, keyed by filename. Bootstrap writes these into a target infra repo's
+// baseline/.
 func EmbeddedFiles() (map[string][]byte, error) {
-	entries, err := embedded.ReadDir("files")
+	return readEmbedded("files", platformExt)
+}
+
+// EmbeddedApps returns the CUE app files (`apps/*.cue`) shipped in the binary,
+// keyed by filename. Bootstrap writes these into a target infra repo's apps/, the
+// CUE-authored half of the baseline (e.g. the Dagger engine StatefulSet).
+func EmbeddedApps() (map[string][]byte, error) {
+	return readEmbedded("files/apps", appExt)
+}
+
+// readEmbedded reads the files with the given extension directly under dir,
+// skipping subdirectories. Keys are bare filenames.
+func readEmbedded(dir, ext string) (map[string][]byte, error) {
+	entries, err := embedded.ReadDir(dir)
 	if err != nil {
 		return nil, err
 	}
 
 	files := map[string][]byte{}
 	for _, e := range entries {
-		content, err := fs.ReadFile(embedded, "files/"+e.Name())
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ext) {
+			continue
+		}
+		content, err := fs.ReadFile(embedded, dir+"/"+e.Name())
 		if err != nil {
 			return nil, err
 		}

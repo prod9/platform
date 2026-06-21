@@ -158,6 +158,23 @@ func TestEmbeddedNginxGateway(t *testing.T) {
 	}
 }
 
+// TestEmbeddedApps checks the CUE-authored half of the baseline ships separately
+// from the .platform directives, keyed by bare filename for init to write under apps/.
+func TestEmbeddedApps(t *testing.T) {
+	apps, err := baseline.EmbeddedApps()
+	if err != nil {
+		t.Fatalf("EmbeddedApps: %v", err)
+	}
+	if _, ok := apps["dagger-engine.cue"]; !ok {
+		t.Fatalf("dagger-engine.cue not embedded; have %v", keys(apps))
+	}
+
+	// the .platform directives must not leak into the app set.
+	if _, ok := apps["cert-manager.platform"]; ok {
+		t.Errorf("EmbeddedApps leaked a .platform directive: %v", keys(apps))
+	}
+}
+
 func keys(m map[string][]byte) []string {
 	out := make([]string, 0, len(m))
 	for k := range m {

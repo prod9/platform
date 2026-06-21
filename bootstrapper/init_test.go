@@ -15,9 +15,12 @@ func TestAnalyzeInit_writesBaselineAndProjectFileOnly(t *testing.T) {
 		"cert-manager.platform": []byte("download \"u\"\nemit \"cert-manager.yaml\"\n"),
 		"flux.platform":         []byte("download \"u\"\nemit \"flux.yaml\"\n"),
 	}
+	appFiles := map[string][]byte{
+		"dagger-engine.cue": []byte("package apps\n"),
+	}
 	defaults := map[string]any{"cert_manager_version": "v1.20.2", "flux_version": "v2.8.8"}
 
-	plan, err := AnalyzeInit(dir, testInfo(), baselineFiles, defaults)
+	plan, err := AnalyzeInit(dir, testInfo(), baselineFiles, appFiles, defaults)
 	r.NoError(t, err)
 
 	byPath := map[string]FileChange{}
@@ -27,6 +30,8 @@ func TestAnalyzeInit_writesBaselineAndProjectFileOnly(t *testing.T) {
 	r.Contains(t, byPath, "platform.toml")
 	r.Contains(t, byPath, filepath.Join("baseline", "cert-manager.platform"))
 	r.Contains(t, byPath, filepath.Join("baseline", "flux.platform"))
+	// CUE app files route under apps/, not baseline/.
+	r.Contains(t, byPath, filepath.Join("apps", "dagger-engine.cue"))
 
 	// init writes neither the app build script nor the CI pipeline.
 	r.NotContains(t, byPath, "platform")
@@ -37,12 +42,16 @@ func TestAnalyzeInit_writesBaselineAndProjectFileOnly(t *testing.T) {
 	r.NoError(t, err)
 	r.Contains(t, string(got), `emit "cert-manager.yaml"`)
 
+	app, err := os.ReadFile(filepath.Join(dir, "apps", "dagger-engine.cue"))
+	r.NoError(t, err)
+	r.Contains(t, string(app), "package apps")
+
 	toml, err := os.ReadFile(filepath.Join(dir, "platform.toml"))
 	r.NoError(t, err)
 	r.Contains(t, string(toml), "cert_manager_version")
 }
 
 func TestAnalyzeInit_rejectsMissingDir(t *testing.T) {
-	_, err := AnalyzeInit(filepath.Join(t.TempDir(), "absent"), testInfo(), nil, nil)
+	_, err := AnalyzeInit(filepath.Join(t.TempDir(), "absent"), testInfo(), nil, nil, nil)
 	r.Error(t, err)
 }

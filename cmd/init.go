@@ -48,6 +48,10 @@ func runInitCmd(cmd *cobra.Command, args []string) {
 	if err != nil {
 		plog.Fatalln(err)
 	}
+	apps, err := baseline.EmbeddedApps()
+	if err != nil {
+		plog.Fatalln(err)
+	}
 
 	// Pick the optional baseline components into [ops.vars]; --force keeps the
 	// shipped defaults (NGF-experimental on, argocd off) for CI.
@@ -56,7 +60,7 @@ func runInitCmd(cmd *cobra.Command, args []string) {
 		pickOptions(sess, baseline.ScanOptions(fileNames(files)), vars)
 	}
 
-	plan, err := bootstrapper.AnalyzeInit(wd, info, files, vars)
+	plan, err := bootstrapper.AnalyzeInit(wd, info, files, apps, vars)
 	if err != nil {
 		plog.Fatalln(err)
 	}
