@@ -11,16 +11,18 @@ import (
 // docs/decisions/2026-06-21-dagger-engine-statefulset-tcp.md.
 "dagger-engine": {
 	let _ns = "platform"
+
 	let _port = 1234 // BuildKit-conventional TCP port; shared verbatim with the dispatcher
 
 	let engine = defs.#StatefulSet & {
-		#name:     "dagger-engine"
-		#ns:       _ns
+		#name: "dagger-engine"
+		#ns:   _ns
+
 		#image:    "registry.dagger.io/engine:v0.20.8" // pinned to platform's dagger SDK
 		#replicas: 2
 
 		#privileged: true // full host caps (subsumes CAP_SYS_ADMIN), required by the engine
-		#port: _port
+		#port:       _port
 		#args: ["--addr", "tcp://0.0.0.0:\(_port)"]
 
 		#service_name: "dagger-engine" // governing headless Service (svc, below)
@@ -44,14 +46,15 @@ import (
 	}
 
 	let svc = defs.#Service & {
-		#name:     "dagger-engine"
-		#ns:       _ns
-		#port:     _port
+		#name: "dagger-engine"
+		#ns:   _ns
+		#port: _port
+
 		#headless: true // publish pod A-records for the dispatcher's DNS discovery
 		#selector: engine.#out.selector
 	}
 
-	"namespace.yaml":   [defs.#Namespace & {#name: _ns}]
+	"namespace.yaml": [defs.#Namespace & {#name: _ns}]
 	"statefulset.yaml": [engine]
-	"service.yaml":     [svc]
+	"service.yaml": [svc]
 }
