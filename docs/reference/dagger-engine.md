@@ -75,7 +75,7 @@ the [engine-topology ADR](../decisions/2026-06-21-dagger-engine-statefulset-tcp.
 | Topology                     | Concurrency | Cache reuse        | Routing                       | Caveat                                              |
 |------------------------------|-------------|--------------------|-------------------------------|-----------------------------------------------------|
 | **DaemonSet** (upstream default) | per-node engine | best on persistent nodes; dies with autoscaled nodes | client → **local** node pod via `kube-pod://` | one engine per node whether used or not             |
-| **StatefulSet r=1 + headless Svc** ← *platform's choice* | one shared engine multiplexes all sessions | per-ordinal PVC keeps cache warm | `tcp://<sts>-0.<svc>.<ns>.svc:<port>` (stable ordinal DNS) | single node's resources cap it; scale by adding ordinals + client-side sharding |
+| **StatefulSet r=2 + headless Svc** ← *platform's choice* | each engine multiplexes sessions; platform round-robins jobs across both | per-ordinal PVC keeps cache warm (round-robin fragments it across the two) | `tcp://<pod-ip>:1234` resolved from headless A-records, via `dagger.WithRunnerHost` per job | scale by editing `replicas` (auto-detected from DNS); cache fragmentation is the dumb-RR tradeoff |
 | **Deployment, N replicas + Service** | per-replica | fragmented | round-robin Service | **BROKEN** without session affinity — see pitfall; sticky-by-ClientIP pins all to one engine when the client is one pod |
 | **On-demand / ephemeral** (Karpenter + Argo CD) | per-job engine | poor cross-run (cold) | shared `/var/run/buildkit` volume per node | scales to zero (~80% cost cut reported); cold cache  |
 

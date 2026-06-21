@@ -14,17 +14,33 @@ strict `bare=var / quoted=string` values, and `focus`/`reset` scope (no `[field=
 `PLANS.md`. **Reads against:** `docs/spec/platform.md`, `config-allocation.md`,
 `gitops-build-plan.md`, and `docs/decisions/*`.
 
-**Next (resume here):** (1) the **CUE-authored baseline bits** still deferred — the Dagger
-**engine** DaemonSet + the platform control-plane Deployment (ours, Phase-B-adjacent); (2) the
-cross-repo **`settings.toml` → `platform.toml` migration** (attended-only; mechanics in the
-[D3b-4 design-prep note](2026-06-19-d3b4-baseline-design-prep.md)); (3) **Slice 2** — Flux
-reconcile + cutover. Tree is clean, all green; 64 commits ahead of `gh/main` (unpushed).
+**Next (resume here):** the **Dagger engine** baseline + dispatcher (topology frozen in the
+[engine ADR](../decisions/2026-06-21-dagger-engine-statefulset-tcp.md): StatefulSet `replicas: 2`,
+headless TCP `:1234`, round-robin dispatcher via `WithRunnerHost`), broken into slices E1–E3
+below. Then (2) cross-repo **`settings.toml` → `platform.toml` migration** (attended-only); (3)
+**Slice 2** — Flux reconcile + cutover. Tree clean, all green.
 
-**Blocked on fx (2026-06-21):** chakrit is working with the fx agent to improve the `prompts`
-crate (`fx.prodigy9.co/cmd/prompts`) that drives the `platform init` option picker
-(`pickOptions`, `cmd/init.go` — currently per-option `sess.List` yes/no + pick-one, not a true
-multi-select). Revisit the picker UX once fx ships those changes; no action on the platform side
-until then.
+**Engine slice plan (2026-06-21):** order **E1 → E0 → E2 → E3**.
+- **E1 — engine manifest.** `infra-defs` mixins (privileged + `CAP_SYS_ADMIN`, `--addr tcp://…:1234`,
+  `volumeClaimTemplates`→`/var/lib/dagger`, headless `#Service`, preferred `podAntiAffinity`) +
+  `apps/dagger-engine.cue` on `defs.#StatefulSet` (`replicas: 2`, image pinned to SDK `v0.20.8`).
+  Render-verify standalone. Zero fx coupling.
+- **E0 — fx bump.** `replace fx.prodigy9.co => ../fx` (chakrit's local tree, commit `ea91e67`:
+  prompts reimplemented on x/term, `MultiSelect` added — unreleased; drop the replace once fx tags
+  it). Fix platform's 5 fx touchpoints (`cmd/prompts`×7, `errutil`×6, `config`×2, `ctrlc`, `cmd`);
+  retires roadmap **#5 plog→fxlog**. Adopt + bug-test the new prompts, feed bugs back to chakrit.
+- **E2 — appliance wiring.** Embed `engine.cue` into `core/baseline`; generalize the init picker to
+  list CUE apps via `prompts.MultiSelect`; `platform init` scaffolds CUE via `cue mod init`/`cue mod
+  get` (never hand-writes `module.cue`) + a greenfield-only module-name prompt (cue.mod is the
+  source of truth — no `[ops]` field). Brownfield-test against `../infra` (already has cue.mod +
+  `defs@v0.3.19` → detect-and-skip).
+- **E3 — dispatcher.** `builder/session.go` client pool + DNS discovery of headless A-records;
+  `builder/builder.go` per-job `idx % n` selection. Dogfood-verified: build platform through its own
+  in-cluster pool.
+
+**Dogfood (2026-06-21):** platform self-hosts — it is one of the rendered `apps/*` and is
+built/published/delivered by its own pipeline + engine pool. Cold-start has no unbreakable cycle
+(engine ships as plain manifests; first platform image built by a local auto-provisioned engine).
 
 ## Framing
 
