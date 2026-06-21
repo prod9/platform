@@ -20,6 +20,12 @@ cross-repo **`settings.toml` → `platform.toml` migration** (attended-only; mec
 [D3b-4 design-prep note](2026-06-19-d3b4-baseline-design-prep.md)); (3) **Slice 2** — Flux
 reconcile + cutover. Tree is clean, all green; 64 commits ahead of `gh/main` (unpushed).
 
+**Blocked on fx (2026-06-21):** chakrit is working with the fx agent to improve the `prompts`
+crate (`fx.prodigy9.co/cmd/prompts`) that drives the `platform init` option picker
+(`pickOptions`, `cmd/init.go` — currently per-option `sess.List` yes/no + pick-one, not a true
+multi-select). Revisit the picker UX once fx ships those changes; no action on the platform side
+until then.
+
 ## Framing
 
 Spine-first, incremental monorepo — the spec anchor (`platform.md` § Anchors). A big-bang
