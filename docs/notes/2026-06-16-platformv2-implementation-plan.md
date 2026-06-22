@@ -14,11 +14,21 @@ strict `bare=var / quoted=string` values, and `focus`/`reset` scope (no `[field=
 `PLANS.md`. **Reads against:** `docs/spec/platform.md`, `config-allocation.md`,
 `gitops-build-plan.md`, and `docs/decisions/*`.
 
-**Next (resume here):** the **Dagger engine** baseline + dispatcher (topology frozen in the
-[engine ADR](../decisions/2026-06-21-dagger-engine-statefulset-tcp.md): StatefulSet `replicas: 2`,
-headless TCP `:1234`, round-robin dispatcher via `WithRunnerHost`), broken into slices E1–E3
-below. Then (2) cross-repo **`settings.toml` → `platform.toml` migration** (attended-only); (3)
-**Slice 2** — Flux reconcile + cutover. Tree clean, all green.
+**Next (resume here, 2026-06-23):** the engine work is mostly landed — engine ADR + dispatcher
+(E3), the **flat-baseline simplification** (no markers/`Select`; one list + `Defaults` +
+install-time selection — [ADR](../decisions/2026-06-22-flat-baseline-install-time-selection.md)),
+and **B3a** (render via the linked CUE engine, not the `cue` binary —
+[ADR](../decisions/2026-06-23-render-via-linked-cue-engine.md)) are all in. **Immediate next:**
+(1) **B3b** — `platform init` `cue.mod` scaffold via `mod/modfile`; (2) **E1b** engine
+render-verify — version-unblocked now (linked engine v0.15.4), waits only on the **defs agent**
+shipping `#Service #headless` (B1, in flight; the ace-connect listener is up, control mode, and
+will surface the DONE ping into `.inbox.log`). Then the cross-repo **`settings.toml` →
+`platform.toml` migration** (attended) and **Slice 2** (Flux reconcile + cutover). See the engine
+slice plan (E0–E3/B3) below for per-slice commits. Tree clean, all green; not pushed.
+
+**fx replace caveat:** `go.mod` has `replace fx.prodigy9.co => ../fx` (for the unreleased prompts
+`MultiSelect` rewrite) — platform builds only where `../fx` is checked out until the fx agent cuts
+a tag, then bump fx + drop the replace.
 
 **Engine slice plan (2026-06-21):** ran **E1 → E0 → E3**, E2 next.
 - **E1 — engine manifest** · *authored `afece7d`; render-verify pending defs.* `apps/dagger-engine.cue`
