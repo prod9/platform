@@ -35,22 +35,17 @@ below. Then (2) cross-repo **`settings.toml` → `platform.toml` migration** (at
   per-job `idx%n` via `forEngine`; `BuildResult.engine` so Publish mints the registry secret on the same
   engine. Off-cluster → single auto-provisioned engine (cold-start path). Live round-robin verified at the
   dogfood deploy.
-- **E2 — appliance wiring** · *partly landed.*
-  - **E2a** *(done `e43d4a5`)* — `EmbeddedApps()` + `AnalyzeInit` route `.cue` apps to `apps/`,
-    `.platform` to `baseline/`; the engine app ships and lands on `platform init`.
-  - **E2c** *(done `b0050d3`)* — init picker folds all toggles into one pre-checked
-    `prompts.MultiSelect` (fx pre-check feature, `../fx@6317dc0`, via the replace); choices stay
-    `List`. Dogfood-verified (`TestPickTogglesDefaults`); fed back to the fx agent — no bugs.
-  - **E2b** *(superseded — see B3 below)* — the `cue mod init`/`get` scaffold is no longer a binary
-    shell. Per chakrit, use the **linked CUE engine** (`cuelang.org/go` Go API) for both render
-    *and* module init (`mod/modfile` writes `cue.mod/module.cue`, no format lock-in). Greenfield-only
-    module-name prompt still applies; cue.mod is the source of truth (no `[ops]` field).
-  - **apps-in-picker** *(deferred UX call)* — whether CUE apps (esp. the essential engine) are
-    operator-deselectable. Pre-check now exists, but opt-out of the engine risks an engine-less
-    cluster. Left always-written until decided.
-  - Full engine **render-verify** waits on defs `#headless` (B1).
+- **E2 — appliance wiring** · *landed + simplified.* Net of E2a/E2c then a model
+  simplification (`dad0048`, [flat-baseline ADR](../decisions/2026-06-22-flat-baseline-install-time-selection.md)):
+  the marker grammar + render-time `Select` are **gone**. `core/baseline` = one flat
+  `EmbeddedFiles` list (clean names, `.platform` + `.cue`) + hard-coded `Defaults`; init's
+  `OptionalMultiSelect` (new fx 3-arg sig, `../fx@4d66e8b`) installs the chosen subset into the
+  target's `apps/` (co-located, render routes by extension). `[ops.vars]` = version pins only.
+  NGF is now two clean files (`nginx-gateway-experimental` default + `nginx-gateway` stable).
+  - **cue.mod scaffold** still pending — folded into B3 (do it via `mod/modfile`, not a binary).
+  - Full engine **render-verify** waits on defs `#headless` (B1) + the cuelang move (B3).
 
-- **B3 — render via the linked CUE engine, not the `cue` binary** · *awaiting go-ahead.* `render.go`
+- **B3 — render via the linked CUE engine, not the `cue` binary** · *greenlit, NEXT.* `render.go`
   shells ambient `cue` (v0.16.1 here → panics on defs `parts`; defs needs v0.15.4). Fix per chakrit:
   add `cuelang.org/go@v0.15.4` as a pinned dep and rewrite `exportApps` on the Go API
   (`cue/load` + `cuecontext` + `mod/modconfig` registry + `encoding/yaml`; `--inject` → `Config.Tags`).

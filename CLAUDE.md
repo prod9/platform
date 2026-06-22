@@ -98,16 +98,16 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
   (`download` via `Options.Fetch`, `extract` magic-byte gzip/zip/tar, `emit` truncate-write
   under `Options.OutDir`). Checksum guard deferred past D2. Spec:
   [`docs/spec/manifest-patch-dsl.md`](docs/spec/manifest-patch-dsl.md).
-- `core/baseline/` — the DSL assembly layer (Slice D3b-2): turns the embedded cluster
-  baseline's `.platform` (platform-DSL) directive files into the set to apply, gated by
-  `[ops.vars]` at **whole-file** granularity (DSL stays branch-free). Filename convention:
-  `name.platform` always applies, `name@variant.platform` is one variant of choice group `name`
-  (applied when `vars[name] == variant`), `name+flag.platform` is an overlay (applied when
-  `vars[flag] == "true"`). `ScanOptions` surfaces operator-selectable knobs (for bootstrap
-  prompts), `Select` resolves the file set (unknown choice value = hard error). Will also own
-  the directive→output-dir mapping (`k8s/<component>/`, component = stem before any marker).
-  `ops render` routes by extension — `.cue` → file-map `cue export`, `.platform` → `Select` →
-  `dsl.Apply` — both emitting into one `k8s/` render tree (D3b-3; see the
+- `core/baseline/` — the embedded cluster baseline: the built-in component files platform
+  installs into a fresh infra repo. **No marker grammar, no render-time gating** (simplified
+  2026-06-22 — see the [flat-baseline ADR](docs/decisions/2026-06-22-flat-baseline-install-time-selection.md)).
+  `EmbeddedFiles` is one flat list of `files/*` (both `.platform` directives and `.cue` apps,
+  clean names like `nginx-gateway-experimental.platform`); `Defaults` is the hard-coded working
+  set pre-checked at init. `DefaultVars` is version pins only (interpolated into `download` URLs —
+  selection is **not** a var). `Component(file)` = the stem (output dir `k8s/<component>/`).
+  Selection is **install-time**: `platform init`'s picker (`OptionalMultiSelect`) writes the chosen
+  subset into the target's `apps/`; `ops render` applies whatever is present, routing by extension —
+  `.cue` → `cue export`, `.platform` → `dsl.Apply` — into one `k8s/` tree (see the
   [render-routing ADR](docs/decisions/2026-06-18-render-routes-cue-and-platform-by-extension.md)).
 - `core/gitops/` — pull-based GitOps delivery (Slice 1). `Render` (`cue export -e objects`
   → multi-doc YAML), `Publish` (gzipped-tar layer + Flux media types, pushed via oras-go),
