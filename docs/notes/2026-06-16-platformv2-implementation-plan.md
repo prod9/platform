@@ -35,12 +35,27 @@ below. Then (2) cross-repo **`settings.toml` → `platform.toml` migration** (at
   per-job `idx%n` via `forEngine`; `BuildResult.engine` so Publish mints the registry secret on the same
   engine. Off-cluster → single auto-provisioned engine (cold-start path). Live round-robin verified at the
   dogfood deploy.
-- **E2 — appliance wiring** · *NEXT, mostly unblocked.* Embed `files/apps/*.cue` into `core/baseline`
-  (glob + `EmbeddedFiles` + init writer); generalize the init picker to list CUE apps via
-  `prompts.MultiSelect`; `platform init` scaffolds CUE via `cue mod init`/`cue mod get` (never hand-writes
-  `module.cue`) + greenfield-only module-name prompt (cue.mod is the source of truth — no `[ops]` field).
-  Brownfield-test against `../infra` (has cue.mod + `defs@v0.3.19` → detect-and-skip). Full engine
-  render-verify here waits on the defs `#headless` ship.
+- **E2 — appliance wiring** · *partly landed.*
+  - **E2a** *(done `e43d4a5`)* — `EmbeddedApps()` + `AnalyzeInit` route `.cue` apps to `apps/`,
+    `.platform` to `baseline/`; the engine app ships and lands on `platform init`.
+  - **E2c** *(done `b0050d3`)* — init picker folds all toggles into one pre-checked
+    `prompts.MultiSelect` (fx pre-check feature, `../fx@6317dc0`, via the replace); choices stay
+    `List`. Dogfood-verified (`TestPickTogglesDefaults`); fed back to the fx agent — no bugs.
+  - **E2b** *(superseded — see B3 below)* — the `cue mod init`/`get` scaffold is no longer a binary
+    shell. Per chakrit, use the **linked CUE engine** (`cuelang.org/go` Go API) for both render
+    *and* module init (`mod/modfile` writes `cue.mod/module.cue`, no format lock-in). Greenfield-only
+    module-name prompt still applies; cue.mod is the source of truth (no `[ops]` field).
+  - **apps-in-picker** *(deferred UX call)* — whether CUE apps (esp. the essential engine) are
+    operator-deselectable. Pre-check now exists, but opt-out of the engine risks an engine-less
+    cluster. Left always-written until decided.
+  - Full engine **render-verify** waits on defs `#headless` (B1).
+
+- **B3 — render via the linked CUE engine, not the `cue` binary** · *awaiting go-ahead.* `render.go`
+  shells ambient `cue` (v0.16.1 here → panics on defs `parts`; defs needs v0.15.4). Fix per chakrit:
+  add `cuelang.org/go@v0.15.4` as a pinned dep and rewrite `exportApps` on the Go API
+  (`cue/load` + `cuecontext` + `mod/modconfig` registry + `encoding/yaml`; `--inject` → `Config.Tags`).
+  Kills the version-mismatch and the binary/PATH dependency in one move, and folds in E2b's modfile
+  scaffold. Heavy dep + export-core rewrite — flagged to chakrit before pulling it in.
 
 **Dogfood (2026-06-21):** platform self-hosts — it is one of the rendered `apps/*` and is
 built/published/delivered by its own pipeline + engine pool. Cold-start has no unbreakable cycle
