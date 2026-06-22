@@ -81,30 +81,54 @@ func runInitCmd(cmd *cobra.Command, args []string) {
 	}
 }
 
-// pickOptions presents each baseline option as a picker entry and records the
-// operator's selection into vars. Toggles are a yes/no checkbox pre-set from the
-// current value; choices pick one variant. Generic over ScanOptions — adding a
-// baseline option file needs no change here.
+// pickOptions records the operator's baseline selections into vars. Choices pick one
+// variant each (List); every overlay toggle folds into a single pre-checked MultiSelect
+// so the operator sees all optional components at once with the shipped defaults already
+// ticked. Generic over ScanOptions — adding a baseline option file needs no change here.
 func pickOptions(sess *prompts.Session, opts []baseline.Option, vars map[string]any) {
+	var toggles []baseline.Option
 	for _, opt := range opts {
 		switch opt.Kind {
-		case baseline.OptionToggle:
-			checked := "no"
-			if fmt.Sprint(vars[opt.Key]) == "true" {
-				checked = "yes"
-			}
-			if sess.List("enable "+opt.Key+"?", checked, []string{"yes", "no"}) == "yes" {
-				vars[opt.Key] = "true"
-			} else {
-				vars[opt.Key] = "false"
-			}
-
 		case baseline.OptionChoice:
 			current := opt.Default
 			if v, ok := vars[opt.Key]; ok {
 				current = fmt.Sprint(v)
 			}
 			vars[opt.Key] = sess.List(opt.Key, current, opt.Variants)
+
+		case baseline.OptionToggle:
+			toggles = append(toggles, opt)
+		}
+	}
+
+	pickToggles(sess, toggles, vars)
+}
+
+// pickToggles folds the overlay toggles into one checkbox prompt, pre-checking the ones
+// currently enabled in vars (the shipped defaults), then writes the string-bool result back.
+func pickToggles(sess *prompts.Session, toggles []baseline.Option, vars map[string]any) {
+	if len(toggles) == 0 {
+		return
+	}
+
+	keys := make([]string, 0, len(toggles))
+	defaults := make([]string, 0, len(toggles))
+	for _, opt := range toggles {
+		keys = append(keys, opt.Key)
+		if fmt.Sprint(vars[opt.Key]) == "true" {
+			defaults = append(defaults, opt.Key)
+		}
+	}
+
+	enabled := map[string]bool{}
+	for _, key := range sess.MultiSelect("enable optional components", keys, defaults) {
+		enabled[key] = true
+	}
+	for _, opt := range toggles {
+		if enabled[opt.Key] {
+			vars[opt.Key] = "true"
+		} else {
+			vars[opt.Key] = "false"
 		}
 	}
 }
