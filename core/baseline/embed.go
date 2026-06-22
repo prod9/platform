@@ -8,13 +8,10 @@ package baseline
 import (
 	"embed"
 	"io/fs"
-	"strings"
 )
 
 //go:embed files/*.platform files/*.cue
 var embedded embed.FS
-
-const platformExt = ".platform"
 
 // DefaultVars is the baseline's shipped [ops.vars]: the version pins each directive
 // interpolates via \(var) into its download URLs. Bootstrap seeds these into a fresh
@@ -61,10 +58,4 @@ func EmbeddedFiles() (map[string][]byte, error) {
 		files[e.Name()] = content
 	}
 	return files, nil
-}
-
-// Component is the output directory a directive renders into: the filename without its
-// .platform extension, so a directive's emitted manifests land under k8s/<component>/.
-func Component(file string) string {
-	return strings.TrimSuffix(file, platformExt)
 }

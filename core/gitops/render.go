@@ -12,7 +12,6 @@ import (
 	"strings"
 
 	"gopkg.in/yaml.v3"
-	"platform.prodigy9.co/core/baseline"
 	"platform.prodigy9.co/core/dsl"
 )
 
@@ -43,12 +42,12 @@ type RenderOptions struct {
 // dsl.Apply). Each route is skipped when it contributes nothing. Both write
 // <component>/<filename> entries.
 func Render(srcDir string, opts RenderOptions) (Tree, error) {
-	tree, err := renderApps(srcDir, opts.Image)
+	tree, err := renderCue(srcDir, opts.Image)
 	if err != nil {
 		return nil, err
 	}
 
-	rendered, err := renderBaseline(srcDir, opts.Vars, opts.Fetch)
+	rendered, err := renderDirectives(srcDir, opts.Vars, opts.Fetch)
 	if err != nil {
 		return nil, err
 	}
@@ -57,28 +56,29 @@ func Render(srcDir string, opts RenderOptions) (Tree, error) {
 	return tree, nil
 }
 
-// renderApps exports the apps package under srcDir into a file-map tree. Each app
-// field becomes a component directory; each filename key under it becomes a named
-// file holding one document (a map value) or a multi-doc stream (a list value).
-func renderApps(srcDir, image string) (Tree, error) {
+// renderCue exports the CUE apps package under srcDir/apps into a file-map tree. Each app
+// field becomes a component directory; each filename key under it becomes a named file
+// holding one document (a map value) or a multi-doc stream (a list value). Skipped when the
+// dir has no `.cue` files (directives-only apps/, or no apps/ at all).
+func renderCue(srcDir, image string) (Tree, error) {
 	cue, err := filesWithExt(filepath.Join(srcDir, appsPackage), ".cue")
 	if err != nil {
 		return nil, err
 	}
 	if len(cue) == 0 {
-		return Tree{}, nil // no CUE apps (directives-only apps/, or no apps/ at all)
+		return Tree{}, nil
 	}
 
-	exported, err := exportApps(srcDir, image)
+	exported, err := exportCue(srcDir, image)
 	if err != nil {
 		return nil, err
 	}
 	return buildTree(exported)
 }
 
-// exportApps shells out to `cue export ... --out yaml` over the apps package,
-// emitting the app->files->docs structure with faithful scalar types.
-func exportApps(srcDir, image string) ([]byte, error) {
+// exportCue shells out to `cue export ... --out yaml` over the apps CUE package, emitting
+// the app->files->docs structure with faithful scalar types.
+func exportCue(srcDir, image string) ([]byte, error) {
 	dir, err := filepath.Abs(filepath.Join(srcDir, appsPackage))
 	if err != nil {
 		return nil, err
@@ -98,11 +98,11 @@ func exportApps(srcDir, image string) ([]byte, error) {
 	return cmd.Output()
 }
 
-// renderBaseline runs every `.platform` directive found alongside the apps (selection
-// happened at install time, so whatever is present applies). Each runs with dsl.Apply
-// into a per-component output directory; results collect into a tree keyed by
-// <component>/<emitted-file>. No `.platform` files renders nothing.
-func renderBaseline(srcDir string, vars map[string]any, fetch func(string) ([]byte, error)) (Tree, error) {
+// renderDirectives runs every `.platform` directive co-located with the CUE apps (selection
+// happened at install time, so whatever is present applies). Each runs with dsl.Apply into a
+// per-component output directory; results collect into a tree keyed by <component>/<emitted-file>.
+// No `.platform` files renders nothing.
+func renderDirectives(srcDir string, vars map[string]any, fetch func(string) ([]byte, error)) (Tree, error) {
 	dir := filepath.Join(srcDir, appsPackage)
 	names, err := filesWithExt(dir, platformExt)
 	if err != nil || len(names) == 0 {
@@ -123,21 +123,26 @@ func renderBaseline(srcDir string, vars map[string]any, fetch func(string) ([]by
 	return readTree(out)
 }
 
-// applyDirective runs one directive file into outRoot/<component>, where component
-// is the file's stem (its name without the .platform extension).
+// applyDirective runs one directive file into outRoot/<outputName>.
 func applyDirective(srcDir, outRoot, name string, vars map[string]any, fetch func(string) ([]byte, error)) error {
 	directives, err := os.ReadFile(filepath.Join(srcDir, name))
 	if err != nil {
 		return err
 	}
 
-	outDir := filepath.Join(outRoot, baseline.Component(name))
+	outDir := filepath.Join(outRoot, outputName(name))
 	if err := os.MkdirAll(outDir, 0o755); err != nil {
 		return err
 	}
 
 	_, err = dsl.Apply(string(directives), dsl.Options{Vars: vars, OutDir: outDir, Fetch: fetch})
 	return err
+}
+
+// outputName is the directory a directive's emitted manifests render under: its filename
+// without the .platform extension (so they land in k8s/<outputName>/).
+func outputName(file string) string {
+	return strings.TrimSuffix(file, platformExt)
 }
 
 // filesWithExt lists filenames with ext directly under dir. An absent directory yields

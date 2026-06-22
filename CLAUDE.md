@@ -104,10 +104,11 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
   `EmbeddedFiles` is one flat list of `files/*` (both `.platform` directives and `.cue` apps,
   clean names like `nginx-gateway-experimental.platform`); `Defaults` is the hard-coded working
   set pre-checked at init. `DefaultVars` is version pins only (interpolated into `download` URLs —
-  selection is **not** a var). `Component(file)` = the stem (output dir `k8s/<component>/`).
-  Selection is **install-time**: `platform init`'s picker (`OptionalMultiSelect`) writes the chosen
-  subset into the target's `apps/`; `ops render` applies whatever is present, routing by extension —
-  `.cue` → `cue export`, `.platform` → `dsl.Apply` — into one `k8s/` tree (see the
+  selection is **not** a var). Selection is **install-time**: `platform init`'s picker
+  (`OptionalMultiSelect`) writes the chosen subset into the target's `apps/`; `ops render` applies
+  whatever is present, routing by extension — `renderCue` (`.cue` → `cue export`) and
+  `renderDirectives` (`.platform` → `dsl.Apply`, emitting into `k8s/<stem>/`) — into one `k8s/`
+  tree (see the
   [render-routing ADR](docs/decisions/2026-06-18-render-routes-cue-and-platform-by-extension.md)).
 - `core/gitops/` — pull-based GitOps delivery (Slice 1). `Render` (`cue export -e objects`
   → multi-doc YAML), `Publish` (gzipped-tar layer + Flux media types, pushed via oras-go),

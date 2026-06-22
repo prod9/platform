@@ -42,9 +42,10 @@ selection toggles (`argocd`, `ngf_experimental`).
 ## Consequences
 
 - Deleted `core/baseline/options.go` (`Select`/`ScanOptions`/`parse`/`Option`/markers).
-  `core/gitops/render.go` no longer calls `Select`; `renderBaseline` applies every `.platform`
-  found, and `renderApps` skips when there are no `.cue` files (both routes read the same
-  co-located `apps/` dir).
+  `core/gitops/render.go` no longer calls `Select`; its two routes are renamed for the new
+  model — `renderDirectives` applies every `.platform` found, `renderCue` exports the `.cue`
+  files (skipped when there are none). Both read the same co-located `apps/` dir; the
+  directive→output-dir mapping moved here as `outputName` (baseline no longer owns it).
 - Files renamed to clean names; `nginx-gateway.platform` (stable, `standard-install`) added
   alongside `nginx-gateway-experimental.platform` for the TCPRoute-graduates future.
 - `.platform` and `.cue` co-locate in the target's `apps/` (one source tree, route by
