@@ -17,12 +17,16 @@ strict `bare=var / quoted=string` values, and `focus`/`reset` scope (no `[field=
 **Next (resume here, 2026-06-23):** the engine work is mostly landed — engine ADR + dispatcher
 (E3), the **flat-baseline simplification** (no markers/`Select`; one list + `Defaults` +
 install-time selection — [ADR](../decisions/2026-06-22-flat-baseline-install-time-selection.md)),
-and **B3a** (render via the linked CUE engine, not the `cue` binary —
-[ADR](../decisions/2026-06-23-render-via-linked-cue-engine.md)) are all in. **Immediate next:**
-(1) **B3b** — `platform init` `cue.mod` scaffold via `mod/modfile`; (2) **E1b** engine
-render-verify — version-unblocked now (linked engine v0.15.4), waits only on the **defs agent**
-shipping `#Service #headless` (B1, in flight; the ace-connect listener is up, control mode, and
-will surface the DONE ping into `.inbox.log`). Then the cross-repo **`settings.toml` →
+**B3a** (render via the linked CUE engine, not the `cue` binary —
+[ADR](../decisions/2026-06-23-render-via-linked-cue-engine.md)), and **B3b** (`platform init`
+scaffolds `cue.mod/module.cue` via `mod/modfile` — `fda24c0`) are all in. **Immediate next:**
+**E1b** engine render-verify — **still blocked on defs `#headless`.** The defs agent shipped
+`defs@v0.3.20` (live on ghcr.io/prod9, 2026-06-23) with the volume-claims half, but as a
+**different API than E1 assumed** — `parts.#PodMounts & {#claim_templates: cache: {#storage,
+#path}}`, *not* `#StatefulSet.#volume_claims` — and **`#headless` is parked/under review** at the
+defs side (it questions the clusterIP-None engine Service). So E1b waits on a chakrit decision on
+the headless Service; when it resumes, the engine app needs reworking to the new claim-templates
+API plus a `baseline.DefsVersion` bump to v0.3.20. Then the cross-repo **`settings.toml` →
 `platform.toml` migration** (attended) and **Slice 2** (Flux reconcile + cutover). See the engine
 slice plan (E0–E3/B3) below for per-slice commits. Tree clean, all green; not pushed.
 
@@ -31,7 +35,9 @@ slice plan (E0–E3/B3) below for per-slice commits. Tree clean, all green; not 
 a tag, then bump fx + drop the replace.
 
 **Engine slice plan (2026-06-21):** ran **E1 → E0 → E3**, E2 next.
-- **E1 — engine manifest** · *authored `afece7d`; render-verify pending defs.* `apps/dagger-engine.cue`
+- **E1 — engine manifest** · *authored `afece7d`; render-verify still blocked — `defs@v0.3.20`
+  shipped the claim-templates half via a new `parts.#PodMounts` API (engine app will need rework),
+  but `#headless` is parked at the defs side (2026-06-23).* `apps/dagger-engine.cue`
   (in `core/baseline/files/apps/`, inert until E2 wires the embed) on `defs.#StatefulSet`: `replicas: 2`,
   privileged, `--addr tcp://…:1234`, inline `volumeClaimTemplates`→`/var/lib/dagger`, `parts.#PodSpread`,
   `platform` namespace, headless `#Service`. The one blocker — `#Service` `#headless` (closed spec) — is
@@ -61,8 +67,11 @@ a tag, then bump fx + drop the replace.
     `Config.Tags`). No more `exec.Command("cue")` — kills the ambient-binary / v0.16.1-`parts`-panic
     landmine; engine version pinned in go.mod to match defs. (Render-by-extension naming also fixed:
     `renderCue`/`renderDirectives`, `b238593`/`70014c6`.)
-  - **B3b** *(next)* — `platform init` cue.mod scaffold via `mod/modfile` (greenfield `cue mod init`
-    + the defs dep), not a binary shell. Greenfield-only module-name prompt; cue.mod is the truth.
+  - **B3b** *(done `fda24c0`)* — `platform init` scaffolds `cue.mod/module.cue` via `mod/modfile`
+    (not a `cue mod init` shell): module path prompted greenfield-only, `language.version` from
+    `cue.LanguageVersion()` (tracks the linked engine, can't drift newer than it), defs dep pinned
+    from new `baseline.DefsModule`/`DefsVersion` consts. `HasCueModule` gates both the prompt and
+    the plan entry — an existing cue.mod is the operator's truth, never rewritten.
 
 **Dogfood (2026-06-21):** platform self-hosts — it is one of the rendered `apps/*` and is
 built/published/delivered by its own pipeline + engine pool. Cold-start has no unbreakable cycle
