@@ -19,8 +19,9 @@ func writeModule(t *testing.T, dir, appsSrc string) {
 	if err := os.MkdirAll(filepath.Dir(mod), 0o755); err != nil {
 		t.Fatalf("mkdir cue.mod: %v", err)
 	}
+	// language version must be <= the linked CUE engine (we pin cuelang.org/go@v0.15.4).
 	const moduleFile = `module: "test.example/infra@v0"
-language: version: "v0.16.0"
+language: version: "v0.15.4"
 `
 	if err := os.WriteFile(mod, []byte(moduleFile), 0o644); err != nil {
 		t.Fatalf("write module.cue: %v", err)

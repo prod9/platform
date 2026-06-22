@@ -7,10 +7,13 @@ import (
 	"io/fs"
 	"maps"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
+	"cuelang.org/go/cue/cuecontext"
+	"cuelang.org/go/cue/load"
+	cueyaml "cuelang.org/go/encoding/yaml"
+	"cuelang.org/go/mod/modconfig"
 	"gopkg.in/yaml.v3"
 	"platform.prodigy9.co/core/dsl"
 )
@@ -76,26 +79,38 @@ func renderCue(srcDir, image string) (Tree, error) {
 	return buildTree(exported)
 }
 
-// exportCue shells out to `cue export ... --out yaml` over the apps CUE package, emitting
-// the app->files->docs structure with faithful scalar types.
+// exportCue evaluates the apps CUE package via the linked CUE engine and encodes it to
+// YAML — the app->files->docs structure with faithful scalar types, same shape the old
+// `cue export --out yaml` produced. `image` injects the apps' `@tag(image)`.
 func exportCue(srcDir, image string) ([]byte, error) {
 	dir, err := filepath.Abs(filepath.Join(srcDir, appsPackage))
 	if err != nil {
 		return nil, err
 	}
 
-	// cue rejects an absolute path as a package arg, so run inside the package
-	// directory and export the current directory.
-	args := []string{"export", ".", "--out", "yaml"}
-	if image != "" {
-		args = append(args, "--inject", "image="+image)
+	registry, err := modconfig.NewRegistry(&modconfig.Config{CUERegistry: cueRegistry()})
+	if err != nil {
+		return nil, err
 	}
 
-	cmd := exec.Command("cue", args...)
-	cmd.Dir = dir
-	cmd.Env = registryEnv()
-	cmd.Stderr = os.Stderr
-	return cmd.Output()
+	cfg := &load.Config{Dir: dir, Registry: registry}
+	if image != "" {
+		cfg.Tags = []string{"image=" + image}
+	}
+
+	insts := load.Instances([]string{"."}, cfg)
+	if len(insts) == 0 {
+		return nil, fmt.Errorf("render: no CUE instance under %s", dir)
+	}
+	if err := insts[0].Err; err != nil {
+		return nil, err
+	}
+
+	value := cuecontext.New().BuildInstance(insts[0])
+	if err := value.Err(); err != nil {
+		return nil, err
+	}
+	return cueyaml.Encode(value)
 }
 
 // renderDirectives runs every `.platform` directive co-located with the CUE apps (selection
@@ -189,12 +204,13 @@ func readTree(root string) (Tree, error) {
 	return tree, err
 }
 
-func registryEnv() []string {
-	env := os.Environ()
-	if os.Getenv("CUE_REGISTRY") == "" {
-		env = append(env, "CUE_REGISTRY="+DefaultRegistry)
+// cueRegistry is the module registry spec for resolving prodigy9.co/defs: the ambient
+// CUE_REGISTRY if set, else the project default.
+func cueRegistry() string {
+	if r := os.Getenv("CUE_REGISTRY"); r != "" {
+		return r
 	}
-	return env
+	return DefaultRegistry
 }
 
 // buildTree walks cue's exported app->files mapping into a Tree, keying each
