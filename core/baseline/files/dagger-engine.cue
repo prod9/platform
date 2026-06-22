@@ -31,17 +31,10 @@ import (
 
 		// per-ordinal build cache — each engine keeps its own warm cache (round-robin
 		// fragments cache across ordinals; the accepted dumb-RR tradeoff per the ADR).
-		spec: {
-			volumeClaimTemplates: [{
-				metadata: name: "cache"
-				spec: {
-					accessModes: ["ReadWriteOnce"]
-					resources: requests: storage: "50Gi"
-				}
-			}]
-			template: spec: containers: [{
-				volumeMounts: [{name: "cache", mountPath: "/var/lib/dagger"}]
-			}]
+		// #PodMounts emits the StatefulSet volumeClaimTemplate + matching volumeMount and
+		// defaults the storage class to linode-block-storage-retain.
+		parts.#PodMounts & {
+			#claim_templates: cache: {#storage: "50Gi", #path: "/var/lib/dagger"}
 		}
 	}
 

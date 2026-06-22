@@ -14,11 +14,12 @@ import (
 var embedded embed.FS
 
 // DefsModule is the infra-defs CUE dependency the baseline apps import; DefsVersion is the
-// version a freshly-init'd infra repo pins into its cue.mod. The engine app's render is still
-// gated on defs #headless — bump DefsVersion to the engine-supporting defs once that ships.
+// version a freshly-init'd infra repo pins into its cue.mod. v0.3.21 is the engine-supporting
+// defs — it carries #Service #headless and parts.#PodMounts #claim_templates, both of which
+// dagger-engine.cue needs to render.
 const (
 	DefsModule  = "prodigy9.co/defs@v0"
-	DefsVersion = "v0.3.19"
+	DefsVersion = "v0.3.21"
 )
 
 // DefaultVars is the baseline's shipped [ops.vars]: the version pins each directive
