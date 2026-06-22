@@ -14,30 +14,30 @@ strict `bare=var / quoted=string` values, and `focus`/`reset` scope (no `[field=
 `PLANS.md`. **Reads against:** `docs/spec/platform.md`, `config-allocation.md`,
 `gitops-build-plan.md`, and `docs/decisions/*`.
 
-**Next (resume here, 2026-06-23):** the engine work is mostly landed — engine ADR + dispatcher
-(E3), the **flat-baseline simplification** (no markers/`Select`; one list + `Defaults` +
+**Next (resume here, 2026-06-23):** the engine spine is **fully render-verified** — engine ADR +
+dispatcher (E3), the **flat-baseline simplification** (no markers/`Select`; one list + `Defaults` +
 install-time selection — [ADR](../decisions/2026-06-22-flat-baseline-install-time-selection.md)),
 **B3a** (render via the linked CUE engine, not the `cue` binary —
-[ADR](../decisions/2026-06-23-render-via-linked-cue-engine.md)), and **B3b** (`platform init`
-scaffolds `cue.mod/module.cue` via `mod/modfile` — `fda24c0`) are all in. **Immediate next:**
-**E1b** engine render-verify — **still blocked on defs `#headless`.** The defs agent shipped
-`defs@v0.3.20` (live on ghcr.io/prod9, 2026-06-23) with the volume-claims half, but as a
-**different API than E1 assumed** — `parts.#PodMounts & {#claim_templates: cache: {#storage,
-#path}}`, *not* `#StatefulSet.#volume_claims` — and **`#headless` is parked/under review** at the
-defs side (it questions the clusterIP-None engine Service). So E1b waits on a chakrit decision on
-the headless Service; when it resumes, the engine app needs reworking to the new claim-templates
-API plus a `baseline.DefsVersion` bump to v0.3.20. Then the cross-repo **`settings.toml` →
-`platform.toml` migration** (attended) and **Slice 2** (Flux reconcile + cutover). See the engine
-slice plan (E0–E3/B3) below for per-slice commits. Tree clean, all green; not pushed.
+[ADR](../decisions/2026-06-23-render-via-linked-cue-engine.md)), **B3b** (`platform init` scaffolds
+`cue.mod/module.cue` via `mod/modfile` — `fda24c0`), and **E1b** (engine render-verify — `35b25da`)
+are all in. defs shipped `#headless` + `parts.#PodMounts #claim_templates` in `defs@v0.3.21`;
+`dagger-engine.cue` now render-verifies to a clean StatefulSet + headless Service (clusterIP: None),
+and `baseline.DefsVersion` pins v0.3.21. **Immediate next** (all need chakrit / a cluster — not
+AFK-able): **take the engine live** (deploy the rendered manifests → exercise E3's live round-robin),
+the cross-repo **`settings.toml` → `platform.toml` migration** (attended), and **Slice 2** (Flux
+reconcile + cutover, needs a reachable cluster). The one remaining unblocked in-envelope slice is
+**plog→fxlog (#5)**. See the engine slice plan (E0–E3/B3) below for per-slice commits. Tree clean,
+all green; not pushed.
 
 **fx replace caveat:** `go.mod` has `replace fx.prodigy9.co => ../fx` (for the unreleased prompts
 `MultiSelect` rewrite) — platform builds only where `../fx` is checked out until the fx agent cuts
 a tag, then bump fx + drop the replace.
 
 **Engine slice plan (2026-06-21):** ran **E1 → E0 → E3**, E2 next.
-- **E1 — engine manifest** · *authored `afece7d`; render-verify still blocked — `defs@v0.3.20`
-  shipped the claim-templates half via a new `parts.#PodMounts` API (engine app will need rework),
-  but `#headless` is parked at the defs side (2026-06-23).* `apps/dagger-engine.cue`
+- **E1 — engine manifest** · *authored `afece7d`; render-verified `35b25da` (E1b) against
+  `defs@v0.3.21` — `#headless` + `parts.#PodMounts #claim_templates` shipped; the engine app moved
+  off its hand-inlined volumeClaimTemplates onto `#PodMounts` (storage class now set).*
+  `apps/dagger-engine.cue`
   (in `core/baseline/files/apps/`, inert until E2 wires the embed) on `defs.#StatefulSet`: `replicas: 2`,
   privileged, `--addr tcp://…:1234`, inline `volumeClaimTemplates`→`/var/lib/dagger`, `parts.#PodSpread`,
   `platform` namespace, headless `#Service`. The one blocker — `#Service` `#headless` (closed spec) — is
@@ -58,8 +58,8 @@ a tag, then bump fx + drop the replace.
   `OptionalMultiSelect` (new fx 3-arg sig, `../fx@4d66e8b`) installs the chosen subset into the
   target's `apps/` (co-located, render routes by extension). `[ops.vars]` = version pins only.
   NGF is now two clean files (`nginx-gateway-experimental` default + `nginx-gateway` stable).
-  - **cue.mod scaffold** still pending — folded into B3 (do it via `mod/modfile`, not a binary).
-  - Full engine **render-verify** waits on defs `#headless` (B1) + the cuelang move (B3).
+  - **cue.mod scaffold** — done in B3b (`fda24c0`, via `mod/modfile`).
+  - Full engine **render-verify** — done in E1b (`35b25da`, against `defs@v0.3.21`).
 
 - **B3 — render via the linked CUE engine, not the `cue` binary.**
   - **B3a** *(done `b238593`)* — `cuelang.org/go@v0.15.4` pinned; `exportCue` rewritten on the Go
