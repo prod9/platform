@@ -22,6 +22,13 @@ type Info struct {
 	Repository      string
 	ImagePrefix     string
 	GoVersion       string // TODO: Probably should detect from user's environment
+
+	// CUE module scaffold inputs for `platform init`. ModulePath is the operator's chosen
+	// module path (prompted greenfield-only); DefsModule/DefsVersion pin the infra-defs
+	// dependency the baseline apps import. An empty ModulePath skips the scaffold.
+	ModulePath  string
+	DefsModule  string
+	DefsVersion string
 }
 
 func renderTemplate(content string, info *Info) ([]byte, error) {

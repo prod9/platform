@@ -13,6 +13,14 @@ import (
 //go:embed files/*.platform files/*.cue
 var embedded embed.FS
 
+// DefsModule is the infra-defs CUE dependency the baseline apps import; DefsVersion is the
+// version a freshly-init'd infra repo pins into its cue.mod. The engine app's render is still
+// gated on defs #headless — bump DefsVersion to the engine-supporting defs once that ships.
+const (
+	DefsModule  = "prodigy9.co/defs@v0"
+	DefsVersion = "v0.3.19"
+)
+
 // DefaultVars is the baseline's shipped [ops.vars]: the version pins each directive
 // interpolates via \(var) into its download URLs. Bootstrap seeds these into a fresh
 // platform.toml and merges them on re-bootstrap (new keys appended, operator values

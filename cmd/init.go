@@ -42,6 +42,14 @@ func runInitCmd(cmd *cobra.Command, args []string) {
 		MaintainerEmail: sess.Str("your email"),
 		Repository:      sess.Str("github repository address (without https:// prefix)"),
 		ImagePrefix:     sess.Str("docker image prefix (e.g. ghcr.io/prod9/)"),
+		DefsModule:      baseline.DefsModule,
+		DefsVersion:     baseline.DefsVersion,
+	}
+
+	// Greenfield only: a fresh infra repo needs a cue.mod so render can load its apps; an
+	// existing module is the operator's truth and is left untouched, so don't prompt for it.
+	if !bootstrapper.HasCueModule(wd) {
+		info.ModulePath = sess.OptionalStr("cue module path", info.Repository)
 	}
 
 	files, err := baseline.EmbeddedFiles()

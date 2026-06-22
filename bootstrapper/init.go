@@ -29,6 +29,15 @@ func AnalyzeInit(dir string, info *Info, components map[string][]byte, defaultVa
 		rel := filepath.Join("apps", name)
 		files = append(files, fileChange(dir, rel, components[name], 0644))
 	}
+
+	mod, err := planCueModule(dir, info)
+	if err != nil {
+		return nil, err
+	}
+	if mod != nil {
+		files = append(files, *mod)
+	}
+
 	return &Plan{Dir: dir, Files: files, Vars: vars}, nil
 }
 
