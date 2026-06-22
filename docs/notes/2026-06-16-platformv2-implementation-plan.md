@@ -45,12 +45,14 @@ below. Then (2) cross-repo **`settings.toml` → `platform.toml` migration** (at
   - **cue.mod scaffold** still pending — folded into B3 (do it via `mod/modfile`, not a binary).
   - Full engine **render-verify** waits on defs `#headless` (B1) + the cuelang move (B3).
 
-- **B3 — render via the linked CUE engine, not the `cue` binary** · *greenlit, NEXT.* `render.go`
-  shells ambient `cue` (v0.16.1 here → panics on defs `parts`; defs needs v0.15.4). Fix per chakrit:
-  add `cuelang.org/go@v0.15.4` as a pinned dep and rewrite `exportApps` on the Go API
-  (`cue/load` + `cuecontext` + `mod/modconfig` registry + `encoding/yaml`; `--inject` → `Config.Tags`).
-  Kills the version-mismatch and the binary/PATH dependency in one move, and folds in E2b's modfile
-  scaffold. Heavy dep + export-core rewrite — flagged to chakrit before pulling it in.
+- **B3 — render via the linked CUE engine, not the `cue` binary.**
+  - **B3a** *(done `b238593`)* — `cuelang.org/go@v0.15.4` pinned; `exportCue` rewritten on the Go
+    API (`cue/load` + `cuecontext` + `mod/modconfig` registry + `encoding/yaml`; image →
+    `Config.Tags`). No more `exec.Command("cue")` — kills the ambient-binary / v0.16.1-`parts`-panic
+    landmine; engine version pinned in go.mod to match defs. (Render-by-extension naming also fixed:
+    `renderCue`/`renderDirectives`, `b238593`/`70014c6`.)
+  - **B3b** *(next)* — `platform init` cue.mod scaffold via `mod/modfile` (greenfield `cue mod init`
+    + the defs dep), not a binary shell. Greenfield-only module-name prompt; cue.mod is the truth.
 
 **Dogfood (2026-06-21):** platform self-hosts — it is one of the rendered `apps/*` and is
 built/published/delivered by its own pipeline + engine pool. Cold-start has no unbreakable cycle
