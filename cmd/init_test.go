@@ -7,45 +7,45 @@ import (
 	"platform.prodigy9.co/core/baseline"
 )
 
-// TestPickOptions drives the generic picker with a prefilled prompt session (args answer
-// prompts in order): each choice consumes one variant arg; all toggles fold into one
-// MultiSelect consuming a single comma-separated arg naming the keys to enable.
-func TestPickOptions(t *testing.T) {
-	opts := []baseline.Option{
-		{Key: "argocd", Kind: baseline.OptionToggle, Default: "false"},
-		{Key: "nginx_gateway", Kind: baseline.OptionToggle, Default: "false"},
-		{Key: "registry", Kind: baseline.OptionChoice, Variants: []string{"ghcr", "linode"}, Default: "ghcr"},
+// TestSelectComponents: an args comma-list overrides the defaults — exactly that subset of
+// the built-in files is selected for install.
+func TestSelectComponents(t *testing.T) {
+	files := map[string][]byte{
+		"cert-manager.platform":               []byte("a"),
+		"flux.platform":                       []byte("b"),
+		"dagger-engine.cue":                   []byte("c"),
+		"argocd.platform":                     []byte("d"),
+		"nginx-gateway-experimental.platform": []byte("e"),
 	}
 
-	// "linode" answers the registry choice; "argocd" is the toggle comma-list — argocd on,
-	// nginx_gateway omitted, so off.
-	sess := prompts.New(nil, []string{"linode", "argocd"})
-	vars := map[string]any{}
-	pickOptions(sess, opts, vars)
+	sess := prompts.New(nil, []string{"cert-manager.platform,argocd.platform"})
+	got := selectComponents(sess, files)
 
-	for key, want := range map[string]string{"argocd": "true", "nginx_gateway": "false", "registry": "linode"} {
-		if vars[key] != want {
-			t.Errorf("vars[%q] = %q, want %q", key, vars[key], want)
+	if len(got) != 2 {
+		t.Fatalf("selected %d components, want 2", len(got))
+	}
+	for _, name := range []string{"cert-manager.platform", "argocd.platform"} {
+		if _, ok := got[name]; !ok {
+			t.Errorf("missing selected component %q", name)
 		}
 	}
 }
 
-// TestPickTogglesDefaults checks the pre-check path: with no args (non-interactive) the
-// toggle MultiSelect returns its defaults, so a toggle enabled in vars stays enabled.
-func TestPickTogglesDefaults(t *testing.T) {
-	toggles := []baseline.Option{
-		{Key: "argocd", Kind: baseline.OptionToggle, Default: "false"},
-		{Key: "ngf_experimental", Kind: baseline.OptionToggle, Default: "false"},
+// TestSelectComponentsDefaults: with no args (non-interactive) the shipped Defaults install,
+// and a present-but-non-default file (argocd) stays out.
+func TestSelectComponentsDefaults(t *testing.T) {
+	files := map[string][]byte{"argocd.platform": []byte("x")}
+	for _, name := range baseline.Defaults {
+		files[name] = []byte("x")
 	}
 
-	sess := prompts.New(nil, nil) // no args, non-interactive → MultiSelect returns defaults
-	vars := map[string]any{"argocd": "false", "ngf_experimental": "true"}
-	pickToggles(sess, toggles, vars)
+	sess := prompts.New(nil, nil)
+	got := selectComponents(sess, files)
 
-	if vars["ngf_experimental"] != "true" {
-		t.Errorf("default-on toggle dropped: ngf_experimental = %q, want true", vars["ngf_experimental"])
+	if len(got) != len(baseline.Defaults) {
+		t.Fatalf("selected %d, want %d (defaults)", len(got), len(baseline.Defaults))
 	}
-	if vars["argocd"] != "false" {
-		t.Errorf("default-off toggle enabled: argocd = %q, want false", vars["argocd"])
+	if _, ok := got["argocd.platform"]; ok {
+		t.Error("argocd installed despite not being a default")
 	}
 }

@@ -21,31 +21,27 @@ import (
 const DefaultRegistry = "prodigy9.co=ghcr.io/prod9"
 
 const (
-	// appsPackage holds the `apps` CUE package: each top-level field is one app
-	// (component), valued by a filename->docs map.
+	// appsPackage is the one source directory holding both formats: the `apps` CUE
+	// package (each top-level field one component, a filename->docs map) and the
+	// co-located `.platform` directives. Render routes by extension.
 	appsPackage = "apps"
-
-	// baselinePackage holds the cluster-baseline `.platform` directive files,
-	// gated and assembled by core/baseline.
-	baselinePackage = "baseline"
 
 	platformExt = ".platform"
 )
 
 // RenderOptions carries the render context: the image tag injected into the apps'
-// `@tag(image)`, the [ops.vars] table gating the baseline and feeding directive
-// `\(var)` interpolation, and an optional Fetch override for `download` (nil uses
-// a plain HTTP GET; tests inject fixtures).
+// `@tag(image)`, the [ops.vars] table feeding directive `\(var)` interpolation, and an
+// optional Fetch override for `download` (nil uses a plain HTTP GET; tests inject fixtures).
 type RenderOptions struct {
 	Image string
 	Vars  map[string]any
 	Fetch func(url string) ([]byte, error)
 }
 
-// Render walks srcDir and fuses both render routes into one tree: the `apps` CUE
-// package (`.cue` → file-map `cue export`) and the `baseline` directive set
-// (`.platform` → baseline.Select → dsl.Apply). Either route is skipped when its
-// package directory is absent. Both write <component>/<filename> entries.
+// Render walks srcDir's apps/ and fuses both routes into one tree, by extension: the CUE
+// package (`.cue` → file-map `cue export`) and the co-located directives (`.platform` →
+// dsl.Apply). Each route is skipped when it contributes nothing. Both write
+// <component>/<filename> entries.
 func Render(srcDir string, opts RenderOptions) (Tree, error) {
 	tree, err := renderApps(srcDir, opts.Image)
 	if err != nil {
@@ -65,8 +61,12 @@ func Render(srcDir string, opts RenderOptions) (Tree, error) {
 // field becomes a component directory; each filename key under it becomes a named
 // file holding one document (a map value) or a multi-doc stream (a list value).
 func renderApps(srcDir, image string) (Tree, error) {
-	if !isDir(filepath.Join(srcDir, appsPackage)) {
-		return Tree{}, nil
+	cue, err := filesWithExt(filepath.Join(srcDir, appsPackage), ".cue")
+	if err != nil {
+		return nil, err
+	}
+	if len(cue) == 0 {
+		return Tree{}, nil // no CUE apps (directives-only apps/, or no apps/ at all)
 	}
 
 	exported, err := exportApps(srcDir, image)
@@ -98,20 +98,15 @@ func exportApps(srcDir, image string) ([]byte, error) {
 	return cmd.Output()
 }
 
-// renderBaseline assembles the baseline directive set under srcDir/baseline:
-// baseline.Select gates the files by vars, then each is run with dsl.Apply into a
-// per-component output directory. Results are collected into a tree keyed by
-// <component>/<emitted-file>. An absent baseline package renders nothing.
+// renderBaseline runs every `.platform` directive found alongside the apps (selection
+// happened at install time, so whatever is present applies). Each runs with dsl.Apply
+// into a per-component output directory; results collect into a tree keyed by
+// <component>/<emitted-file>. No `.platform` files renders nothing.
 func renderBaseline(srcDir string, vars map[string]any, fetch func(string) ([]byte, error)) (Tree, error) {
-	dir := filepath.Join(srcDir, baselinePackage)
-	names, err := platformFiles(dir)
+	dir := filepath.Join(srcDir, appsPackage)
+	names, err := filesWithExt(dir, platformExt)
 	if err != nil || len(names) == 0 {
 		return Tree{}, err
-	}
-
-	selected, err := baseline.Select(names, vars)
-	if err != nil {
-		return nil, err
 	}
 
 	out, err := os.MkdirTemp("", "platform-render-")
@@ -120,7 +115,7 @@ func renderBaseline(srcDir string, vars map[string]any, fetch func(string) ([]by
 	}
 	defer os.RemoveAll(out)
 
-	for _, name := range selected {
+	for _, name := range names {
 		if err := applyDirective(dir, out, name, vars, fetch); err != nil {
 			return nil, fmt.Errorf("render: %s: %w", name, err)
 		}
@@ -128,8 +123,8 @@ func renderBaseline(srcDir string, vars map[string]any, fetch func(string) ([]by
 	return readTree(out)
 }
 
-// applyDirective runs one directive file into outRoot/<component>, where
-// component is the file's stem before any @variant / +flag marker.
+// applyDirective runs one directive file into outRoot/<component>, where component
+// is the file's stem (its name without the .platform extension).
 func applyDirective(srcDir, outRoot, name string, vars map[string]any, fetch func(string) ([]byte, error)) error {
 	directives, err := os.ReadFile(filepath.Join(srcDir, name))
 	if err != nil {
@@ -145,9 +140,9 @@ func applyDirective(srcDir, outRoot, name string, vars map[string]any, fetch fun
 	return err
 }
 
-// platformFiles lists the .platform directive filenames directly under dir. An
-// absent directory yields no files rather than an error.
-func platformFiles(dir string) ([]string, error) {
+// filesWithExt lists filenames with ext directly under dir. An absent directory yields
+// no files rather than an error.
+func filesWithExt(dir, ext string) ([]string, error) {
 	entries, err := os.ReadDir(dir)
 	if os.IsNotExist(err) {
 		return nil, nil
@@ -158,7 +153,7 @@ func platformFiles(dir string) ([]string, error) {
 
 	var names []string
 	for _, e := range entries {
-		if !e.IsDir() && strings.HasSuffix(e.Name(), platformExt) {
+		if !e.IsDir() && strings.HasSuffix(e.Name(), ext) {
 			names = append(names, e.Name())
 		}
 	}
@@ -187,12 +182,6 @@ func readTree(root string) (Tree, error) {
 		return nil
 	})
 	return tree, err
-}
-
-// isDir reports whether path exists and is a directory.
-func isDir(path string) bool {
-	info, err := os.Stat(path)
-	return err == nil && info.IsDir()
 }
 
 func registryEnv() []string {

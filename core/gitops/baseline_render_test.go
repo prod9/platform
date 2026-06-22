@@ -9,14 +9,14 @@ import (
 	"platform.prodigy9.co/core/gitops"
 )
 
-// writeBaseline lays down baseline/<name> directive files under dir. Each value
-// is the directive-file body.
+// writeBaseline lays down .platform directive files under apps/, co-located with the
+// CUE apps. Each value is the directive-file body.
 func writeBaseline(t *testing.T, dir string, files map[string]string) {
 	t.Helper()
 
-	base := filepath.Join(dir, "baseline")
+	base := filepath.Join(dir, "apps")
 	if err := os.MkdirAll(base, 0o755); err != nil {
-		t.Fatalf("mkdir baseline: %v", err)
+		t.Fatalf("mkdir apps: %v", err)
 	}
 	for name, body := range files {
 		if err := os.WriteFile(filepath.Join(base, name), []byte(body), 0o644); err != nil {
@@ -31,30 +31,29 @@ func fixtureFetch(string) ([]byte, error) {
 	return []byte("apiVersion: v1\nkind: Namespace\nmetadata:\n  name: from-fixture\n"), nil
 }
 
-// TestRenderBaselineRoute drives the .platform route: a choice group whose
-// selected variant downloads + emits, gated by [ops.vars]. The unselected
-// variant must not appear, and the emitted file lands under the component dir
-// (the stem before the @marker).
+// TestRenderBaselineRoute drives the .platform route: every directive present under apps/
+// is applied (selection happened at install time — no render-time gating), each emitting
+// under its component dir (the filename stem).
 func TestRenderBaselineRoute(t *testing.T) {
 	dir := t.TempDir()
 	writeBaseline(t, dir, map[string]string{
-		"nginx-gateway@stable.platform":       "download \"https://fixture/x.yaml\"\nemit \"stable.yaml\"\n",
-		"nginx-gateway@experimental.platform": "download \"https://fixture/x.yaml\"\nemit \"experimental.yaml\"\n",
+		"nginx-gateway.platform":              "download \"https://fixture/x.yaml\"\nemit \"stable.yaml\"\n",
+		"nginx-gateway-experimental.platform": "download \"https://fixture/x.yaml\"\nemit \"experimental.yaml\"\n",
 	})
 
-	tree, err := gitops.Render(dir, gitops.RenderOptions{
-		Vars:  map[string]any{"nginx-gateway": "stable"},
-		Fetch: fixtureFetch,
-	})
+	tree, err := gitops.Render(dir, gitops.RenderOptions{Fetch: fixtureFetch})
 	if err != nil {
 		t.Fatalf("Render: %v", err)
 	}
 
-	if _, ok := tree["nginx-gateway/stable.yaml"]; !ok {
-		t.Errorf("selected variant not rendered; paths = %v", tree.Paths())
-	}
-	if _, ok := tree["nginx-gateway/experimental.yaml"]; ok {
-		t.Errorf("unselected variant leaked into render; paths = %v", tree.Paths())
+	// both present → both render; the component dir is the filename stem.
+	for _, want := range []string{
+		"nginx-gateway/stable.yaml",
+		"nginx-gateway-experimental/experimental.yaml",
+	} {
+		if _, ok := tree[want]; !ok {
+			t.Errorf("directive not rendered: %q; paths = %v", want, tree.Paths())
+		}
 	}
 	if got := string(tree["nginx-gateway/stable.yaml"]); !strings.Contains(got, "from-fixture") {
 		t.Errorf("emitted file lost the downloaded content:\n%s", got)

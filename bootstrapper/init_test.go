@@ -8,19 +8,17 @@ import (
 	r "github.com/stretchr/testify/require"
 )
 
-func TestAnalyzeInit_writesBaselineAndProjectFileOnly(t *testing.T) {
+func TestAnalyzeInit_writesComponentsAndProjectFileOnly(t *testing.T) {
 	dir := t.TempDir() // not a git repo — init tolerates that (the cmd git-inits)
 
-	baselineFiles := map[string][]byte{
+	components := map[string][]byte{
 		"cert-manager.platform": []byte("download \"u\"\nemit \"cert-manager.yaml\"\n"),
 		"flux.platform":         []byte("download \"u\"\nemit \"flux.yaml\"\n"),
-	}
-	appFiles := map[string][]byte{
-		"dagger-engine.cue": []byte("package apps\n"),
+		"dagger-engine.cue":     []byte("package apps\n"),
 	}
 	defaults := map[string]any{"cert_manager_version": "v1.20.2", "flux_version": "v2.8.8"}
 
-	plan, err := AnalyzeInit(dir, testInfo(), baselineFiles, appFiles, defaults)
+	plan, err := AnalyzeInit(dir, testInfo(), components, defaults)
 	r.NoError(t, err)
 
 	byPath := map[string]FileChange{}
@@ -28,9 +26,9 @@ func TestAnalyzeInit_writesBaselineAndProjectFileOnly(t *testing.T) {
 		byPath[f.Path] = f
 	}
 	r.Contains(t, byPath, "platform.toml")
-	r.Contains(t, byPath, filepath.Join("baseline", "cert-manager.platform"))
-	r.Contains(t, byPath, filepath.Join("baseline", "flux.platform"))
-	// CUE app files route under apps/, not baseline/.
+	// every selected component — directives and CUE apps alike — lands under apps/.
+	r.Contains(t, byPath, filepath.Join("apps", "cert-manager.platform"))
+	r.Contains(t, byPath, filepath.Join("apps", "flux.platform"))
 	r.Contains(t, byPath, filepath.Join("apps", "dagger-engine.cue"))
 
 	// init writes neither the app build script nor the CI pipeline.
@@ -38,7 +36,7 @@ func TestAnalyzeInit_writesBaselineAndProjectFileOnly(t *testing.T) {
 	r.NotContains(t, byPath, filepath.Join(".buildkite", "pipeline.yaml"))
 
 	r.NoError(t, plan.Apply())
-	got, err := os.ReadFile(filepath.Join(dir, "baseline", "cert-manager.platform"))
+	got, err := os.ReadFile(filepath.Join(dir, "apps", "cert-manager.platform"))
 	r.NoError(t, err)
 	r.Contains(t, string(got), `emit "cert-manager.yaml"`)
 
@@ -52,6 +50,6 @@ func TestAnalyzeInit_writesBaselineAndProjectFileOnly(t *testing.T) {
 }
 
 func TestAnalyzeInit_rejectsMissingDir(t *testing.T) {
-	_, err := AnalyzeInit(filepath.Join(t.TempDir(), "absent"), testInfo(), nil, nil, nil)
+	_, err := AnalyzeInit(filepath.Join(t.TempDir(), "absent"), testInfo(), nil, nil)
 	r.Error(t, err)
 }

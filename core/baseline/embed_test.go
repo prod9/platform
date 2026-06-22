@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"testing"
 
@@ -59,35 +58,21 @@ func TestEmbeddedCertManager(t *testing.T) {
 	}
 }
 
-// TestEmbeddedSelectGating checks the shipped baseline gates correctly: the
-// always-on installs render unconditionally, while the argocd toggle is excluded
-// by default and included only when its [ops.vars] flag is set.
-func TestEmbeddedSelectGating(t *testing.T) {
+// TestDefaultsAreEmbedded checks every shipped default names a real built-in file, and
+// the CUE engine app is in the list (no marker grammar, no gating — just a flat set).
+func TestDefaultsAreEmbedded(t *testing.T) {
 	files, err := baseline.EmbeddedFiles()
 	if err != nil {
 		t.Fatalf("EmbeddedFiles: %v", err)
 	}
-	names := keys(files)
 
-	off, err := baseline.Select(names, baseline.DefaultVars)
-	if err != nil {
-		t.Fatalf("Select (default): %v", err)
-	}
-	if slices.Contains(off, "argocd+argocd.platform") {
-		t.Errorf("argocd toggle rendered while off by default: %v", off)
-	}
-	for _, always := range []string{"cert-manager.platform", "flux.platform"} {
-		if !slices.Contains(off, always) {
-			t.Errorf("always-on %q missing from selection: %v", always, off)
+	for _, name := range baseline.Defaults {
+		if _, ok := files[name]; !ok {
+			t.Errorf("Defaults names %q but it is not embedded; have %v", name, keys(files))
 		}
 	}
-
-	on, err := baseline.Select(names, map[string]any{"argocd": "true"})
-	if err != nil {
-		t.Fatalf("Select (argocd on): %v", err)
-	}
-	if !slices.Contains(on, "argocd+argocd.platform") {
-		t.Errorf("argocd toggle not rendered when enabled: %v", on)
+	if _, ok := files["dagger-engine.cue"]; !ok {
+		t.Errorf("dagger-engine.cue not embedded; have %v", keys(files))
 	}
 }
 
@@ -101,7 +86,7 @@ func TestEmbeddedNginxGateway(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EmbeddedFiles: %v", err)
 	}
-	body, ok := files["nginx-gateway+ngf_experimental.platform"]
+	body, ok := files["nginx-gateway-experimental.platform"]
 	if !ok {
 		t.Fatalf("nginx-gateway directive not embedded; have %v", keys(files))
 	}
@@ -155,23 +140,6 @@ func TestEmbeddedNginxGateway(t *testing.T) {
 	}
 	if !strings.Contains(got, "type: StrategicMerge") {
 		t.Errorf("StrategicMerge patch not built:\n%s", got)
-	}
-}
-
-// TestEmbeddedApps checks the CUE-authored half of the baseline ships separately
-// from the .platform directives, keyed by bare filename for init to write under apps/.
-func TestEmbeddedApps(t *testing.T) {
-	apps, err := baseline.EmbeddedApps()
-	if err != nil {
-		t.Fatalf("EmbeddedApps: %v", err)
-	}
-	if _, ok := apps["dagger-engine.cue"]; !ok {
-		t.Fatalf("dagger-engine.cue not embedded; have %v", keys(apps))
-	}
-
-	// the .platform directives must not leak into the app set.
-	if _, ok := apps["cert-manager.platform"]; ok {
-		t.Errorf("EmbeddedApps leaked a .platform directive: %v", keys(apps))
 	}
 }
 

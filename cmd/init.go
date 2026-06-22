@@ -1,12 +1,12 @@
 package cmd
 
 import (
-	"fmt"
 	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sort"
 
 	"fx.prodigy9.co/cmd/prompts"
 	"github.com/spf13/cobra"
@@ -48,19 +48,11 @@ func runInitCmd(cmd *cobra.Command, args []string) {
 	if err != nil {
 		plog.Fatalln(err)
 	}
-	apps, err := baseline.EmbeddedApps()
-	if err != nil {
-		plog.Fatalln(err)
-	}
 
-	// Pick the optional baseline components into [ops.vars]; --force keeps the
-	// shipped defaults (NGF-experimental on, argocd off) for CI.
 	vars := maps.Clone(baseline.DefaultVars)
-	if !initForce {
-		pickOptions(sess, baseline.ScanOptions(fileNames(files)), vars)
-	}
+	selected := selectComponents(sess, files)
 
-	plan, err := bootstrapper.AnalyzeInit(wd, info, files, apps, vars)
+	plan, err := bootstrapper.AnalyzeInit(wd, info, selected, vars)
 	if err != nil {
 		plog.Fatalln(err)
 	}
@@ -81,56 +73,24 @@ func runInitCmd(cmd *cobra.Command, args []string) {
 	}
 }
 
-// pickOptions records the operator's baseline selections into vars. Choices pick one
-// variant each (List); every overlay toggle folds into a single pre-checked MultiSelect
-// so the operator sees all optional components at once with the shipped defaults already
-// ticked. Generic over ScanOptions — adding a baseline option file needs no change here.
-func pickOptions(sess *prompts.Session, opts []baseline.Option, vars map[string]any) {
-	var toggles []baseline.Option
-	for _, opt := range opts {
-		switch opt.Kind {
-		case baseline.OptionChoice:
-			current := opt.Default
-			if v, ok := vars[opt.Key]; ok {
-				current = fmt.Sprint(v)
-			}
-			vars[opt.Key] = sess.List(opt.Key, current, opt.Variants)
+// selectComponents picks which built-in components to install. --force keeps the shipped
+// Defaults; interactively the operator adjusts a checkbox list of every built-in file with
+// Defaults pre-checked. Returns the chosen subset of files (written into the target's apps/).
+func selectComponents(sess *prompts.Session, files map[string][]byte) map[string][]byte {
+	chosen := baseline.Defaults
+	if !initForce {
+		names := fileNames(files)
+		sort.Strings(names)
+		chosen = sess.OptionalMultiSelect("install components", baseline.Defaults, names)
+	}
 
-		case baseline.OptionToggle:
-			toggles = append(toggles, opt)
+	selected := map[string][]byte{}
+	for _, name := range chosen {
+		if body, ok := files[name]; ok {
+			selected[name] = body
 		}
 	}
-
-	pickToggles(sess, toggles, vars)
-}
-
-// pickToggles folds the overlay toggles into one checkbox prompt, pre-checking the ones
-// currently enabled in vars (the shipped defaults), then writes the string-bool result back.
-func pickToggles(sess *prompts.Session, toggles []baseline.Option, vars map[string]any) {
-	if len(toggles) == 0 {
-		return
-	}
-
-	keys := make([]string, 0, len(toggles))
-	defaults := make([]string, 0, len(toggles))
-	for _, opt := range toggles {
-		keys = append(keys, opt.Key)
-		if fmt.Sprint(vars[opt.Key]) == "true" {
-			defaults = append(defaults, opt.Key)
-		}
-	}
-
-	enabled := map[string]bool{}
-	for _, key := range sess.MultiSelect("enable optional components", keys, defaults) {
-		enabled[key] = true
-	}
-	for _, opt := range toggles {
-		if enabled[opt.Key] {
-			vars[opt.Key] = "true"
-		} else {
-			vars[opt.Key] = "false"
-		}
-	}
+	return selected
 }
 
 func fileNames(files map[string][]byte) []string {
