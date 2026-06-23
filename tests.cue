@@ -69,7 +69,11 @@ let testbeds = [...{name: string, dir: string}] &
 		},
 		{
 			name: "Render"
-			checks: ["exitcode", "stdout"]
+			checks: [
+				"exitcode",
+				"stdout",
+				"./testbeds/infra-basic/k8s/infra-basic/*.yaml",
+			]
 			commands: [
 				"./testbed.sh infra-basic ops render --image x:y",
 			]

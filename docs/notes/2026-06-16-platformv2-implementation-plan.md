@@ -27,10 +27,13 @@ AFK-able): **take the engine live** (deploy the rendered manifests → exercise 
 the cross-repo **`settings.toml` → `platform.toml` migration** (attended), and **Slice 2** (Flux
 reconcile + cutover, needs a reachable cluster). The one remaining unblocked in-envelope slice is
 **plog→fxlog (#5)**. See the engine slice plan (E0–E3/B3) below for per-slice commits. `go build`
-+ `go test ./...` + `go vet` green; **smoke (`./test.sh`) red on a pre-existing snapshot drift** —
-the `infra-basic` Render case in `tests.lock.yml` still expects the pre-D3b-3 streamed manifest, but
-render now emits the file-map path `k8s/infra-basic/objects.yaml`; regenerate the lockfile (separate
-slice, predates the fx pin). Not pushed.
++ `go test ./...` + `go vet` + smoke (`./test.sh`) all green. **Test machinery upgraded
+(2026-06-23):** smoke `v0.2.4` → `v0.4.0` (lock re-keyed by spec basename — re-committed once; new
+frozen exit-code contract, harmless under test.sh's `errexit`; dup test names now hard-fail load) and
+the `infra-basic` Render test fixed — its stale pre-D3b-3 streamed-manifest snapshot now checks
+`exitcode` + the printed path + a **file-content glob** (`./testbeds/infra-basic/k8s/infra-basic/*.yaml`)
+that captures the rendered manifest itself (stronger than the old stdout snapshot). smoke file-glob
+checks snapshot content, not just existence (coordinated w/ the smoke agent). Not pushed.
 
 **fx replace caveat — resolved (2026-06-23):** fx cut `v0.8.6` (tag `4fd53f3`, the
 `MultiSelect(q, defaults, options)` + `OptionalMultiSelect` rewrite); platform pinned

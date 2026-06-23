@@ -1,7 +1,7 @@
 #!/bin/sh
 
 CUE_VERSION=v0.15.3
-SMOKE_VERSION=v0.2.4
+SMOKE_VERSION=v0.4.0
 
 set -o xtrace
 set -o errexit
