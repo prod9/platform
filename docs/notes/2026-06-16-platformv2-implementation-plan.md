@@ -26,12 +26,17 @@ and `baseline.DefsVersion` pins v0.3.21. **Immediate next** (all need chakrit / 
 AFK-able): **take the engine live** (deploy the rendered manifests → exercise E3's live round-robin),
 the cross-repo **`settings.toml` → `platform.toml` migration** (attended), and **Slice 2** (Flux
 reconcile + cutover, needs a reachable cluster). The one remaining unblocked in-envelope slice is
-**plog→fxlog (#5)**. See the engine slice plan (E0–E3/B3) below for per-slice commits. Tree clean,
-all green; not pushed.
+**plog→fxlog (#5)**. See the engine slice plan (E0–E3/B3) below for per-slice commits. `go build`
++ `go test ./...` + `go vet` green; **smoke (`./test.sh`) red on a pre-existing snapshot drift** —
+the `infra-basic` Render case in `tests.lock.yml` still expects the pre-D3b-3 streamed manifest, but
+render now emits the file-map path `k8s/infra-basic/objects.yaml`; regenerate the lockfile (separate
+slice, predates the fx pin). Not pushed.
 
-**fx replace caveat:** `go.mod` has `replace fx.prodigy9.co => ../fx` (for the unreleased prompts
-`MultiSelect` rewrite) — platform builds only where `../fx` is checked out until the fx agent cuts
-a tag, then bump fx + drop the replace.
+**fx replace caveat — resolved (2026-06-23):** fx cut `v0.8.6` (tag `4fd53f3`, the
+`MultiSelect(q, defaults, options)` + `OptionalMultiSelect` rewrite); platform pinned
+`fx.prodigy9.co@v0.8.6` and dropped `replace => ../fx`. The tag commits the exact `../fx` tree
+platform already built against (annotated tag `4fd53f3` → HEAD `fee33fb`), so the pin is
+behavior-identical. Fresh clones are go-gettable again. **E0 fully closed.**
 
 **Engine slice plan (2026-06-21):** ran **E1 → E0 → E3 → E2**, then **B3a/B3b** and **E1b** —
 all landed; the engine spine is fully render-verified.
@@ -45,8 +50,9 @@ all landed; the engine spine is fully render-verified.
   handed to the **infra-defs agent** as a wishlist (`docs/notes/2026-06-21-defs-wishlist-dagger-engine.md`);
   it ships + pings, then platform pins the new `defs@vX` and finishes render-verify in `../infra`.
 - **E0 — fx bump** · *landed `4734846`.* `replace fx.prodigy9.co => ../fx` (`ea91e67`: prompts on x/term +
-  `MultiSelect`); zero code changes — the 5 touchpoints stayed API-compatible; build + tests green. Drop the
-  replace for a tagged fx later. **plog→fxlog (#5) NOT done** — now unblocked, left as its own slice.
+  `MultiSelect`); zero code changes — the 5 touchpoints stayed API-compatible; build + tests green. **Replace dropped + pinned
+  `fx.prodigy9.co@v0.8.6` (2026-06-23) — E0 fully closed.** **plog→fxlog (#5) NOT done** — now
+  unblocked, left as its own slice.
 - **E3 — dispatcher** · *landed `58a60db`.* `builder/engine.go` (DNS discovery of headless A-records,
   gated on `KUBERNETES_SERVICE_HOST`; pure + unit-tested) + `builder/session.go` engine-client pool +
   per-job `idx%n` via `forEngine`; `BuildResult.engine` so Publish mints the registry secret on the same

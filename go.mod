@@ -5,7 +5,7 @@ go 1.25.5
 require (
 	cuelang.org/go v0.15.4
 	dagger.io/dagger v0.20.8
-	fx.prodigy9.co v0.4.0
+	fx.prodigy9.co v0.8.6
 	github.com/BurntSushi/toml v1.4.0
 	github.com/felixge/httpsnoop v1.0.4
 	github.com/opencontainers/image-spec v1.1.1
@@ -79,5 +79,3 @@ require (
 	golang.org/x/text v0.34.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 )
-
-replace fx.prodigy9.co => ../fx
