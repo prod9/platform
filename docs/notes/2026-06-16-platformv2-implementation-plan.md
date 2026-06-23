@@ -33,7 +33,8 @@ all green; not pushed.
 `MultiSelect` rewrite) — platform builds only where `../fx` is checked out until the fx agent cuts
 a tag, then bump fx + drop the replace.
 
-**Engine slice plan (2026-06-21):** ran **E1 → E0 → E3**, E2 next.
+**Engine slice plan (2026-06-21):** ran **E1 → E0 → E3 → E2**, then **B3a/B3b** and **E1b** —
+all landed; the engine spine is fully render-verified.
 - **E1 — engine manifest** · *authored `afece7d`; render-verified `35b25da` (E1b) against
   `defs@v0.3.21` — `#headless` + `parts.#PodMounts #claim_templates` shipped; the engine app moved
   off its hand-inlined volumeClaimTemplates onto `#PodMounts` (storage class now set).*
