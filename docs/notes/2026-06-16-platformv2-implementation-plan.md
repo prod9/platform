@@ -14,7 +14,10 @@ strict `bare=var / quoted=string` values, and `focus`/`reset` scope (no `[field=
 `PLANS.md`. **Reads against:** `docs/spec/platform.md`, `config-allocation.md`,
 `gitops-build-plan.md`, and `docs/decisions/*`.
 
-**Next (resume here, 2026-06-23):** the engine spine is **fully render-verified** — engine ADR +
+**Next (resume here, 2026-06-24):** *Last session landed 3 commits on `main` (not pushed): `547e210`
+E0 fx pin (`fx@v0.8.6`, dropped `replace => ../fx`), `aba8b45` test-machinery upgrade (smoke
+`v0.2.4`→`v0.4.0` + `infra-basic` Render snapshot fixed), `602e9ac` CLAUDE.md smoke drift-detection
+note. Tree clean, all green.* The engine spine is **fully render-verified** — engine ADR +
 dispatcher (E3), the **flat-baseline simplification** (no markers/`Select`; one list + `Defaults` +
 install-time selection — [ADR](../decisions/2026-06-22-flat-baseline-install-time-selection.md)),
 **B3a** (render via the linked CUE engine, not the `cue` binary —
