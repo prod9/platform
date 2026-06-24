@@ -156,6 +156,16 @@ repo root). Need to copy alongside `cmd/`.
 
 ## 4. Drop privileges / harden built containers
 
+**Scope expanded (2026-06-24):** chakrit folds all hardening into one pass, not piecemeal —
+covering (a) the runner containers below, (b) the **dagger-engine NetworkPolicy + resource
+req/limits** deferred from the live engine deploy (engine listens unauth on `:1234`,
+privileged + headless → any pod cluster-wide gets root-on-node; lock ingress to a dedicated
+`prodigy9.co/dagger-client` label, default-deny; lift off BestEffort), and (c) **platform's
+own deployment** (today's hand/Keel-managed vanity Deployment, → `platform.cue` self-deploy).
+One review, all builders + platform + engine together. NP primitive — the infra-defs agent
+has the setup (2026-06-24 pointer); source a `defs.#NetworkPolicy` from it rather than
+authoring raw.
+
 **Current state:** `BaseImageForJob` runs `apk update/upgrade` as root and sets
 `WithWorkdir("/app")` but never sets a non-root user, capabilities, read-only rootfs, or
 healthcheck. Containers ship running as `root` with default Wolfi caps.

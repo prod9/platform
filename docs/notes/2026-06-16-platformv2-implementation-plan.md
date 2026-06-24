@@ -14,6 +14,23 @@ strict `bare=var / quoted=string` values, and `focus`/`reset` scope (no `[field=
 `PLANS.md`. **Reads against:** `docs/spec/platform.md`, `config-allocation.md`,
 `gitops-build-plan.md`, and `docs/decisions/*`.
 
+**Engine LIVE on stage9 (2026-06-24):** deployed `sts/dagger-engine` + headless
+`svc/dagger-engine` into the `platform` ns (co-tenant with the vanity server, by design) —
+**2/2 pods Ready**, headless resolves **2 A-records** (`10.2.0.220` dagger-engine-0 /
+`10.2.0.221` dagger-engine-1, both ready), so **E3's DNS-discovery substrate is verified
+live**. Applied through the ace-connect infra agent (it held the `kubectl apply`; chakrit
+ok'd the cluster mutation); `namespace.yaml` skipped since the ns pre-exists. **Deferred:**
+NetworkPolicy + resource req/limits → the widened harden pass (PLANS.md #4) — the engine
+currently listens unauth on `:1234`, privileged + headless (any pod cluster-wide gets
+root-on-node), accepted on staging only. **Follow-ups:** (1) `parts.#PodSpread` is soft
+(`whenUnsatisfiable: ScheduleAnyway`) → both pods landed on node `241c0a`, no node-HA;
+consider `DoNotSchedule` in the engine pass. (2) Full round-robin *dispatch* test (a real
+build spread `idx%n` across both engines) is still pending — it needs an **in-cluster build
+driver**, which couples to **platform.cue self-deploy**. `platform.cue` is now fully
+specifiable from the live vanity spec (Keel-managed, `./platform vanity`, image
+`ghcr.io/prod9/platform:platform.prodigy9.co`, port 8000, `envFrom platform-secret`, labels
+`app=platform`/`part-of=platform`).*
+
 **Next (resume here, 2026-06-24):** *Last session landed E0 fx pin (`547e210`), smoke
 `v0.2.4`→`v0.4.0` machinery upgrade (`aba8b45`), and the drift-detection note (`602e9ac`). This
 session landed **#5 plog→fxlog** as a build/server log split: `5b42201` rename
