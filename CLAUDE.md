@@ -125,6 +125,20 @@ build the binary, then for each testbed run `discover`/`bootstrap`/`build` check
 exitcode/stdout/expected-files. `./testbed.sh <dir> <args>` runs platform inside a
 specific testbed.
 
+Smoke is a **drift detector**, not an assertion engine. `tests.lock.yml` is a recorded
+golden of each command's *actual* output — exitcode, stdout, and the content of any
+non-reserved `checks:` entry (a file glob snapshots its matched files' bytes, not just
+their existence). The golden is whatever the command last produced, not a hand-authored
+"correct" value: correctness is established once, by a human reviewing the diff when a
+line is recorded; thereafter the test guards only against *unreviewed change*.
+
+So a green run (`UNCHANGED`) means "nothing drifted," not "behavior is correct"; a red
+run (`CHANGED`, exit 1) means output moved off the golden — a prompt to
+**review the diff and decide**, not a failed assertion. Intended drift → re-record with
+`./test.sh --commit`; unintended → a regression to fix at the source. Never `--commit` a
+CHANGED lock unread, and never massage code just to force output back to the old golden —
+both blind the detector.
+
 The 1m per-test timeout in `tests.cue` is deliberately tight — it keeps builds honest.
 Never raise it to make a slow build pass: fix the slowness (cache reuse, unnecessary
 work, network pulls) instead, since a slowdown landed by one person taxes everyone's
