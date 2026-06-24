@@ -2,10 +2,8 @@ package buildlog
 
 import (
 	"log/slog"
-	"net/url"
 	"os"
 	"strings"
-	"time"
 )
 
 func Event(str string) {
@@ -41,19 +39,4 @@ func Image(action, image, hash string) {
 func HTTPServing(addr string) {
 	Logger().Info("serving",
 		slog.String("addr", addr))
-}
-func HTTPRequest(
-	method string,
-	url *url.URL,
-	code int,
-	duration time.Duration,
-	written int64,
-) {
-	Logger().Info("request",
-		slog.String("method", method),
-		slog.String("url", url.Path),
-		slog.Int("code", code),
-		slog.Duration("d", duration),
-		slog.Int64("written", written),
-	)
 }
