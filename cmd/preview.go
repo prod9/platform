@@ -12,7 +12,7 @@ import (
 	"fx.prodigy9.co/ctrlc"
 	"github.com/spf13/cobra"
 	"platform.prodigy9.co/builder"
-	"platform.prodigy9.co/internal/plog"
+	"platform.prodigy9.co/internal/buildlog"
 	"platform.prodigy9.co/project"
 )
 
@@ -35,16 +35,16 @@ func init() {
 func runPreview(cmd *cobra.Command, args []string) {
 	cfg, err := project.Configure(".")
 	if err != nil {
-		plog.Fatalln(err)
+		buildlog.Fatalln(err)
 	}
 
 	jobs, err := builder.JobsFromArgs(cfg, args)
 	if err != nil {
-		plog.Fatalln(err)
+		buildlog.Fatalln(err)
 	}
 
 	if len(jobs) == 0 {
-		plog.Fatalln(errors.New("no modules to preview"))
+		buildlog.Fatalln(errors.New("no modules to preview"))
 	}
 
 	preview := jobs[0] // at least 1 by this point
@@ -63,34 +63,34 @@ func runPreview(cmd *cobra.Command, args []string) {
 			}
 		}
 		if preview == nil {
-			plog.Fatalln(errors.New("no module to preview"))
+			buildlog.Fatalln(errors.New("no module to preview"))
 		}
 	}
 
 	sess, err := builder.NewSession(context.Background())
 	if err != nil {
-		plog.Fatalln(err)
+		buildlog.Fatalln(err)
 	}
 	defer sess.Close()
 
 	results, err := builder.Build(sess, preview)
 	if err != nil {
-		plog.Fatalln(err)
+		buildlog.Fatalln(err)
 	}
 
 	result := results[0]
 	if result.Err != nil {
-		plog.Fatalln(result.Err)
+		buildlog.Fatalln(result.Err)
 	}
 
 	startArgs, err := result.Container.DefaultArgs(sess.Context())
 	if err != nil {
-		plog.Fatalln(err)
+		buildlog.Fatalln(err)
 	}
 
 	if previewPort <= 1 {
 		if preview.Port == nil {
-			plog.Fatalln(errors.New("specify preview port with --port or port= key in platform.toml"))
+			buildlog.Fatalln(errors.New("specify preview port with --port or port= key in platform.toml"))
 		} else {
 			previewPort = *preview.Port
 		}
@@ -116,7 +116,7 @@ func runPreview(cmd *cobra.Command, args []string) {
 	go func() {
 		tunnel, err = tunnel.Start(sess.Context())
 		if err != nil {
-			plog.Fatalln(err)
+			buildlog.Fatalln(err)
 		}
 	}()
 
@@ -125,8 +125,8 @@ func runPreview(cmd *cobra.Command, args []string) {
 		Port: previewPort,
 	})
 	if err != nil {
-		plog.Fatalln(err)
+		buildlog.Fatalln(err)
 	}
 
-	plog.HTTPServing(addr)
+	buildlog.HTTPServing(addr)
 }

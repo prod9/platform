@@ -7,7 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"platform.prodigy9.co/core/gitops"
-	"platform.prodigy9.co/internal/plog"
+	"platform.prodigy9.co/internal/buildlog"
 	"platform.prodigy9.co/project"
 )
 
@@ -37,11 +37,11 @@ func runOpsPublish(cmd *cobra.Command, args []string) {
 
 	cfg, err := project.Configure(dir)
 	if err != nil {
-		plog.Fatalln(err)
+		buildlog.Fatalln(err)
 	}
 	ref, err := cfg.Ops.Ref(opsPublishTag)
 	if err != nil {
-		plog.Fatalln(err)
+		buildlog.Fatalln(err)
 	}
 
 	tree, err := gitops.Render(dir, gitops.RenderOptions{
@@ -49,17 +49,17 @@ func runOpsPublish(cmd *cobra.Command, args []string) {
 		Vars:  cfg.Ops.Vars,
 	})
 	if err != nil {
-		plog.Fatalln(err)
+		buildlog.Fatalln(err)
 	}
 
 	target, tag, err := gitops.RemoteRepository(ref)
 	if err != nil {
-		plog.Fatalln(err)
+		buildlog.Fatalln(err)
 	}
 
 	desc, err := gitops.Publish(context.Background(), target, tag, tree)
 	if err != nil {
-		plog.Fatalln(err)
+		buildlog.Fatalln(err)
 	}
 
 	fmt.Fprintf(os.Stdout, "published %s@%s\n", ref, desc.Digest)

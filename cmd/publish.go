@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/cobra"
 	"platform.prodigy9.co/builder"
 	"platform.prodigy9.co/gitctx"
-	"platform.prodigy9.co/internal/plog"
+	"platform.prodigy9.co/internal/buildlog"
 	"platform.prodigy9.co/project"
 	"platform.prodigy9.co/releases"
 )
@@ -23,29 +23,29 @@ var PublishCmd = &cobra.Command{
 func runPublish(cmd *cobra.Command, args []string) {
 	cfg, err := project.Configure(".")
 	if err != nil {
-		plog.Fatalln(err)
+		buildlog.Fatalln(err)
 	}
 
 	strat, err := releases.FindStrategy(cfg.Strategy)
 	if err != nil {
-		plog.Fatalln(err)
+		buildlog.Fatalln(err)
 	}
 
 	git := gitctx.New(cfg)
 
 	collection, err := releases.Recover(cfg, git)
 	if err != nil {
-		plog.Fatalln(err)
+		buildlog.Fatalln(err)
 	}
 
 	rel, err := collection.GetLatest(git, strat)
 	if err != nil {
-		plog.Fatalln(err)
+		buildlog.Fatalln(err)
 	}
 
 	p := prompts.New(nil, args)
 	if err = toml.NewEncoder(os.Stdout).Encode(rel); err != nil {
-		plog.Fatalln(err)
+		buildlog.Fatalln(err)
 	}
 	if !p.YesNo("publish " + rel.Name + "?") {
 		return
@@ -53,13 +53,13 @@ func runPublish(cmd *cobra.Command, args []string) {
 
 	jobs, err := builder.JobsFromArgs(cfg, p.Args())
 	if err != nil {
-		plog.Fatalln(err)
+		buildlog.Fatalln(err)
 	}
 
 	ctx := context.Background()
 	sess, err := builder.NewSession(ctx)
 	if err != nil {
-		plog.Fatalln(err)
+		buildlog.Fatalln(err)
 	}
 	defer sess.Close()
 
@@ -70,16 +70,16 @@ func runPublish(cmd *cobra.Command, args []string) {
 
 	builds, err := builder.Build(sess, jobs...)
 	if err != nil {
-		plog.Fatalln(err)
+		buildlog.Fatalln(err)
 	}
 	results, err := builder.Publish(sess, builds...)
 	if err != nil {
-		plog.Fatalln(err)
+		buildlog.Fatalln(err)
 	}
 
 	for _, result := range results {
 		if result.Err != nil {
-			plog.Error(result.Err)
+			buildlog.Error(result.Err)
 		}
 	}
 }

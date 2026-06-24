@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
-	"platform.prodigy9.co/internal/plog"
+	"platform.prodigy9.co/internal/buildlog"
 	"platform.prodigy9.co/internal/timeouts"
 )
 
@@ -131,7 +131,7 @@ func (p *Project) assignDefaults() {
 
 func (p *Project) assignEnvOverrides() {
 	if platform, ok := os.LookupEnv("PLATFORM"); ok {
-		plog.Config("platform", platform)
+		buildlog.Config("platform", platform)
 		p.Platform = platform
 	}
 }

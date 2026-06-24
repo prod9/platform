@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"dagger.io/dagger"
-	"platform.prodigy9.co/internal/plog"
+	"platform.prodigy9.co/internal/buildlog"
 )
 
 // Session holds the Dagger engine pool for one build run. In-cluster it is one client per
@@ -20,7 +20,7 @@ type Session struct {
 func NewSession(ctx context.Context) (*Session, error) {
 	hosts := discoverEngines()
 	if len(hosts) == 0 {
-		client, err := dagger.Connect(ctx, dagger.WithLogOutput(plog.OutputForDagger()))
+		client, err := dagger.Connect(ctx, dagger.WithLogOutput(buildlog.OutputForDagger()))
 		if err != nil {
 			return nil, err
 		}
@@ -31,7 +31,7 @@ func NewSession(ctx context.Context) (*Session, error) {
 	for _, host := range hosts {
 		client, err := dagger.Connect(ctx,
 			dagger.WithRunnerHost(host),
-			dagger.WithLogOutput(plog.OutputForDagger()))
+			dagger.WithLogOutput(buildlog.OutputForDagger()))
 		if err != nil {
 			return nil, fmt.Errorf("connecting to engine %s: %w", host, err)
 		}

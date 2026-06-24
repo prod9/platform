@@ -7,7 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"platform.prodigy9.co/core/gitops"
-	"platform.prodigy9.co/internal/plog"
+	"platform.prodigy9.co/internal/buildlog"
 	"platform.prodigy9.co/project"
 )
 
@@ -37,7 +37,7 @@ func runRender(cmd *cobra.Command, args []string) {
 
 	cfg, err := project.Configure(dir)
 	if err != nil {
-		plog.Fatalln(err)
+		buildlog.Fatalln(err)
 	}
 
 	tree, err := gitops.Render(dir, gitops.RenderOptions{
@@ -45,10 +45,10 @@ func runRender(cmd *cobra.Command, args []string) {
 		Vars:  cfg.Ops.Vars,
 	})
 	if err != nil {
-		plog.Fatalln(err)
+		buildlog.Fatalln(err)
 	}
 	if err := tree.WriteDir(renderOut); err != nil {
-		plog.Fatalln(err)
+		buildlog.Fatalln(err)
 	}
 
 	for _, rel := range tree.Paths() {

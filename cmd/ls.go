@@ -9,7 +9,7 @@ import (
 	"dagger.io/dagger"
 	"github.com/spf13/cobra"
 	"platform.prodigy9.co/builder"
-	"platform.prodigy9.co/internal/plog"
+	"platform.prodigy9.co/internal/buildlog"
 	"platform.prodigy9.co/project"
 )
 
@@ -22,22 +22,22 @@ var ListCmd = &cobra.Command{
 func runList(cmd *cobra.Command, args []string) {
 	cfg, err := project.Configure(".")
 	if err != nil {
-		plog.Fatalln(err)
+		buildlog.Fatalln(err)
 	}
 
 	jobs, err := builder.JobsFromArgs(cfg, args)
 	if err != nil {
-		plog.Fatalln(err)
+		buildlog.Fatalln(err)
 	}
 
 	if len(jobs) == 0 {
-		plog.Fatalln(errors.New("no modules to preview"))
+		buildlog.Fatalln(errors.New("no modules to preview"))
 	}
 
 	preview := jobs[0] // at least 1 by this point
 	sess, err := builder.NewSession(context.Background())
 	if err != nil {
-		plog.Fatalln(err)
+		buildlog.Fatalln(err)
 	}
 	defer sess.Close()
 
@@ -52,7 +52,7 @@ func runList(cmd *cobra.Command, args []string) {
 		WithExec([]string{"tree", "-L", "2"}).
 		Stdout(sess.Context())
 	if err != nil {
-		plog.Fatalln(err)
+		buildlog.Fatalln(err)
 	}
 
 	fmt.Fprintln(os.Stdout, stdout)

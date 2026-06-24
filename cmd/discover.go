@@ -7,7 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"platform.prodigy9.co/builder"
-	"platform.prodigy9.co/internal/plog"
+	"platform.prodigy9.co/internal/buildlog"
 )
 
 var DiscoverCmd = &cobra.Command{
@@ -19,7 +19,7 @@ var DiscoverCmd = &cobra.Command{
 func runDiscover(cmd *cobra.Command, args []string) {
 	wd, err := os.Getwd()
 	if err != nil {
-		plog.Fatalln(err)
+		buildlog.Fatalln(err)
 	}
 
 	if len(args) == 0 {
@@ -28,7 +28,7 @@ func runDiscover(cmd *cobra.Command, args []string) {
 	for idx, arg := range args {
 		if !filepath.IsAbs(arg) {
 			if arg, err = filepath.Abs(filepath.Join(wd, arg)); err != nil {
-				plog.Fatalln(err)
+				buildlog.Fatalln(err)
 			} else {
 				args[idx] = arg
 			}
@@ -38,7 +38,7 @@ func runDiscover(cmd *cobra.Command, args []string) {
 	for _, arg := range args {
 		mods, err := builder.Discover(arg)
 		if err != nil {
-			plog.Fatalln(err)
+			buildlog.Fatalln(err)
 		}
 
 		for name, builder := range mods {

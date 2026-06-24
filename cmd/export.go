@@ -4,7 +4,7 @@ import (
 	"context"
 	"github.com/spf13/cobra"
 	"platform.prodigy9.co/builder"
-	"platform.prodigy9.co/internal/plog"
+	"platform.prodigy9.co/internal/buildlog"
 	"platform.prodigy9.co/project"
 )
 
@@ -17,34 +17,34 @@ var ExportCmd = &cobra.Command{
 func runExport(cmd *cobra.Command, args []string) {
 	cfg, err := project.Configure(".")
 	if err != nil {
-		plog.Fatalln(err)
+		buildlog.Fatalln(err)
 	}
 
 	jobs, err := builder.JobsFromArgs(cfg, args)
 	if err != nil {
-		plog.Fatalln(err)
+		buildlog.Fatalln(err)
 	}
 
 	sess, err := builder.NewSession(context.Background())
 	if err != nil {
-		plog.Fatalln(err)
+		buildlog.Fatalln(err)
 	}
 	defer sess.Close()
 
 	results, err := builder.Build(sess, jobs...)
 	if err != nil {
-		plog.Fatalln(err)
+		buildlog.Fatalln(err)
 	}
 
 	for _, result := range results {
 		if result.Err != nil {
-			plog.Error(result.Err)
+			buildlog.Error(result.Err)
 			continue
 		}
 
 		id, err := result.Container.ID(sess.Context())
 		if err != nil {
-			plog.Fatalln(err)
+			buildlog.Fatalln(err)
 		}
 		if len(id) > 16 {
 			id = id[len(id)-16:]
@@ -53,9 +53,9 @@ func runExport(cmd *cobra.Command, args []string) {
 		outname := result.Job.Name + ".docker"
 		_, err = result.Container.Export(sess.Context(), outname)
 		if err != nil {
-			plog.Fatalln(err)
+			buildlog.Fatalln(err)
 		} else {
-			plog.Image("export", outname, string(id))
+			buildlog.Image("export", outname, string(id))
 		}
 	}
 }

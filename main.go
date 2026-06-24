@@ -4,7 +4,7 @@ import (
 	fxcmd "fx.prodigy9.co/cmd"
 	"github.com/spf13/cobra"
 	"platform.prodigy9.co/cmd"
-	"platform.prodigy9.co/internal/plog"
+	"platform.prodigy9.co/internal/buildlog"
 	"platform.prodigy9.co/project"
 )
 
@@ -23,7 +23,7 @@ func init() {
 	rootCmd.PersistentFlags().CountVarP(&verbosity, "verbose", "v", "more verbose logging")
 
 	rootCmd.PersistentPreRun = func(*cobra.Command, []string) {
-		plog.SetVerbosity(verbosity - quietness)
+		buildlog.SetVerbosity(verbosity - quietness)
 	}
 
 	rootCmd.PersistentFlags().StringVarP(&project.PlatformFilename, "file", "f",
@@ -49,8 +49,8 @@ func init() {
 }
 
 func main() {
-	defer plog.Event("exited")
+	defer buildlog.Event("exited")
 	if err := rootCmd.Execute(); err != nil {
-		plog.Fatalln(err)
+		buildlog.Fatalln(err)
 	}
 }

@@ -8,7 +8,7 @@ import (
 	"dagger.io/dagger"
 	fxconfig "fx.prodigy9.co/config"
 	"platform.prodigy9.co/internal"
-	"platform.prodigy9.co/internal/plog"
+	"platform.prodigy9.co/internal/buildlog"
 )
 
 var (
@@ -198,7 +198,7 @@ func Publish(sess *Session, builds ...BuildResult) ([]PublishResult, error) {
 			return PublishResult{BuildResult: build}
 		}
 
-		plog.Image("publish", build.Job.ImageName, hash)
+		buildlog.Image("publish", build.Job.ImageName, hash)
 		return PublishResult{
 			BuildResult: build,
 			ImageName:   build.Job.ImageName,

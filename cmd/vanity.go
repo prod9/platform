@@ -9,7 +9,7 @@ import (
 	"github.com/felixge/httpsnoop"
 	"github.com/spf13/cobra"
 	"go.jonnrb.io/vanity"
-	"platform.prodigy9.co/internal/plog"
+	"platform.prodigy9.co/internal/buildlog"
 )
 
 var vanityListenAddr string
@@ -34,7 +34,7 @@ func runVanityCmd(cmd *cobra.Command, args []string) {
 	handler := vanity.GitHubHandler("platform.prodigy9.co", "prod9", "platform", "https")
 	wrapped := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		m := httpsnoop.CaptureMetrics(handler, w, r)
-		plog.HTTPRequest(
+		buildlog.HTTPRequest(
 			r.Method,
 			r.URL,
 			m.Code,
@@ -55,8 +55,8 @@ func runVanityCmd(cmd *cobra.Command, args []string) {
 		srv.Close()
 	}()
 
-	plog.HTTPServing(vanityListenAddr)
+	buildlog.HTTPServing(vanityListenAddr)
 	if err := srv.ListenAndServe(); err != nil {
-		plog.Fatalln(err)
+		buildlog.Fatalln(err)
 	}
 }

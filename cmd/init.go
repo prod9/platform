@@ -12,7 +12,7 @@ import (
 	"github.com/spf13/cobra"
 	"platform.prodigy9.co/bootstrapper"
 	"platform.prodigy9.co/core/baseline"
-	"platform.prodigy9.co/internal/plog"
+	"platform.prodigy9.co/internal/buildlog"
 )
 
 var initForce bool
@@ -31,7 +31,7 @@ func init() {
 func runInitCmd(cmd *cobra.Command, args []string) {
 	wd, err := os.Getwd()
 	if err != nil {
-		plog.Fatalln(err)
+		buildlog.Fatalln(err)
 	}
 
 	sess := prompts.New(nil, args)
@@ -54,7 +54,7 @@ func runInitCmd(cmd *cobra.Command, args []string) {
 
 	files, err := baseline.EmbeddedFiles()
 	if err != nil {
-		plog.Fatalln(err)
+		buildlog.Fatalln(err)
 	}
 
 	vars := maps.Clone(baseline.DefaultVars)
@@ -62,7 +62,7 @@ func runInitCmd(cmd *cobra.Command, args []string) {
 
 	plan, err := bootstrapper.AnalyzeInit(wd, info, selected, vars)
 	if err != nil {
-		plog.Fatalln(err)
+		buildlog.Fatalln(err)
 	}
 
 	plan.Print(os.Stdout)
@@ -71,13 +71,13 @@ func runInitCmd(cmd *cobra.Command, args []string) {
 	}
 
 	if err := ensureGitRepo(wd); err != nil {
-		plog.Fatalln(err)
+		buildlog.Fatalln(err)
 	}
 	if err := plan.Apply(); err != nil {
-		plog.Fatalln(err)
+		buildlog.Fatalln(err)
 	}
 	for _, f := range plan.Files {
-		plog.File(f.Action.String(), f.Path)
+		buildlog.File(f.Action.String(), f.Path)
 	}
 }
 

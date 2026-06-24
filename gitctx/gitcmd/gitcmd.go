@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"platform.prodigy9.co/internal/plog"
+	"platform.prodigy9.co/internal/buildlog"
 )
 
 func Log(wd string) (string, error) {
@@ -68,7 +68,7 @@ func runCmd(wd, name string, args ...string) (string, error) {
 		return "", err
 	}
 
-	plog.Git(name, args...)
+	buildlog.Git(name, args...)
 	outbuf := &strings.Builder{}
 
 	cmd := exec.Command(name, args...)

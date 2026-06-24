@@ -8,7 +8,7 @@ import (
 	"fx.prodigy9.co/cmd/prompts"
 	"github.com/spf13/cobra"
 	"platform.prodigy9.co/bootstrapper"
-	"platform.prodigy9.co/internal/plog"
+	"platform.prodigy9.co/internal/buildlog"
 )
 
 var bootstrapForce bool
@@ -27,7 +27,7 @@ func init() {
 func runBootstrapCmd(cmd *cobra.Command, args []string) {
 	wd, err := os.Getwd()
 	if err != nil {
-		plog.Fatalln(err)
+		buildlog.Fatalln(err)
 	}
 
 	sess := prompts.New(nil, args)
@@ -42,7 +42,7 @@ func runBootstrapCmd(cmd *cobra.Command, args []string) {
 
 	plan, err := bootstrapper.Analyze(wd, info, nil)
 	if err != nil {
-		plog.Fatalln(err)
+		buildlog.Fatalln(err)
 	}
 
 	plan.Print(os.Stdout)
@@ -51,9 +51,9 @@ func runBootstrapCmd(cmd *cobra.Command, args []string) {
 	}
 
 	if err := plan.Apply(); err != nil {
-		plog.Fatalln(err)
+		buildlog.Fatalln(err)
 	}
 	for _, f := range plan.Files {
-		plog.File(f.Action.String(), f.Path)
+		buildlog.File(f.Action.String(), f.Path)
 	}
 }

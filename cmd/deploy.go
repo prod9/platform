@@ -10,7 +10,7 @@ import (
 	"github.com/spf13/cobra"
 	"platform.prodigy9.co/builder"
 	"platform.prodigy9.co/gitctx"
-	"platform.prodigy9.co/internal/plog"
+	"platform.prodigy9.co/internal/buildlog"
 	"platform.prodigy9.co/project"
 	"platform.prodigy9.co/releases"
 )
@@ -39,33 +39,33 @@ func init() {
 func runDeploy(cmd *cobra.Command, args []string) {
 	cfg, err := project.Configure(".")
 	if err != nil {
-		plog.Fatalln(err)
+		buildlog.Fatalln(err)
 	}
 	if len(cfg.Environments) == 0 {
-		plog.Fatalln(errors.New("no deploy environments defined, add some in project.toml"))
+		buildlog.Fatalln(errors.New("no deploy environments defined, add some in project.toml"))
 	}
 
 	strat, err := releases.FindStrategy(cfg.Strategy)
 	if err != nil {
-		plog.Fatalln(err)
+		buildlog.Fatalln(err)
 	}
 
 	git := gitctx.New(cfg)
 
 	collection, err := releases.Recover(cfg, git)
 	if err != nil {
-		plog.Fatalln(err)
+		buildlog.Fatalln(err)
 	}
 
 	rel, err := collection.GetLatest(git, strat)
 	if err != nil {
-		plog.Fatalln(err)
+		buildlog.Fatalln(err)
 	}
 
 	p := prompts.New(nil, args)
 	targetEnv := p.List("target environment", "", cfg.Environments)
 	if err = toml.NewEncoder(os.Stdout).Encode(rel); err != nil {
-		plog.Fatalln(err)
+		buildlog.Fatalln(err)
 	}
 	if !p.YesNo("deploy " + rel.Name + " to " + targetEnv + "?") {
 		return
@@ -75,18 +75,18 @@ func runDeploy(cmd *cobra.Command, args []string) {
 	if !skipBuildOnDeploy {
 		sess, err := builder.NewSession(context.Background())
 		if err != nil {
-			plog.Fatalln(err)
+			buildlog.Fatalln(err)
 		}
 		defer sess.Close()
 
 		jobs, err := builder.JobsFromArgs(cfg, p.Args())
 		if err != nil {
-			plog.Fatalln(err)
+			buildlog.Fatalln(err)
 		}
 
 		builds, err := builder.Build(sess, jobs...)
 		if err != nil {
-			plog.Fatalln(err)
+			buildlog.Fatalln(err)
 		}
 
 		for _, job := range jobs {
@@ -95,13 +95,13 @@ func runDeploy(cmd *cobra.Command, args []string) {
 
 		results, err := builder.Publish(sess, builds...)
 		if err != nil {
-			plog.Fatalln(err)
+			buildlog.Fatalln(err)
 		}
 
 		anyErr := false
 		for _, result := range results {
 			if result.Err != nil {
-				plog.Error(result.Err)
+				buildlog.Error(result.Err)
 				anyErr = true
 			}
 		}
@@ -113,9 +113,9 @@ func runDeploy(cmd *cobra.Command, args []string) {
 
 	if !skipTagOnDeploy {
 		if _, err := git.SetEnvironmentTag(targetEnv); err != nil {
-			plog.Fatalln(err)
+			buildlog.Fatalln(err)
 		} else if err := git.PushEnvironmentTag(targetEnv); err != nil {
-			plog.Fatalln(err)
+			buildlog.Fatalln(err)
 		}
 	}
 }
