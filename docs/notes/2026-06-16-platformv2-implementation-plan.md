@@ -14,10 +14,12 @@ strict `bare=var / quoted=string` values, and `focus`/`reset` scope (no `[field=
 `PLANS.md`. **Reads against:** `docs/spec/platform.md`, `config-allocation.md`,
 `gitops-build-plan.md`, and `docs/decisions/*`.
 
-**Next (resume here, 2026-06-24):** *Last session landed 3 commits on `main` (not pushed): `547e210`
-E0 fx pin (`fx@v0.8.6`, dropped `replace => ../fx`), `aba8b45` test-machinery upgrade (smoke
-`v0.2.4`→`v0.4.0` + `infra-basic` Render snapshot fixed), `602e9ac` CLAUDE.md smoke drift-detection
-note. Tree clean, all green.* The engine spine is **fully render-verified** — engine ADR +
+**Next (resume here, 2026-06-24):** *Last session landed E0 fx pin (`547e210`), smoke
+`v0.2.4`→`v0.4.0` machinery upgrade (`aba8b45`), and the drift-detection note (`602e9ac`). This
+session landed **#5 plog→fxlog** as a build/server log split: `5b42201` rename
+`internal/plog`→`internal/buildlog`, `6fb74be` route `vanity` onto `fxlog`. Tree clean,
+`go build`/`vet`/`test` + smoke (UNCHANGED) all green. **Nothing pushed** — several commits
+ahead of `gh`, awaiting chakrit's say-so.* The engine spine is **fully render-verified** — engine ADR +
 dispatcher (E3), the **flat-baseline simplification** (no markers/`Select`; one list + `Defaults` +
 install-time selection — [ADR](../decisions/2026-06-22-flat-baseline-install-time-selection.md)),
 **B3a** (render via the linked CUE engine, not the `cue` binary —
@@ -28,8 +30,11 @@ are all in. defs shipped `#headless` + `parts.#PodMounts #claim_templates` in `d
 and `baseline.DefsVersion` pins v0.3.21. **Immediate next** (all need chakrit / a cluster — not
 AFK-able): **take the engine live** (deploy the rendered manifests → exercise E3's live round-robin),
 the cross-repo **`settings.toml` → `platform.toml` migration** (attended), and **Slice 2** (Flux
-reconcile + cutover, needs a reachable cluster). The one remaining unblocked in-envelope slice is
-**plog→fxlog (#5)**. See the engine slice plan (E0–E3/B3) below for per-slice commits. `go build`
+reconcile + cutover, needs a reachable cluster). **plog→fxlog (#5) landed 2026-06-24** as a
+build-log / server-log split (not a wholesale swap — fxlog has no levels/writer by design; see
+the [log-channel ADR](../decisions/2026-06-24-split-build-and-server-log-channels.md)). With #5
+done, **no in-envelope unblocked slice remains** — every immediate next step needs a cluster or
+attended cross-repo work. See the engine slice plan (E0–E3/B3) below for per-slice commits. `go build`
 + `go test ./...` + `go vet` + smoke (`./test.sh`) all green. **Test machinery upgraded
 (2026-06-23):** smoke `v0.2.4` → `v0.4.0` (lock re-keyed by spec basename — re-committed once; new
 frozen exit-code contract, harmless under test.sh's `errexit`; dup test names now hard-fail load) and

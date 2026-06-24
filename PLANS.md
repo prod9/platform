@@ -50,7 +50,8 @@ Approve one at a time; each lands as its own commit sequence.
 - **#3 infra-cli fold-in** — ❌ SUPERSEDED by platformv2 (infra-cli's generators fold into
   the `platform-init` baseline, not CLI subcommands; see above).
 - **#4 Privilege drops** — pending.
-- **#5 plog → fxlog** — pending; gated on fx bump in #3.
+- **#5 plog → fxlog** — ✅ done (2026-06-24); became a build-log / server-log split, not a
+  wholesale swap — see the [log-channel ADR](docs/decisions/2026-06-24-split-build-and-server-log-channels.md).
 - **#6 Wolfi pin** — ✅ done (digest pin + cache buster bump).
 - **#7 Version injection** — pending; build provenance for deployed images.
 
@@ -219,6 +220,15 @@ hardening tracks.
 ---
 
 ## 5. Replace `internal/plog` with `fxlog`
+
+**✅ Landed 2026-06-24** as a build-log / server-log **split**, not the wholesale swap the
+plan below assumed. Reading `fxlog` v0.8.6 falsified step 1's two premises — fxlog has **no
+log levels** and **no `io.Writer`** (by design), so `-q`/`-v` and the Dagger writer can't ride
+it. Resolution: `internal/plog` → `internal/buildlog` (CLI/build console, keeps verbosity +
+Dagger writer); `fxlog` becomes the platform-**server** channel (`vanity` now, Phase B API+UI
+later). See the
+[log-channel ADR](docs/decisions/2026-06-24-split-build-and-server-log-channels.md). The
+original plan is kept below as the (corrected) historical record.
 
 **Depends on:** task #3 (`fx.prodigy9.co` v0.4.0 → v0.8.x bump). `fxlog` is not in v0.4.0;
 it appears in v0.5+.
