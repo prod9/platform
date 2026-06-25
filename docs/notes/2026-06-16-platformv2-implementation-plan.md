@@ -124,6 +124,29 @@ as new code lands.
 chunk slices and replace the live delivery path (Keel → Flux) freely. Calibrated into the
 slice sizes below.
 
+**Wholesale-replace, never migrate (2026-06-25):** This is a from-scratch rework. *Every*
+pre-rework artifact — the live Keel-managed vanity Deployment, `infra/apps/platform.cue`
+(`#UseKeel`, moving-tag image), Keel itself, the old `settings.toml`, any `platform`-named
+legacy — is **disposable**: overwritten wholesale by the new setup, never preserved, matched,
+or migrated. There is nothing to migrate and no production that can't be taken down. Author
+every new artifact straight from the current plan; do **not** reverse-engineer from, diff
+against, or protect legacy.
+
+**ArgoCD + Keel: fully deprecated, fleet-wide (2026-06-25).** Not platform-only. The new setup
+(Flux GitOps + committed-literal images) is the *sole* delivery path for *every* app on stage9.
+All Keel consumers (`lem`/`infra`/`x9`/`fx`) and all ArgoCD-managed apps
+(`tmg`/`stage9`/`sunzapper`/`bluepages`/`ircp`) migrate onto it; Keel and ArgoCD are removed
+entirely. Nothing is preserved for them on the **prod9 clusters** (internal `prodigy9` +
+`stage9`) — no mission-critical workloads there, nothing that can't be taken down. (Other
+setups — `naxon-infra`, `fi-infra` — DO carry mission-critical workloads; they migrate to the
+new platform eventually too, but carefully, *not* in this take-down-freely bucket.)
+
+**Posture toward pre-rework agents (2026-06-25).** Agents whose domain is the *old* infra (the
+infra agent's ArgoCD/Keel/legacy-app world) are **outdated and wrong by default** — that world
+is being torn down. They stay useful as cluster *executors*, but their design judgments and
+objections rooted in preserving legacy do **not** constrain the new platform design: override
+them, drive from the plan. Do not defer to legacy-grounded caution.
+
 ## Decisions — status
 
 - **Spine-first** (Phase A delivery before Phase B server/RBAC) — *taken* (2026-06-16).

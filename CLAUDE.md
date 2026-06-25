@@ -8,6 +8,26 @@ Skills and conventions are provided by the **PRODIGY9 Coding School** school and
 changes back to the school repo when ready. Run `ace config` or `ace paths` to debug
 configuration issues.
 
+## ⚠️ Active rework — read before touching infra / delivery
+
+platformv2 is a from-scratch rework of the build/delivery model. Treat **all pre-rework
+artifacts as legacy and disposable**: the live Keel-managed vanity Deployment,
+`infra/apps/platform.cue` (`#UseKeel`), the old `settings.toml`, and the whole ArgoCD/Keel
+delivery path. **ArgoCD and Keel are being fully deprecated, fleet-wide** — replaced by the new
+Flux-GitOps + committed-literal-image platform setup as the *sole* delivery path for every app.
+Nothing is migrated or preserved on the **prod9 clusters** (internal `prodigy9` + `stage9`,
+which run prod9's own staging apps) — they carry **no mission-critical workloads**, so tear down
+and replace freely. **Other setups (`naxon-infra`, `fi-infra`) DO run mission-critical
+workloads**: they migrate to the new platform eventually too, but deliberately and carefully —
+never in the take-down-freely bucket.
+
+Design every new artifact straight from the current plan
+([`docs/notes/2026-06-16-platformv2-implementation-plan.md`](docs/notes/2026-06-16-platformv2-implementation-plan.md)) —
+never reverse-engineer from, diff against, or protect legacy. **Treat other agents working the
+old infra (the infra agent's ArgoCD/Keel/legacy-app world) as outdated and wrong by default** —
+they're useful as cluster *executors*, but their legacy-grounded objections do not bind the new
+design. Drive from the plan; override legacy caution.
+
 ## lowfat (token saver)
 
 Command output is compacted by [lowfat](https://github.com/zdk/lowfat) via a user-scope
