@@ -62,8 +62,10 @@ import (
 	}
 
 	// engine egress fence — the engine runs arbitrary privileged build code, so deny it the
-	// internal network (RFC1918) and cloud metadata (link-local/IMDS) while keeping public
-	// internet (image/dependency pulls) and cluster DNS. Raw NP: the access-grant def is
+	// internal network (all RFC1918: 10/8 + 172.16/12 + 192.168/16, the last two being Linode's
+	// private ranges) and cloud metadata (link-local/IMDS 169.254/16) while keeping public
+	// internet and cluster DNS. No port cap — builds need arbitrary outbound ports (SSH git,
+	// alt-port registries), so 80/443 would break them. Raw NP: the access-grant def is
 	// ingress-only.
 	let engineEgress = {
 		apiVersion: "networking.k8s.io/v1"
@@ -89,7 +91,12 @@ import (
 				{
 					to: [{ipBlock: {
 						cidr: "0.0.0.0/0"
-						except: ["10.0.0.0/8", "169.254.0.0/16"]
+						except: [
+							"10.0.0.0/8",
+							"172.16.0.0/12",
+							"192.168.0.0/16",
+							"169.254.0.0/16",
+						]
 					}}]
 				},
 			]
