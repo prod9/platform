@@ -75,7 +75,7 @@ let testbeds = [...{name: string, dir: string}] &
 				"./testbeds/infra-basic/k8s/infra-basic/*.yaml",
 			]
 			commands: [
-				"./testbed.sh infra-basic ops render --image x:y",
+				"./testbed.sh infra-basic ops render",
 			]
 		},
 	]

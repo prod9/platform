@@ -37,8 +37,9 @@ language: version: "v0.15.4"
 }
 
 // sampleApps exercises every facet of the file-map contract: a single-doc file,
-// a multi-doc list file, an int scalar (fidelity), an image @tag injection, and
-// a hidden #out that must not surface as an app.
+// a multi-doc list file, an int scalar (fidelity), a committed image literal, an
+// `@tag(var)` hole fed from the normalized [ops.vars], and a hidden #out that must
+// not surface as an app.
 const sampleApps = `package apps
 
 gateway: {
@@ -51,17 +52,17 @@ gateway: {
 }
 
 demo: {
-	"deploy.yaml": {apiVersion: "apps/v1", kind: "Deployment", spec: {replicas: 3, image: _img}}
+	"deploy.yaml": {apiVersion: "apps/v1", kind: "Deployment", spec: {replicas: 3, image: "demo:v1", version: _ver}}
 }
 
-_img: string @tag(image)
+_ver: string @tag(app_version)
 `
 
 func TestRenderFileMap(t *testing.T) {
 	dir := t.TempDir()
 	writeModule(t, dir, sampleApps)
 
-	tree, err := gitops.Render(dir, gitops.RenderOptions{Image: "demo:v1"})
+	tree, err := gitops.Render(dir, gitops.RenderOptions{Vars: map[string]any{"APP_VERSION": "9.9.9"}})
 	if err != nil {
 		t.Fatalf("Render: %v", err)
 	}
@@ -86,7 +87,10 @@ func TestRenderFileMap(t *testing.T) {
 		t.Errorf("int scalar lost fidelity (want `replicas: 3`):\n%s", deploy)
 	}
 	if !strings.Contains(deploy, "image: demo:v1") {
-		t.Errorf("@tag(image) not injected (want `image: demo:v1`):\n%s", deploy)
+		t.Errorf("committed image literal missing (want `image: demo:v1`):\n%s", deploy)
+	}
+	if !strings.Contains(deploy, "version: 9.9.9") {
+		t.Errorf("[ops.vars] not injected via @tag (env key APP_VERSION → @tag(app_version), want `version: 9.9.9`):\n%s", deploy)
 	}
 }
 
@@ -94,7 +98,7 @@ func TestTreeWriteDir(t *testing.T) {
 	src := t.TempDir()
 	writeModule(t, src, sampleApps)
 
-	tree, err := gitops.Render(src, gitops.RenderOptions{Image: "demo:v1"})
+	tree, err := gitops.Render(src, gitops.RenderOptions{Vars: map[string]any{"APP_VERSION": "9.9.9"}})
 	if err != nil {
 		t.Fatalf("Render: %v", err)
 	}

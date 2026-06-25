@@ -69,7 +69,7 @@ func TestRenderMergesCueAndBaseline(t *testing.T) {
 		"cert-manager.platform": "download \"https://fixture/x.yaml\"\nemit \"cert-manager.yaml\"\n",
 	})
 
-	tree, err := gitops.Render(dir, gitops.RenderOptions{Image: "demo:v1", Fetch: fixtureFetch})
+	tree, err := gitops.Render(dir, gitops.RenderOptions{Vars: map[string]any{"APP_VERSION": "9.9.9"}, Fetch: fixtureFetch})
 	if err != nil {
 		t.Fatalf("Render: %v", err)
 	}

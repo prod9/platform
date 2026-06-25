@@ -452,7 +452,7 @@
             - "0"
 - name: Platform \ Render
   commands:
-    - command: ./testbed.sh infra-basic ops render --image x:y
+    - command: ./testbed.sh infra-basic ops render
       checks:
         - name: exitcode
           data:
@@ -494,7 +494,7 @@
             - '                    - secretRef:'
             - '                        name: infra-basic-secret'
             - '                  name: infra-basic'
-            - '                  image: x:y'
+            - '                  image: ghcr.io/prod9/infra-basic:v1.0.0'
             - '                  imagePullPolicy: Always'
             - '                  ports:'
             - '                    - name: port-8080'

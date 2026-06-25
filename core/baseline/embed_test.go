@@ -9,6 +9,7 @@ import (
 
 	"platform.prodigy9.co/core/baseline"
 	"platform.prodigy9.co/core/dsl"
+	"platform.prodigy9.co/project"
 )
 
 // TestEmbeddedCertManager runs the embedded cert-manager directive through the
@@ -25,9 +26,9 @@ func TestEmbeddedCertManager(t *testing.T) {
 		t.Fatalf("cert-manager.platform not embedded; have %v", keys(files))
 	}
 
-	version := fmt.Sprint(baseline.DefaultVars["cert_manager_version"])
+	version := fmt.Sprint(baseline.DefaultVars["CERT_MANAGER_VERSION"])
 	if version == "" || version == "<nil>" {
-		t.Fatal("DefaultVars missing cert_manager_version")
+		t.Fatal("DefaultVars missing CERT_MANAGER_VERSION")
 	}
 
 	var gotURL string
@@ -38,7 +39,7 @@ func TestEmbeddedCertManager(t *testing.T) {
 
 	out := t.TempDir()
 	if _, err := dsl.Apply(string(body), dsl.Options{
-		Vars:   baseline.DefaultVars,
+		Vars:   project.NormalizeVars(baseline.DefaultVars),
 		OutDir: out,
 		Fetch:  fetch,
 	}); err != nil {
@@ -108,7 +109,7 @@ func TestEmbeddedNginxGateway(t *testing.T) {
 
 	out := t.TempDir()
 	if _, err := dsl.Apply(string(body), dsl.Options{
-		Vars:   baseline.DefaultVars,
+		Vars:   project.NormalizeVars(baseline.DefaultVars),
 		OutDir: out,
 		Fetch:  fetch,
 	}); err != nil {
@@ -117,8 +118,8 @@ func TestEmbeddedNginxGateway(t *testing.T) {
 
 	joined := strings.Join(urls, "\n")
 	for _, want := range []string{
-		fmt.Sprint(baseline.DefaultVars["gateway_api_version"]),
-		fmt.Sprint(baseline.DefaultVars["nginx_gateway_version"]),
+		fmt.Sprint(baseline.DefaultVars["GATEWAY_API_VERSION"]),
+		fmt.Sprint(baseline.DefaultVars["NGINX_GATEWAY_VERSION"]),
 	} {
 		if !strings.Contains(joined, want) {
 			t.Errorf("version %q not interpolated into a download URL:\n%s", want, joined)

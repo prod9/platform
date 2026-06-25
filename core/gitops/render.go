@@ -16,6 +16,7 @@ import (
 	"cuelang.org/go/mod/modconfig"
 	"gopkg.in/yaml.v3"
 	"platform.prodigy9.co/core/dsl"
+	"platform.prodigy9.co/project"
 )
 
 // DefaultRegistry maps the infra-defs module prefix to its OCI host for
@@ -31,11 +32,10 @@ const (
 	platformExt = ".platform"
 )
 
-// RenderOptions carries the render context: the image tag injected into the apps'
-// `@tag(image)`, the [ops.vars] table feeding directive `\(var)` interpolation, and an
-// optional Fetch override for `download` (nil uses a plain HTTP GET; tests inject fixtures).
+// RenderOptions carries the render context: the [ops.vars] table feeding both routes —
+// CUE `@tag(name)` holes and directive `\(var)` interpolation — and an optional Fetch
+// override for `download` (nil uses a plain HTTP GET; tests inject fixtures).
 type RenderOptions struct {
-	Image string
 	Vars  map[string]any
 	Fetch func(url string) ([]byte, error)
 }
@@ -45,12 +45,14 @@ type RenderOptions struct {
 // dsl.Apply). Each route is skipped when it contributes nothing. Both write
 // <component>/<filename> entries.
 func Render(srcDir string, opts RenderOptions) (Tree, error) {
-	tree, err := renderCue(srcDir, opts.Image)
+	vars := project.NormalizeVars(opts.Vars)
+
+	tree, err := renderCue(srcDir, vars)
 	if err != nil {
 		return nil, err
 	}
 
-	rendered, err := renderDirectives(srcDir, opts.Vars, opts.Fetch)
+	rendered, err := renderDirectives(srcDir, vars, opts.Fetch)
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +65,7 @@ func Render(srcDir string, opts RenderOptions) (Tree, error) {
 // field becomes a component directory; each filename key under it becomes a named file
 // holding one document (a map value) or a multi-doc stream (a list value). Skipped when the
 // dir has no `.cue` files (directives-only apps/, or no apps/ at all).
-func renderCue(srcDir, image string) (Tree, error) {
+func renderCue(srcDir string, vars map[string]any) (Tree, error) {
 	cue, err := filesWithExt(filepath.Join(srcDir, appsPackage), ".cue")
 	if err != nil {
 		return nil, err
@@ -72,7 +74,7 @@ func renderCue(srcDir, image string) (Tree, error) {
 		return Tree{}, nil
 	}
 
-	exported, err := exportCue(srcDir, image)
+	exported, err := exportCue(srcDir, vars)
 	if err != nil {
 		return nil, err
 	}
@@ -81,8 +83,9 @@ func renderCue(srcDir, image string) (Tree, error) {
 
 // exportCue evaluates the apps CUE package via the linked CUE engine and encodes it to
 // YAML — the app->files->docs structure with faithful scalar types, same shape the old
-// `cue export --out yaml` produced. `image` injects the apps' `@tag(image)`.
-func exportCue(srcDir, image string) ([]byte, error) {
+// `cue export --out yaml` produced. The normalized [ops.vars] feed the apps' `@tag(name)`
+// holes as load tags — the committed-config source for every CUE tag.
+func exportCue(srcDir string, vars map[string]any) ([]byte, error) {
 	dir, err := filepath.Abs(filepath.Join(srcDir, appsPackage))
 	if err != nil {
 		return nil, err
@@ -94,8 +97,8 @@ func exportCue(srcDir, image string) ([]byte, error) {
 	}
 
 	cfg := &load.Config{Dir: dir, Registry: registry}
-	if image != "" {
-		cfg.Tags = []string{"image=" + image}
+	if tags := varsToTags(vars); len(tags) > 0 {
+		cfg.Tags = tags
 	}
 
 	insts := load.Instances([]string{"."}, cfg)
@@ -111,6 +114,17 @@ func exportCue(srcDir, image string) ([]byte, error) {
 		return nil, err
 	}
 	return cueyaml.Encode(value)
+}
+
+// varsToTags renders the normalized [ops.vars] table into cue load tags ("name=value") — the
+// committed-config source for every `@tag(name)` in the apps CUE. Values stringify verbatim;
+// the consuming field's `@tag(name,type=...)` annotation drives any non-string coercion.
+func varsToTags(vars map[string]any) []string {
+	tags := make([]string, 0, len(vars))
+	for name, val := range vars {
+		tags = append(tags, fmt.Sprintf("%s=%v", name, val))
+	}
+	return tags
 }
 
 // renderDirectives runs every `.platform` directive co-located with the CUE apps (selection

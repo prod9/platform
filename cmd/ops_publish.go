@@ -11,10 +11,7 @@ import (
 	"platform.prodigy9.co/project"
 )
 
-var (
-	opsPublishImage string
-	opsPublishTag   string
-)
+var opsPublishTag string
 
 var OpsPublishCmd = &cobra.Command{
 	Use:   "publish [dir]",
@@ -23,8 +20,6 @@ var OpsPublishCmd = &cobra.Command{
 }
 
 func init() {
-	OpsPublishCmd.Flags().StringVar(&opsPublishImage, "image", "",
-		"image tag to inject into the module's @tag(image)")
 	OpsPublishCmd.Flags().StringVar(&opsPublishTag, "tag", "",
 		"override the moving per-env tag (defaults to [ops] tag, else \"latest\")")
 }
@@ -45,8 +40,7 @@ func runOpsPublish(cmd *cobra.Command, args []string) {
 	}
 
 	tree, err := gitops.Render(dir, gitops.RenderOptions{
-		Image: opsPublishImage,
-		Vars:  cfg.Ops.Vars,
+		Vars: cfg.Ops.Vars,
 	})
 	if err != nil {
 		buildlog.Fatalln(err)

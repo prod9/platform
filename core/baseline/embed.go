@@ -22,18 +22,20 @@ const (
 	DefsVersion = "v0.3.21"
 )
 
-// DefaultVars is the baseline's shipped [ops.vars]: the version pins each directive
-// interpolates via \(var) into its download URLs. Bootstrap seeds these into a fresh
-// platform.toml and merges them on re-bootstrap (new keys appended, operator values
-// preserved). These are pure interpolation inputs — component selection is not a var.
+// DefaultVars is the baseline's shipped [ops.vars]: the version pins each baseline hook
+// consumes. Keys are env-style (SCREAMING_SNAKE) — the preferred platform.toml form; render
+// normalizes them to lowercase for both consumption routes, `\(cert_manager_version)` in
+// directives and `@tag(cert_manager_version)` in CUE apps. Bootstrap seeds these into a fresh
+// platform.toml and merges on re-bootstrap (new keys appended, operator values preserved).
+// Pure interpolation inputs — component selection is not a var.
 var DefaultVars = map[string]any{
-	"cert_manager_version":  "v1.20.2",
-	"flux_version":          "v2.8.8",
-	"argocd_version":        "v3.4.1",
-	"nginx_gateway_version": "v2.6.0",
-	"gateway_api_version":   "v1.5.1",
+	"CERT_MANAGER_VERSION":  "v1.20.2",
+	"FLUX_VERSION":          "v2.8.8",
+	"ARGOCD_VERSION":        "v3.4.1",
+	"NGINX_GATEWAY_VERSION": "v2.6.0",
+	"GATEWAY_API_VERSION":   "v1.5.1",
 
-	"nginx_gateway_firewall_id": "11222746", // Linode LB firewall; string, not int
+	"NGINX_GATEWAY_FIREWALL_ID": "11222746", // Linode LB firewall; string, not int
 }
 
 // Defaults is the working set installed when the operator makes no other choice — the

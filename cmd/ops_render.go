@@ -11,10 +11,7 @@ import (
 	"platform.prodigy9.co/project"
 )
 
-var (
-	renderImage string
-	renderOut   string
-)
+var renderOut string
 
 var RenderCmd = &cobra.Command{
 	Use:   "render [dir]",
@@ -23,8 +20,6 @@ var RenderCmd = &cobra.Command{
 }
 
 func init() {
-	RenderCmd.Flags().StringVar(&renderImage, "image", "",
-		"image tag to inject into the apps' @tag(image)")
 	RenderCmd.Flags().StringVar(&renderOut, "out", "k8s",
 		"output directory for the rendered <component>/<file> tree")
 }
@@ -41,8 +36,7 @@ func runRender(cmd *cobra.Command, args []string) {
 	}
 
 	tree, err := gitops.Render(dir, gitops.RenderOptions{
-		Image: renderImage,
-		Vars:  cfg.Ops.Vars,
+		Vars: cfg.Ops.Vars,
 	})
 	if err != nil {
 		buildlog.Fatalln(err)

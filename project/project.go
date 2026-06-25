@@ -164,6 +164,18 @@ func (p *Project) inferValues() {
 	}
 }
 
+// NormalizeVars lowercases every [ops.vars] key to the canonical consumption form. platform.toml
+// prefers env-style keys (NGINX_GATEWAY_VERSION); both render routes consume the lowercase
+// derivation — `\(nginx_gateway_version)` in directives, `@tag(nginx_gateway_version)` in CUE.
+// Pure name normalization; values and their types are untouched.
+func NormalizeVars(vars map[string]any) map[string]any {
+	out := make(map[string]any, len(vars))
+	for name, val := range vars {
+		out[strings.ToLower(name)] = val
+	}
+	return out
+}
+
 // Ref resolves the OCI reference `ops publish` pushes to. tag overrides the
 // configured/default Tag when non-empty (e.g. a per-env publish).
 func (o Ops) Ref(tag string) (string, error) {
