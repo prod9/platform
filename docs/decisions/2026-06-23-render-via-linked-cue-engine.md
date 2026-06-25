@@ -36,9 +36,11 @@ that's our core for a lot of things, so it's warranted."
 ## Consequences
 
 - `exportCue` (was `exportApps`) uses `load.Instances` + `cuecontext.BuildInstance` +
-  `cueyaml.Encode`; image injection via `load.Config.Tags`; registry via
-  `modconfig.NewRegistry{CUERegistry: $CUE_REGISTRY or DefaultRegistry}`. `buildTree` and the
-  emitted YAML shape are unchanged. `exec.Command`/`registryEnv` removed.
+  `cueyaml.Encode`; `[ops.vars]` feed `@tag` holes via `load.Config.Tags` (only the names a
+  `@tag` declares are injected — see the
+  [committed-image correction ADR](2026-06-26-render-is-pure-function-of-committed-git.md));
+  registry via `modconfig.NewRegistry{CUERegistry: $CUE_REGISTRY or DefaultRegistry}`.
+  `buildTree` and the emitted YAML shape are unchanged. `exec.Command`/`registryEnv` removed.
 - **Target repos must declare `language.version` ≤ the pinned engine (v0.15.4).** `../infra` is
   already v0.15.4; init's scaffold (B3b) writes v0.15.4. Bump the pin (and this) when defs
   supports a newer CUE.

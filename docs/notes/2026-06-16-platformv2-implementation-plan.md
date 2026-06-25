@@ -26,22 +26,23 @@ only**. `embed.go DefaultVars` → env-style; testbed carries a committed image 
 re-recorded. Build/vet/unit/smoke green. Posture captured (`77455b1`, see the Framing block + the
 CLAUDE.md banner); `www/` GitOps explainer shipped (`2b31910`).
 
-**Remaining alignment (do next):**
-- **Group-2 (docs):** the *stale* image-injection prose now contradicts the code — fix the plan
-  note's Slice-1 ("Image injected via `--inject image=`") + D3b-3 (`RenderOptions{Image}`)
-  passages, the **B3a ADR** (`2026-06-23-render-via-linked-cue-engine.md`: "image injection via
-  `load.Config.Tags`"), and CLAUDE.md's `core/gitops` line; add a short **correction ADR**
-  (image-committed-in-git + the `[ops.vars]` convention; render = pure function of committed git).
-  Write reader-facing — no decision-journey/self-talk.
-- **Group-3 (argocd out of baseline):** delete `core/baseline/files/argocd.platform`, drop
-  `ARGOCD_VERSION` from `DefaultVars`, fix `cmd/init_test.go` (picker-set assertion), scrub the
-  argocd-toggle mentions here + in the d3b4 note. *Keep* the illustrative argocd DSL examples in
-  the spec / `parse_test.go`.
-- **`platform.cue` (self-deploy):** author **fresh** under the new model — committed-literal image,
-  no `#UseKeel`, no legacy `defaults`/gateway wiring. Deploy = **wholesale replace** of the live
-  vanity (infra applies the new, the old Deployment dies; gated on chakrit). Live spec for
-  reference: `./platform vanity`, image `ghcr.io/prod9/platform`, port 8000, labels
-  `app/part-of=platform`.
+**Remaining alignment:**
+- ~~**Group-2 (docs):**~~ DONE (2026-06-26) — fixed CLAUDE.md `core/gitops`, the B3a ADR line,
+  and the plan-note Slice-1/D3b-3 passages; added the
+  [committed-image correction ADR](../decisions/2026-06-26-render-is-pure-function-of-committed-git.md).
+- ~~**Group-3 (argocd out of baseline):**~~ DONE (2026-06-26, `34072b6`) — deleted
+  `argocd.platform`, dropped `ARGOCD_VERSION`, retargeted `init_test`/`embed_test` fixtures.
+  Illustrative argocd DSL examples kept in spec / `parse_test.go`.
+- ~~**`platform.cue` (self-deploy):**~~ DONE (2026-06-26, `34072b6`) — authored fresh in
+  `core/baseline/files/platform.cue` as one component (server + engine + ingress/egress NP,
+  defs v0.4.0). Dogfood-rendered end-to-end (`go install` → `init` → `ops render`); tree FILEd
+  to infra at `/tmp/platform-render-v2/` for a gated stage9 apply. **Open:** image pinned to
+  `:latest` placeholder (pin a real published tag); apply still gated on chakrit. A render bug
+  (undeclared-tag injection) found + fixed en route (`b03cf85`).
+- **Flux bootstrap (Slice 2, do next):** Flux absent on stage9. `flux.platform` downloads the
+  controllers; still need `flux.cue` (OCIRepository + Kustomization → the published artifact) +
+  a decision on the OCI-URL convention (`FLUX_OCI_URL`?) and the GHCR pull-secret. Until then the
+  platform tree is applied directly (gated), not reconciled.
 - **Infra-side (infra's domain, gated on chakrit):** tear down the live vanity (`deploy/platform`
   + `svc/platform-service`, ns `platform`); the **fleet migration** off ArgoCD+Keel
   (lem/infra/x9/fx + tmg/stage9/sunzapper/bluepages/ircp) onto the new setup. Engine STS/svc/PVCs
@@ -283,7 +284,9 @@ first consumer; bootstrap writes it into the infra repo. Port source:
   multi-doc bytes); `Tree.WriteDir` + `Publish(tree)` (tarball walks the tree, drops the single
   `manifests.yaml`); `ops render` gains `--out` (default `k8s`); testbed `infra-basic` migrated to
   the `apps/` package, render output gitignored. **3b** added the `.platform` route:
-  `Render(srcDir, RenderOptions{Image, Vars, Fetch})` fuses both routes into one `Tree` —
+  `Render(srcDir, RenderOptions{Vars, Fetch})` fuses both routes into one `Tree` —
+  (the `Image` field was later dropped; the image is a committed CUE literal — see the
+  [committed-image correction ADR](../decisions/2026-06-26-render-is-pure-function-of-committed-git.md)) —
   the apps CUE export plus the `baseline/` directive set (`baseline.Select` over `[ops.vars]` →
   `dsl.Apply` into a per-component temp dir, read back as `<component>/<emitted>`). `baseline.Component`
   owns the directive→`k8s/<component>` mapping (stem before `@`/`+`); either route skips when its
@@ -365,6 +368,10 @@ the OCI config artifact. Landed as two commits — render → stdout (`615caa4`)
   is on the host), then walks the YAML sequence and emits each object as one multi-doc
   (`---`) document. Image injected via `--inject image=` into the module's `@tag(image)`.
   No Dagger.
+  > **Superseded.** Render now uses the linked CUE engine (no host `cue`) and emits a
+  > file-map `k8s/<component>/` tree; the image is a committed CUE literal, not injected. See
+  > the [linked-CUE-engine ADR](../decisions/2026-06-23-render-via-linked-cue-engine.md) and
+  > the [committed-image correction ADR](../decisions/2026-06-26-render-is-pure-function-of-committed-git.md).
 - `core/gitops/publish.go` — packages the manifest stream as a single gzipped-tar layer
   and packs it with **Flux media types** (`…flux.config.v1+json`,
   `…flux.content.v1.tar+gzip`) via **oras-go**, pushed to any `oras.Target` under the

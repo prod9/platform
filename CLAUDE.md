@@ -130,10 +130,14 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
   `renderDirectives` (`.platform` → `dsl.Apply`, emitting into `k8s/<stem>/`) — into one `k8s/`
   tree (see the
   [render-routing ADR](docs/decisions/2026-06-18-render-routes-cue-and-platform-by-extension.md)).
-- `core/gitops/` — pull-based GitOps delivery (Slice 1). `Render` (`cue export -e objects`
-  → multi-doc YAML), `Publish` (gzipped-tar layer + Flux media types, pushed via oras-go),
-  `RemoteRepository` (`oci://` ref + `REGISTRY_USERNAME`/`REGISTRY_PASSWORD` auth). Wired
-  as `platform ops render`/`publish`.
+- `core/gitops/` — pull-based GitOps delivery. `Render` walks `apps/` and routes by extension
+  into one `k8s/<component>/<file>` tree: `.cue` → file-map export via the linked CUE engine
+  (`exportCue`), `.platform` → `dsl.Apply`. `[ops.vars]` feed both routes — CUE `@tag(name)`
+  holes (only the names a `@tag` actually declares are injected; the rest are directive-only)
+  and directive `\(var)`. The image ref is a **committed CUE literal**, never injected (see the
+  [committed-image correction ADR](docs/decisions/2026-06-26-render-is-pure-function-of-committed-git.md)).
+  `Publish` (gzipped-tar layer + Flux media types, oras-go), `RemoteRepository` (`oci://` ref +
+  `REGISTRY_USERNAME`/`REGISTRY_PASSWORD` auth). Wired as `platform ops render`/`publish`.
 - `internal/` — `plog` (structured logger), `multiplexer` (parallel job runner),
   `timeouts` (TOML duration), `fileutil`, `dateref`, `timeref`.
 - `testbeds/` — Sample projects per builder type, exercised by smoke tests.
