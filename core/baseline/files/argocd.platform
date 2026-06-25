@@ -1,2 +1,0 @@
-download "https://raw.githubusercontent.com/argoproj/argo-cd/\(argocd_version)/manifests/install.yaml"
-emit "argocd.yaml"

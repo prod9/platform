@@ -13,18 +13,18 @@ func TestSelectComponents(t *testing.T) {
 	files := map[string][]byte{
 		"cert-manager.platform":               []byte("a"),
 		"flux.platform":                       []byte("b"),
-		"dagger-engine.cue":                   []byte("c"),
-		"argocd.platform":                     []byte("d"),
+		"platform.cue":                        []byte("c"),
+		"nginx-gateway.platform":              []byte("d"),
 		"nginx-gateway-experimental.platform": []byte("e"),
 	}
 
-	sess := prompts.New(nil, []string{"cert-manager.platform,argocd.platform"})
+	sess := prompts.New(nil, []string{"cert-manager.platform,nginx-gateway.platform"})
 	got := selectComponents(sess, files)
 
 	if len(got) != 2 {
 		t.Fatalf("selected %d components, want 2", len(got))
 	}
-	for _, name := range []string{"cert-manager.platform", "argocd.platform"} {
+	for _, name := range []string{"cert-manager.platform", "nginx-gateway.platform"} {
 		if _, ok := got[name]; !ok {
 			t.Errorf("missing selected component %q", name)
 		}
@@ -32,9 +32,9 @@ func TestSelectComponents(t *testing.T) {
 }
 
 // TestSelectComponentsDefaults: with no args (non-interactive) the shipped Defaults install,
-// and a present-but-non-default file (argocd) stays out.
+// and a present-but-non-default file (stable nginx-gateway) stays out.
 func TestSelectComponentsDefaults(t *testing.T) {
-	files := map[string][]byte{"argocd.platform": []byte("x")}
+	files := map[string][]byte{"nginx-gateway.platform": []byte("x")}
 	for _, name := range baseline.Defaults {
 		files[name] = []byte("x")
 	}
@@ -45,7 +45,7 @@ func TestSelectComponentsDefaults(t *testing.T) {
 	if len(got) != len(baseline.Defaults) {
 		t.Fatalf("selected %d, want %d (defaults)", len(got), len(baseline.Defaults))
 	}
-	if _, ok := got["argocd.platform"]; ok {
-		t.Error("argocd installed despite not being a default")
+	if _, ok := got["nginx-gateway.platform"]; ok {
+		t.Error("stable nginx-gateway installed despite not being a default")
 	}
 }

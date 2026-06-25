@@ -14,12 +14,13 @@ import (
 var embedded embed.FS
 
 // DefsModule is the infra-defs CUE dependency the baseline apps import; DefsVersion is the
-// version a freshly-init'd infra repo pins into its cue.mod. v0.3.21 is the engine-supporting
-// defs — it carries #Service #headless and parts.#PodMounts #claim_templates, both of which
-// dagger-engine.cue needs to render.
+// version a freshly-init'd infra repo pins into its cue.mod. v0.4.0 carries the #NetworkPolicy
+// access-grant pattern and #pod_labels that platform.cue needs to lock the engine's TCP port to
+// the dispatcher (atop the v0.3.x #Service #headless + parts.#PodMounts #claim_templates the
+// engine StatefulSet renders with).
 const (
 	DefsModule  = "prodigy9.co/defs@v0"
-	DefsVersion = "v0.3.21"
+	DefsVersion = "v0.4.0"
 )
 
 // DefaultVars is the baseline's shipped [ops.vars]: the version pins each baseline hook
@@ -31,7 +32,6 @@ const (
 var DefaultVars = map[string]any{
 	"CERT_MANAGER_VERSION":  "v1.20.2",
 	"FLUX_VERSION":          "v2.8.8",
-	"ARGOCD_VERSION":        "v3.4.1",
 	"NGINX_GATEWAY_VERSION": "v2.6.0",
 	"GATEWAY_API_VERSION":   "v1.5.1",
 
@@ -39,12 +39,13 @@ var DefaultVars = map[string]any{
 }
 
 // Defaults is the working set installed when the operator makes no other choice — the
-// components a functioning cluster needs out of the box. argocd (reference install) and
-// the stable nginx-gateway are off by default; the operator opts into them at init.
+// components a functioning cluster needs out of the box. The stable nginx-gateway is off by
+// default; the operator opts into it at init. platform.cue carries the build engine + (for
+// prod9's self-host) the vanity server and its NetworkPolicies.
 var Defaults = []string{
 	"cert-manager.platform",
 	"flux.platform",
-	"dagger-engine.cue",
+	"platform.cue",
 	"nginx-gateway-experimental.platform",
 }
 

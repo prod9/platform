@@ -72,8 +72,8 @@ func TestDefaultsAreEmbedded(t *testing.T) {
 			t.Errorf("Defaults names %q but it is not embedded; have %v", name, keys(files))
 		}
 	}
-	if _, ok := files["dagger-engine.cue"]; !ok {
-		t.Errorf("dagger-engine.cue not embedded; have %v", keys(files))
+	if _, ok := files["platform.cue"]; !ok {
+		t.Errorf("platform.cue not embedded; have %v", keys(files))
 	}
 }
 
