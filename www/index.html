@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>platform — docs review</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/style.css">
+  <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+</head>
+<body>
+  <!--
+    Reader-journey nav — order by how a human reads in, NOT by docs/ folders.
+    Relative hx-get, NO hx-push-url: relative URLs resolve against the unchanging
+    site root, so the site works under any base path (e.g. gh-pages at /<repo>/).
+  -->
+  <nav id="sidebar">
+    <strong>platform</strong>
+    <a href="pages/gitops.html" hx-get="pages/gitops.html" hx-target="#content">GitOps flow</a>
+    <!-- add more synthesized pages here -->
+  </nav>
+
+  <main id="content" hx-get="pages/gitops.html" hx-trigger="load">
+    <!-- Fragments load here. -->
+  </main>
+
+  <script>
+    // Highlight the nav entry matching the loaded fragment.
+    document.body.addEventListener('htmx:afterSettle', function (evt) {
+      var url = (evt.detail && evt.detail.xhr && evt.detail.xhr.responseURL) || '';
+      document.querySelectorAll('#sidebar a').forEach(function (a) {
+        var target = a.getAttribute('hx-get');
+        a.classList.toggle('active', !!target && url.indexOf(target) !== -1);
+      });
+    });
+  </script>
+</body>
+</html>
