@@ -14,6 +14,47 @@ strict `bare=var / quoted=string` values, and `focus`/`reset` scope (no `[field=
 `PLANS.md`. **Reads against:** `docs/spec/platform.md`, `config-allocation.md`,
 `gitops-build-plan.md`, and `docs/decisions/*`.
 
+**Resume here (2026-06-25 — GitOps alignment session):** The render model was **realigned to the
+spec** — the spec always intended image-in-git (`config-allocation.md`, `platform.md`); the *code*
+had drifted to render-time injection (Slice-1/B3a). **Group-1 landed (`a6aab54`):** dropped the
+`--image` flag (`ops render`/`publish`), `RenderOptions.Image`, and the `@tag(image)` `cfg.Tags`
+path — the image ref is a **committed CUE literal**, updated by a git commit, never a CLI arg. The
+same `cfg.Tags` seam now injects **`[ops.vars]`** via `project.NormalizeVars`: env-style keys in
+`platform.toml` (`NGINX_GATEWAY_VERSION`) feed both routes through the lowercase derivation —
+`@tag(nginx_gateway_version)` (CUE) and `\(nginx_gateway_version)` (directives), **committed source
+only**. `embed.go DefaultVars` → env-style; testbed carries a committed image literal; smoke lock
+re-recorded. Build/vet/unit/smoke green. Posture captured (`77455b1`, see the Framing block + the
+CLAUDE.md banner); `www/` GitOps explainer shipped (`2b31910`).
+
+**Remaining alignment (do next):**
+- **Group-2 (docs):** the *stale* image-injection prose now contradicts the code — fix the plan
+  note's Slice-1 ("Image injected via `--inject image=`") + D3b-3 (`RenderOptions{Image}`)
+  passages, the **B3a ADR** (`2026-06-23-render-via-linked-cue-engine.md`: "image injection via
+  `load.Config.Tags`"), and CLAUDE.md's `core/gitops` line; add a short **correction ADR**
+  (image-committed-in-git + the `[ops.vars]` convention; render = pure function of committed git).
+  Write reader-facing — no decision-journey/self-talk.
+- **Group-3 (argocd out of baseline):** delete `core/baseline/files/argocd.platform`, drop
+  `ARGOCD_VERSION` from `DefaultVars`, fix `cmd/init_test.go` (picker-set assertion), scrub the
+  argocd-toggle mentions here + in the d3b4 note. *Keep* the illustrative argocd DSL examples in
+  the spec / `parse_test.go`.
+- **`platform.cue` (self-deploy):** author **fresh** under the new model — committed-literal image,
+  no `#UseKeel`, no legacy `defaults`/gateway wiring. Deploy = **wholesale replace** of the live
+  vanity (infra applies the new, the old Deployment dies; gated on chakrit). Live spec for
+  reference: `./platform vanity`, image `ghcr.io/prod9/platform`, port 8000, labels
+  `app/part-of=platform`.
+- **Infra-side (infra's domain, gated on chakrit):** tear down the live vanity (`deploy/platform`
+  + `svc/platform-service`, ns `platform`); the **fleet migration** off ArgoCD+Keel
+  (lem/infra/x9/fx + tmg/stage9/sunzapper/bluepages/ircp) onto the new setup. Engine STS/svc/PVCs
+  stay.
+- **fi-build (cross-project, parked):** FI wants its builds on platform's model; full ask at
+  `/tmp/fi-build-platform-ask.md`; awaiting chakrit's overall CI direction. Gaps: a **non-Buildkite
+  trigger** story (GH Actions banned) + the **Flux install** (Slice 2, unbuilt).
+
+**Threads/state:** ~97 commits ahead of `gh`, **nothing pushed** (awaits chakrit). An ace-connect
+listener (`prod9.platform.claude`, control mode) is live — survives `/clear`; on resume, recover
+its wire format via the `ace-connect` skill before touching `.inbox.log`. The infra agent is
+re-aligned (deprecate all ArgoCD+Keel; it's the cluster executor).
+
 **Engine LIVE on stage9 (2026-06-24):** deployed `sts/dagger-engine` + headless
 `svc/dagger-engine` into the `platform` ns (co-tenant with the vanity server, by design) —
 **2/2 pods Ready**, headless resolves **2 A-records** (`10.2.0.220` dagger-engine-0 /
@@ -31,7 +72,7 @@ specifiable from the live vanity spec (Keel-managed, `./platform vanity`, image
 `ghcr.io/prod9/platform:platform.prodigy9.co`, port 8000, `envFrom platform-secret`, labels
 `app=platform`/`part-of=platform`).*
 
-**Next (resume here, 2026-06-24):** *Last session landed E0 fx pin (`547e210`), smoke
+**Earlier (2026-06-24):** *Last session landed E0 fx pin (`547e210`), smoke
 `v0.2.4`→`v0.4.0` machinery upgrade (`aba8b45`), and the drift-detection note (`602e9ac`). This
 session landed **#5 plog→fxlog** as a build/server log split: `5b42201` rename
 `internal/plog`→`internal/buildlog`, `6fb74be` route `vanity` onto `fxlog`. Tree clean,
