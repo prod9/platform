@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"cuelang.org/go/cue/ast"
+	"cuelang.org/go/cue/build"
 	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/cue/load"
 	cueyaml "cuelang.org/go/encoding/yaml"
@@ -97,7 +99,21 @@ func exportCue(srcDir string, vars map[string]any) ([]byte, error) {
 	}
 
 	cfg := &load.Config{Dir: dir, Registry: registry}
-	if tags := varsToTags(vars); len(tags) > 0 {
+
+	// First pass, no tags: discover which `@tag` holes the apps actually declare. [ops.vars]
+	// feeds both render routes, so it carries vars meant only for `.platform` directives; those
+	// have no CUE `@tag`, and CUE rejects an injected tag that nothing declares ("no tag for X").
+	// Inject only the declared subset.
+	probe := load.Instances([]string{"."}, cfg)
+	if len(probe) == 0 {
+		return nil, fmt.Errorf("render: no CUE instance under %s", dir)
+	}
+	if err := probe[0].Err; err != nil {
+		return nil, err
+	}
+	declared := declaredTags(probe[0])
+
+	if tags := varsToTags(vars, declared); len(tags) > 0 {
 		cfg.Tags = tags
 	}
 
@@ -117,14 +133,45 @@ func exportCue(srcDir string, vars map[string]any) ([]byte, error) {
 }
 
 // varsToTags renders the normalized [ops.vars] table into cue load tags ("name=value") — the
-// committed-config source for every `@tag(name)` in the apps CUE. Values stringify verbatim;
-// the consuming field's `@tag(name,type=...)` annotation drives any non-string coercion.
-func varsToTags(vars map[string]any) []string {
+// committed-config source for every `@tag(name)` in the apps CUE. Only vars a `@tag` actually
+// declares are injected (declared); the rest are directive-only and CUE would reject them.
+// Values stringify verbatim; the consuming field's `@tag(name,type=...)` annotation drives any
+// non-string coercion.
+func varsToTags(vars map[string]any, declared map[string]bool) []string {
 	tags := make([]string, 0, len(vars))
 	for name, val := range vars {
-		tags = append(tags, fmt.Sprintf("%s=%v", name, val))
+		if declared[name] {
+			tags = append(tags, fmt.Sprintf("%s=%v", name, val))
+		}
 	}
 	return tags
+}
+
+// declaredTags walks the loaded apps' syntax for `@tag(name)` attributes and returns the set of
+// declared tag names — the holes the CUE package is willing to receive from [ops.vars].
+func declaredTags(inst *build.Instance) map[string]bool {
+	declared := map[string]bool{}
+	for _, f := range inst.Files {
+		ast.Walk(f, func(n ast.Node) bool {
+			if a, ok := n.(*ast.Attribute); ok {
+				if name, ok := tagAttrName(a); ok {
+					declared[name] = true
+				}
+			}
+			return true
+		}, nil)
+	}
+	return declared
+}
+
+// tagAttrName extracts the tag name from an `@tag(name,opts...)` attribute, false for any other.
+func tagAttrName(a *ast.Attribute) (string, bool) {
+	key, body := a.Split()
+	if key != "tag" {
+		return "", false
+	}
+	name, _, _ := strings.Cut(body, ",")
+	return name, name != ""
 }
 
 // renderDirectives runs every `.platform` directive co-located with the CUE apps (selection
