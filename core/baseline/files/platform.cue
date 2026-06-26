@@ -2,6 +2,7 @@ package apps
 
 import (
 	"prodigy9.co/defs"
+	"prodigy9.co/defs/packs"
 	"prodigy9.co/defs/parts"
 )
 
@@ -47,29 +48,24 @@ platform: {
 		}
 	}
 
-	let server = defs.#Deployment & {
-		#name: "platform"
-		#ns:   nsp.#name
-
-		#image:    "ghcr.io/prod9/platform:latest"
-		#replicas: 2
-
-		#port:    server_port
+	let server = packs.#WebApp & {
+		#name:         "platform"
+		#ns:           nsp.#name
+		#image:        "ghcr.io/prod9/platform:latest"
+		#pull_secret:  "ghcr.io-pull-secret"
+		#port:         server_port
+		#replicas:     2
+		#host:         "platform.prodigy9.co"
+		#gateway_name: "nginx"
+		#gateway_ns:   "gateway"
 		#command: ["./platform", "vanity"]
+		#env: {}
 
-		#pull_secret: "ghcr.io-pull-secret"
-		#pod_labels:  engineNetpol.#out.pod_labels
-	}
-
-	let serverSvc = defs.#Service & {
-		#name: "platform-service"
-		#ns:   nsp.#name
-		#port: server_port
-
-		#selector: server.#out.selector
+		#components: deploy: #pod_labels: engineNetpol.#out.pod_labels
+		[...]
 	}
 
 	"namespace.yaml": nsp
 	"engine.yaml":    [engine, engineSvc, engineNetpol]
-	"platform.yaml":  [server, serverSvc]
+	"platform.yaml":  server
 }
