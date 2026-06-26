@@ -10,6 +10,8 @@ configuration issues.
 
 ## ⚠️ Active rework — read before touching infra / delivery
 
+*Session Law (rework supersedes legacy) — binds until platformv2 ships, then expires.*
+
 platformv2 is a from-scratch rework of the build/delivery model. Treat **all pre-rework
 artifacts as legacy and disposable**: the live Keel-managed vanity Deployment,
 `infra/apps/platform.cue` (`#UseKeel`), the old `settings.toml`, and the whole ArgoCD/Keel
@@ -30,7 +32,7 @@ design. Drive from the plan; override legacy caution.
 
 ## Conventions
 
-Commit messages: `area: Capitalized description`. Prefix is a code component/topic (`deps:`,
+Commit messages **(per-repo Law)**: `area: Capitalized description`. Prefix is a code component/topic (`deps:`,
 `docs:`, `tooling:`, `cmd:`, `kubectl:`), not a skill or tool name. Capitalize the description;
 put clarifiers in parens at the end; never a `(scope)` in the prefix. Keep the `Co-Authored-By:
 Claude …` trailer. Not `type(scope):`.

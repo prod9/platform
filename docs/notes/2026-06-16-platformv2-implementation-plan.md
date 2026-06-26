@@ -16,6 +16,18 @@ strict `bare=var / quoted=string` values, and `focus`/`reset` scope (no `[field=
 
 **Resume here (2026-06-26 — platform LIVE on stage9; tool-hardening + ../infra conversion pending):**
 
+**Side-session (2026-06-26 PM) — instruction-surface redesign, DONE (not platformv2 work):**
+prompted by the prior afk session going sideways. Built a **Law / watch-trend taxonomy** (global
+CLAUDE.md), made `realign`/`ace-realign` **auto-arm on a 2nd Law violation**, and gave `ace-afk` a
+**pre-flight phase** (restate goal + define done=real-deliverable-not-/tmp · clear-blockers-HARD ·
+establish decision-basis · explicit **Go**-gate, then no questions) + a new gate-free
+`ace/workflow-afk.md` (kue keep-going model: resolve-by-basis, record-don't-ask, `Earn the
+blocker`, thin-orchestrator slice loop). Personal-side edits applied directly; school-side
+(`ace-realign`, `ace-afk`, `workflow-afk.md`) **relayed to the school agent** — full content in
+[`docs/notes/2026-06-26-afk-realign-school-edits-handoff.md`](2026-06-26-afk-realign-school-edits-handoff.md)
+(delete once the school lands them). **Regular platformv2 work is untouched — resume at the queue
+below.**
+
 **platform is DEPLOYED + serving on stage9** — server (vanity) + dagger-engine + ingress
 NetworkPolicy. ArgoCD/Keel were torn down fleet-wide by the infra agent; Flux is not yet
 installed, so the interim delivery is **direct `kubectl` apply**. `platform.prodigy9.co` →
