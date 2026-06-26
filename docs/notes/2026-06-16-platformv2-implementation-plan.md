@@ -39,12 +39,11 @@ label). **Applied from a `/tmp` render — NOT yet from a committed source** (se
 gitops declared-`@tag`-only injection fix (`b03cf85`); docs + committed-image correction ADR
 (`6995a66`); `cmd/ops/` package refactor — `ops {init,render,publish}` (`8a00ca6`).
 
-**Uncommitted, platform repo (green, ready to commit):** the `--force` rework — `--force` now
-means "replace existing files," NOT "skip prompts"; the apply confirm is unconditional
-(`ALWAYS_YES=1` handles non-interactive); the component picker always runs. Files:
-`bootstrapper/plan.go` (`Apply(replace bool)` + `Overwrites()`), `plan_test.go`, `init_test.go`,
-`cmd/bootstrap.go`, `cmd/ops/init_cmd.go`. → commit as
-`cmd: Make --force replace existing files instead of skipping prompts`.
+**Committed `4d17a0b` (2026-06-26):** the `--force` rework — `--force` now means "replace
+existing files," NOT "skip prompts"; the apply confirm is unconditional (`ALWAYS_YES=1`
+handles non-interactive); the component picker always runs. Touched `bootstrapper/plan.go`
+(`Apply(replace bool)` + `Overwrites()`), `plan_test.go`, `init_test.go`, `cmd/bootstrap.go`,
+`cmd/ops/init_cmd.go`. Build + tests green.
 
 **../infra conversion (decisions resolved, NOT executed — awaiting chakrit's go):** strongarm
 `../infra` (= `prod9/infra`, the stage9-targeting repo) into the platform-managed model. The
