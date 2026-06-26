@@ -1,4 +1,4 @@
-package cmd
+package ops
 
 import (
 	"maps"
@@ -110,7 +110,7 @@ func fileNames(files map[string][]byte) []string {
 }
 
 // ensureGitRepo runs `git init` when dir is not already inside a git work tree —
-// `platform init` bootstraps a fresh infra repo, GitOps delivery needs one.
+// `platform ops init` bootstraps a fresh infra repo, GitOps delivery needs one.
 func ensureGitRepo(dir string) error {
 	if bootstrapper.IsGitRepo(dir) {
 		return nil

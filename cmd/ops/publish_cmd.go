@@ -1,4 +1,4 @@
-package cmd
+package ops
 
 import (
 	"context"
@@ -11,20 +11,20 @@ import (
 	"platform.prodigy9.co/project"
 )
 
-var opsPublishTag string
+var publishTag string
 
-var OpsPublishCmd = &cobra.Command{
+var PublishCmd = &cobra.Command{
 	Use:   "publish [dir]",
 	Short: "Publish rendered infra manifests as an OCI config artifact",
-	Run:   runOpsPublish,
+	Run:   runPublish,
 }
 
 func init() {
-	OpsPublishCmd.Flags().StringVar(&opsPublishTag, "tag", "",
+	PublishCmd.Flags().StringVar(&publishTag, "tag", "",
 		"override the moving per-env tag (defaults to [ops] tag, else \"latest\")")
 }
 
-func runOpsPublish(cmd *cobra.Command, args []string) {
+func runPublish(cmd *cobra.Command, args []string) {
 	dir := "."
 	if len(args) > 0 {
 		dir = args[0]
@@ -34,7 +34,7 @@ func runOpsPublish(cmd *cobra.Command, args []string) {
 	if err != nil {
 		buildlog.Fatalln(err)
 	}
-	ref, err := cfg.Ops.Ref(opsPublishTag)
+	ref, err := cfg.Ops.Ref(publishTag)
 	if err != nil {
 		buildlog.Fatalln(err)
 	}
