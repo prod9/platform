@@ -31,9 +31,8 @@ func TestAnalyzeInit_writesComponentsAndProjectFileOnly(t *testing.T) {
 	r.Contains(t, byPath, filepath.Join("apps", "flux.platform"))
 	r.Contains(t, byPath, filepath.Join("apps", "dagger-engine.cue"))
 
-	// init writes neither the app build script nor the CI pipeline.
+	// init writes no app build script.
 	r.NotContains(t, byPath, "platform")
-	r.NotContains(t, byPath, filepath.Join(".buildkite", "pipeline.yaml"))
 
 	r.NoError(t, plan.Apply(false))
 	got, err := os.ReadFile(filepath.Join(dir, "apps", "cert-manager.platform"))

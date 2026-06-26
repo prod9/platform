@@ -8,12 +8,8 @@ import (
 	"text/template"
 )
 
-var (
-	//go:embed buildkite.pipeline.yaml.template
-	buildkitePipelineYamlTemplate string
-	//go:embed platform.template
-	platformTemplate string
-)
+//go:embed platform.template
+var platformTemplate string
 
 type Info struct {
 	ProjectName     string

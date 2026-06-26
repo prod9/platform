@@ -70,15 +70,10 @@ func Analyze(dir string, info *Info, defaultVars map[string]any) (*Plan, error) 
 	if err != nil {
 		return nil, err
 	}
-	pipeline, err := renderTemplate(buildkitePipelineYamlTemplate, info)
-	if err != nil {
-		return nil, err
-	}
 
 	files := []FileChange{
 		projFile,
 		fileChange(dir, "platform", script, 0744),
-		fileChange(dir, filepath.Join(".buildkite", "pipeline.yaml"), pipeline, 0644),
 	}
 	return &Plan{Dir: dir, Files: files, Vars: vars}, nil
 }

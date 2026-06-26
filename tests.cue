@@ -51,7 +51,6 @@ let testbeds = [...{name: string, dir: string}] &
 						checks: [
 							"./testbeds/\(testbed.dir)/platform.toml",
 							"./testbeds/\(testbed.dir)/platform",
-							"./testbeds/\(testbed.dir)/.buildkite/*.*",
 						]
 						commands: [
 							"./testbed.sh \(testbed.dir) bootstrap \"Johnny Appleseed\" \"john@apple.com\" \"github.com/prod9/platform\" \"ghcr.io/prod9/platform\"",

@@ -33,7 +33,6 @@ func TestAnalyze_freshRepoWritesEverything(t *testing.T) {
 	}
 	r.Contains(t, byPath, "platform.toml")
 	r.Contains(t, byPath, "platform")
-	r.Contains(t, byPath, filepath.Join(".buildkite", "pipeline.yaml"))
 
 	// Apply lands them on disk; the platform script is executable.
 	r.NoError(t, plan.Apply(false))

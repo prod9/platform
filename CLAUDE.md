@@ -56,7 +56,8 @@ record (`spec/`, `decisions/`, `notes/`; sorted by permanence). Default to
 
 `platform` is PRODIGY9's self-contained build/CI tool — a Go CLI (module
 `platform.prodigy9.co`, Go 1.25.5) that auto-detects project type, builds containers via
-Dagger, manages releases via git tags, and bootstraps new repos into Buildkite CI.
+Dagger, manages releases via git tags, and bootstraps new repos with a `platform.toml` +
+build script.
 
 Goal: zero per-project build config; new repos onboard quickly; no tech-stack lock-in.
 
@@ -69,7 +70,7 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
 
 | Cmd | Purpose |
 |-----------|------------------------------------------------------------------|
-| bootstrap | Discover project type, write `platform.toml` + `platform` script + `.buildkite/pipeline.yaml`. |
+| bootstrap | Discover project type, write `platform.toml` + `platform` script. |
 | build     | Build container(s) for module(s) via Dagger.                     |
 | configure | Print effective parsed config.                                   |
 | deploy    | Build+publish image tagged `:env` and set/push environment git tag. |
@@ -104,9 +105,8 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
     `CacheBuster` const for global cache invalidation.
   - `Build/Publish` use `internal.Multiplexer` for parallel job execution.
   - Registry creds via fx env config: `REGISTRY`, `REGISTRY_USERNAME`, `REGISTRY_PASSWORD`.
-- `bootstrapper/` — Embeds templates (`platform.template`,
-  `buildkite.pipeline.yaml.template`); discovers builders, writes `platform.toml`,
-  executable `platform` script, and `.buildkite/pipeline.yaml`. `Analyze` validates the
+- `bootstrapper/` — Embeds the `platform.template`; discovers builders, writes
+  `platform.toml` and an executable `platform` script. `Analyze` validates the
   target wd (must exist, be a dir, live in a git repo — hard gate) and computes a `Plan`
   (files to write/overwrite, baseline vars appended/preserved) without mutating; `Plan.Apply`
   writes it. Re-bootstrap merges `[ops.vars]` surgically (`mergeOpsVars`: append new default
