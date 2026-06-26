@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -21,7 +22,7 @@ var BootstrapCmd = &cobra.Command{
 
 func init() {
 	BootstrapCmd.Flags().BoolVar(&bootstrapForce, "force", false,
-		"apply the bootstrap plan without confirming (CI / non-interactive)")
+		"replace existing files instead of keeping them")
 }
 
 func runBootstrapCmd(cmd *cobra.Command, args []string) {
@@ -46,11 +47,16 @@ func runBootstrapCmd(cmd *cobra.Command, args []string) {
 	}
 
 	plan.Print(os.Stdout)
-	if !bootstrapForce && !sess.YesNo("apply this plan?") {
+	if !sess.YesNo("apply this plan?") {
 		return
 	}
 
-	if err := plan.Apply(); err != nil {
+	replace := bootstrapForce
+	if n := plan.Overwrites(); n > 0 && !replace {
+		replace = sess.YesNo(fmt.Sprintf("replace %d existing file(s)?", n))
+	}
+
+	if err := plan.Apply(replace); err != nil {
 		buildlog.Fatalln(err)
 	}
 	for _, f := range plan.Files {

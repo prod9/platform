@@ -83,9 +83,14 @@ func Analyze(dir string, info *Info, defaultVars map[string]any) (*Plan, error) 
 	return &Plan{Dir: dir, Files: files, Vars: vars}, nil
 }
 
-// Apply writes every file in the plan, creating parent directories as needed.
-func (p *Plan) Apply() error {
+// Apply writes the plan, creating parent directories as needed. Fresh writes
+// always land; an existing file is overwritten only when replace is set,
+// otherwise it is left untouched.
+func (p *Plan) Apply(replace bool) error {
 	for _, f := range p.Files {
+		if f.Action == FileOverwrite && !replace {
+			continue
+		}
 		dest := filepath.Join(p.Dir, f.Path)
 		if err := os.MkdirAll(filepath.Dir(dest), 0755); err != nil {
 			return err
@@ -95,6 +100,17 @@ func (p *Plan) Apply() error {
 		}
 	}
 	return nil
+}
+
+// Overwrites counts the existing files the plan would replace.
+func (p *Plan) Overwrites() int {
+	n := 0
+	for _, f := range p.Files {
+		if f.Action == FileOverwrite {
+			n++
+		}
+	}
+	return n
 }
 
 // Print renders the plan for operator review before applying.

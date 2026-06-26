@@ -36,7 +36,7 @@ func TestAnalyze_freshRepoWritesEverything(t *testing.T) {
 	r.Contains(t, byPath, filepath.Join(".buildkite", "pipeline.yaml"))
 
 	// Apply lands them on disk; the platform script is executable.
-	r.NoError(t, plan.Apply())
+	r.NoError(t, plan.Apply(false))
 	info, err := os.Stat(filepath.Join(dir, "platform"))
 	r.NoError(t, err)
 	r.NotZero(t, info.Mode()&0100, "platform script must be executable")
@@ -74,11 +74,32 @@ cert_manager_version = "v1.16.0"
 	}
 	r.Equal(t, FileOverwrite, toml.Action)
 
-	r.NoError(t, plan.Apply())
+	r.NoError(t, plan.Apply(true))
 	got, err := os.ReadFile(filepath.Join(dir, "platform.toml"))
 	r.NoError(t, err)
 	out := string(got)
 	r.Contains(t, out, `maintainer = "operator <op@b.co>"`) // operator field kept
 	r.Contains(t, out, `cert_manager_version = "v1.16.0"`)  // operator var value kept
 	r.Contains(t, out, `flux_version = "v2.3.0"`)           // new default appended
+}
+
+func TestApply_keepsExistingWhenNotReplacing(t *testing.T) {
+	dir := gitRepo(t)
+	existing := `maintainer = "operator <op@b.co>"`
+	path := filepath.Join(dir, "platform.toml")
+	r.NoError(t, os.WriteFile(path, []byte(existing), 0644))
+
+	plan, err := Analyze(dir, testInfo(), nil)
+	r.NoError(t, err)
+	r.Positive(t, plan.Overwrites())
+
+	// replace=false leaves the existing overwrite target untouched while still
+	// landing the fresh writes.
+	r.NoError(t, plan.Apply(false))
+	got, err := os.ReadFile(path)
+	r.NoError(t, err)
+	r.Equal(t, existing, string(got))
+
+	_, err = os.Stat(filepath.Join(dir, "platform"))
+	r.NoError(t, err)
 }

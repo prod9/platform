@@ -35,7 +35,7 @@ func TestAnalyzeInit_writesComponentsAndProjectFileOnly(t *testing.T) {
 	r.NotContains(t, byPath, "platform")
 	r.NotContains(t, byPath, filepath.Join(".buildkite", "pipeline.yaml"))
 
-	r.NoError(t, plan.Apply())
+	r.NoError(t, plan.Apply(false))
 	got, err := os.ReadFile(filepath.Join(dir, "apps", "cert-manager.platform"))
 	r.NoError(t, err)
 	r.Contains(t, string(got), `emit "cert-manager.yaml"`)

@@ -1,6 +1,7 @@
 package ops
 
 import (
+	"fmt"
 	"maps"
 	"os"
 	"os/exec"
@@ -25,7 +26,7 @@ var InitCmd = &cobra.Command{
 
 func init() {
 	InitCmd.Flags().BoolVar(&initForce, "force", false,
-		"apply the init plan without confirming (CI / non-interactive)")
+		"replace existing files instead of keeping them")
 }
 
 func runInitCmd(cmd *cobra.Command, args []string) {
@@ -66,14 +67,19 @@ func runInitCmd(cmd *cobra.Command, args []string) {
 	}
 
 	plan.Print(os.Stdout)
-	if !initForce && !sess.YesNo("apply this plan?") {
+	if !sess.YesNo("apply this plan?") {
 		return
+	}
+
+	replace := initForce
+	if n := plan.Overwrites(); n > 0 && !replace {
+		replace = sess.YesNo(fmt.Sprintf("replace %d existing file(s)?", n))
 	}
 
 	if err := ensureGitRepo(wd); err != nil {
 		buildlog.Fatalln(err)
 	}
-	if err := plan.Apply(); err != nil {
+	if err := plan.Apply(replace); err != nil {
 		buildlog.Fatalln(err)
 	}
 	for _, f := range plan.Files {
@@ -81,16 +87,13 @@ func runInitCmd(cmd *cobra.Command, args []string) {
 	}
 }
 
-// selectComponents picks which built-in components to install. --force keeps the shipped
-// Defaults; interactively the operator adjusts a checkbox list of every built-in file with
-// Defaults pre-checked. Returns the chosen subset of files (written into the target's apps/).
+// selectComponents picks which built-in components to install: a checkbox list of every
+// built-in file with Defaults pre-checked, driven interactively, by positional args, or
+// defaulting under ALWAYS_YES. Returns the chosen subset of files (written into apps/).
 func selectComponents(sess *prompts.Session, files map[string][]byte) map[string][]byte {
-	chosen := baseline.Defaults
-	if !initForce {
-		names := fileNames(files)
-		sort.Strings(names)
-		chosen = sess.OptionalMultiSelect("install components", baseline.Defaults, names)
-	}
+	names := fileNames(files)
+	sort.Strings(names)
+	chosen := sess.OptionalMultiSelect("install components", baseline.Defaults, names)
 
 	selected := map[string][]byte{}
 	for _, name := range chosen {
