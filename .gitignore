@@ -1,7 +1,6 @@
 *.docker
 .idea
 bin
-tests.yml
 .inbox.log
 .afk.log
 
