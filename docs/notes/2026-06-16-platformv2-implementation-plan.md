@@ -14,17 +14,43 @@ strict `bare=var / quoted=string` values, and `focus`/`reset` scope (no `[field=
 `PLANS.md`. **Reads against:** `docs/spec/platform.md`, `config-allocation.md`,
 `gitops-build-plan.md`, and `docs/decisions/*`.
 
-**Resume here (2026-06-25 — GitOps alignment session):** The render model was **realigned to the
-spec** — the spec always intended image-in-git (`config-allocation.md`, `platform.md`); the *code*
-had drifted to render-time injection (Slice-1/B3a). **Group-1 landed (`a6aab54`):** dropped the
-`--image` flag (`ops render`/`publish`), `RenderOptions.Image`, and the `@tag(image)` `cfg.Tags`
-path — the image ref is a **committed CUE literal**, updated by a git commit, never a CLI arg. The
-same `cfg.Tags` seam now injects **`[ops.vars]`** via `project.NormalizeVars`: env-style keys in
-`platform.toml` (`NGINX_GATEWAY_VERSION`) feed both routes through the lowercase derivation —
-`@tag(nginx_gateway_version)` (CUE) and `\(nginx_gateway_version)` (directives), **committed source
-only**. `embed.go DefaultVars` → env-style; testbed carries a committed image literal; smoke lock
-re-recorded. Build/vet/unit/smoke green. Posture captured (`77455b1`, see the Framing block + the
-CLAUDE.md banner); `www/` GitOps explainer shipped (`2b31910`).
+**Resume here (2026-06-26 — platform LIVE on stage9; tool-hardening + ../infra conversion pending):**
+
+**platform is DEPLOYED + serving on stage9** — server (vanity) + dagger-engine + ingress
+NetworkPolicy. ArgoCD/Keel were torn down fleet-wide by the infra agent; Flux is not yet
+installed, so the interim delivery is **direct `kubectl` apply**. `platform.prodigy9.co` →
+HTTP/2 200, go-import meta intact; engine `:1234` locked to the server (`use-dagger-engine` grant
+label). **Applied from a `/tmp` render — NOT yet from a committed source** (see conversion below).
+
+**Landed on `main` (unpushed):** `core/baseline/files/platform.cue` as one component (server
+`packs.#WebApp` + dagger-engine `#StatefulSet`+headless svc + `#NetworkPolicy` access-grant);
+gitops declared-`@tag`-only injection fix (`b03cf85`); docs + committed-image correction ADR
+(`6995a66`); `cmd/ops/` package refactor — `ops {init,render,publish}` (`8a00ca6`).
+
+**Uncommitted, platform repo (green, ready to commit):** the `--force` rework — `--force` now
+means "replace existing files," NOT "skip prompts"; the apply confirm is unconditional
+(`ALWAYS_YES=1` handles non-interactive); the component picker always runs. Files:
+`bootstrapper/plan.go` (`Apply(replace bool)` + `Overwrites()`), `plan_test.go`, `init_test.go`,
+`cmd/bootstrap.go`, `cmd/ops/init_cmd.go`. → commit as
+`cmd: Make --force replace existing files instead of skipping prompts`.
+
+**../infra conversion (decisions resolved, NOT executed — awaiting chakrit's go):** strongarm
+`../infra` (= `prod9/infra`, the stage9-targeting repo) into the platform-managed model. The
+working tree is entangled: the infra agent's uncommitted ArgoCD/Keel teardown (`D` deletions) +
+my `platform init` writes (`platform.toml`, `apps/platform.cue`, `cue.mod`). Sequence:
+(1) commit the teardown; (2) rewrite `apps/platform.cue` to `../infra`'s house idiom
+(`defaults.#Basics` + `#WebApp`, not the baseline `defs.#Namespace` form); (3) force `cue.mod`
+defs → **v0.4.0** (additive — legacy app cues still render, leave them); (4) `platform ops render
+../infra`; (5) reconcile the live deploy to the committed source. Drive init non-interactively
+with `ALWAYS_YES=1 platform ops init …` (NOT `--force`).
+
+**Deferred:** `flux.cue` / Slice 2 (Flux bootstrap) — open OCI-ref convention (recommend
+deriving from `[ops]` via an injected `@tag(ops_ref)` + a `ghcr-auth` secret).
+
+**Why this session went sideways (read before resuming):** decide from chakrit's stated rules +
+the rework banner instead of re-asking settled questions; never defer to the infra agent's
+legacy framing ([[feedback_rework_supersedes_legacy]]); platform self-deploys from its own repo,
+not infra-stage9/ArgoCD. Commit convention is now in CLAUDE.md.
 
 **Remaining alignment:**
 - ~~**Group-2 (docs):**~~ DONE (2026-06-26) — fixed CLAUDE.md `core/gitops`, the B3a ADR line,

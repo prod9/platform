@@ -28,6 +28,16 @@ old infra (the infra agent's ArgoCD/Keel/legacy-app world) as outdated and wrong
 they're useful as cluster *executors*, but their legacy-grounded objections do not bind the new
 design. Drive from the plan; override legacy caution.
 
+## Conventions
+
+Commit messages: `area: Capitalized description`. Prefix is a code component/topic (`deps:`,
+`docs:`, `tooling:`, `cmd:`, `kubectl:`), not a skill or tool name. Capitalize the description;
+put clarifiers in parens at the end; never a `(scope)` in the prefix. Keep the `Co-Authored-By:
+Claude …` trailer. Not `type(scope):`.
+
+Drive `ops init` / `bootstrap` non-interactively with `ALWAYS_YES=1`, not `--force` (which means
+"replace existing files").
+
 ## lowfat (token saver)
 
 Command output is compacted by [lowfat](https://github.com/zdk/lowfat) via a user-scope
