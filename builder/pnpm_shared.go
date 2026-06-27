@@ -31,7 +31,7 @@ func withTypeModulePackageJSON(base *dagger.Container) *dagger.Container {
 	return base.WithNewFile("/app/package.json", `{"type":"module"}`)
 }
 
-func withPNPMPkgCache(sess *Session, base *dagger.Container) *dagger.Container {
+func withPNPMPkgCache(sess Engine, base *dagger.Container) *dagger.Container {
 	cache := sess.Client().CacheVolume("platform-pnpm-cache")
 	return base.WithMountedCache("/root/.local/share/pnpm", cache)
 }

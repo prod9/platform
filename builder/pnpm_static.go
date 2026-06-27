@@ -27,7 +27,7 @@ func (b PNPMStatic) Discover(wd string) (map[string]Interface, error) {
 	return map[string]Interface{name: b}, nil
 }
 
-func (b PNPMStatic) Build(sess *Session, unit *BuildUnit) (container *dagger.Container, err error) {
+func (b PNPMStatic) Build(sess Engine, unit *BuildUnit) (container *dagger.Container, err error) {
 	defer errutil.Wrap("pnpm/static", &err)
 
 	host := sess.Client().Host().

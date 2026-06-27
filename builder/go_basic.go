@@ -27,7 +27,7 @@ func (b GoBasic) Discover(wd string) (map[string]Interface, error) {
 	return map[string]Interface{name: b}, nil
 }
 
-func (GoBasic) Build(sess *Session, unit *BuildUnit) (container *dagger.Container, err error) {
+func (GoBasic) Build(sess Engine, unit *BuildUnit) (container *dagger.Container, err error) {
 	defer errutil.Wrap("go/basic", &err)
 	host := sess.Client().Host().Directory(unit.WorkDir, dagger.HostDirectoryOpts{
 		Exclude: unit.Excludes,

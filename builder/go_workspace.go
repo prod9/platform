@@ -50,7 +50,7 @@ func (b GoWorkspace) Discover(wd string) (map[string]Interface, error) {
 	}
 }
 
-func (GoWorkspace) Build(sess *Session, unit *BuildUnit) (container *dagger.Container, err error) {
+func (GoWorkspace) Build(sess Engine, unit *BuildUnit) (container *dagger.Container, err error) {
 	defer errutil.Wrap("go/workspace", &err)
 
 	wsdir, err := filepath.Abs(filepath.Join(unit.WorkDir, ".."))

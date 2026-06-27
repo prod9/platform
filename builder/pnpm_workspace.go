@@ -59,7 +59,7 @@ func (b PNPMWorkspace) Discover(wd string) (map[string]Interface, error) {
 
 }
 
-func (PNPMWorkspace) Build(sess *Session, unit *BuildUnit) (container *dagger.Container, err error) {
+func (PNPMWorkspace) Build(sess Engine, unit *BuildUnit) (container *dagger.Container, err error) {
 	defer errutil.Wrap("pnpm/workspace", &err)
 
 	wsdir, err := filepath.Abs(filepath.Join(unit.WorkDir, ".."))

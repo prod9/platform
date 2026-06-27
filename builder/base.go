@@ -38,7 +38,7 @@ const (
 	CacheBuster = "cache-buster-b78bb982"
 )
 
-func BaseImageForUnit(sess *Session, unit *BuildUnit) *dagger.Container {
+func BaseImageForUnit(sess Engine, unit *BuildUnit) *dagger.Container {
 	apkCache := sess.Client().CacheVolume("platform-apk-cache")
 
 	return sess.Client().
