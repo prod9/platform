@@ -97,12 +97,21 @@ with a real immutable tag.
 artifact); decide the OCI-URL convention + GHCR pull secret. Until then the platform tree is
 applied directly (gated), not reconciled.
 
-## Open decisions (chakrit to drive)
+## Resolved decisions (2026-06-27)
 
-1. **Render scope for the cutover** — platform-component-only (recommended) vs full-fleet
-   re-render now (churns every legacy app's `k8s/`).
-2. **Module-path default style** — repo-address (`github.com/prod9/infra`, current default)
-   vs domain (`stage9.dev`).
-3. **hello-world default** — in the pre-checked `Defaults` set, or an optional component?
-4. **`../infra` defaults** — confirm: leave its existing `defaults/` untouched (don't ship
-   baseline defaults over it). Assumed yes.
+1. **Render scope** — **platform + its related components only.** The rest of the fleet is
+   not re-rendered here; it migrates later by adopting platform's **CI/CD component** to
+   drive its delivery (forward direction, out of this plan's scope — see below).
+2. **Module-path default** — **domain-style** (e.g. `stage9.dev`), operator-specified. Drop
+   the `github.com/prod9/x` repo-address default in favour of a domain the operator supplies.
+3. **hello-world** — **pre-checked in `Defaults`**, so a fresh init/bootstrap is deploy-ready
+   out of the box.
+4. **`../infra` defaults** — **leave its existing `defaults/` untouched** (write-once;
+   confirmed).
+
+## Forward direction (out of scope, noted)
+
+The non-platform fleet (`tmg`/`stage9`/`sunzapper`/`bluepages`/`ircp`/`lem`/`x9`/`fx`/`n8n`)
+migrates off the orphaned ArgoCD state by adopting a **platform CI/CD component** that drives
+their delivery — not by a one-shot `ops render` re-render here. Design TBD; tracked
+separately.
