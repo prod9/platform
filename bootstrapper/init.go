@@ -6,10 +6,11 @@ import (
 )
 
 // AnalyzeInit computes the plan for `platform init`: a platform.toml seeded with the
-// baseline's default [ops.vars], plus the selected component files (both `.platform`
-// directives and `.cue` apps) written into apps/. Unlike Analyze (app onboarding) it
-// writes neither the platform build script nor the CI pipeline, and it does not require
-// an existing git repository — `platform init` creates one.
+// baseline's default [ops.vars], the selected component files (both `.platform`
+// directives and `.cue` apps) written into apps/, and a `platform` launcher script
+// that pins the platform CLI version so `ops render`/`publish` run reproducibly.
+// Unlike Analyze (app onboarding) it does not require an existing git repository —
+// `platform init` creates one.
 func AnalyzeInit(dir string, info *Info, components map[string][]byte, defaultVars map[string]any) (*Plan, error) {
 	dir, err := resolveWD(dir)
 	if err != nil {
@@ -24,7 +25,15 @@ func AnalyzeInit(dir string, info *Info, components map[string][]byte, defaultVa
 		return nil, err
 	}
 
-	files := []FileChange{projFile}
+	script, err := renderTemplate(platformTemplate, info)
+	if err != nil {
+		return nil, err
+	}
+
+	files := []FileChange{
+		projFile,
+		fileChange(dir, "platform", script, 0744),
+	}
 	for _, name := range sortedKeys(components) {
 		rel := filepath.Join("apps", name)
 		files = append(files, fileChange(dir, rel, components[name], 0644))

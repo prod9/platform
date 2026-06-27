@@ -8,7 +8,7 @@ import (
 	r "github.com/stretchr/testify/require"
 )
 
-func TestAnalyzeInit_writesComponentsAndProjectFileOnly(t *testing.T) {
+func TestAnalyzeInit_writesComponentsProjectFileAndScript(t *testing.T) {
 	dir := t.TempDir() // not a git repo — init tolerates that (the cmd git-inits)
 
 	components := map[string][]byte{
@@ -31,8 +31,9 @@ func TestAnalyzeInit_writesComponentsAndProjectFileOnly(t *testing.T) {
 	r.Contains(t, byPath, filepath.Join("apps", "flux.platform"))
 	r.Contains(t, byPath, filepath.Join("apps", "dagger-engine.cue"))
 
-	// init writes no app build script.
-	r.NotContains(t, byPath, "platform")
+	// init writes the version-pinned platform launcher script, executable.
+	r.Contains(t, byPath, "platform")
+	r.Equal(t, os.FileMode(0744), byPath["platform"].Mode)
 
 	r.NoError(t, plan.Apply(false))
 	got, err := os.ReadFile(filepath.Join(dir, "apps", "cert-manager.platform"))
