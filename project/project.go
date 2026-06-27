@@ -21,9 +21,20 @@ type (
 		ConfigPath string `toml:"-"`
 		ConfigDir  string `toml:"-"`
 
-		Maintainer   string   `toml:"maintainer"`
-		Platform     string   `toml:"platform,omitempty"`
-		Repository   string   `toml:"repository"`
+		Maintainer string `toml:"maintainer"`
+		Repository string `toml:"repository"`
+
+		// LocalArch is the arch for local builds (build/preview/export/ls) —
+		// "auto" tracks the host for fast native iteration. PublishArch is the arch
+		// for server-bound builds (publish/deploy) — defaults to amd64 so an arm
+		// laptop never ships an unrunnable image. Values are bare archs
+		// (auto|amd64|arm64); the OS is always linux. Platform is the deprecated
+		// single-target key (a full linux/arch string), kept for backward
+		// compatibility; it seeds LocalArch when unset (see assignDefaults).
+		Platform    string `toml:"platform,omitempty"`
+		LocalArch   string `toml:"local_arch,omitempty"`
+		PublishArch string `toml:"publish_arch,omitempty"`
+
 		Strategy     string   `toml:"strategy"`
 		Environments []string `toml:"environments"`
 
@@ -66,8 +77,9 @@ type (
 
 var (
 	ProjectDefaults = &Project{
-		Strategy: "datestamp",
-		Platform: "auto",
+		Strategy:    "datestamp",
+		LocalArch:   "auto",
+		PublishArch: "amd64",
 		Excludes: []string{
 			"*.docker",
 			"*.local",
@@ -122,6 +134,18 @@ func Configure(wd string) (*Project, error) {
 }
 
 func (p *Project) assignDefaults() {
+	// Backward compatibility: the deprecated single-target `platform` key (a full
+	// linux/arch string) seeds the local arch when no explicit `local_arch` is given.
+	if p.Platform != "" && p.LocalArch == "" {
+		p.LocalArch = p.Platform
+	}
+	if p.LocalArch == "" {
+		p.LocalArch = ProjectDefaults.LocalArch
+	}
+	if p.PublishArch == "" {
+		p.PublishArch = ProjectDefaults.PublishArch
+	}
+
 	for _, mod := range p.Modules {
 		if mod.Timeout <= 0 {
 			mod.Timeout = ModuleDefaults.Timeout
@@ -132,7 +156,8 @@ func (p *Project) assignDefaults() {
 func (p *Project) assignEnvOverrides() {
 	if platform, ok := os.LookupEnv("PLATFORM"); ok {
 		buildlog.Config("platform", platform)
-		p.Platform = platform
+		p.LocalArch = platform
+		p.PublishArch = platform
 	}
 }
 

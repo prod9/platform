@@ -22,7 +22,7 @@ func runBuild(cmd *cobra.Command, args []string) {
 		buildlog.Fatalln(err)
 	}
 
-	jobs, err := builder.JobsFromArgs(cfg, args)
+	jobs, err := builder.JobsFromArgs(cfg, args, builder.LocalBuild)
 	if err != nil {
 		buildlog.Fatalln(err)
 	}

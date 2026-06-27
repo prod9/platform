@@ -51,7 +51,7 @@ func runPublish(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	jobs, err := builder.JobsFromArgs(cfg, p.Args())
+	jobs, err := builder.JobsFromArgs(cfg, p.Args(), builder.PublishBuild)
 	if err != nil {
 		buildlog.Fatalln(err)
 	}
