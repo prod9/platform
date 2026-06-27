@@ -46,7 +46,7 @@ var Defaults = []string{
 	"cert-manager.platform",
 	"flux.platform",
 	"platform.cue",
-	"nginx-gateway-experimental.platform",
+	"nginx-gateway-exp.platform",
 }
 
 // EmbeddedFiles returns every built-in component file (both `.platform` directives and

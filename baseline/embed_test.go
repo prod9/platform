@@ -87,7 +87,7 @@ func TestEmbeddedNginxGateway(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EmbeddedFiles: %v", err)
 	}
-	body, ok := files["nginx-gateway-experimental.platform"]
+	body, ok := files["nginx-gateway-exp.platform"]
 	if !ok {
 		t.Fatalf("nginx-gateway directive not embedded; have %v", keys(files))
 	}

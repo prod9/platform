@@ -11,11 +11,11 @@ import (
 // the built-in files is selected for install.
 func TestSelectComponents(t *testing.T) {
 	files := map[string][]byte{
-		"cert-manager.platform":               []byte("a"),
-		"flux.platform":                       []byte("b"),
-		"platform.cue":                        []byte("c"),
-		"nginx-gateway.platform":              []byte("d"),
-		"nginx-gateway-experimental.platform": []byte("e"),
+		"cert-manager.platform":      []byte("a"),
+		"flux.platform":              []byte("b"),
+		"platform.cue":               []byte("c"),
+		"nginx-gateway.platform":     []byte("d"),
+		"nginx-gateway-exp.platform": []byte("e"),
 	}
 
 	sess := prompts.New(nil, []string{"cert-manager.platform,nginx-gateway.platform"})

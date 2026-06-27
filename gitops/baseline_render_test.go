@@ -37,8 +37,8 @@ func fixtureFetch(string) ([]byte, error) {
 func TestRenderBaselineRoute(t *testing.T) {
 	dir := t.TempDir()
 	writeBaseline(t, dir, map[string]string{
-		"nginx-gateway.platform":              "download \"https://fixture/x.yaml\"\nemit \"stable.yaml\"\n",
-		"nginx-gateway-experimental.platform": "download \"https://fixture/x.yaml\"\nemit \"experimental.yaml\"\n",
+		"nginx-gateway.platform":     "download \"https://fixture/x.yaml\"\nemit \"stable.yaml\"\n",
+		"nginx-gateway-exp.platform": "download \"https://fixture/x.yaml\"\nemit \"experimental.yaml\"\n",
 	})
 
 	tree, err := gitops.Render(dir, gitops.RenderOptions{Fetch: fixtureFetch})
@@ -49,7 +49,7 @@ func TestRenderBaselineRoute(t *testing.T) {
 	// both present → both render; the component dir is the filename stem.
 	for _, want := range []string{
 		"nginx-gateway/stable.yaml",
-		"nginx-gateway-experimental/experimental.yaml",
+		"nginx-gateway-exp/experimental.yaml",
 	} {
 		if _, ok := tree[want]; !ok {
 			t.Errorf("directive not rendered: %q; paths = %v", want, tree.Paths())
