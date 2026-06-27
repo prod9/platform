@@ -8,6 +8,7 @@ import (
 	"github.com/BurntSushi/toml"
 	r "github.com/stretchr/testify/require"
 	"platform.prodigy9.co/internal/timeouts"
+	"platform.prodigy9.co/ops"
 )
 
 var ModNames []string = strings.Split("alpha,beta,gamma,delta,epsilon", ",")
@@ -41,7 +42,7 @@ func TestProject_opsTarget(t *testing.T) {
 
 	// Explicit [ops] config wins over the convention.
 	proj = testProject(1)
-	proj.Ops = Ops{Image: "ghcr.io/prod9/infra-stage9", Tag: "prod"}
+	proj.Ops = ops.Ops{Image: "ghcr.io/prod9/infra-stage9", Tag: "prod"}
 	proj.inferValues()
 	r.Equal(t, "ghcr.io/prod9/infra-stage9", proj.Ops.Image)
 	r.Equal(t, "prod", proj.Ops.Tag)
@@ -50,7 +51,7 @@ func TestProject_opsTarget(t *testing.T) {
 	proj = &Project{Modules: map[string]*Module{}}
 	proj.inferValues()
 	_, err = proj.Ops.Ref("")
-	r.ErrorIs(t, err, ErrNoOpsImage)
+	r.ErrorIs(t, err, ops.ErrNoOpsImage)
 }
 
 func TestProject_opsVars(t *testing.T) {

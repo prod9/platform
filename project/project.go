@@ -1,7 +1,6 @@
 package project
 
 import (
-	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,11 +9,8 @@ import (
 	"github.com/BurntSushi/toml"
 	"platform.prodigy9.co/internal/buildlog"
 	"platform.prodigy9.co/internal/timeouts"
+	"platform.prodigy9.co/ops"
 )
-
-// ErrNoOpsImage is returned when `ops publish` has no target: neither an
-// explicit [ops] image nor a repository to infer one from.
-var ErrNoOpsImage = errors.New("project: no [ops] image and none inferable from repository")
 
 type (
 	Project struct {
@@ -40,19 +36,7 @@ type (
 
 		Excludes []string           `toml:"excludes"`
 		Modules  map[string]*Module `toml:"modules,omitempty"`
-		Ops      Ops                `toml:"ops"`
-	}
-
-	// Ops configures `ops publish` — where rendered infra manifests land as the
-	// OCI config artifact. Image/Tag fall back to convention: Image is inferred
-	// from Repository (github.com/x → ghcr.io/x), Tag defaults to "latest". Vars
-	// is the verbatim DSL \(var) table from [ops.vars] — a generic open map whose
-	// values keep their TOML type (string/int/bool); the per-component assembly
-	// layer and the DSL, not the processor, interpret them.
-	Ops struct {
-		Image string         `toml:"image,omitempty"`
-		Tag   string         `toml:"tag,omitempty"`
-		Vars  map[string]any `toml:"vars,omitempty"`
+		Ops      ops.Ops            `toml:"ops"`
 	}
 
 	Module struct {
@@ -199,16 +183,4 @@ func NormalizeVars(vars map[string]any) map[string]any {
 		out[strings.ToLower(name)] = val
 	}
 	return out
-}
-
-// Ref resolves the OCI reference `ops publish` pushes to. tag overrides the
-// configured/default Tag when non-empty (e.g. a per-env publish).
-func (o Ops) Ref(tag string) (string, error) {
-	if o.Image == "" {
-		return "", ErrNoOpsImage
-	}
-	if tag == "" {
-		tag = o.Tag
-	}
-	return o.Image + ":" + tag, nil
 }
