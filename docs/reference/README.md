@@ -14,3 +14,8 @@ reference (here).
 One file per subject: `<slug>.md` (no date prefix — reference describes a thing,
 not a moment). Favor tables and lists over prose; keep entries skimmable. Update
 in place — reference always reflects the current surface.
+
+## Index
+
+- [`dagger-engine.md`](dagger-engine.md) — the in-cluster Dagger engine: Service, port,
+  StatefulSet, and the pool-discovery contract platform resolves against.

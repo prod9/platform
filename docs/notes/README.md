@@ -22,3 +22,18 @@ fits. They're a snapshot of past thinking, not policy and not a claim
 about the present. If a note has become misleading or noisy, removing
 it is fine. Nothing else in the project should depend on a specific
 note still existing.
+
+## Index
+
+Newest first. Notes are disposable, so this list may lag — the directory is the truth.
+
+- [2026-06-27 — Resume breadcrumb](2026-06-27-resume.md)
+- [2026-06-26 — Pre-public audit](2026-06-26-pre-public-audit.md)
+- [2026-06-26 — Infra conversion migration plan](2026-06-26-infra-conversion-migration-plan.md)
+- [2026-06-26 — AFK realign / school edits handoff](2026-06-26-afk-realign-school-edits-handoff.md)
+- [2026-06-21 — defs wishlist: dagger engine](2026-06-21-defs-wishlist-dagger-engine.md)
+- [2026-06-19 — D3b4 baseline design prep](2026-06-19-d3b4-baseline-design-prep.md)
+- [2026-06-17 — Slice 1 open questions](2026-06-17-slice1-open-questions.md)
+- [2026-06-16 — platformv2 implementation plan](2026-06-16-platformv2-implementation-plan.md)
+- [2026-06-13 — GitOps build plan (superseded brief)](2026-06-13-gitops-build-plan.md)
+- [2026-06-12 — platformv2 design](2026-06-12-platformv2-design.md)

@@ -54,3 +54,25 @@ the part that prevents re-litigation.
 - **accepted** — active, follow this decision
 - **superseded** — replaced by a newer decision (link to it)
 - **revised** — updated in-place with new context
+
+## Index
+
+Newest first.
+
+- [2026-06-26 — Render is a pure function of committed git](2026-06-26-render-is-pure-function-of-committed-git.md)
+- [2026-06-24 — Split build and server log channels](2026-06-24-split-build-and-server-log-channels.md)
+- [2026-06-23 — Render via the linked CUE engine](2026-06-23-render-via-linked-cue-engine.md)
+- [2026-06-22 — Flat baseline, install-time selection](2026-06-22-flat-baseline-install-time-selection.md)
+- [2026-06-21 — Dagger engine: StatefulSet + TCP](2026-06-21-dagger-engine-statefulset-tcp.md)
+- [2026-06-20 — DSL: focus scope, strict values](2026-06-20-dsl-focus-scope-strict-values.md)
+- [2026-06-18 — Render routes .cue and .platform by extension](2026-06-18-render-routes-cue-and-platform-by-extension.md)
+- [2026-06-17 — Opinionated appliance, embedded init](2026-06-17-opinionated-appliance-embedded-init.md)
+- [2026-06-17 — Generic ops vars, single config](2026-06-17-generic-ops-vars-single-config.md)
+- [2026-06-16 — Renderer: cue export, not timoni](2026-06-16-renderer-cue-export-not-timoni.md)
+- [2026-06-14 — Secrets: platform-pull](2026-06-14-secrets-platform-pull.md)
+- [2026-06-14 — Pull-based GitOps: timoni + Flux](2026-06-14-pull-based-gitops-timoni-flux.md)
+- [2026-06-14 — Platform in-cluster control plane](2026-06-14-platform-in-cluster-control-plane.md)
+- [2026-06-14 — Monorepo and Svelte UI](2026-06-14-monorepo-and-svelte-ui.md)
+- [2026-06-14 — Identity and linked accounts](2026-06-14-identity-and-linked-accounts.md)
+
+Keep this list in sync when adding a decision.

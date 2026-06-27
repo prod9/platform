@@ -62,7 +62,9 @@ config lives in [`.lowfat`](.lowfat); re-sync pantry filters with the `/lowfat-p
 
 `docs/` — usage docs (`guides/`, `reference/`; sorted by type) and a design
 record (`spec/`, `decisions/`, `notes/`; sorted by permanence). Default to
-`notes/`. See [`docs/README.md`](docs/README.md) and per-dir READMEs for routing.
+`notes/`. See [`docs/README.md`](docs/README.md) and per-dir READMEs (each indexes its
+files) for routing; [`docs/spec/architecture.md`](docs/spec/architecture.md) is the
+entrypoint to the build-pipeline design.
 
 ## Project Overview
 
