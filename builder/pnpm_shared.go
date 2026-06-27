@@ -9,8 +9,8 @@ import (
 // Pinned versions so smoke tests and production builds don't drift with upstream.
 // Bump deliberately and re-run `./test.sh` to confirm.
 const (
-	NodeVersion = "22"      // Node.js LTS line
-	PNPMVersion = "9.15.5"  // pnpm 10+ turns ignored-build warnings into errors
+	NodeVersion = "22"     // Node.js LTS line
+	PNPMVersion = "9.15.5" // pnpm 10+ turns ignored-build warnings into errors
 )
 
 var NInstallScript = strings.TrimSpace(`

@@ -27,13 +27,13 @@ func (b PNPMStatic) Discover(wd string) (map[string]Interface, error) {
 	return map[string]Interface{name: b}, nil
 }
 
-func (b PNPMStatic) Build(sess *Session, job *Job) (container *dagger.Container, err error) {
+func (b PNPMStatic) Build(sess *Session, unit *BuildUnit) (container *dagger.Container, err error) {
 	defer errutil.Wrap("pnpm/static", &err)
 
 	host := sess.Client().Host().
-		Directory(job.WorkDir, dagger.HostDirectoryOpts{Exclude: job.Excludes})
+		Directory(unit.WorkDir, dagger.HostDirectoryOpts{Exclude: unit.Excludes})
 
-	builder := BaseImageForJob(sess, job)
+	builder := BaseImageForUnit(sess, unit)
 	builder = withPNPMBase(builder)
 	builder = withPNPMPkgCache(sess, builder)
 
@@ -44,24 +44,24 @@ func (b PNPMStatic) Build(sess *Session, job *Job) (container *dagger.Container,
 		WithDirectory("/app", host).
 		WithExec([]string{"pnpm", "build"})
 
-	outdir := strings.TrimSpace(job.BuildDir)
+	outdir := strings.TrimSpace(unit.BuildDir)
 	if outdir == "" {
 		outdir = "build"
 	}
 
-	cmd := strings.TrimSpace(job.CommandName)
+	cmd := strings.TrimSpace(unit.CommandName)
 	if cmd == "" {
 		cmd = "caddy"
 	}
 
 	args := []string{cmd}
-	if len(job.CommandArgs) > 0 {
-		args = append(args, job.CommandArgs...)
+	if len(unit.CommandArgs) > 0 {
+		args = append(args, unit.CommandArgs...)
 	} else {
 		args = append(args, "file-server", "-l", "0.0.0.0:3000")
 	}
 
-	runner := BaseImageForJob(sess, job)
+	runner := BaseImageForUnit(sess, unit)
 	runner = withCaddyServer(runner).
 		WithDirectory("/app", builder.Directory(outdir)).
 		WithDefaultArgs(args)

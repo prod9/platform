@@ -36,11 +36,11 @@ type (
 		Class() Class
 
 		Discover(wd string) (map[string]Interface, error)
-		Build(sess *Session, job *Job) (*dagger.Container, error)
+		Build(sess *Session, unit *BuildUnit) (*dagger.Container, error)
 	}
 
 	BuildResult struct {
-		Job       *Job
+		Unit      *BuildUnit
 		Container *dagger.Container
 		Err       error
 
@@ -136,28 +136,28 @@ func Discover(wd string) (map[string]Interface, error) {
 	return nil, ErrNoBuilder
 }
 
-func Build(sess *Session, jobs ...*Job) ([]BuildResult, error) {
-	if len(jobs) == 0 {
+func Build(sess *Session, units ...*BuildUnit) ([]BuildResult, error) {
+	if len(units) == 0 {
 		return nil, ErrNoJobs
 	}
 
-	m := &internal.Multiplexer[*Job, BuildResult]{}
-	m.Reset(jobs)
-	return m.Start(func(idx int, job *Job) BuildResult {
+	m := &internal.Multiplexer[*BuildUnit, BuildResult]{}
+	m.Reset(units)
+	return m.Start(func(idx int, unit *BuildUnit) BuildResult {
 		eng := sess.forEngine(idx)
-		ctx, cancel := eng.JobContext(job)
+		ctx, cancel := eng.JobContext(unit)
 		defer cancel()
 
-		container, err := job.Builder.Build(eng, job)
+		container, err := unit.Builder.Build(eng, unit)
 		if err != nil {
-			return BuildResult{Job: job, Container: nil, Err: err, engine: eng}
+			return BuildResult{Unit: unit, Container: nil, Err: err, engine: eng}
 		}
 
 		container, err = container.Sync(ctx)
 		if err != nil {
-			return BuildResult{Job: job, Container: nil, Err: err, engine: eng}
+			return BuildResult{Unit: unit, Container: nil, Err: err, engine: eng}
 		} else {
-			return BuildResult{Job: job, Container: container, Err: nil, engine: eng}
+			return BuildResult{Unit: unit, Container: container, Err: nil, engine: eng}
 		}
 	}), nil
 }
@@ -192,16 +192,16 @@ func Publish(sess *Session, builds ...BuildResult) ([]PublishResult, error) {
 			container = container.WithRegistryAuth(registry, username, secret)
 		}
 
-		hash, err := container.Publish(eng.Context(), build.Job.ImageName)
+		hash, err := container.Publish(eng.Context(), build.Unit.ImageName)
 		if err != nil {
 			build.Err = err
 			return PublishResult{BuildResult: build}
 		}
 
-		buildlog.Image("publish", build.Job.ImageName, hash)
+		buildlog.Image("publish", build.Unit.ImageName, hash)
 		return PublishResult{
 			BuildResult: build,
-			ImageName:   build.Job.ImageName,
+			ImageName:   build.Unit.ImageName,
 			ImageHash:   hash,
 		}
 	}), nil

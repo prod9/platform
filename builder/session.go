@@ -58,8 +58,8 @@ func (s *Session) Context() context.Context {
 	return s.ctx
 }
 
-func (s *Session) JobContext(job *Job) (context.Context, context.CancelFunc) {
-	return context.WithTimeout(s.ctx, job.Timeout)
+func (s *Session) JobContext(unit *BuildUnit) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(s.ctx, unit.Timeout)
 }
 
 // Close shuts down every engine connection in the pool. A per-job view owns nothing, so

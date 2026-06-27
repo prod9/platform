@@ -29,32 +29,32 @@ func (d Dockerfile) Discover(wd string) (map[string]Interface, error) {
 	return map[string]Interface{name: d}, nil
 }
 
-func (d Dockerfile) Build(sess *Session, job *Job) (container *dagger.Container, err error) {
+func (d Dockerfile) Build(sess *Session, unit *BuildUnit) (container *dagger.Container, err error) {
 	defer errutil.Wrap("dockerfile", &err)
 
 	buildlog.Logger().Warn("dockerfile builder bypasses the Wolfi base image and platform package conventions; prefer a language-specific builder (go/basic, go/workspace, pnpm/basic, pnpm/static, pnpm/workspace) when possible",
-		"module", job.Name,
-		"workdir", job.WorkDir,
+		"module", unit.Name,
+		"workdir", unit.WorkDir,
 	)
 
-	host := sess.Client().Host().Directory(job.WorkDir, dagger.HostDirectoryOpts{
-		Exclude: job.Excludes,
+	host := sess.Client().Host().Directory(unit.WorkDir, dagger.HostDirectoryOpts{
+		Exclude: unit.Excludes,
 	})
 
-	cmd := strings.TrimSpace(job.CommandName)
+	cmd := strings.TrimSpace(unit.CommandName)
 	var args []string
 	if cmd != "" {
 		args = append(args, cmd)
 	}
-	if len(job.CommandArgs) > 0 {
-		args = append(args, job.CommandArgs...)
+	if len(unit.CommandArgs) > 0 {
+		args = append(args, unit.CommandArgs...)
 	}
 
 	// not using BaseImageForJob because, well, dockerfiles have their own bases
 	// this builder should be discouraged
 	opts := dagger.DirectoryDockerBuildOpts{}
-	if len(job.Env) > 0 {
-		for key, value := range job.Env {
+	if len(unit.Env) > 0 {
+		for key, value := range unit.Env {
 			opts.BuildArgs = append(opts.BuildArgs,
 				dagger.BuildArg{Name: key, Value: value},
 			)
@@ -62,14 +62,14 @@ func (d Dockerfile) Build(sess *Session, job *Job) (container *dagger.Container,
 	}
 
 	builder := host.DockerBuild(dagger.DirectoryDockerBuildOpts{
-		Platform:   dagger.Platform(job.Platform),
+		Platform:   dagger.Platform(unit.Platform),
 		Dockerfile: "",
 		Target:     "",
 		BuildArgs:  []dagger.BuildArg{},
 		Secrets:    []*dagger.Secret{},
 	})
 
-	builder = withJobEnv(builder, job)
+	builder = withUnitEnv(builder, unit)
 	if len(args) > 0 {
 		builder = builder.WithDefaultArgs(args)
 	}

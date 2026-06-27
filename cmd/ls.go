@@ -46,7 +46,7 @@ func runList(cmd *cobra.Command, args []string) {
 			Exclude: preview.Excludes,
 		})
 
-	stdout, err := builder.BaseImageForJob(sess, preview).
+	stdout, err := builder.BaseImageForUnit(sess, preview).
 		WithExec([]string{"apk", "add", "--no-cache", "tree"}).
 		WithDirectory("/app", moddir).
 		WithExec([]string{"tree", "-L", "2"}).

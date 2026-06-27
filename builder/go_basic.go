@@ -27,33 +27,33 @@ func (b GoBasic) Discover(wd string) (map[string]Interface, error) {
 	return map[string]Interface{name: b}, nil
 }
 
-func (GoBasic) Build(sess *Session, job *Job) (container *dagger.Container, err error) {
+func (GoBasic) Build(sess *Session, unit *BuildUnit) (container *dagger.Container, err error) {
 	defer errutil.Wrap("go/basic", &err)
-	host := sess.Client().Host().Directory(job.WorkDir, dagger.HostDirectoryOpts{
-		Exclude: job.Excludes,
+	host := sess.Client().Host().Directory(unit.WorkDir, dagger.HostDirectoryOpts{
+		Exclude: unit.Excludes,
 	})
 
 	// prepare job parameters
-	cmd := strings.TrimSpace(job.CommandName)
+	cmd := strings.TrimSpace(unit.CommandName)
 	switch {
-	case cmd == "" && job.PackageName != "":
-		cmd = job.PackageName
-	case cmd == "" && job.Name != "":
-		cmd = job.Name
+	case cmd == "" && unit.PackageName != "":
+		cmd = unit.PackageName
+	case cmd == "" && unit.Name != "":
+		cmd = unit.Name
 	}
 
-	goversion, _, err := gowork.ParseFile(filepath.Join(job.WorkDir, "go.mod"))
+	goversion, _, err := gowork.ParseFile(filepath.Join(unit.WorkDir, "go.mod"))
 	if err != nil {
 		return nil, err
 	}
 
 	args := []string{"./" + cmd}
-	if len(job.CommandArgs) > 0 {
-		args = append(args, job.CommandArgs...)
+	if len(unit.CommandArgs) > 0 {
+		args = append(args, unit.CommandArgs...)
 	}
 
 	// build
-	base := BaseImageForJob(sess, job)
+	base := BaseImageForUnit(sess, unit)
 	builder := withBuildPkgs(base, "go")
 	builder, gobin := withGoVersion(builder, goversion)
 	builder = withGoPkgCache(sess, builder, goversion)
@@ -66,13 +66,13 @@ func (GoBasic) Build(sess *Session, job *Job) (container *dagger.Container, err 
 	builder = builder.
 		WithDirectory(".", host).
 		WithExec([]string{gobin, "test", "-v", "./..."}).
-		WithExec([]string{gobin, "build", "-v", "-o", "/out/" + cmd, job.PackageName})
+		WithExec([]string{gobin, "build", "-v", "-o", "/out/" + cmd, unit.PackageName})
 
 	// run
 	runner := withRunnerPkgs(base)
-	runner = withJobEnv(runner, job)
+	runner = withUnitEnv(runner, unit)
 	runner = runner.WithFile("/app/"+cmd, builder.File("/out/"+cmd))
-	for _, dir := range job.AssetDirs {
+	for _, dir := range unit.AssetDirs {
 		runner = runner.WithDirectory(dir, builder.Directory(dir))
 	}
 

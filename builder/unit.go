@@ -15,7 +15,7 @@ var (
 	ErrBadModule = errors.New("invalid module")
 )
 
-type Job struct {
+type BuildUnit struct {
 	Config  *project.Project
 	Builder Interface
 
@@ -51,13 +51,13 @@ const (
 // Purpose (local vs publish); JobFromModule resolves that into each Job's arch
 // target, so the build stage reads a complete definition rather than being told
 // the platform through arguments.
-func JobsFromArgs(cfg *project.Project, args []string, purpose Purpose) (jobs []*Job, err error) {
+func JobsFromArgs(cfg *project.Project, args []string, purpose Purpose) (units []*BuildUnit, err error) {
 	if len(args) == 0 {
 		for modname, mod := range cfg.Modules {
-			if job, err := JobFromModule(cfg, modname, mod, purpose); err != nil {
+			if unit, err := JobFromModule(cfg, modname, mod, purpose); err != nil {
 				return nil, err
 			} else {
-				jobs = append(jobs, job)
+				units = append(units, unit)
 			}
 		}
 
@@ -68,18 +68,18 @@ func JobsFromArgs(cfg *project.Project, args []string, purpose Purpose) (jobs []
 
 			if mod, ok := cfg.Modules[modname]; !ok {
 				return nil, fmt.Errorf(modname+": %w", ErrBadModule)
-			} else if job, err := JobFromModule(cfg, modname, mod, purpose); err != nil {
+			} else if unit, err := JobFromModule(cfg, modname, mod, purpose); err != nil {
 				return nil, err
 			} else {
-				jobs = append(jobs, job)
+				units = append(units, unit)
 			}
 		}
 	}
 
-	return jobs, nil
+	return units, nil
 }
 
-func JobFromModule(cfg *project.Project, name string, mod *project.Module, purpose Purpose) (*Job, error) {
+func JobFromModule(cfg *project.Project, name string, mod *project.Module, purpose Purpose) (*BuildUnit, error) {
 	b, err := FindBuilder(mod.Builder)
 	if err != nil {
 		return nil, err
@@ -90,7 +90,7 @@ func JobFromModule(cfg *project.Project, name string, mod *project.Module, purpo
 
 	platform := resolveArch(archFor(cfg, purpose))
 
-	return &Job{
+	return &BuildUnit{
 		Config:  cfg,
 		Builder: b,
 

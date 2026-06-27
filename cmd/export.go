@@ -50,7 +50,7 @@ func runExport(cmd *cobra.Command, args []string) {
 			id = id[len(id)-16:]
 		}
 
-		outname := result.Job.Name + ".docker"
+		outname := result.Unit.Name + ".docker"
 		_, err = result.Container.Export(sess.Context(), outname)
 		if err != nil {
 			buildlog.Fatalln(err)

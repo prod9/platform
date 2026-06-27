@@ -26,35 +26,35 @@ func (b PNPMBasic) Discover(wd string) (map[string]Interface, error) {
 	return map[string]Interface{name: b}, nil
 }
 
-func (PNPMBasic) Build(sess *Session, job *Job) (container *dagger.Container, err error) {
+func (PNPMBasic) Build(sess *Session, unit *BuildUnit) (container *dagger.Container, err error) {
 	defer errutil.Wrap("pnpm/basic", &err)
 
 	host := sess.Client().Host().
-		Directory(job.WorkDir, dagger.HostDirectoryOpts{Exclude: job.Excludes})
+		Directory(unit.WorkDir, dagger.HostDirectoryOpts{Exclude: unit.Excludes})
 
 	// prepare job parameters
-	outdir := strings.TrimSpace(job.BuildDir)
+	outdir := strings.TrimSpace(unit.BuildDir)
 	if outdir == "" {
 		outdir = "build"
 	}
 
-	cmd := strings.TrimSpace(job.CommandName)
+	cmd := strings.TrimSpace(unit.CommandName)
 	if cmd == "" {
 		cmd = "/usr/local/bin/node"
 	}
 
 	args := []string{cmd}
-	if len(job.CommandArgs) > 0 {
-		args = append(args, job.CommandArgs...)
+	if len(unit.CommandArgs) > 0 {
+		args = append(args, unit.CommandArgs...)
 	} else {
 		args = append(args, ".")
 	}
 
 	// build
-	base := BaseImageForJob(sess, job)
+	base := BaseImageForUnit(sess, unit)
 	base = withPNPMBase(base)
 	base = withPNPMPkgCache(sess, base)
-	base = withJobEnv(base, job)
+	base = withUnitEnv(base, unit)
 	base = base.
 		WithFile("package.json", host.File("package.json")).
 		WithFile("pnpm-lock.yaml", host.File("pnpm-lock.yaml")).
@@ -67,7 +67,7 @@ func (PNPMBasic) Build(sess *Session, job *Job) (container *dagger.Container, er
 	// runner
 	runner := withRunnerPkgs(base).
 		WithDirectory("/app", builder.Directory(outdir))
-	for _, dir := range job.AssetDirs {
+	for _, dir := range unit.AssetDirs {
 		runner = runner.WithDirectory(dir, builder.Directory(dir))
 	}
 

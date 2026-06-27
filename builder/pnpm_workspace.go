@@ -59,46 +59,46 @@ func (b PNPMWorkspace) Discover(wd string) (map[string]Interface, error) {
 
 }
 
-func (PNPMWorkspace) Build(sess *Session, job *Job) (container *dagger.Container, err error) {
+func (PNPMWorkspace) Build(sess *Session, unit *BuildUnit) (container *dagger.Container, err error) {
 	defer errutil.Wrap("pnpm/workspace", &err)
 
-	wsdir, err := filepath.Abs(filepath.Join(job.WorkDir, ".."))
+	wsdir, err := filepath.Abs(filepath.Join(unit.WorkDir, ".."))
 	if err != nil {
 		return nil, err
 	}
 
 	host := sess.Client().Host().Directory(wsdir, dagger.HostDirectoryOpts{
-		Exclude: job.Excludes,
+		Exclude: unit.Excludes,
 	})
 
 	// prepare job parameters
-	pkg := job.PackageName
+	pkg := unit.PackageName
 	if pkg == "" {
-		pkg = job.Name
+		pkg = unit.Name
 	}
 
-	outdir := strings.TrimSpace(job.BuildDir)
+	outdir := strings.TrimSpace(unit.BuildDir)
 	if outdir == "" {
 		outdir = "build"
 	}
 
-	cmd := strings.TrimSpace(job.CommandName)
+	cmd := strings.TrimSpace(unit.CommandName)
 	if cmd == "" {
 		cmd = "/usr/local/bin/node"
 	}
 
 	args := []string{cmd}
-	if len(job.CommandArgs) > 0 {
-		args = append(args, job.CommandArgs...)
+	if len(unit.CommandArgs) > 0 {
+		args = append(args, unit.CommandArgs...)
 	} else {
 		args = append(args, ".")
 	}
 
 	// build
-	base := BaseImageForJob(sess, job)
+	base := BaseImageForUnit(sess, unit)
 	base = withPNPMBase(base)
 	base = withPNPMPkgCache(sess, base)
-	base = withJobEnv(base, job)
+	base = withUnitEnv(base, unit)
 
 	builder := withBuildPkgs(base).
 		WithDirectory("/app", host).
@@ -107,11 +107,11 @@ func (PNPMWorkspace) Build(sess *Session, job *Job) (container *dagger.Container
 
 	// run
 	runner := withRunnerPkgs(base).
-		WithDirectory("/app", builder.Directory("/app/"+job.Name+"/"+outdir)).
-		WithDirectory("/app/node_modules", builder.Directory("/app/"+job.Name+"/node_modules"))
+		WithDirectory("/app", builder.Directory("/app/"+unit.Name+"/"+outdir)).
+		WithDirectory("/app/node_modules", builder.Directory("/app/"+unit.Name+"/node_modules"))
 
 	runner = withTypeModulePackageJSON(runner)
-	for _, dir := range job.AssetDirs {
+	for _, dir := range unit.AssetDirs {
 		runner = runner.WithDirectory(dir, builder.Directory(dir))
 	}
 

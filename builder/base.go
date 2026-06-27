@@ -3,7 +3,7 @@
 // # Base image policy
 //
 // Every builder in this package starts from Chainguard's Wolfi base image
-// (cgr.dev/chainguard/wolfi-base) via [BaseImageForJob]. This is the standard
+// (cgr.dev/chainguard/wolfi-base) via [BaseImageForUnit]. This is the standard
 // and gives us a small, regularly-patched, glibc-free base shared across all
 // language stacks (Go native, Go workspace, pnpm basic/static/workspace).
 //
@@ -38,16 +38,16 @@ const (
 	CacheBuster = "cache-buster-b78bb982"
 )
 
-func BaseImageForJob(sess *Session, job *Job) *dagger.Container {
+func BaseImageForUnit(sess *Session, unit *BuildUnit) *dagger.Container {
 	apkCache := sess.Client().CacheVolume("platform-apk-cache")
 
 	return sess.Client().
 		Container(dagger.ContainerOpts{
-			Platform: dagger.Platform(job.Platform),
+			Platform: dagger.Platform(unit.Platform),
 		}).
 		From(BaseImageName).
 		WithWorkdir("/app").
-		WithLabel("org.opencontainers.image.source", job.Repository).
+		WithLabel("org.opencontainers.image.source", unit.Repository).
 		WithExec([]string{"mkdir", "-p", "/app", "/out"}).
 		WithNewFile("/"+CacheBuster, CacheBuster).
 
@@ -72,8 +72,8 @@ func withCaddyServer(base *dagger.Container) *dagger.Container {
 	return withPkgs(base, "caddy")
 }
 
-func withJobEnv(base *dagger.Container, job *Job) *dagger.Container {
-	for key, value := range job.Env {
+func withUnitEnv(base *dagger.Container, unit *BuildUnit) *dagger.Container {
+	for key, value := range unit.Env {
 		base = base.WithEnvVariable(key, value)
 	}
 	return base
