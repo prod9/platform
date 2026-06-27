@@ -111,7 +111,7 @@ A directive file compiles in three passes — **lex → parse → execute** — 
 (a malformed path, an unknown directive) surfaces with its **line number** before any
 download or disk write: `line 3: unknown directive "ste"`.
 
-Each line is `verb arg…`. The lexer emits tokens (`.` `[` `]` `=`, identifiers, strings) and
+Each line is `verb arg…`. The lexer emits tokens (`.` `[` `]`, identifiers, strings) and
 records whitespace, so the parser knows where one argument ends and the next begins (a path's
 segments are contiguous; arguments are whitespace-separated). `#` starts a comment to
 end-of-line; blank lines are skipped. The parser builds a `Directive` (verb + typed args),
@@ -300,7 +300,7 @@ emit     "some-operator.yaml"
 The DSL lands across Phase A′ (see the
 [roadmap](../notes/2026-06-16-platformv2-implementation-plan.md)):
 
-- **D1 — DSL core (hermetic).** Path-walk + `[field=val]`, the in-buffer verbs (`select`,
+- **D1 — DSL core (hermetic).** Path-walk, the in-buffer verbs (`focus`,
   `reset`, `set`, `set-if-absent`, `append`, `append-if-absent`, `remove`, `remove-doc`),
   the lexer, and the directive parser. No network. Unit-tested on inline multi-doc
   fixtures. Born in `dsl`.

@@ -1,8 +1,9 @@
 # GitOps Platform Build Plan — CI + `cue export` + Flux (OCI)
 
-**Status:** build brief for agents. Folded into the repo from the original Downloads draft
-and corrected against the 2026-06 design walk (see
-[`config-allocation.md`](config-allocation.md) and [`platform.md`](platform.md)).
+**Status:** superseded historical brief — moved out of `spec/` on 2026-06-27 (`spec/` holds
+current design only). The live design is [`../spec/platform.md`](../spec/platform.md),
+[`../spec/config-allocation.md`](../spec/config-allocation.md), and the renderer ADR. Kept
+for provenance: the Flux/OCI/pull-based mechanics below still hold; read the rest as history.
 **Date:** 2026-06-13 (folded 2026-06-14) **Owner:** Chakrit / P9
 
 > **Renderer superseded (2026-06-16):** this brief predates the renderer decision. The

@@ -3,7 +3,7 @@
 Consolidates CUE manifest-gen, the infra CLI, this build tool, and the keel+argo glue into
 **one** tool: a GitHub-centric, in-cluster build + deploy **control plane** for PRODIGY9.
 Companion docs: [`config-allocation.md`](config-allocation.md) (who-owns-what),
-[`gitops-build-plan.md`](gitops-build-plan.md) (the delivery mechanics), and the ADRs in
+[`architecture.md`](architecture.md) (the build pipeline + object model), and the ADRs in
 [`../decisions/`](../decisions/).
 
 ## What it is
@@ -61,8 +61,11 @@ No credential reaches into the cluster — the cluster pulls everything.
   deploy), `deploy` (API call), `kubeconfig` (exec-credential), `tf install`.
 - **`ui/` — SvelteKit (plain JS)**, adapter-static, `go:embed` 'd into `api`. v1: Login,
   Projects, Access, Deploys, Target status.
-- **`core/` — shared Go.** builder (Dagger), project (`platform.toml`), releases, gitctx,
-  gitops (`cue export` render + OCI publish), api-client, types.
+- **Shared Go packages** — flat at the top level, no `core/` grab-bag (see
+  [`architecture.md`](architecture.md)): `builder` (Dagger strategies), `engine` (the Dagger
+  pool + executor), `project` (`platform.toml`), `releases`, `gitctx`, `gitops` (`cue export`
+  render + OCI publish), `dsl`, `baseline`, `ops`; api-client + shared types land as the
+  server grows.
 - **Flux** — source-controller + kustomize-controller. Reconciles config artifacts;
   prunes; corrects drift. Its own lifecycle is *not* self-managed. No Argo, no Helm.
 - **Dagger engine** — in-cluster; builds run inside the engine pod (engine-opaque); the

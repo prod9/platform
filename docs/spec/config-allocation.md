@@ -1,7 +1,7 @@
 # Config Allocation Map — platformv2
 
-**Status:** living spec. Companion to [`platform.md`](platform.md) and the build brief
-[`gitops-build-plan.md`](gitops-build-plan.md); frozen rulings in
+**Status:** living spec. Companion to [`platform.md`](platform.md) and
+[`architecture.md`](architecture.md); frozen rulings in
 [`../decisions/`](../decisions/). Distilled from the 2026-06 design walk.
 
 The job of this document: **exactly one owner per config kind.** Nothing settable in two

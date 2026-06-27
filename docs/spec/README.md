@@ -13,5 +13,6 @@ enumerable lookup detail (every flag, every config key, a schema table), that's
 ## Format
 
 One file per subject: `<slug>.md` (no date prefix — describes a thing, not the
-moment it was written). Add a status header (`draft`, `accepted`, `superseded`,
-`implemented`) so readers can tell whether it still describes current design.
+moment it was written). Add a status header (`draft`, `accepted`, `implemented`)
+so readers can tell whether it still describes current design. A spec that gets
+superseded moves to `../notes/` — `spec/` holds current design only, never history.
