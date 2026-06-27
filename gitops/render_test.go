@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"platform.prodigy9.co/core/gitops"
+	"platform.prodigy9.co/gitops"
 )
 
 // writeModule lays down a minimal CUE module rooted at dir: a cue.mod so `cue

@@ -11,8 +11,8 @@ import (
 
 	"fx.prodigy9.co/cmd/prompts"
 	"github.com/spf13/cobra"
+	"platform.prodigy9.co/baseline"
 	"platform.prodigy9.co/bootstrapper"
-	"platform.prodigy9.co/core/baseline"
 	"platform.prodigy9.co/internal/buildlog"
 )
 

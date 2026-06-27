@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/spf13/cobra"
-	"platform.prodigy9.co/core/gitops"
+	"platform.prodigy9.co/gitops"
 	"platform.prodigy9.co/internal/buildlog"
 	"platform.prodigy9.co/project"
 )

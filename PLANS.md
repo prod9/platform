@@ -64,10 +64,10 @@ installs patched by the manifest patch DSL (`docs/spec/manifest-patch-dsl.md`). 
 is an **opinionated appliance** — the cluster baseline is embedded and shipped as an init
 DSL package (appliance ADR `2026-06-17`).
 
-**Slice 1 — DONE.** Render half (`615caa4`): `core/gitops.Render` shells
+**Slice 1 — DONE.** Render half (`615caa4`): `gitops.Render` shells
 `cue export -e objects --out yaml`, splits via `yaml.Node` walk. Publish half (`c9ffc0c`):
-`core/gitops.Publish` packs manifests as a Flux-shaped OCI artifact via oras-go;
-`core/gitops.RemoteRepository` does `oci://` + `REGISTRY_USERNAME/PASSWORD` auth. Both
+`gitops.Publish` packs manifests as a Flux-shaped OCI artifact via oras-go;
+`gitops.RemoteRepository` does `oci://` + `REGISTRY_USERNAME/PASSWORD` auth. Both
 under the `platform ops` namespace (`ops render` / `ops publish`). Unit round-trip via
 `oci.Store`; no live-registry smoke. Docs realigned (`20ca12a` + the 2026-06-17 alignment
 pass).

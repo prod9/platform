@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"fx.prodigy9.co/cmd/prompts"
-	"platform.prodigy9.co/core/baseline"
+	"platform.prodigy9.co/baseline"
 )
 
 // TestSelectComponents: an args comma-list overrides the defaults — exactly that subset of

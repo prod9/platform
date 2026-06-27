@@ -12,7 +12,7 @@ import (
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"oras.land/oras-go/v2/content"
 	"oras.land/oras-go/v2/content/oci"
-	"platform.prodigy9.co/core/gitops"
+	"platform.prodigy9.co/gitops"
 )
 
 // sampleTree is a two-component render output: each file lands at its

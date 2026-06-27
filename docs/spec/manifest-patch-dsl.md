@@ -4,7 +4,7 @@
 interpolation settled with chakrit. **Slices D1–D2 landed** (in-buffer verbs, lexer,
 path-walk, then `download`/`extract`/`emit` + interpolation) plus **D3a** (`Ops.Vars`
 config passthrough) and **D3b-1** (bootstrap write-path: wd-validation + `[ops.vars]`
-merge + plan/apply) and **D3b-2** (assembly layer: whole-file selection in `core/baseline`).
+merge + plan/apply) and **D3b-2** (assembly layer: whole-file selection in `baseline`).
 D3b split into D3b-1..4; D3b-3 (`ops render` routes `.cue`/`.platform` by extension) next.
 **Decided in:**
 [renderer ADR](../decisions/2026-06-16-renderer-cue-export-not-timoni.md),
@@ -63,7 +63,7 @@ before the next `download` overwrites the work area.
 **Branch-free by design:** no conditionals, no loops. Config-gating (include this patch only
 in experimental mode) happens at *assembly* time, and at **whole-file** granularity — never
 per-line, so a directive file is always read straight through. The assembly layer
-(`core/baseline`) selects which files to apply from a filename convention, keyed off
+(`baseline`) selects which files to apply from a filename convention, keyed off
 `[ops.vars]`:
 
 - `name.platform` — always applied.
@@ -303,7 +303,7 @@ The DSL lands across Phase A′ (see the
 - **D1 — DSL core (hermetic).** Path-walk + `[field=val]`, the in-buffer verbs (`select`,
   `reset`, `set`, `set-if-absent`, `append`, `append-if-absent`, `remove`, `remove-doc`),
   the lexer, and the directive parser. No network. Unit-tested on inline multi-doc
-  fixtures. Born in `core/dsl`.
+  fixtures. Born in `dsl`.
 - **D2 — I/O verbs.** ✅ **Landed.** `download` (behind an injectable fetcher), `extract`
   (magic-byte gzip/zip/tar, two layers), `emit FILENAME` (truncate-write into a
   runner-provided output dir, no `..` escape), and `\(var)` interpolation (resolved in one
@@ -322,7 +322,7 @@ The DSL lands across Phase A′ (see the
     operator values + comments/order, no decode/re-encode) instead of clobbering platform.toml.
     `bootstrap` prints the plan and confirms via fx prompt; `--force` applies unprompted. See
     **Defaults + re-bootstrap merge** and **Plan, then apply** above.
-  - **D3b-2 — assembly layer.** ✅ **Landed** (`core/baseline`). Whole-file selection from a
+  - **D3b-2 — assembly layer.** ✅ **Landed** (`baseline`). Whole-file selection from a
     filename convention (`name.platform` / `name@variant.platform` / `name+flag.platform`) keyed off
     `[ops.vars]`; `ScanOptions` surfaces the operator-selectable knobs, `Select` resolves the
     file set (unknown choice value is a hard error). DSL stays branch-free.
@@ -330,7 +330,7 @@ The DSL lands across Phase A′ (see the
     **3a (CUE file-map render+publish rework) landed**, **3b (`.platform` route) landed**, prompts
     → D3b-4. `ops render` walks the infra repo and dispatches per input type: `.cue` → file-map `cue export`,
     `.platform` → `baseline.Select` over `[ops.vars]` → `dsl.Apply` (download → patch →
-    `emit`). Both write named files into a `k8s/<component>/` render-output tree (`core/baseline`
+    `emit`). Both write named files into a `k8s/<component>/` render-output tree (`baseline`
     owns the directive→dir mapping); `ops publish` packages it. Render-time, nothing rendered
     committed (model I). Bootstrap option prompts (from `baseline.ScanOptions`, written into
     `[ops.vars]`) land here too. Reworks Slice-1 render from the flat `-e objects` stream to

@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"platform.prodigy9.co/core/baseline"
-	"platform.prodigy9.co/core/dsl"
+	"platform.prodigy9.co/baseline"
+	"platform.prodigy9.co/dsl"
 	"platform.prodigy9.co/project"
 )
 

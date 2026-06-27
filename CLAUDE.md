@@ -118,7 +118,7 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
 - `gitctx/` — Wraps `gitcmd/` shell helpers; caches current branch and tracking
   remote via `sync.OnceValues`. Distinguishes version tags (annotated, push) vs
   environment tags (force-updated, force-pushed).
-- `core/dsl/` — manifest patch DSL (Slices D1–D2): a hermetic, line-oriented directive
+- `dsl/` — manifest patch DSL (Slices D1–D2): a hermetic, line-oriented directive
   language for adapting foreign Kubernetes manifests. `Apply(directives, Options)` runs
   directives against a two-state buffer (raw bytes after `download`/`extract`, decoded
   lazily when an edit or `emit` needs docs); `Lex` tokenizes shell-style into `Token`s,
@@ -130,7 +130,7 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
   (`download` via `Options.Fetch`, `extract` magic-byte gzip/zip/tar, `emit` truncate-write
   under `Options.OutDir`). Checksum guard deferred past D2. Spec:
   [`docs/spec/manifest-patch-dsl.md`](docs/spec/manifest-patch-dsl.md).
-- `core/baseline/` — the embedded cluster baseline: the built-in component files platform
+- `baseline/` — the embedded cluster baseline: the built-in component files platform
   installs into a fresh infra repo. **No marker grammar, no render-time gating** (simplified
   2026-06-22 — see the [flat-baseline ADR](docs/decisions/2026-06-22-flat-baseline-install-time-selection.md)).
   `EmbeddedFiles` is one flat list of `files/*` (both `.platform` directives and `.cue` apps,
@@ -142,7 +142,7 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
   `renderDirectives` (`.platform` → `dsl.Apply`, emitting into `k8s/<stem>/`) — into one `k8s/`
   tree (see the
   [render-routing ADR](docs/decisions/2026-06-18-render-routes-cue-and-platform-by-extension.md)).
-- `core/gitops/` — pull-based GitOps delivery. `Render` walks `apps/` and routes by extension
+- `gitops/` — pull-based GitOps delivery. `Render` walks `apps/` and routes by extension
   into one `k8s/<component>/<file>` tree: `.cue` → file-map export via the linked CUE engine
   (`exportCue`), `.platform` → `dsl.Apply`. `[ops.vars]` feed both routes — CUE `@tag(name)`
   holes (only the names a `@tag` actually declares are injected; the rest are directive-only)

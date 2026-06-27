@@ -17,7 +17,7 @@ import (
 	cueyaml "cuelang.org/go/encoding/yaml"
 	"cuelang.org/go/mod/modconfig"
 	"gopkg.in/yaml.v3"
-	"platform.prodigy9.co/core/dsl"
+	"platform.prodigy9.co/dsl"
 	"platform.prodigy9.co/project"
 )
 
