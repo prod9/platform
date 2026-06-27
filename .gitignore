@@ -1,6 +1,7 @@
 *.docker
 .idea
 bin
+/infra/
 .inbox.log
 .afk.log
 
