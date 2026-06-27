@@ -28,7 +28,7 @@ type (
 		Environments []string `toml:"environments"`
 
 		Excludes []string           `toml:"excludes"`
-		Modules  map[string]*Module `toml:"modules"`
+		Modules  map[string]*Module `toml:"modules,omitempty"`
 		Ops      Ops                `toml:"ops"`
 	}
 
@@ -66,7 +66,7 @@ type (
 
 var (
 	ProjectDefaults = &Project{
-		Strategy: "timestamp",
+		Strategy: "datestamp",
 		Platform: "auto",
 		Excludes: []string{
 			"*.docker",
