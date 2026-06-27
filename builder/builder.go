@@ -7,24 +7,11 @@ import (
 	"strings"
 
 	"dagger.io/dagger"
-	fxconfig "fx.prodigy9.co/config"
-	"platform.prodigy9.co/internal"
-	"platform.prodigy9.co/internal/buildlog"
 )
 
 var (
 	ErrBadBuilder = errors.New("builder: invalid builder")
 	ErrNoBuilder  = errors.New("builder: no compatible builder detected")
-	ErrNoJobs     = errors.New("builder: empty jobs list, nothing to do")
-)
-
-// non-standard project settings using fx's env variable configuration. These are meant to
-// be set in CI agents so that the credentials do not need to be stored with each
-// project's codebase.
-var (
-	RegistryConfig         = fxconfig.Str("REGISTRY")
-	RegistryUsernameConfig = fxconfig.Str("REGISTRY_USERNAME")
-	RegistryPasswordConfig = fxconfig.Str("REGISTRY_PASSWORD")
 )
 
 type (
@@ -46,22 +33,6 @@ type (
 
 		Discover(wd string) (map[string]Interface, error)
 		Build(sess Engine, unit *BuildUnit) (*dagger.Container, error)
-	}
-
-	BuildResult struct {
-		Unit      *BuildUnit
-		Container *dagger.Container
-		Err       error
-
-		// engine is the per-job pool view that built Container. Publish reuses it so the
-		// registry secret comes from the same engine client the container belongs to.
-		engine *Session
-	}
-
-	PublishResult struct {
-		BuildResult
-		ImageName string
-		ImageHash string
 	}
 )
 
@@ -143,75 +114,4 @@ func Discover(wd string) (map[string]Interface, error) {
 		}
 	}
 	return nil, ErrNoBuilder
-}
-
-func Build(sess *Session, attempt *BuildAttempt) ([]BuildResult, error) {
-	if len(attempt.Units) == 0 {
-		return nil, ErrNoJobs
-	}
-
-	m := &internal.Multiplexer[*BuildUnit, BuildResult]{}
-	m.Reset(attempt.Units)
-	return m.Start(func(idx int, unit *BuildUnit) BuildResult {
-		eng := sess.forEngine(idx)
-		ctx, cancel := eng.JobContext(unit)
-		defer cancel()
-
-		container, err := unit.Builder.Build(eng, unit)
-		if err != nil {
-			return BuildResult{Unit: unit, Container: nil, Err: err, engine: eng}
-		}
-
-		container, err = container.Sync(ctx)
-		if err != nil {
-			return BuildResult{Unit: unit, Container: nil, Err: err, engine: eng}
-		} else {
-			return BuildResult{Unit: unit, Container: container, Err: nil, engine: eng}
-		}
-	}), nil
-}
-
-func Publish(sess *Session, builds ...BuildResult) ([]PublishResult, error) {
-	if len(builds) == 0 {
-		return nil, ErrNoJobs
-	}
-
-	fxcfg := fxconfig.Configure()
-	registry := fxconfig.Get(fxcfg, RegistryConfig)
-	username := fxconfig.Get(fxcfg, RegistryUsernameConfig)
-	password := fxconfig.Get(fxcfg, RegistryPasswordConfig)
-
-	m := &internal.Multiplexer[BuildResult, PublishResult]{}
-	m.Reset(builds)
-	return m.Start(func(idx int, build BuildResult) PublishResult {
-		if build.Err != nil {
-			return PublishResult{BuildResult: build}
-		}
-
-		// the container is bound to the engine that built it — its registry secret must
-		// be created by that same engine's client, not an arbitrary pool member.
-		eng := build.engine
-		if eng == nil {
-			eng = sess.forEngine(idx)
-		}
-
-		container := build.Container
-		if username != "" {
-			secret := eng.Client().SetSecret(RegistryPasswordConfig.Name(), password)
-			container = container.WithRegistryAuth(registry, username, secret)
-		}
-
-		hash, err := container.Publish(eng.Context(), build.Unit.ImageName)
-		if err != nil {
-			build.Err = err
-			return PublishResult{BuildResult: build}
-		}
-
-		buildlog.Image("publish", build.Unit.ImageName, hash)
-		return PublishResult{
-			BuildResult: build,
-			ImageName:   build.Unit.ImageName,
-			ImageHash:   hash,
-		}
-	}), nil
 }

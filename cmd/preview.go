@@ -12,6 +12,7 @@ import (
 	"fx.prodigy9.co/ctrlc"
 	"github.com/spf13/cobra"
 	"platform.prodigy9.co/builder"
+	"platform.prodigy9.co/engine"
 	"platform.prodigy9.co/internal/buildlog"
 	"platform.prodigy9.co/project"
 )
@@ -70,13 +71,13 @@ func runPreview(cmd *cobra.Command, args []string) {
 	// build only the selected module
 	attempt.Units = []*builder.BuildUnit{preview}
 
-	sess, err := builder.NewSession(context.Background())
+	sess, err := engine.New(context.Background())
 	if err != nil {
 		buildlog.Fatalln(err)
 	}
 	defer sess.Close()
 
-	results, err := builder.Build(sess, attempt)
+	results, err := engine.Build(sess, attempt)
 	if err != nil {
 		buildlog.Fatalln(err)
 	}

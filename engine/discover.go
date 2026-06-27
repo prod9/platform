@@ -1,4 +1,4 @@
-package builder
+package engine
 
 import (
 	"fmt"
@@ -8,7 +8,7 @@ import (
 )
 
 // In-cluster Dagger engine pool. Platform discovers the engine pods by resolving the
-// headless Service's A-records (no k8s API / RBAC) and round-robins build jobs across them.
+// headless Service's A-records (no k8s API / RBAC) and round-robins build units across them.
 // These constants mirror apps/dagger-engine.cue verbatim — keep them in sync.
 // See docs/decisions/2026-06-21-dagger-engine-statefulset-tcp.md.
 const (

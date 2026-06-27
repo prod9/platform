@@ -9,6 +9,7 @@ import (
 	"dagger.io/dagger"
 	"github.com/spf13/cobra"
 	"platform.prodigy9.co/builder"
+	"platform.prodigy9.co/engine"
 	"platform.prodigy9.co/internal/buildlog"
 	"platform.prodigy9.co/project"
 )
@@ -35,7 +36,7 @@ func runList(cmd *cobra.Command, args []string) {
 	}
 
 	preview := attempt.Units[0] // at least 1 by this point
-	sess, err := builder.NewSession(context.Background())
+	sess, err := engine.New(context.Background())
 	if err != nil {
 		buildlog.Fatalln(err)
 	}

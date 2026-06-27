@@ -8,6 +8,7 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/spf13/cobra"
 	"platform.prodigy9.co/builder"
+	"platform.prodigy9.co/engine"
 	"platform.prodigy9.co/gitctx"
 	"platform.prodigy9.co/internal/buildlog"
 	"platform.prodigy9.co/project"
@@ -57,7 +58,7 @@ func runPublish(cmd *cobra.Command, args []string) {
 	}
 
 	ctx := context.Background()
-	sess, err := builder.NewSession(ctx)
+	sess, err := engine.New(ctx)
 	if err != nil {
 		buildlog.Fatalln(err)
 	}
@@ -68,11 +69,11 @@ func runPublish(cmd *cobra.Command, args []string) {
 		unit.ImageName = unit.ImageName + ":" + rel.Name
 	}
 
-	builds, err := builder.Build(sess, attempt)
+	builds, err := engine.Build(sess, attempt)
 	if err != nil {
 		buildlog.Fatalln(err)
 	}
-	results, err := builder.Publish(sess, builds...)
+	results, err := engine.Publish(sess, builds...)
 	if err != nil {
 		buildlog.Fatalln(err)
 	}
