@@ -35,6 +35,24 @@ func TestValidateWD(t *testing.T) {
 	r.NoError(t, validateWD(sub))
 }
 
+func TestIsGitRoot(t *testing.T) {
+	repo := gitRepo(t)
+
+	// The repo root itself is a root.
+	r.True(t, IsGitRoot(repo))
+
+	// A nested subdir is INSIDE the repo (IsGitRepo walks up and says yes) but is
+	// NOT its own root — so `ops init` there must still create a standalone repo.
+	sub := filepath.Join(repo, "infra")
+	r.NoError(t, os.MkdirAll(sub, 0755))
+	r.True(t, IsGitRepo(sub))
+	r.False(t, IsGitRoot(sub))
+
+	// A bare dir is neither.
+	bare := t.TempDir()
+	r.False(t, IsGitRoot(bare))
+}
+
 // gitRepo returns a fresh temp dir marked as a git repo. validateWD only needs
 // a .git entry to exist, so no real `git init` is required — keeps it hermetic.
 func gitRepo(t *testing.T) string {

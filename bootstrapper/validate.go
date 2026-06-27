@@ -58,3 +58,13 @@ func IsGitRepo(dir string) bool {
 		dir = parent
 	}
 }
+
+// IsGitRoot reports whether dir is itself a git repo root — a .git entry directly
+// in dir, without walking up. `ops init` uses this so it creates a standalone repo
+// at the target even when that target is nested inside another git work tree (e.g.
+// an infra repo developed in-place under another checkout). IsGitRepo's walk-up
+// would see the parent and wrongly skip `git init`.
+func IsGitRoot(dir string) bool {
+	_, err := os.Stat(filepath.Join(dir, ".git"))
+	return err == nil
+}

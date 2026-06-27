@@ -112,10 +112,11 @@ func fileNames(files map[string][]byte) []string {
 	return out
 }
 
-// ensureGitRepo runs `git init` when dir is not already inside a git work tree —
-// `platform ops init` bootstraps a fresh infra repo, GitOps delivery needs one.
+// ensureGitRepo runs `git init` when dir is not already its own git repo root —
+// `platform ops init` bootstraps a standalone infra repo (GitOps delivery needs
+// one), even when the target sits nested inside another checkout.
 func ensureGitRepo(dir string) error {
-	if bootstrapper.IsGitRepo(dir) {
+	if bootstrapper.IsGitRoot(dir) {
 		return nil
 	}
 
