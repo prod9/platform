@@ -25,16 +25,16 @@ func runList(cmd *cobra.Command, args []string) {
 		buildlog.Fatalln(err)
 	}
 
-	jobs, err := builder.JobsFromArgs(cfg, args, builder.LocalBuild)
+	attempt, err := builder.AttemptFrom(cfg, args, builder.LocalBuild)
 	if err != nil {
 		buildlog.Fatalln(err)
 	}
 
-	if len(jobs) == 0 {
+	if len(attempt.Units) == 0 {
 		buildlog.Fatalln(errors.New("no modules to preview"))
 	}
 
-	preview := jobs[0] // at least 1 by this point
+	preview := attempt.Units[0] // at least 1 by this point
 	sess, err := builder.NewSession(context.Background())
 	if err != nil {
 		buildlog.Fatalln(err)

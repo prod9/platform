@@ -20,7 +20,7 @@ func runExport(cmd *cobra.Command, args []string) {
 		buildlog.Fatalln(err)
 	}
 
-	jobs, err := builder.JobsFromArgs(cfg, args, builder.LocalBuild)
+	attempt, err := builder.AttemptFrom(cfg, args, builder.LocalBuild)
 	if err != nil {
 		buildlog.Fatalln(err)
 	}
@@ -31,7 +31,7 @@ func runExport(cmd *cobra.Command, args []string) {
 	}
 	defer sess.Close()
 
-	results, err := builder.Build(sess, jobs...)
+	results, err := builder.Build(sess, attempt)
 	if err != nil {
 		buildlog.Fatalln(err)
 	}

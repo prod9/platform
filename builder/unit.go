@@ -2,7 +2,6 @@ package builder
 
 import (
 	"errors"
-	"fmt"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -16,7 +15,6 @@ var (
 )
 
 type BuildUnit struct {
-	Config  *project.Project
 	Builder Interface
 
 	Name     string
@@ -37,49 +35,7 @@ type BuildUnit struct {
 	Repository  string
 }
 
-// Purpose says what a build is for, which selects the target arch: local builds
-// track the host arch for speed; publish/deploy builds pin the server arch so an
-// arm laptop never ships an unrunnable image.
-type Purpose int
-
-const (
-	LocalBuild Purpose = iota
-	PublishBuild
-)
-
-// JobsFromArgs builds one job per selected module. The command declares its
-// Purpose (local vs publish); JobFromModule resolves that into each Job's arch
-// target, so the build stage reads a complete definition rather than being told
-// the platform through arguments.
-func JobsFromArgs(cfg *project.Project, args []string, purpose Purpose) (units []*BuildUnit, err error) {
-	if len(args) == 0 {
-		for modname, mod := range cfg.Modules {
-			if unit, err := JobFromModule(cfg, modname, mod, purpose); err != nil {
-				return nil, err
-			} else {
-				units = append(units, unit)
-			}
-		}
-
-	} else {
-		for len(args) > 0 {
-			modname := args[0]
-			args = args[1:]
-
-			if mod, ok := cfg.Modules[modname]; !ok {
-				return nil, fmt.Errorf(modname+": %w", ErrBadModule)
-			} else if unit, err := JobFromModule(cfg, modname, mod, purpose); err != nil {
-				return nil, err
-			} else {
-				units = append(units, unit)
-			}
-		}
-	}
-
-	return units, nil
-}
-
-func JobFromModule(cfg *project.Project, name string, mod *project.Module, purpose Purpose) (*BuildUnit, error) {
+func unitFromModule(cfg *project.Project, name string, mod *project.Module, purpose Purpose) (*BuildUnit, error) {
 	b, err := FindBuilder(mod.Builder)
 	if err != nil {
 		return nil, err
@@ -91,7 +47,6 @@ func JobFromModule(cfg *project.Project, name string, mod *project.Module, purpo
 	platform := resolveArch(archFor(cfg, purpose))
 
 	return &BuildUnit{
-		Config:  cfg,
 		Builder: b,
 
 		Name:     name,

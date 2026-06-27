@@ -136,13 +136,13 @@ func Discover(wd string) (map[string]Interface, error) {
 	return nil, ErrNoBuilder
 }
 
-func Build(sess *Session, units ...*BuildUnit) ([]BuildResult, error) {
-	if len(units) == 0 {
+func Build(sess *Session, attempt *BuildAttempt) ([]BuildResult, error) {
+	if len(attempt.Units) == 0 {
 		return nil, ErrNoJobs
 	}
 
 	m := &internal.Multiplexer[*BuildUnit, BuildResult]{}
-	m.Reset(units)
+	m.Reset(attempt.Units)
 	return m.Start(func(idx int, unit *BuildUnit) BuildResult {
 		eng := sess.forEngine(idx)
 		ctx, cancel := eng.JobContext(unit)

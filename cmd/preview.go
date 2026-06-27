@@ -38,28 +38,28 @@ func runPreview(cmd *cobra.Command, args []string) {
 		buildlog.Fatalln(err)
 	}
 
-	jobs, err := builder.JobsFromArgs(cfg, args, builder.LocalBuild)
+	attempt, err := builder.AttemptFrom(cfg, args, builder.LocalBuild)
 	if err != nil {
 		buildlog.Fatalln(err)
 	}
 
-	if len(jobs) == 0 {
+	if len(attempt.Units) == 0 {
 		buildlog.Fatalln(errors.New("no modules to preview"))
 	}
 
-	preview := jobs[0] // at least 1 by this point
-	if len(jobs) > 1 {
+	preview := attempt.Units[0] // at least 1 by this point
+	if len(attempt.Units) > 1 {
 		var names []string
-		for _, job := range jobs {
-			names = append(names, job.Name)
+		for _, unit := range attempt.Units {
+			names = append(names, unit.Name)
 		}
 
 		p := prompts.New(nil, args)
-		modname := p.List("preview which module?", jobs[0].Name, names)
+		modname := p.List("preview which module?", attempt.Units[0].Name, names)
 
-		for _, job := range jobs {
-			if job.Name == modname {
-				preview = job
+		for _, unit := range attempt.Units {
+			if unit.Name == modname {
+				preview = unit
 			}
 		}
 		if preview == nil {
@@ -67,13 +67,16 @@ func runPreview(cmd *cobra.Command, args []string) {
 		}
 	}
 
+	// build only the selected module
+	attempt.Units = []*builder.BuildUnit{preview}
+
 	sess, err := builder.NewSession(context.Background())
 	if err != nil {
 		buildlog.Fatalln(err)
 	}
 	defer sess.Close()
 
-	results, err := builder.Build(sess, preview)
+	results, err := builder.Build(sess, attempt)
 	if err != nil {
 		buildlog.Fatalln(err)
 	}

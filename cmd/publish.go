@@ -51,7 +51,7 @@ func runPublish(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	jobs, err := builder.JobsFromArgs(cfg, p.Args(), builder.PublishBuild)
+	attempt, err := builder.AttemptFrom(cfg, p.Args(), builder.PublishBuild)
 	if err != nil {
 		buildlog.Fatalln(err)
 	}
@@ -64,11 +64,11 @@ func runPublish(cmd *cobra.Command, args []string) {
 	defer sess.Close()
 
 	// Tag the image with the release name
-	for _, job := range jobs {
-		job.ImageName = job.ImageName + ":" + rel.Name
+	for _, unit := range attempt.Units {
+		unit.ImageName = unit.ImageName + ":" + rel.Name
 	}
 
-	builds, err := builder.Build(sess, jobs...)
+	builds, err := builder.Build(sess, attempt)
 	if err != nil {
 		buildlog.Fatalln(err)
 	}

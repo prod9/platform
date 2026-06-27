@@ -79,18 +79,18 @@ func runDeploy(cmd *cobra.Command, args []string) {
 		}
 		defer sess.Close()
 
-		jobs, err := builder.JobsFromArgs(cfg, p.Args(), builder.PublishBuild)
+		attempt, err := builder.AttemptFrom(cfg, p.Args(), builder.PublishBuild)
 		if err != nil {
 			buildlog.Fatalln(err)
 		}
 
-		builds, err := builder.Build(sess, jobs...)
+		builds, err := builder.Build(sess, attempt)
 		if err != nil {
 			buildlog.Fatalln(err)
 		}
 
-		for _, job := range jobs {
-			job.ImageName = job.ImageName + ":" + targetEnv
+		for _, unit := range attempt.Units {
+			unit.ImageName = unit.ImageName + ":" + targetEnv
 		}
 
 		results, err := builder.Publish(sess, builds...)
