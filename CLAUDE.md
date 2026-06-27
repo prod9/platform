@@ -40,6 +40,18 @@ Claude …` trailer. Not `type(scope):`.
 Drive `ops init` / `bootstrap` non-interactively with `ALWAYS_YES=1`, not `--force` (which means
 "replace existing files").
 
+## Build & delivery facts
+
+`publish`/`deploy` build `publish_arch` (default `amd64`) so an arm laptop never ships an
+unrunnable image; local builds (`build`/`preview`/`export`/`ls`) use `local_arch` (default
+`auto` = host arch). `publish` authenticates to ghcr via the **local docker credentials**
+(osxkeychain) — no `REGISTRY_USERNAME`/`PASSWORD` needed for a local push. A rebuilt tag can
+hit stale node cache (`IfNotPresent` won't re-pull); pin deploys by `tag@sha256` digest.
+
+platform self-delivers from a **standalone GitOps repo at `./infra`** (module `prodigy9.co`),
+not the abandoned `../infra`. Live on stage9 as `ghcr.io/prod9/platform:v0.8.3` (amd64,
+digest-pinned). See [`docs/notes/2026-06-27-resume.md`](docs/notes/2026-06-27-resume.md).
+
 ## lowfat (token saver)
 
 Command output is compacted by [lowfat](https://github.com/zdk/lowfat) via a user-scope

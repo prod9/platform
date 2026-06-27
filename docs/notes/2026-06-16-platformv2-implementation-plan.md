@@ -14,6 +14,12 @@ strict `bare=var / quoted=string` values, and `focus`/`reset` scope (no `[field=
 `PLANS.md`. **Reads against:** `docs/spec/platform.md`, `config-allocation.md`,
 `gitops-build-plan.md`, and `docs/decisions/*`.
 
+> **Superseded for the delivery path (2026-06-27).** The `../infra` conversion below is
+> abandoned — platform now self-delivers from a fresh standalone `./infra` repo, live on
+> stage9 as v0.8.3 amd64. See [`2026-06-27-resume.md`](2026-06-27-resume.md) for current
+> state and next steps. The render/publish/DSL mechanics here still hold; the
+> `../infra`-cutover sequencing does not.
+
 **Resume here (2026-06-26 — platform LIVE on stage9; tool-hardening + ../infra conversion pending):**
 
 **Side-session (2026-06-26 PM) — instruction-surface redesign, DONE (not platformv2 work):**
