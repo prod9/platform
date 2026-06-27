@@ -27,8 +27,8 @@ Top (closest to the human) to bottom (closest to the metal). One owner each.
 - **`platform.toml`** (in each source repo, git) — per-repo build/project metadata + the
   infra pointer + which Project it binds to. Changes with the code.
 - **`infra/` repo|path** (CUE, git) — per-target desired state: app image refs,
-  components, replicas, env. The thing CI renders (`cue export`). No committed rendered
-  YAML.
+  components, replicas, env. The thing CI renders (via the linked CUE engine, no `cue`
+  binary). No committed rendered YAML.
 - **`tf/` repo|path** (OpenTofu, git) — the env/target list (and later cloud/DNS). Applied
   **manually, locally** in v2.
 - **OCI registry** — app images (immutable tags) + the rendered config artifact (moving
@@ -37,9 +37,11 @@ Top (closest to the human) to bottom (closest to the metal). One owner each.
   artifact onto the cluster; applies/prunes; drift correction. No Argo. No Helm.
 - **`platform-init`** (embedded in the tool) — the cluster baseline: Flux, cert-manager,
   NGF, the Dagger engine, platform itself. **Embedded** in platform (not a separate repo)
-  and shipped as an **init DSL package**; bootstrap writes it into the infra repo. Seeded
-  once (manual), then Flux-reconciled (except Flux's own lifecycle — never self-managed).
-  See the [appliance ADR](../decisions/2026-06-17-opinionated-appliance-embedded-init.md).
+  as a **flat list** of `.cue` apps + `.platform` directives; `ops init` writes the
+  operator-chosen subset into the infra repo's `apps/`. Seeded once (manual), then
+  Flux-reconciled (except Flux's own lifecycle — never self-managed). See the
+  [appliance ADR](../decisions/2026-06-17-opinionated-appliance-embedded-init.md) and the
+  [flat-baseline ADR](../decisions/2026-06-22-flat-baseline-install-time-selection.md).
 
 ## Allocation table
 
@@ -51,24 +53,25 @@ Top (closest to the human) to bottom (closest to the metal). One owner each.
 | Identity, linked accounts, audit      | platform server  | Postgres (`users`/`identities`) |
 | Secret *values*                       | platform server  | Postgres, encrypted at rest     |
 | Secret *references*                   | `infra/`         | CUE (init-container pulls)      |
-| Per-target desired state (image, env) | `infra/`         | CUE (`cue export`) → OCI        |
+| Per-target desired state (image, env) | `infra/`         | CUE (linked engine) → OCI       |
 | Env/target list                       | `tf/`            | OpenTofu (manual local apply)   |
 | App image (the container)             | OCI registry     | immutable tag/digest            |
 | Config artifact (Flux source)         | OCI registry     | moving per-env tag              |
 | What's deployed where, drift          | Flux             | reconciles from OCI             |
-| Cluster baseline (Flux/CM/NGF/engine) | embedded         | init DSL → infra repo           |
+| Cluster baseline (Flux/CM/NGF/engine) | embedded         | files → `apps/` (ops init)      |
 | Cloud / DNS                           | `tf/` (**v2.1**) | OpenTofu                        |
 
 ## Repos & artifacts
 
 - **source repo** — app code + `platform.toml`. App CI (Dagger) builds the immutable
   image.
-- **`infra/`** — per-target CUE. CI (= platform) runs `cue export` → multi-doc manifests →
-  pushed as the OCI config artifact under a **moving** per-env tag. App image refs
-  *inside* are **immutable**.
+- **`infra/`** — per-target CUE. CI (= platform) renders via the linked CUE engine → the
+  `k8s/` manifest tree → pushed as the OCI config artifact under a **moving** per-env tag.
+  App image refs *inside* are **immutable**.
 - **`tf/`** — OpenTofu env/target list; manual local apply in v2.
-- **`platform-init`** — cluster baseline, **embedded in the tool** and emitted as an init
-  DSL package into the infra repo; one manual seed, then Flux.
+- **`platform-init`** — cluster baseline, **embedded in the tool** as a flat file list; `ops
+  init` emits the operator-chosen subset into the infra repo's `apps/`; one manual seed, then
+  Flux.
 
 ## Deploy flow (where the surfaces meet)
 

@@ -5,7 +5,9 @@ interpolation settled with chakrit. **Slices D1–D2 landed** (in-buffer verbs, 
 path-walk, then `download`/`extract`/`emit` + interpolation) plus **D3a** (`Ops.Vars`
 config passthrough) and **D3b-1** (bootstrap write-path: wd-validation + `[ops.vars]`
 merge + plan/apply) and **D3b-2** (assembly layer: whole-file selection in `baseline`).
-D3b split into D3b-1..4; D3b-3 (`ops render` routes `.cue`/`.platform` by extension) next.
+D3b split into D3b-1..4; D3b-3 (`ops render` routes `.cue`/`.platform` by extension) has
+landed. Component **selection** was later simplified to a flat baseline + install-time picker
+— see the [flat-baseline ADR](../decisions/2026-06-22-flat-baseline-install-time-selection.md).
 **Decided in:**
 [renderer ADR](../decisions/2026-06-16-renderer-cue-export-not-timoni.md),
 [appliance ADR](../decisions/2026-06-17-opinionated-appliance-embedded-init.md). Build
@@ -19,7 +21,8 @@ that is entirely downstream and out of scope. CUE handles manifests we author; t
 foreign ones. Folded from infra-cli's `pipelines`
 + `pipelines/yamleditor` (~676 LOC incl. tests; the verbs already exist as Go pipeline ops
 — only the directive parser and the field-select path form are new code). Its first
-consumer is the **init DSL package** (the embedded cluster baseline), dogfooded against the
+consumer is the **embedded cluster baseline** (a flat list of `.platform` + `.cue` files,
+selected at `ops init`), dogfooded against the
 real `infra` repo (`apps/cert-manager.cue`, `k8s/nginx-gateway`, …).
 
 ## Why a closed vocabulary, not a script
@@ -60,36 +63,34 @@ several components, each `emit` to its own filename. `download`/`extract` replac
 working buffer is fine — the prior component was already captured to its file by `emit`
 before the next `download` overwrites the work area.
 
-**Branch-free by design:** no conditionals, no loops. Config-gating (include this patch only
-in experimental mode) happens at *assembly* time, and at **whole-file** granularity — never
-per-line, so a directive file is always read straight through. The assembly layer
-(`baseline`) selects which files to apply from a filename convention, keyed off
-`[ops.vars]`:
-
-- `name.platform` — always applied.
-- `name@variant.platform` — one variant of choice group `name`; applied when `vars[name] ==
-  variant` (the lexically-first variant is the default when unset).
-- `name+flag.platform` — an overlay; applied when `vars[flag] == "true"`.
+**Branch-free by design:** no conditionals, no loops. Which components are installed is
+chosen at **install time**, at **whole-file** granularity — never per-line, so a directive
+file is always read straight through. The embedded baseline is one **flat list** of component
+files (`.platform` directives + `.cue` apps, clean names); `platform ops init` shows the list
+with a hard-coded `Defaults` set pre-checked (`OptionalMultiSelect`) and writes the operator's
+chosen subset into the target repo's `apps/`. `ops render` then applies whatever is present,
+routing by extension. There is **no** filename marker grammar (`@variant`, `+flag`), **no**
+render-time gating on `[ops.vars]`, and **no** assembly `Select` step — see the
+[flat-baseline ADR](../decisions/2026-06-22-flat-baseline-install-time-selection.md).
 
 (Directive files carry the `.platform` extension.)
 
-`bootstrap` discovers these options from the embedded baseline and prompts the operator,
-writing the chosen values into `[ops.vars]`; `--force` takes the defaults. `\(var)`
-interpolation supplies values *within* a selected file; interpolation only, no expressions
-(see **Variable interpolation**).
+`\(var)` interpolation supplies values *within* an applied file — version pins from
+`[ops.vars]`, interpolation only, no expressions (see **Variable interpolation**). Selection
+is **not** a var.
 
 **Where `\(var)` values come from
 ([generic-ops-vars ADR](../decisions/2026-06-17-generic-ops-vars-single-config.md)):**
-`platform.toml`'s `[ops.vars]` — a **generic open `map[string]string`**, stored verbatim by
-the config processor (no per-software fields). The DSL owns its own variable vocabulary;
-adding/removing a `\(var)` edits the directive file and `[ops.vars]`, never the Go DTO.
-Values are strings — bools too (`experimental = "true"`), which the assembly layer
-interprets to gate which directive *files* it applies (see **Branch-free by design**).
-`[ops].image`/`tag` stay typed
-(publish target, not a DSL var). `settings.toml` is eliminated.
+`platform.toml`'s `[ops.vars]` — a **generic open `map[string]any`**, stored verbatim by
+the config processor (no per-software fields), each value keeping its TOML type
+(string/int/bool). The DSL owns its own variable vocabulary; adding/removing a `\(var)` edits
+the directive file and `[ops.vars]`, never the Go DTO. A bare token in a value position
+resolves to the var's **native** type (see **Value typing**); `[ops.vars]` carries version
+pins, not selection toggles. `[ops].image`/`tag` stay typed (publish target, not a DSL var).
+`settings.toml` is eliminated.
 
 **Defaults + re-bootstrap merge.** The embed ships the baseline's *default* `[ops.vars]`
-(the versions/flags platform was tested against) alongside the directive files. First
+(the version pins platform was tested against) alongside the directive files. First
 `bootstrap` writes both into the infra repo. A later re-`bootstrap` after a platform upgrade
 **overwrites the directive files** (platform's opinion, re-shipped) but **merges
 `[ops.vars]`**: new keys are appended with their defaults, existing keys keep the operator's
@@ -311,8 +312,9 @@ The DSL lands across Phase A′ (see the
   at runtime. Checksum guard deferred. How the emitted files reach a registry/cluster is a
   separate pipeline (`ops render`/`publish`), not part of the DSL.
 - **D3a — `Ops.Vars` config passthrough.** ✅ **Landed.** `project.Ops` gained `Vars
-  map[string]string` (`[ops.vars]`), stored verbatim — no defaults, no per-software fields.
-  The source for `\(var)` values; the DSL already consumes it via `Options.Vars`.
+  map[string]any` (`[ops.vars]`), stored verbatim — no defaults, no per-software fields, each
+  value keeping its TOML type. The source for `\(var)` values; the DSL already consumes it via
+  `Options.Vars`.
 - **D3b — baseline authoring + bootstrap-writes-DSL.** Split into four sub-slices, landing
   the hermetic mechanics before the content:
   - **D3b-1 — bootstrap write-path.** ✅ **Landed.** `bootstrapper.Analyze` computes a
@@ -322,22 +324,28 @@ The DSL lands across Phase A′ (see the
     operator values + comments/order, no decode/re-encode) instead of clobbering platform.toml.
     `bootstrap` prints the plan and confirms via fx prompt; `--force` applies unprompted. See
     **Defaults + re-bootstrap merge** and **Plan, then apply** above.
-  - **D3b-2 — assembly layer.** ✅ **Landed** (`baseline`). Whole-file selection from a
-    filename convention (`name.platform` / `name@variant.platform` / `name+flag.platform`) keyed off
-    `[ops.vars]`; `ScanOptions` surfaces the operator-selectable knobs, `Select` resolves the
-    file set (unknown choice value is a hard error). DSL stays branch-free.
-  - **D3b-3 — `ops render` routes by extension + bootstrap option prompts.** Split in three:
-    **3a (CUE file-map render+publish rework) landed**, **3b (`.platform` route) landed**, prompts
-    → D3b-4. `ops render` walks the infra repo and dispatches per input type: `.cue` → file-map `cue export`,
-    `.platform` → `baseline.Select` over `[ops.vars]` → `dsl.Apply` (download → patch →
-    `emit`). Both write named files into a `k8s/<component>/` render-output tree (`baseline`
-    owns the directive→dir mapping); `ops publish` packages it. Render-time, nothing rendered
-    committed (model I). Bootstrap option prompts (from `baseline.ScanOptions`, written into
-    `[ops.vars]`) land here too. Reworks Slice-1 render from the flat `-e objects` stream to
-    the file-map contract. See the
+  - **D3b-2 — assembly layer.** ⚠️ **Superseded** by the
+    [flat-baseline ADR](../decisions/2026-06-22-flat-baseline-install-time-selection.md). As
+    first built it did whole-file selection from a filename convention (`name@variant` /
+    `name+flag`) resolved at render time by `baseline.Select`/`ScanOptions`. That marker
+    grammar and render-time gating were **deleted**: the baseline is now a flat file list with
+    a hard-coded `Defaults`, selection happens once at install time (`ops init`'s picker), and
+    `ops render` applies whatever files are present. DSL stays branch-free either way.
+  - **D3b-3 — `ops render` routes by extension.** **3a (CUE file-map render+publish rework)
+    landed**, **3b (`.platform` route) landed**. `ops render` walks the infra repo's `apps/`
+    and dispatches per input type: `.cue` → file-map export via the **linked CUE engine**
+    (`exportCue`, no `cue` binary — see the
+    [linked-CUE-engine ADR](../decisions/2026-06-23-render-via-linked-cue-engine.md)),
+    `.platform` → `dsl.Apply` over every present directive file (download → patch → `emit`).
+    Both write named files into a `k8s/<component>/` render-output tree (`gitops` owns the
+    directive→dir mapping as `outputName`); `ops publish` packages it. Render-time, nothing
+    rendered is committed (model I). Reworks Slice-1 render from the flat `-e objects` stream
+    to the file-map contract. See the
     [render-routing ADR](../decisions/2026-06-18-render-routes-cue-and-platform-by-extension.md);
-    supersedes the interim "separate run-DSL command (model II)" framing.
+    supersedes the interim "separate run-DSL command (model II)" framing. Component selection
+    moved to install-time (`ops init`), per the
+    [flat-baseline ADR](../decisions/2026-06-22-flat-baseline-install-time-selection.md).
   - **D3b-4 — baseline authoring + migration.** The embedded baseline (Flux/cert-manager/NGF/
-    engine) as `.platform` directive files + default `[ops.vars]`, `go:embed`'d, written by
-    bootstrap; fold `settings.toml` into `platform.toml` and delete it. Follows D3b-3 so the
-    directive files verify end-to-end.
+    engine) as `.platform` directive files + `.cue` apps + default `[ops.vars]` version pins,
+    `go:embed`'d (`baseline.EmbeddedFiles`), written into the target's `apps/` by `ops init`'s
+    picker; fold `settings.toml` into `platform.toml` and delete it.

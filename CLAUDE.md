@@ -104,7 +104,8 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
   cmd, args, asset_dirs, build_dir, image, package). `[ops]` (`Ops.Image`/`Tag`) is the
   `ops publish` target — inferred from `repository` (`ghcr.io/x`) with `tag` defaulting to
   `latest`; `Ops.Ref(tag)` resolves the ref. `Ops.Vars` (`[ops.vars]`) is the verbatim DSL
-  `\(var)` table — a generic `map[string]string`, pure passthrough (no defaults/inference).
+  `\(var)` table — a generic `map[string]any` (values keep their TOML type), pure passthrough
+  (no defaults/inference).
   `Configure(wd)` walks up to find file,
   applies defaults, env overrides (`PLATFORM`), and inferred values (e.g. `ghcr.io` image
   name from `github.com` repository).
@@ -138,8 +139,9 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
   lazily when an edit or `emit` needs docs); `Lex` tokenizes shell-style into `Token`s,
   `resolve` does escape + `\(var)` interpolation (string-only, undefined = hard error,
   `\\(` stays literal); `ParsePath` compiles the dotted path syntax
-  (`Key`/`Index`/`Select` steps, incl. `[field=val]` field-select);
-  `Get`/`Set`/`Remove`/`Append` walk it. In-buffer verbs (`select`, `reset`, `set`,
+  (`Key`/`Index` steps only — `[]` is focus-only, and matching a list element by field is
+  `focus`'s job, not a path selector);
+  `Get`/`Set`/`Remove`/`Append` walk it. In-buffer verbs (`focus`, `reset`, `set`,
   `set-if-absent`, `append`, `append-if-absent`, `remove`, `remove-doc`) plus I/O verbs
   (`download` via `Options.Fetch`, `extract` magic-byte gzip/zip/tar, `emit` truncate-write
   under `Options.OutDir`). Checksum guard deferred past D2. Spec:
@@ -152,7 +154,8 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
   set pre-checked at init. `DefaultVars` is version pins only (interpolated into `download` URLs —
   selection is **not** a var). Selection is **install-time**: `platform init`'s picker
   (`OptionalMultiSelect`) writes the chosen subset into the target's `apps/`; `ops render` applies
-  whatever is present, routing by extension — `renderCue` (`.cue` → `cue export`) and
+  whatever is present, routing by extension — `renderCue` (`.cue` → linked CUE engine, no
+  `cue` binary) and
   `renderDirectives` (`.platform` → `dsl.Apply`, emitting into `k8s/<stem>/`) — into one `k8s/`
   tree (see the
   [render-routing ADR](docs/decisions/2026-06-18-render-routes-cue-and-platform-by-extension.md)).

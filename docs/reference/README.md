@@ -17,5 +17,6 @@ in place — reference always reflects the current surface.
 
 ## Index
 
-- [`dagger-engine.md`](dagger-engine.md) — the in-cluster Dagger engine: Service, port,
-  StatefulSet, and the pool-discovery contract platform resolves against.
+- [`dagger-engine.md`](dagger-engine.md) — Dagger engine capabilities & deployment: SDK pin,
+  the connect call, the single-engine/many-sessions model, runtime requirements, deployment
+  topologies, and the load-balancer pitfall.

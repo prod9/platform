@@ -33,9 +33,10 @@ End-to-end, verbs and artifacts:
 4. **Deploy (gated).** An authorized user promotes a built image to a **target**: platform
    writes the immutable ref into that target's `infra/` CUE, **author-as-user** via the
    GitHub App. The commit is the gate.
-5. **Render + publish.** Platform (CI) renders the `infra/` CUE (`cue export` over
-   infra-defs) and pushes the **rendered manifests** as the config OCI artifact under the
-   target's **moving** tag. Third-party installs (cert-manager, NGF) are adapted by the
+5. **Render + publish.** Platform (CI) renders the `infra/` CUE via the **linked CUE engine**
+   (`cuelang.org/go`, in-process — no `cue` binary) over infra-defs, and pushes the **rendered
+   manifests** as the config OCI artifact under the target's **moving** tag. Third-party
+   installs (cert-manager, NGF) are adapted by the
    [manifest patch DSL](manifest-patch-dsl.md), not CUE.
 6. **Reconcile.** Flux follows the moving tag → applies/prunes → pods run the pinned
    image. Drift is corrected continuously.
@@ -45,8 +46,8 @@ End-to-end, verbs and artifacts:
    short-lived SA token (exec-credential plugin), and see target status in the UI (Flux CR
    status).
 9. **Bootstrap.** Targets/envs are declared in `tf/` (OpenTofu, manual local apply in v2).
-   Platform writes its embedded baseline (the init DSL package) into the infra repo; a new
-   cluster is seeded once (manual: Flux + that baseline), then Flux reconciles the rest.
+   Platform writes the operator-chosen subset of its embedded baseline into the infra repo; a
+   new cluster is seeded once (manual: Flux + that baseline), then Flux reconciles the rest.
 
 No credential reaches into the cluster — the cluster pulls everything.
 
@@ -63,9 +64,9 @@ No credential reaches into the cluster — the cluster pulls everything.
   Projects, Access, Deploys, Target status.
 - **Shared Go packages** — flat at the top level, no `core/` grab-bag (see
   [`architecture.md`](architecture.md)): `builder` (Dagger strategies), `engine` (the Dagger
-  pool + executor), `project` (`platform.toml`), `releases`, `gitctx`, `gitops` (`cue export`
-  render + OCI publish), `dsl`, `baseline`, `ops`; api-client + shared types land as the
-  server grows.
+  pool + executor), `project` (`platform.toml`), `releases`, `gitctx`, `gitops`
+  (linked-CUE-engine render + OCI publish), `dsl`, `baseline`, `ops`; api-client + shared
+  types land as the server grows.
 - **Flux** — source-controller + kustomize-controller. Reconciles config artifacts;
   prunes; corrects drift. Its own lifecycle is *not* self-managed. No Argo, no Helm.
 - **Dagger engine** — in-cluster; builds run inside the engine pod (engine-opaque); the
@@ -74,9 +75,11 @@ No credential reaches into the cluster — the cluster pulls everything.
 - **Postgres** — platform state (projects, `users` /`identities`, secrets-encrypted,
   audit).
 - **`platform-init`** — the baseline (Flux, cert-manager, NGF, engine, platform),
-  **embedded in the tool** and emitted as an init DSL package into the infra repo; seeded
-  once then Flux-reconciled. Not a separate repo — see the
-  [appliance ADR](../decisions/2026-06-17-opinionated-appliance-embedded-init.md).
+  **embedded in the tool** as a flat list of `.cue` apps + `.platform` directives; `ops init`
+  writes the operator-chosen subset into the infra repo's `apps/`, seeded once then
+  Flux-reconciled. Not a separate repo — see the
+  [appliance ADR](../decisions/2026-06-17-opinionated-appliance-embedded-init.md) and the
+  [flat-baseline ADR](../decisions/2026-06-22-flat-baseline-install-time-selection.md).
 
 ## Server scope
 
@@ -115,8 +118,8 @@ kube-token + secret brokering. It **triggers/feeds** the reconcilers (via git + 
   baseline is platform's opinion, embedded and version-locked with the tool — not external
   operator config. See the
   [appliance ADR](../decisions/2026-06-17-opinionated-appliance-embedded-init.md).
-- **Language: Go** (+ CUE via `cue export`; UI in SvelteKit/JS — no TypeScript, no Helm,
-  no timoni — see
+- **Language: Go** (+ CUE via the linked engine, not the `cue` binary; UI in SvelteKit/JS —
+  no TypeScript, no Helm, no timoni — see
   [renderer ADR](../decisions/2026-06-16-renderer-cue-export-not-timoni.md)).
 - **Trigger reconcilers, don't be one.** Pull-based; platform feeds Flux, never reconciles
   in-cluster.
