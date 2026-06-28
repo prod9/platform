@@ -24,6 +24,13 @@ type BuildAttempt struct {
 	Units   []*BuildUnit
 }
 
+// Attempt assembles a BuildAttempt over the given units. Callers that already hold
+// resolved units (e.g. preview, narrowing to one module) use this instead of poking
+// the struct, so attempt construction stays inside the builder package.
+func Attempt(purpose Purpose, units ...*BuildUnit) *BuildAttempt {
+	return &BuildAttempt{Purpose: purpose, Units: units}
+}
+
 // AttemptFrom builds one unit per selected module (all modules when args is
 // empty). The command declares the Purpose; unitFromModule resolves it into each
 // unit's arch target, so the build stage reads a complete definition rather than
@@ -52,5 +59,5 @@ func AttemptFrom(cfg *project.Project, args []string, purpose Purpose) (*BuildAt
 		}
 	}
 
-	return &BuildAttempt{Purpose: purpose, Units: units}, nil
+	return Attempt(purpose, units...), nil
 }

@@ -69,7 +69,7 @@ func runPreview(cmd *cobra.Command, args []string) {
 	}
 
 	// build only the selected module
-	attempt.Units = []*builder.BuildUnit{preview}
+	attempt = builder.Attempt(attempt.Purpose, preview)
 
 	sess, err := engine.New(context.Background())
 	if err != nil {
