@@ -27,9 +27,9 @@ func (b GoBasic) Discover(wd string) (map[string]Interface, error) {
 	return map[string]Interface{name: b}, nil
 }
 
-func (GoBasic) Build(sess Engine, unit *BuildUnit) (container *dagger.Container, err error) {
+func (GoBasic) Build(eng Engine, unit *BuildUnit) (container *dagger.Container, err error) {
 	defer errutil.Wrap("go/basic", &err)
-	host := sess.Client().Host().Directory(unit.WorkDir, dagger.HostDirectoryOpts{
+	host := eng.Client().Host().Directory(unit.WorkDir, dagger.HostDirectoryOpts{
 		Exclude: unit.Excludes,
 	})
 
@@ -53,10 +53,10 @@ func (GoBasic) Build(sess Engine, unit *BuildUnit) (container *dagger.Container,
 	}
 
 	// build
-	base := BaseImageForUnit(sess, unit)
+	base := BaseImageForUnit(eng, unit)
 	builder := withBuildPkgs(base, "go")
 	builder, gobin := withGoVersion(builder, goversion)
-	builder = withGoPkgCache(sess, builder, goversion)
+	builder = withGoPkgCache(eng, builder, goversion)
 
 	builder = builder.
 		WithFile("go.mod", host.File("go.mod")).
@@ -77,5 +77,5 @@ func (GoBasic) Build(sess Engine, unit *BuildUnit) (container *dagger.Container,
 	}
 
 	runner = runner.WithDefaultArgs(args)
-	return runner.Sync(sess.Context())
+	return runner.Sync(eng.Context())
 }

@@ -27,15 +27,15 @@ func (b PNPMStatic) Discover(wd string) (map[string]Interface, error) {
 	return map[string]Interface{name: b}, nil
 }
 
-func (b PNPMStatic) Build(sess Engine, unit *BuildUnit) (container *dagger.Container, err error) {
+func (b PNPMStatic) Build(eng Engine, unit *BuildUnit) (container *dagger.Container, err error) {
 	defer errutil.Wrap("pnpm/static", &err)
 
-	host := sess.Client().Host().
+	host := eng.Client().Host().
 		Directory(unit.WorkDir, dagger.HostDirectoryOpts{Exclude: unit.Excludes})
 
-	builder := BaseImageForUnit(sess, unit)
+	builder := BaseImageForUnit(eng, unit)
 	builder = withPNPMBase(builder)
-	builder = withPNPMPkgCache(sess, builder)
+	builder = withPNPMPkgCache(eng, builder)
 
 	builder = builder.
 		WithFile("package.json", host.File("package.json")).
@@ -61,7 +61,7 @@ func (b PNPMStatic) Build(sess Engine, unit *BuildUnit) (container *dagger.Conta
 		args = append(args, "file-server", "-l", "0.0.0.0:3000")
 	}
 
-	runner := BaseImageForUnit(sess, unit)
+	runner := BaseImageForUnit(eng, unit)
 	runner = withCaddyServer(runner).
 		WithDirectory("/app", builder.Directory(outdir)).
 		WithDefaultArgs(args)

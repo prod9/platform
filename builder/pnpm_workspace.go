@@ -59,7 +59,7 @@ func (b PNPMWorkspace) Discover(wd string) (map[string]Interface, error) {
 
 }
 
-func (PNPMWorkspace) Build(sess Engine, unit *BuildUnit) (container *dagger.Container, err error) {
+func (PNPMWorkspace) Build(eng Engine, unit *BuildUnit) (container *dagger.Container, err error) {
 	defer errutil.Wrap("pnpm/workspace", &err)
 
 	wsdir, err := filepath.Abs(filepath.Join(unit.WorkDir, ".."))
@@ -67,7 +67,7 @@ func (PNPMWorkspace) Build(sess Engine, unit *BuildUnit) (container *dagger.Cont
 		return nil, err
 	}
 
-	host := sess.Client().Host().Directory(wsdir, dagger.HostDirectoryOpts{
+	host := eng.Client().Host().Directory(wsdir, dagger.HostDirectoryOpts{
 		Exclude: unit.Excludes,
 	})
 
@@ -95,9 +95,9 @@ func (PNPMWorkspace) Build(sess Engine, unit *BuildUnit) (container *dagger.Cont
 	}
 
 	// build
-	base := BaseImageForUnit(sess, unit)
+	base := BaseImageForUnit(eng, unit)
 	base = withPNPMBase(base)
-	base = withPNPMPkgCache(sess, base)
+	base = withPNPMPkgCache(eng, base)
 	base = withUnitEnv(base, unit)
 
 	builder := withBuildPkgs(base).
@@ -116,5 +116,5 @@ func (PNPMWorkspace) Build(sess Engine, unit *BuildUnit) (container *dagger.Cont
 	}
 
 	runner = runner.WithDefaultArgs(args)
-	return runner.Sync(sess.Context())
+	return runner.Sync(eng.Context())
 }

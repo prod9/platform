@@ -26,10 +26,10 @@ func (b PNPMBasic) Discover(wd string) (map[string]Interface, error) {
 	return map[string]Interface{name: b}, nil
 }
 
-func (PNPMBasic) Build(sess Engine, unit *BuildUnit) (container *dagger.Container, err error) {
+func (PNPMBasic) Build(eng Engine, unit *BuildUnit) (container *dagger.Container, err error) {
 	defer errutil.Wrap("pnpm/basic", &err)
 
-	host := sess.Client().Host().
+	host := eng.Client().Host().
 		Directory(unit.WorkDir, dagger.HostDirectoryOpts{Exclude: unit.Excludes})
 
 	// prepare job parameters
@@ -51,9 +51,9 @@ func (PNPMBasic) Build(sess Engine, unit *BuildUnit) (container *dagger.Containe
 	}
 
 	// build
-	base := BaseImageForUnit(sess, unit)
+	base := BaseImageForUnit(eng, unit)
 	base = withPNPMBase(base)
-	base = withPNPMPkgCache(sess, base)
+	base = withPNPMPkgCache(eng, base)
 	base = withUnitEnv(base, unit)
 	base = base.
 		WithFile("package.json", host.File("package.json")).
@@ -72,5 +72,5 @@ func (PNPMBasic) Build(sess Engine, unit *BuildUnit) (container *dagger.Containe
 	}
 
 	runner = runner.WithDefaultArgs(args)
-	return runner.Sync(sess.Context())
+	return runner.Sync(eng.Context())
 }

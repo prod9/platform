@@ -32,7 +32,7 @@ type (
 		Class() Class
 
 		Discover(wd string) (map[string]Interface, error)
-		Build(sess Engine, unit *BuildUnit) (*dagger.Container, error)
+		Build(eng Engine, unit *BuildUnit) (*dagger.Container, error)
 	}
 )
 
