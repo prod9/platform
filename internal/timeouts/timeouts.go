@@ -9,9 +9,8 @@ import (
 type Timeout time.Duration
 
 var (
-	t Timeout                  = 1
-	_ encoding.TextMarshaler   = t
-	_ encoding.TextUnmarshaler = &t
+	_ encoding.TextMarshaler   = Timeout(0)
+	_ encoding.TextUnmarshaler = (*Timeout)(nil)
 )
 
 func From(d time.Duration) Timeout {
@@ -37,18 +36,18 @@ func (t *Timeout) UnmarshalText(buf []byte) error {
 	// previously the nanoseconds are stored directly
 	lastCh := txt[len(txt)-1]
 	if '0' <= lastCh && lastCh <= '9' {
-		if n, err := strconv.ParseInt(txt, 10, 64); err != nil {
+		n, err := strconv.ParseInt(txt, 10, 64)
+		if err != nil {
 			return err
-		} else {
-			*t = Timeout(time.Duration(n))
-			return nil
 		}
-	}
-
-	if d, err := time.ParseDuration(txt); err != nil {
-		return err
-	} else {
-		*t = Timeout(d)
+		*t = Timeout(time.Duration(n))
 		return nil
 	}
+
+	d, err := time.ParseDuration(txt)
+	if err != nil {
+		return err
+	}
+	*t = Timeout(d)
+	return nil
 }

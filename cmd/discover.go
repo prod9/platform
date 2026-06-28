@@ -41,8 +41,8 @@ func runDiscover(cmd *cobra.Command, args []string) {
 			buildlog.Fatalln(err)
 		}
 
-		for name, builder := range mods {
-			fmt.Fprintln(os.Stdout, name, "->", builder.Name())
+		for name, bld := range mods {
+			fmt.Fprintln(os.Stdout, name, "->", bld.Name())
 		}
 	}
 }

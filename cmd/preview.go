@@ -98,8 +98,8 @@ func runPreview(cmd *cobra.Command, args []string) {
 			previewPort = *preview.Port
 		}
 	}
-	if cmd := strings.TrimSpace(previewCmd); cmd != "" {
-		preview.CommandName = cmd
+	if custom := strings.TrimSpace(previewCmd); custom != "" {
+		preview.CommandName = custom
 		preview.CommandArgs = nil // TODO: Allow specifying args?
 	}
 

@@ -29,19 +29,17 @@ func SetVerbosity(v int) {
 func OutputForDagger() io.Writer {
 	if verbosity >= 0 {
 		return out()
-	} else {
-		return io.Discard
 	}
+	return io.Discard
 }
 
 func Logger() *slog.Logger {
 	if logger == nil {
 		initLogger()
-		return Logger()
-	} else {
-		return logger
 	}
+	return logger
 }
+
 func initLogger() {
 	mx.Lock()
 	defer mx.Unlock()
