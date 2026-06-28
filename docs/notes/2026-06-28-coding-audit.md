@@ -152,4 +152,68 @@ where they'd otherwise apply.
 Format: `RULE | file:line | severity | disposition`. Severity: **V**iolation / **B**orderline.
 Disposition: FIXED `<commit>` / LOGGED (blocker) / WONTFIX `<reason>`.
 
-_(populated as the audit runs)_
+### Shell (agent E) — complete
+All scripts pass `shellcheck -s sh`. Testbed `platform` copies are vendored generated
+artifacts (identical to template), excluded.
+
+- GC-SH3 | scripts/docs-site-deploy.sh:12 | B | embedded `$(git subtree split …)` inside the
+  push refspec — unnamed clever stage | FIXED — hoisted to `site_sha` var.
+
+### dsl + gitops + baseline (agent C) — complete
+gitops/ and baseline/ clean. All 5 findings in dsl/. Agent tagged all LOG; on review three
+are safely defaultable (fixed), two are genuine chakrit-calls (logged).
+
+- GC-X4 | dsl/walk.go:127 | V | `Append(…, unique bool)` collapses two behaviors behind a bool —
+  inconsistent with the package's own set/set-if-absent split | FIXED — split into `Append` +
+  `AppendIfAbsent` (latter delegates the append to `Append`, one owner); callsites in parse.go.
+- GC-T4 | dsl/walk.go:89 | V | `Remove` panics on empty path; `Get`/`Set` both guard it | FIXED —
+  added length guard returning an error.
+- GC-C2 | dsl/parse.go:450 | V | `walkFocus` nests ~6 levels past the 4-level max | FIXED —
+  extracted `focusStep(node, seg)`; walkFocus now flat (for/for/call).
+- GC-A3 | dsl/parse.go:297 | B | `Append(…, true/false)` bool-discriminator callsites | FIXED —
+  subsumed by the GC-X4 split.
+- GC-B1 | dsl/io.go:138 | B | `checkRelPath` framed as denylist | LOGGED — actually `filepath.Clean`
+  + `..`-containment (structural, not a signature denylist); defensible. Recommend `filepath.IsLocal`
+  as a clarity hardening; not auto-rewriting trust-boundary code unsupervised.
+
+### builder (agent A) — complete
+SAFE fixes landed in `builder: Whitespace + flatten…` (45e43d5). Rest are LOG.
+
+- GC-W3 ×3 | base.go:62, go_shared.go:12, pnpm_workspace.go:60 | FIXED (blank-line spacing).
+- GC-C2 | gowork.go:16 ParseFile else-nesting | FIXED (early-return).
+- GC-F1 | gowork.go:29 ParseReader double-close | FIXED (caller owns reader).
+- GC-S1/T3 | fileutil.go:23 WalkSubdirs err-after-deref | FIXED (err checked first).
+- GC-N4 | builder/fileutil naming | LOGGED (scoped-name borderline; + collides with internal/fileutil).
+- GO-N3 | unit.go:28 `Port *int` | LOGGED (mirrors project.Module.Port; → int ripples cross-pkg).
+- GC-D1 ×3 | attempt.go:38, go_basic.go:38, pnpm_basic.go:42 | LOGGED — dedupe targets; fold into #4 builders reshape.
+- GC-D1/bug | dockerfile.go:56 dead `opts.BuildArgs` (Env build-args silently dropped) | LOGGED — real bug, needs intent decision.
+- GC-X1 | pnpm_static.go:70 returns unsynced | LOGGED — fold into #4 run-stage normalization.
+
+### engine + cmd (agent B) — complete
+All LOG (judgment/behavior/design); none safely defaultable.
+
+- GC-T2 | engine/engine.go:63 FromContext panic | LOGGED — intended Must/Lookup pair (LookupFromContext is the checked variant); recommend a doc note only.
+- GC-N1 ×2 | cmd/discover.go:44, cmd/preview.go:101 var-shadow | FIXED (renamed bld / custom) — landed in afcfd30.
+- GC-T1 | cmd/preview.go:94 `previewPort <= 1` magic | LOGGED (ignores `-p 1`; → `<= 0` or named const).
+- GC-F1 | cmd/preview.go:119 data race (goroutine write + sleep-sync) | LOGGED — real bug, needs channel sync.
+- GC-T1 | cmd/release.go:41 three bool flags | LOGGED — → single `--bump=patch|minor|major` enum.
+- GC-U6 | cmd/publish.go:66 + deploy.go:92 inline tag mutation | LOGGED — fold into #4 (carry tag on attempt).
+- GC-X1 | cmd/publish.go:79 exits 0 on result error | LOGGED — behavior bug; recommend non-zero exit.
+- GC-D1 | cmd/build.go:41 result-loop dup ×4 | LOGGED — shared reportResults/exitOnError helper.
+
+### project + releases + bootstrapper + internal (agent D + me) — complete
+GC-S1 else-drops + GC-W3 landed in 0c3b9a7 and afcfd30.
+
+- GC-S1 ×8 | project.go:94, resolve_path.go:17, bootstrapper.go:45, collection.go:66/78,
+  releases.go:102, semver.go:32, timeouts.go:40 | FIXED.
+- GC-W3 | gitctx.go | FIXED (gofmt). GC-N1 | timeouts.go:12 | FIXED (blank assertions).
+- GC-S1/bug | plog.go:40 Logger() recursion | FIXED (return logger).
+- GC-F2 | resolve_path.go:12 PlatformFilename var→const | WONTFIX — address-taken for the `-f`
+  flag in main.go:30; mutable flag-var idiom, not a never-reassigned const. False positive.
+- GC-T3 | releases.go:176 listCommits swallows git err → nil | LOGGED — recommend return err (behavior change).
+- GC-D1 | semver.go:56 unused ErrBadVersionComponent sentinel | LOGGED — wire it or drop it.
+- GO-N3 | project.go:49 `Port *int` | LOGGED — the source of the unit.go:28 mirror; → int.
+
+## Disposition tally
+FIXED & committed: shell ×1, dsl ×3, builder ×6, project/releases ×8, internal/cmd ×6 = **24**.
+LOGGED (chakrit's calls, see .afk.log): **15**. WONTFIX (false positive): **1**.
