@@ -38,10 +38,10 @@ const (
 	CacheBuster = "cache-buster-b78bb982"
 )
 
-func BaseImageForUnit(eng Engine, unit *BuildUnit) *dagger.Container {
-	apkCache := eng.Client().CacheVolume("platform-apk-cache")
+func BaseImageForUnit(client *dagger.Client, unit *BuildUnit) *dagger.Container {
+	apkCache := client.CacheVolume("platform-apk-cache")
 
-	return eng.Client().
+	return client.
 		Container(dagger.ContainerOpts{
 			Platform: dagger.Platform(unit.Platform),
 		}).

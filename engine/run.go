@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"errors"
 
 	"dagger.io/dagger"
@@ -25,9 +26,9 @@ type (
 		Container *dagger.Container
 		Err       error
 
-		// pool is the per-unit view that built Container. Publish reuses it so the registry
-		// secret comes from the same engine client the container belongs to.
-		pool *Pool
+		// client is the engine client that built Container. Publish reuses it so the
+		// registry secret comes from the same engine the container belongs to.
+		client *dagger.Client
 	}
 
 	PublishResult struct {
@@ -37,41 +38,53 @@ type (
 	}
 )
 
-func Build(pool *Pool, attempt *builder.BuildAttempt) ([]BuildResult, error) {
+// Client returns the engine client that built this result's container. Callers that need to
+// keep operating on the container (e.g. preview's tunnel) must use it, since the container
+// is bound to the engine that produced it.
+func (r BuildResult) Client() *dagger.Client { return r.client }
+
+// Build runs every unit in attempt on the engine carried by ctx, fanning out one unit per
+// goroutine and round-robining them across the discovered engine fleet.
+func Build(ctx context.Context, attempt *builder.BuildAttempt) ([]BuildResult, error) {
 	if len(attempt.Units) == 0 {
 		return nil, ErrNoJobs
 	}
+	eng := FromContext(ctx)
 
 	m := &internal.Multiplexer[*builder.BuildUnit, BuildResult]{}
 	m.Reset(attempt.Units)
 	return m.Start(func(idx int, unit *builder.BuildUnit) BuildResult {
-		eng := pool.bind(idx)
-		ctx, cancel := eng.unitContext(unit.Timeout)
+		client, err := eng.Client(ctx)
+		if err != nil {
+			return BuildResult{Unit: unit, Err: err}
+		}
+
+		unitCtx, cancel := context.WithTimeout(ctx, unit.Timeout)
 		defer cancel()
 
-		container, err := unit.Builder.Build(eng, unit)
+		container, err := unit.Builder.Build(unitCtx, client, unit)
 		if err != nil {
-			return BuildResult{Unit: unit, Container: nil, Err: err, pool: eng}
+			return BuildResult{Unit: unit, Err: err, client: client}
 		}
 
-		container, err = container.Sync(ctx)
+		container, err = container.Sync(unitCtx)
 		if err != nil {
-			return BuildResult{Unit: unit, Container: nil, Err: err, pool: eng}
-		} else {
-			return BuildResult{Unit: unit, Container: container, Err: nil, pool: eng}
+			return BuildResult{Unit: unit, Err: err, client: client}
 		}
+		return BuildResult{Unit: unit, Container: container, client: client}
 	}), nil
 }
 
-func Publish(pool *Pool, builds ...BuildResult) ([]PublishResult, error) {
+// Publish pushes every successfully-built container, reusing each build's own engine client
+// so the registry secret is created by the engine that owns the container.
+func Publish(ctx context.Context, builds ...BuildResult) ([]PublishResult, error) {
 	if len(builds) == 0 {
 		return nil, ErrNoJobs
 	}
-
-	fxcfg := fxconfig.Configure()
-	registry := fxconfig.Get(fxcfg, RegistryConfig)
-	username := fxconfig.Get(fxcfg, RegistryUsernameConfig)
-	password := fxconfig.Get(fxcfg, RegistryPasswordConfig)
+	eng := FromContext(ctx)
+	registry := fxconfig.Get(eng.cfg, RegistryConfig)
+	username := fxconfig.Get(eng.cfg, RegistryUsernameConfig)
+	password := fxconfig.Get(eng.cfg, RegistryPasswordConfig)
 
 	m := &internal.Multiplexer[BuildResult, PublishResult]{}
 	m.Reset(builds)
@@ -80,20 +93,23 @@ func Publish(pool *Pool, builds ...BuildResult) ([]PublishResult, error) {
 			return PublishResult{BuildResult: build}
 		}
 
-		// the container is bound to the engine that built it — its registry secret must
-		// be created by that same engine's client, not an arbitrary pool member.
-		eng := build.pool
-		if eng == nil {
-			eng = pool.bind(idx)
+		client := build.client
+		if client == nil {
+			c, err := eng.Client(ctx)
+			if err != nil {
+				build.Err = err
+				return PublishResult{BuildResult: build}
+			}
+			client = c
 		}
 
 		container := build.Container
 		if username != "" {
-			secret := eng.Client().SetSecret(RegistryPasswordConfig.Name(), password)
+			secret := client.SetSecret(RegistryPasswordConfig.Name(), password)
 			container = container.WithRegistryAuth(registry, username, secret)
 		}
 
-		hash, err := container.Publish(eng.Context(), build.Unit.ImageName)
+		hash, err := container.Publish(ctx, build.Unit.ImageName)
 		if err != nil {
 			build.Err = err
 			return PublishResult{BuildResult: build}

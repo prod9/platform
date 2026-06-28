@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"dagger.io/dagger"
+	fxconfig "fx.prodigy9.co/config"
 	"github.com/spf13/cobra"
 	"platform.prodigy9.co/builder"
 	"platform.prodigy9.co/engine"
@@ -36,22 +37,25 @@ func runList(cmd *cobra.Command, args []string) {
 	}
 
 	preview := attempt.Units[0] // at least 1 by this point
-	sess, err := engine.New(context.Background())
+	eng := engine.New(fxconfig.Configure())
+	defer eng.Close()
+
+	ctx := context.Background()
+	client, err := eng.Client(ctx)
 	if err != nil {
 		buildlog.Fatalln(err)
 	}
-	defer sess.Close()
 
-	moddir := sess.Client().Host().
+	moddir := client.Host().
 		Directory(preview.WorkDir, dagger.HostDirectoryOpts{
 			Exclude: preview.Excludes,
 		})
 
-	stdout, err := builder.BaseImageForUnit(sess, preview).
+	stdout, err := builder.BaseImageForUnit(client, preview).
 		WithExec([]string{"apk", "add", "--no-cache", "tree"}).
 		WithDirectory("/app", moddir).
 		WithExec([]string{"tree", "-L", "2"}).
-		Stdout(sess.Context())
+		Stdout(ctx)
 	if err != nil {
 		buildlog.Fatalln(err)
 	}

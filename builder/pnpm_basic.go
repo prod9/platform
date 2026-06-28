@@ -1,6 +1,7 @@
 package builder
 
 import (
+	"context"
 	"path/filepath"
 	"strings"
 
@@ -26,10 +27,10 @@ func (b PNPMBasic) Discover(wd string) (map[string]Interface, error) {
 	return map[string]Interface{name: b}, nil
 }
 
-func (PNPMBasic) Build(eng Engine, unit *BuildUnit) (container *dagger.Container, err error) {
+func (PNPMBasic) Build(ctx context.Context, client *dagger.Client, unit *BuildUnit) (container *dagger.Container, err error) {
 	defer errutil.Wrap("pnpm/basic", &err)
 
-	host := eng.Client().Host().
+	host := client.Host().
 		Directory(unit.WorkDir, dagger.HostDirectoryOpts{Exclude: unit.Excludes})
 
 	// prepare job parameters
@@ -51,9 +52,9 @@ func (PNPMBasic) Build(eng Engine, unit *BuildUnit) (container *dagger.Container
 	}
 
 	// build
-	base := BaseImageForUnit(eng, unit)
+	base := BaseImageForUnit(client, unit)
 	base = withPNPMBase(base)
-	base = withPNPMPkgCache(eng, base)
+	base = withPNPMPkgCache(client, base)
 	base = withUnitEnv(base, unit)
 	base = base.
 		WithFile("package.json", host.File("package.json")).
@@ -72,5 +73,5 @@ func (PNPMBasic) Build(eng Engine, unit *BuildUnit) (container *dagger.Container
 	}
 
 	runner = runner.WithDefaultArgs(args)
-	return runner.Sync(eng.Context())
+	return runner.Sync(ctx)
 }

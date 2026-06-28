@@ -18,21 +18,13 @@ type (
 	Layout string
 	Class  string
 
-	// Engine is the execution environment a build strategy issues Dagger work against: a
-	// client bound to one engine and the run's context. The concrete pool (engine.Pool)
-	// satisfies it; declaring it here keeps the dependency direction engine → builder.
-	Engine interface {
-		Client() *dagger.Client
-		Context() context.Context
-	}
-
 	Interface interface {
 		Name() string
 		Layout() Layout
 		Class() Class
 
 		Discover(wd string) (map[string]Interface, error)
-		Build(eng Engine, unit *BuildUnit) (*dagger.Container, error)
+		Build(ctx context.Context, client *dagger.Client, unit *BuildUnit) (*dagger.Container, error)
 	}
 )
 

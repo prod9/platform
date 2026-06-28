@@ -1,6 +1,7 @@
 package builder
 
 import (
+	"context"
 	"path/filepath"
 	"strings"
 
@@ -29,7 +30,7 @@ func (d Dockerfile) Discover(wd string) (map[string]Interface, error) {
 	return map[string]Interface{name: d}, nil
 }
 
-func (d Dockerfile) Build(eng Engine, unit *BuildUnit) (container *dagger.Container, err error) {
+func (d Dockerfile) Build(ctx context.Context, client *dagger.Client, unit *BuildUnit) (container *dagger.Container, err error) {
 	defer errutil.Wrap("dockerfile", &err)
 
 	buildlog.Logger().Warn("dockerfile builder bypasses the Wolfi base image and platform package conventions; prefer a language-specific builder (go/basic, go/workspace, pnpm/basic, pnpm/static, pnpm/workspace) when possible",
@@ -37,7 +38,7 @@ func (d Dockerfile) Build(eng Engine, unit *BuildUnit) (container *dagger.Contai
 		"workdir", unit.WorkDir,
 	)
 
-	host := eng.Client().Host().Directory(unit.WorkDir, dagger.HostDirectoryOpts{
+	host := client.Host().Directory(unit.WorkDir, dagger.HostDirectoryOpts{
 		Exclude: unit.Excludes,
 	})
 
@@ -74,5 +75,5 @@ func (d Dockerfile) Build(eng Engine, unit *BuildUnit) (container *dagger.Contai
 		builder = builder.WithDefaultArgs(args)
 	}
 
-	return builder.Sync(eng.Context())
+	return builder.Sync(ctx)
 }

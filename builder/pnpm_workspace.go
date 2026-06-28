@@ -1,6 +1,7 @@
 package builder
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -59,7 +60,7 @@ func (b PNPMWorkspace) Discover(wd string) (map[string]Interface, error) {
 
 }
 
-func (PNPMWorkspace) Build(eng Engine, unit *BuildUnit) (container *dagger.Container, err error) {
+func (PNPMWorkspace) Build(ctx context.Context, client *dagger.Client, unit *BuildUnit) (container *dagger.Container, err error) {
 	defer errutil.Wrap("pnpm/workspace", &err)
 
 	wsdir, err := filepath.Abs(filepath.Join(unit.WorkDir, ".."))
@@ -67,7 +68,7 @@ func (PNPMWorkspace) Build(eng Engine, unit *BuildUnit) (container *dagger.Conta
 		return nil, err
 	}
 
-	host := eng.Client().Host().Directory(wsdir, dagger.HostDirectoryOpts{
+	host := client.Host().Directory(wsdir, dagger.HostDirectoryOpts{
 		Exclude: unit.Excludes,
 	})
 
@@ -95,9 +96,9 @@ func (PNPMWorkspace) Build(eng Engine, unit *BuildUnit) (container *dagger.Conta
 	}
 
 	// build
-	base := BaseImageForUnit(eng, unit)
+	base := BaseImageForUnit(client, unit)
 	base = withPNPMBase(base)
-	base = withPNPMPkgCache(eng, base)
+	base = withPNPMPkgCache(client, base)
 	base = withUnitEnv(base, unit)
 
 	builder := withBuildPkgs(base).
@@ -116,5 +117,5 @@ func (PNPMWorkspace) Build(eng Engine, unit *BuildUnit) (container *dagger.Conta
 	}
 
 	runner = runner.WithDefaultArgs(args)
-	return runner.Sync(eng.Context())
+	return runner.Sync(ctx)
 }

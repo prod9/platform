@@ -9,6 +9,7 @@ import (
 
 	"dagger.io/dagger"
 	"fx.prodigy9.co/cmd/prompts"
+	fxconfig "fx.prodigy9.co/config"
 	"fx.prodigy9.co/ctrlc"
 	"github.com/spf13/cobra"
 	"platform.prodigy9.co/builder"
@@ -71,13 +72,11 @@ func runPreview(cmd *cobra.Command, args []string) {
 	// build only the selected module
 	attempt = builder.Attempt(attempt.Purpose, preview)
 
-	sess, err := engine.New(context.Background())
-	if err != nil {
-		buildlog.Fatalln(err)
-	}
-	defer sess.Close()
+	eng := engine.New(fxconfig.Configure())
+	defer eng.Close()
 
-	results, err := engine.Build(sess, attempt)
+	ctx := engine.NewContext(context.Background(), eng)
+	results, err := engine.Build(ctx, attempt)
 	if err != nil {
 		buildlog.Fatalln(err)
 	}
@@ -87,7 +86,7 @@ func runPreview(cmd *cobra.Command, args []string) {
 		buildlog.Fatalln(result.Err)
 	}
 
-	startArgs, err := result.Container.DefaultArgs(sess.Context())
+	startArgs, err := result.Container.DefaultArgs(ctx)
 	if err != nil {
 		buildlog.Fatalln(err)
 	}
@@ -109,23 +108,23 @@ func runPreview(cmd *cobra.Command, args []string) {
 		WithExec(startArgs).
 		AsService()
 
-	tunnel := sess.Client().Host().Tunnel(container, dagger.HostTunnelOpts{
+	tunnel := result.Client().Host().Tunnel(container, dagger.HostTunnelOpts{
 		Native: true,
 	})
 
 	ctrlc.Do(func() {
-		tunnel.Stop(sess.Context())
+		tunnel.Stop(ctx)
 		os.Exit(0)
 	})
 	go func() {
-		tunnel, err = tunnel.Start(sess.Context())
+		tunnel, err = tunnel.Start(ctx)
 		if err != nil {
 			buildlog.Fatalln(err)
 		}
 	}()
 
 	time.Sleep(3 * time.Second)
-	addr, err := tunnel.Endpoint(sess.Context(), dagger.ServiceEndpointOpts{
+	addr, err := tunnel.Endpoint(ctx, dagger.ServiceEndpointOpts{
 		Port: previewPort,
 	})
 	if err != nil {

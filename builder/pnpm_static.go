@@ -1,6 +1,7 @@
 package builder
 
 import (
+	"context"
 	"path/filepath"
 	"strings"
 
@@ -27,15 +28,15 @@ func (b PNPMStatic) Discover(wd string) (map[string]Interface, error) {
 	return map[string]Interface{name: b}, nil
 }
 
-func (b PNPMStatic) Build(eng Engine, unit *BuildUnit) (container *dagger.Container, err error) {
+func (b PNPMStatic) Build(ctx context.Context, client *dagger.Client, unit *BuildUnit) (container *dagger.Container, err error) {
 	defer errutil.Wrap("pnpm/static", &err)
 
-	host := eng.Client().Host().
+	host := client.Host().
 		Directory(unit.WorkDir, dagger.HostDirectoryOpts{Exclude: unit.Excludes})
 
-	builder := BaseImageForUnit(eng, unit)
+	builder := BaseImageForUnit(client, unit)
 	builder = withPNPMBase(builder)
-	builder = withPNPMPkgCache(eng, builder)
+	builder = withPNPMPkgCache(client, builder)
 
 	builder = builder.
 		WithFile("package.json", host.File("package.json")).
@@ -61,7 +62,7 @@ func (b PNPMStatic) Build(eng Engine, unit *BuildUnit) (container *dagger.Contai
 		args = append(args, "file-server", "-l", "0.0.0.0:3000")
 	}
 
-	runner := BaseImageForUnit(eng, unit)
+	runner := BaseImageForUnit(client, unit)
 	runner = withCaddyServer(runner).
 		WithDirectory("/app", builder.Directory(outdir)).
 		WithDefaultArgs(args)

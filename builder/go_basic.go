@@ -1,6 +1,7 @@
 package builder
 
 import (
+	"context"
 	"path/filepath"
 	"strings"
 
@@ -27,9 +28,9 @@ func (b GoBasic) Discover(wd string) (map[string]Interface, error) {
 	return map[string]Interface{name: b}, nil
 }
 
-func (GoBasic) Build(eng Engine, unit *BuildUnit) (container *dagger.Container, err error) {
+func (GoBasic) Build(ctx context.Context, client *dagger.Client, unit *BuildUnit) (container *dagger.Container, err error) {
 	defer errutil.Wrap("go/basic", &err)
-	host := eng.Client().Host().Directory(unit.WorkDir, dagger.HostDirectoryOpts{
+	host := client.Host().Directory(unit.WorkDir, dagger.HostDirectoryOpts{
 		Exclude: unit.Excludes,
 	})
 
@@ -53,10 +54,10 @@ func (GoBasic) Build(eng Engine, unit *BuildUnit) (container *dagger.Container, 
 	}
 
 	// build
-	base := BaseImageForUnit(eng, unit)
+	base := BaseImageForUnit(client, unit)
 	builder := withBuildPkgs(base, "go")
 	builder, gobin := withGoVersion(builder, goversion)
-	builder = withGoPkgCache(eng, builder, goversion)
+	builder = withGoPkgCache(client, builder, goversion)
 
 	builder = builder.
 		WithFile("go.mod", host.File("go.mod")).
@@ -77,5 +78,5 @@ func (GoBasic) Build(eng Engine, unit *BuildUnit) (container *dagger.Container, 
 	}
 
 	runner = runner.WithDefaultArgs(args)
-	return runner.Sync(eng.Context())
+	return runner.Sync(ctx)
 }

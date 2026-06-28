@@ -1,6 +1,7 @@
 package builder
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -50,7 +51,7 @@ func (b GoWorkspace) Discover(wd string) (map[string]Interface, error) {
 	}
 }
 
-func (GoWorkspace) Build(eng Engine, unit *BuildUnit) (container *dagger.Container, err error) {
+func (GoWorkspace) Build(ctx context.Context, client *dagger.Client, unit *BuildUnit) (container *dagger.Container, err error) {
 	defer errutil.Wrap("go/workspace", &err)
 
 	wsdir, err := filepath.Abs(filepath.Join(unit.WorkDir, ".."))
@@ -58,7 +59,7 @@ func (GoWorkspace) Build(eng Engine, unit *BuildUnit) (container *dagger.Contain
 		return nil, err
 	}
 
-	host := eng.Client().Host().Directory(wsdir, dagger.HostDirectoryOpts{
+	host := client.Host().Directory(wsdir, dagger.HostDirectoryOpts{
 		Exclude: unit.Excludes,
 	})
 
@@ -83,11 +84,11 @@ func (GoWorkspace) Build(eng Engine, unit *BuildUnit) (container *dagger.Contain
 	}
 
 	// build
-	base := BaseImageForUnit(eng, unit)
+	base := BaseImageForUnit(client, unit)
 
 	builder := withBuildPkgs(base, "go")
 	builder, gobin := withGoVersion(builder, goversion)
-	builder = withGoPkgCache(eng, builder, goversion)
+	builder = withGoPkgCache(client, builder, goversion)
 
 	builder = builder.
 		WithFile("go.work", host.File("go.work")).
@@ -130,5 +131,5 @@ func (GoWorkspace) Build(eng Engine, unit *BuildUnit) (container *dagger.Contain
 	}
 
 	runner = runner.WithDefaultArgs(args)
-	return runner.Sync(eng.Context())
+	return runner.Sync(ctx)
 }

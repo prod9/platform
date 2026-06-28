@@ -10,7 +10,7 @@ func withGoVersion(base *dagger.Container, goversion string) (*dagger.Container,
 
 	return base, gobin
 }
-func withGoPkgCache(eng Engine, base *dagger.Container, goversion string) *dagger.Container {
-	modcache := eng.Client().CacheVolume("platform-go-" + goversion + "-modcache")
+func withGoPkgCache(client *dagger.Client, base *dagger.Container, goversion string) *dagger.Container {
+	modcache := client.CacheVolume("platform-go-" + goversion + "-modcache")
 	return base.WithMountedCache("/root/go/pkg/mod", modcache)
 }

@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 
+	fxconfig "fx.prodigy9.co/config"
 	"github.com/spf13/cobra"
 	"platform.prodigy9.co/builder"
 	"platform.prodigy9.co/engine"
@@ -27,13 +28,11 @@ func runExport(cmd *cobra.Command, args []string) {
 		buildlog.Fatalln(err)
 	}
 
-	sess, err := engine.New(context.Background())
-	if err != nil {
-		buildlog.Fatalln(err)
-	}
-	defer sess.Close()
+	eng := engine.New(fxconfig.Configure())
+	defer eng.Close()
 
-	results, err := engine.Build(sess, attempt)
+	ctx := engine.NewContext(context.Background(), eng)
+	results, err := engine.Build(ctx, attempt)
 	if err != nil {
 		buildlog.Fatalln(err)
 	}
@@ -44,7 +43,7 @@ func runExport(cmd *cobra.Command, args []string) {
 			continue
 		}
 
-		id, err := result.Container.ID(sess.Context())
+		id, err := result.Container.ID(ctx)
 		if err != nil {
 			buildlog.Fatalln(err)
 		}
@@ -53,7 +52,7 @@ func runExport(cmd *cobra.Command, args []string) {
 		}
 
 		outname := result.Unit.Name + ".docker"
-		_, err = result.Container.Export(sess.Context(), outname)
+		_, err = result.Container.Export(ctx, outname)
 		if err != nil {
 			buildlog.Fatalln(err)
 		} else {
