@@ -101,15 +101,18 @@ func Create(cfg *project.Project, git *gitctx.GitCtx, rel *Release) error {
 	// another machine and forgot)
 	if err := git.UpdateEnvironmentTags(); err != nil {
 		return err
-	} else if err := git.UpdateAllTags(); err != nil {
-		return err
-	} else if _, err := git.SetVersionTag(rel.Name, rel.Message); err != nil {
-		return err
-	} else if err := git.PushVersionTag(rel.Name); err != nil {
-		return err
-	} else {
-		return nil
 	}
+	if err := git.UpdateAllTags(); err != nil {
+		return err
+	}
+	if _, err := git.SetVersionTag(rel.Name, rel.Message); err != nil {
+		return err
+	}
+	if err := git.PushVersionTag(rel.Name); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (r *Release) Render() error {

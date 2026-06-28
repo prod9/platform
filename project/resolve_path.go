@@ -14,11 +14,11 @@ var (
 
 func ResolvePath(wd string) (string, error) {
 	if !filepath.IsAbs(wd) {
-		if wd_, err := filepath.Abs(wd); err != nil {
+		wd_, err := filepath.Abs(wd)
+		if err != nil {
 			return "", err
-		} else {
-			wd = wd_
 		}
+		wd = wd_
 	}
 
 	info, err := os.Stat(wd)

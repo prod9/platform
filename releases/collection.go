@@ -63,22 +63,26 @@ func (c *Collection) LatestName(strat Strategy) string {
 func (c *Collection) Get(git *gitctx.GitCtx, name string) (*Release, error) {
 	if name == "" {
 		return nil, ErrNoRelease
-	} else if msg, err := git.GetTagMessage(name); err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrNoRelease, err)
-	} else {
-		return &Release{
-			Name:    name,
-			Message: msg,
-		}, nil
 	}
+
+	msg, err := git.GetTagMessage(name)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrNoRelease, err)
+	}
+
+	return &Release{
+		Name:    name,
+		Message: msg,
+	}, nil
 }
 
 func (c *Collection) GetLatest(git *gitctx.GitCtx, strat Strategy) (*Release, error) {
-	if name := c.LatestName(strat); name == "" {
+	name := c.LatestName(strat)
+	if name == "" {
 		return nil, ErrNoRelease
-	} else {
-		return c.Get(git, name)
 	}
+
+	return c.Get(git, name)
 }
 
 func (c *Collection) PendingChanges(git *gitctx.GitCtx) ([]CommitRef, error) {

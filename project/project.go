@@ -91,11 +91,11 @@ var (
 
 func Configure(wd string) (*Project, error) {
 	if wd == "" || wd == "." {
-		if wd_, err := os.Getwd(); err != nil {
+		wd_, err := os.Getwd()
+		if err != nil {
 			return nil, err
-		} else {
-			wd = wd_
 		}
+		wd = wd_
 	}
 
 	path, err := ResolvePath(wd)

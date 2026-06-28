@@ -42,19 +42,19 @@ func renderTemplate(content string, info *Info) ([]byte, error) {
 
 func resolveWD(wd string) (string, error) {
 	if wd == "" {
-		if wd_, err := os.Getwd(); err != nil {
+		wd_, err := os.Getwd()
+		if err != nil {
 			return "", err
-		} else {
-			wd = wd_
 		}
+		wd = wd_
 	}
 
 	if !filepath.IsAbs(wd) {
-		if abs, err := filepath.Abs(wd); err != nil {
+		abs, err := filepath.Abs(wd)
+		if err != nil {
 			return "", err
-		} else {
-			wd = abs
 		}
+		wd = abs
 	}
 
 	return wd, nil

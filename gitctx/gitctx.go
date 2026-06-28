@@ -14,7 +14,7 @@ var (
 
 type GitCtx struct {
 	proj *project.Project
-	
+
 	// Cached functions
 	currentBranch func() (string, error)
 	mainRemote    func() (string, error)
@@ -22,12 +22,12 @@ type GitCtx struct {
 
 func New(proj *project.Project) *GitCtx {
 	ctx := &GitCtx{proj: proj}
-	
+
 	// Initialize cached functions
 	ctx.currentBranch = sync.OnceValues(func() (string, error) {
 		return gitcmd.CurrentBranch(ctx.proj.ConfigDir)
 	})
-	
+
 	ctx.mainRemote = sync.OnceValues(func() (string, error) {
 		branch, err := ctx.currentBranch()
 		if err != nil {
@@ -35,7 +35,7 @@ func New(proj *project.Project) *GitCtx {
 		}
 		return gitcmd.TrackingRemote(ctx.proj.ConfigDir, branch)
 	})
-	
+
 	return ctx
 }
 
