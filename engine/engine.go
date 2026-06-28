@@ -42,8 +42,8 @@ func (e *Engine) Client(ctx context.Context) (*dagger.Client, error) {
 		return nil, err
 	}
 	if len(hosts) == 0 {
-		// no remote engines discovered — spawn/reuse the local one.
-		return e.clients.Get(ctx, localHost)
+		// no remote engines discovered — the empty host asks for the local one.
+		return e.clients.Get(ctx, "")
 	}
 
 	next := e.cursor.Add(1) - 1

@@ -20,18 +20,15 @@ type clients struct {
 	pool map[string]*dagger.Client
 }
 
-// localHost is the sentinel endpoint for the local auto-provisioned engine: an empty runner
-// host, which dialEngine translates into a plain dagger.Connect. The core dials it when
-// discovery turns up no remote engines.
-const localHost = ""
-
 func newClients() *clients {
 	return &clients{dial: dialEngine, pool: map[string]*dagger.Client{}}
 }
 
+// dialEngine connects to the engine at host. An empty host carries no runner host, so dagger
+// auto-provisions and reuses the local engine — that is how the core asks for "local".
 func dialEngine(ctx context.Context, host string) (*dagger.Client, error) {
 	opts := []dagger.ClientOpt{dagger.WithLogOutput(buildlog.OutputForDagger())}
-	if host != localHost {
+	if host != "" {
 		opts = append(opts, dagger.WithRunnerHost(host))
 	}
 	return dagger.Connect(ctx, opts...)
