@@ -23,18 +23,17 @@ func WalkSubdirs(wd string, fn func(os.DirEntry) error) error {
 		switch {
 		case path == wd:
 			return nil
-		case !dir.IsDir():
-			return nil
 		case err != nil:
 			return err
+		case !dir.IsDir():
+			return nil
 		case strings.HasPrefix(dir.Name(), "."):
 			return filepath.SkipDir
 		}
 
-		if err = fn(dir); err != nil {
+		if err := fn(dir); err != nil {
 			return err
-		} else {
-			return filepath.SkipDir // only walk 1 lvl
 		}
+		return filepath.SkipDir // only walk 1 lvl
 	})
 }

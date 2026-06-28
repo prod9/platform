@@ -60,14 +60,17 @@ func BaseImageForUnit(client *dagger.Client, unit *BuildUnit) *dagger.Container 
 func withPkgs(base *dagger.Container, pkgs ...string) *dagger.Container {
 	return base.WithExec(append([]string{"apk", "add"}, pkgs...))
 }
+
 func withBuildPkgs(base *dagger.Container, pkgs ...string) *dagger.Container {
 	set := []string{"build-base", "git", "curl", "bash"}
 	return withPkgs(base, append(set, pkgs...)...)
 }
+
 func withRunnerPkgs(base *dagger.Container, pkgs ...string) *dagger.Container {
 	set := []string{"ca-certificates", "curl", "netcat-openbsd", "tzdata"}
 	return withPkgs(base, append(set, pkgs...)...)
 }
+
 func withCaddyServer(base *dagger.Container) *dagger.Container {
 	return withPkgs(base, "caddy")
 }

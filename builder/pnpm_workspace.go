@@ -57,7 +57,6 @@ func (b PNPMWorkspace) Discover(wd string) (map[string]Interface, error) {
 	} else {
 		return mods, nil
 	}
-
 }
 
 func (PNPMWorkspace) Build(ctx context.Context, client *dagger.Client, unit *BuildUnit) (container *dagger.Container, err error) {
