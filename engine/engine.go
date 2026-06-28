@@ -25,7 +25,7 @@ type Engine struct {
 func New(cfg *fxconfig.Source) *Engine {
 	return &Engine{
 		cfg:       cfg,
-		discovery: newDiscovery(),
+		discovery: newDiscovery(cfg),
 		clients:   newClients(),
 	}
 }
@@ -37,7 +37,15 @@ func (e *Engine) Close() error { return e.clients.Close() }
 // a live client for it. Build/Publish use it per unit; commands that need ad-hoc Dagger
 // access (ls, preview) call it directly.
 func (e *Engine) Client(ctx context.Context) (*dagger.Client, error) {
-	hosts := e.discovery.Hosts(ctx)
+	hosts, err := e.discovery.Hosts(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if len(hosts) == 0 {
+		// no remote engines discovered — spawn/reuse the local one.
+		return e.clients.Get(ctx, localHost)
+	}
+
 	next := e.cursor.Add(1) - 1
 	host := hosts[int(next%uint64(len(hosts)))]
 	return e.clients.Get(ctx, host)

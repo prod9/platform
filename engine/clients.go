@@ -20,6 +20,11 @@ type clients struct {
 	pool map[string]*dagger.Client
 }
 
+// localHost is the sentinel endpoint for the local auto-provisioned engine: an empty runner
+// host, which dialEngine translates into a plain dagger.Connect. The core dials it when
+// discovery turns up no remote engines.
+const localHost = ""
+
 func newClients() *clients {
 	return &clients{dial: dialEngine, pool: map[string]*dagger.Client{}}
 }

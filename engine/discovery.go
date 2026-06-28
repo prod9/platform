@@ -4,63 +4,57 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"os"
 	"sort"
+
+	fxconfig "fx.prodigy9.co/config"
 )
 
-// In-cluster engine discovery. Platform finds the engine pods by resolving the headless
-// Service's A-records (no k8s API / RBAC) and round-robins build units across them.
-// These constants mirror apps/dagger-engine.cue verbatim — keep them in sync.
-// See docs/decisions/2026-06-21-dagger-engine-statefulset-tcp.md.
-const (
-	engineService   = "dagger-engine"
-	engineNamespace = "platform"
-	enginePort      = 1234
+var (
+	// DaggerEngineConfig is the headless-Service DNS name of the Dagger engine pool, e.g.
+	// dagger-engine.platform.svc.cluster.local. Unset means no remote engines are configured
+	// and the engine falls back to a local auto-provisioned one — an explicit operator choice,
+	// never inferred from the environment.
+	DaggerEngineConfig = fxconfig.Str("DAGGER_ENGINE")
+	// DaggerEnginePortConfig is the engine pod port; the default mirrors apps/dagger-engine.cue.
+	DaggerEnginePortConfig = fxconfig.IntDef("DAGGER_ENGINE_PORT", 1234)
 )
 
-func engineDNS() string {
-	return fmt.Sprintf("%s.%s.svc.cluster.local", engineService, engineNamespace)
-}
-
-// inCluster reports whether platform is running inside Kubernetes, via the ambient
-// KUBERNETES_SERVICE_HOST that the kubelet injects into every pod.
-func inCluster() bool {
-	return os.Getenv("KUBERNETES_SERVICE_HOST") != ""
-}
-
-// localHost is the sentinel endpoint for the local auto-provisioned engine — an empty
-// runner host, which dialEngine translates into a plain dagger.Connect.
-const localHost = ""
-
-// discovery resolves the current set of Dagger engine endpoints. It is deliberately
-// stateless: each call hits the resolver, which already caches per the record TTL (CoreDNS
-// in cluster), so a new engine pod becomes selectable as soon as DNS reflects it — no
-// restart, no app-level TTL. It knows nothing about connections.
+// discovery resolves the configured Dagger engine endpoints. It reports only what it finds —
+// an empty result when DAGGER_ENGINE is unset or resolves to nothing — and never decides to
+// fall back to a local engine; that policy lives in the core. Resolution is via the resolver
+// (no k8s API / RBAC), which caches per the record TTL, so a new pod becomes selectable as
+// soon as DNS reflects it.
 type discovery struct {
+	dns    string
+	port   int
 	lookup func(ctx context.Context, host string) ([]string, error)
 }
 
-func newDiscovery() *discovery {
-	return &discovery{lookup: net.DefaultResolver.LookupHost}
+func newDiscovery(cfg *fxconfig.Source) *discovery {
+	return &discovery{
+		dns:    fxconfig.Get(cfg, DaggerEngineConfig),
+		port:   fxconfig.Get(cfg, DaggerEnginePortConfig),
+		lookup: net.DefaultResolver.LookupHost,
+	}
 }
 
-// Hosts returns one runner-host URL per ready engine pod, sorted for stable round-robin.
-// Out of cluster, or when resolution fails or is empty, it returns the local sentinel so
-// there is always at least one endpoint to build on.
-func (d *discovery) Hosts(ctx context.Context) []string {
-	if !inCluster() {
-		return []string{localHost}
+// Hosts returns one tcp:// runner-host URL per ready engine pod, sorted for stable
+// round-robin. It returns an empty slice when no engine is configured or none have resolved
+// yet; a lookup failure is a real error worth surfacing.
+func (d *discovery) Hosts(ctx context.Context) ([]string, error) {
+	if d.dns == "" {
+		return nil, nil
 	}
 
-	addrs, err := d.lookup(ctx, engineDNS())
-	if err != nil || len(addrs) == 0 {
-		return []string{localHost}
+	addrs, err := d.lookup(ctx, d.dns)
+	if err != nil {
+		return nil, fmt.Errorf("resolving dagger engines at %s: %w", d.dns, err)
 	}
 
 	hosts := make([]string, 0, len(addrs))
 	for _, addr := range addrs {
-		hosts = append(hosts, fmt.Sprintf("tcp://%s:%d", addr, enginePort))
+		hosts = append(hosts, fmt.Sprintf("tcp://%s:%d", addr, d.port))
 	}
 	sort.Strings(hosts)
-	return hosts
+	return hosts, nil
 }
