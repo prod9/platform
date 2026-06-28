@@ -87,6 +87,9 @@ func emptyOr[T any](node any, empty T) (T, bool) {
 // Remove deletes the field or list element at path. Removing a list element
 // shortens the slice and writes the shortened list back to its container.
 func Remove(doc Doc, path Path) error {
+	if len(path) == 0 {
+		return fmt.Errorf("remove: empty path")
+	}
 	last := path[len(path)-1]
 	prefix := path[:len(path)-1]
 
@@ -123,15 +126,21 @@ func Remove(doc Doc, path Path) error {
 }
 
 // Append adds value to the list at path, creating an empty list if path is
-// absent. unique=true skips the append when value is already present.
-func Append(doc Doc, path Path, value any, unique bool) error {
+// absent.
+func Append(doc Doc, path Path, value any) error {
 	existing, _ := Get(doc, path)
 	list, _ := existing.([]any)
+	return Set(doc, path, append(list, value))
+}
 
-	if unique && slices.Contains(list, value) {
+// AppendIfAbsent appends value to the list at path only when it is not already
+// present, leaving the document untouched on a hit.
+func AppendIfAbsent(doc Doc, path Path, value any) error {
+	existing, _ := Get(doc, path)
+	if list, _ := existing.([]any); slices.Contains(list, value) {
 		return nil
 	}
-	return Set(doc, path, append(list, value))
+	return Append(doc, path, value)
 }
 
 // stepInto descends one step from node, reporting whether the target exists.

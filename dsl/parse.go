@@ -30,8 +30,8 @@ const (
 type Arg struct {
 	kind argKind
 	path []pathSeg // argPath
-	str  []strPart  // argStr
-	name string     // argVar
+	str  []strPart // argStr
+	name string    // argVar
 }
 
 // segKind tags a path segment.
@@ -294,11 +294,11 @@ func (e *engine) exec(d Directive) error {
 		})
 	case "append":
 		return e.execValueEdit(d.Args, func(doc Doc, p Path, v any) error {
-			return Append(doc, p, v, false)
+			return Append(doc, p, v)
 		})
 	case "append-if-absent":
 		return e.execValueEdit(d.Args, func(doc Doc, p Path, v any) error {
-			return Append(doc, p, v, true)
+			return AppendIfAbsent(doc, p, v)
 		})
 	case "remove":
 		return e.execPathEdit(d.Args, func(doc Doc, p Path) error {
@@ -452,32 +452,50 @@ func (e *engine) walkFocus(scope []any, segs []pathSeg) ([]any, error) {
 	for _, s := range segs {
 		var next []any
 		for _, node := range cur {
-			switch s.kind {
-			case segKey:
-				name, err := resolveStr(s.key, e.vars)
-				if err != nil {
-					return nil, err
-				}
-				if m, ok := node.(Doc); ok {
-					if v, ok := m[name]; ok {
-						next = append(next, v)
-					}
-				}
-			case segIndex:
-				if list, ok := node.([]any); ok && s.index >= 0 && s.index < len(list) {
-					next = append(next, list[s.index])
-				}
-			case segIter:
-				list, ok := node.([]any)
-				if !ok {
-					return nil, fmt.Errorf("'[]' applied to a non-list")
-				}
-				next = append(next, list...)
+			children, err := e.focusStep(node, s)
+			if err != nil {
+				return nil, err
 			}
+			next = append(next, children...)
 		}
 		cur = next
 	}
 	return cur, nil
+}
+
+// focusStep maps one node through one segment to the children it contributes:
+// .key/[N] yield the single addressed child if present, [] expands a list node
+// into its elements (and errors when applied to a non-list).
+func (e *engine) focusStep(node any, s pathSeg) ([]any, error) {
+	switch s.kind {
+	case segKey:
+		name, err := resolveStr(s.key, e.vars)
+		if err != nil {
+			return nil, err
+		}
+		m, ok := node.(Doc)
+		if !ok {
+			return nil, nil
+		}
+		if v, ok := m[name]; ok {
+			return []any{v}, nil
+		}
+		return nil, nil
+
+	case segIndex:
+		if list, ok := node.([]any); ok && s.index >= 0 && s.index < len(list) {
+			return []any{list[s.index]}, nil
+		}
+		return nil, nil
+
+	case segIter:
+		list, ok := node.([]any)
+		if !ok {
+			return nil, fmt.Errorf("'[]' applied to a non-list")
+		}
+		return list, nil
+	}
+	return nil, nil
 }
 
 func (e *engine) execReset(args []Arg) error {
