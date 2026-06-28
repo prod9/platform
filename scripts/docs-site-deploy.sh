@@ -9,4 +9,5 @@ set -eu
 remote="${1:-gh}"   # service-named remote (gh = GitHub), not origin
 
 # Push the current www/ tree as the root of gh-pages.
-git push "$remote" "$(git subtree split --prefix www HEAD)":refs/heads/gh-pages --force
+site_sha=$(git subtree split --prefix www HEAD)
+git push "$remote" "$site_sha":refs/heads/gh-pages --force
