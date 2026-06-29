@@ -23,23 +23,40 @@ platform-side RBAC**.
 
 ## Module architecture
 
-Four modules, two now and two later, wired by a Go workspace (`go.work`):
+One Go module; `core`/`cli`/`srv` are conceptual layers (packages at the repo root), not
+separate `go.mod`s. Four roles — two now, two later:
 
-| Module     | Role                                                           | Depends on       | When   |
+| Layer      | Role                                                           | Depends on       | When   |
 |------------|---------------------------------------------------------------|------------------|--------|
-| **core/**  | Stateless engine — build / render / publish / release. No DB, no HTTP, no auth. | — (leaf) | now    |
-| **cli/**   | The `platform` command — local builds + (later) repo onboarding. | core           | now    |
-| **srv/**   | API + webhook processor. Owns the GitHub App, the DB, token minting. | core         | future |
-| **webui/** | Frontend over `srv`'s API.                                    | srv's API (wire) | future |
+| **core**   | Stateless engine — build / render / publish / release. No DB, no HTTP, no auth. | — (leaf) | now    |
+| **cli**    | The `platform` command — local builds + (later) repo onboarding. | core           | now    |
+| **srv**    | API + webhook processor. Owns the GitHub App, the DB, token minting. | core         | future |
+| **webui**  | Frontend over `srv`'s API.                                    | srv's API (wire) | future |
 
-### The dependency rule (binding)
+### Single module, not a workspace
+
+The server ships **in the same binary** as the CLI — `platform serve` starts the webhook/API
+process. That collapses the case for a `go.work` multi-module split: the headline benefit of a
+separate `core` `go.mod` was dependency-set minimization (core's deps can't include the CLI's
+`cobra`/`pterm` or the server's DB driver), but that only buys anything across *separate
+binaries*. A co-binary links the union regardless — so the split would carry the nested-module
+tagging tax (`go install @latest` needs coordinated `core/vX.Y.Z` tags) for no offsetting win.
+
+So: **one module, `platform.prodigy9.co`.** No `go.work`, no `core/` umbrella directory (a
+folder whose only job is to be a module root earns nothing once it isn't one — library
+packages stay at the repo root). `cmd/` is unchanged. The accepted trade: `go install` of the
+CLI pulls the server's transitive deps (DB driver, `net/http`) into the laptop binary — small
+next to dagger, dormant unless `serve` runs. If it ever bites, splitting `srv` into its own
+binary is a later additive move, not a pre-payment.
+
+### The dependency rule (still binding, enforced by lint)
 
 **`core` is the leaf and must never import server concerns.** No `fx/data`/`sqlx`/
 migrations, no `net/http` server, no auth, no knowledge that `srv` exists. `core` is
-consumed *by* `srv`; it must not reach back. Splitting `core` into its **own module** (own
-`go.mod`) enforces this at the module level — `core`'s dependency set physically cannot
-include the CLI's `cobra`/`pterm` or the server's DB driver. That minimal footprint is the
-whole reason for the workspace split, not just tidiness.
+consumed *by* `srv`; it must not reach back. Without the module boundary this is enforced by
+an **import-graph check in `test.sh`** — introduced when `srv/` actually lands (the library
+packages must not import `cmd/` or `srv/`). Writing it now, against a tree with no `srv/`,
+guards nothing.
 
 ### No `api/` contract layer (deliberate)
 
@@ -62,8 +79,7 @@ versioning actually bites.
 Every current subcommand (`build`, `publish`, `deploy`, `ops render/publish`, `preview`,
 `release`, …) is a **local** operation over the engine. There is no server to call. So the
 CLI has **zero server calls** today; the client described above is future and, even then,
-starts near-empty (early `init` mostly opens a browser URL, not an RPC). The immediate
-split is purely `core/` ← `cli/`.
+starts near-empty (early `init` mostly opens a browser URL, not an RPC).
 
 ## Authorization model: delegate to GitHub, zero platform RBAC
 
@@ -196,40 +212,15 @@ The **`#4` builders reshape + the infra builder are `core` work and proceed rega
 of the server timeline — they land on the core side of the line either way, so none of the
 server/auth design gates the next coding step.
 
-## Immediate next: the `core/` + `cli/` split
+## Immediate next: nothing structural
 
-The only thing gating execution is the module mechanics. Resolution:
-
-- **Two modules via `go.work`:** root `platform.prodigy9.co` (the CLI) + nested
-  `platform.prodigy9.co/core` (the engine). Commit `go.work`; it is local-dev only and
-  **ignored by `go get`/`go install`** when the module is consumed, so it breaks nothing
-  downstream.
-- **Keep the CLI as the *root* module** (main at repo root) so `go install
-  platform.prodigy9.co@latest` is **unchanged**.
-  `vanity.GitHubHandler("platform.prodigy9.co", "prod9", "platform", "https")` already
-  serves the `go-import` meta for every subpath, so `platform.prodigy9.co/core` resolves
-  to the same repo — **vanity needs no change**.
-- **Packages into `core/`:** every library package — i.e. everything **except** the root
-  `main.go` and `cmd/`. As of this writing that is `baseline`, `bootstrapper`, `builder`
-  (+`fileutil`, `gowork`), `dsl`, `engine`, `gitctx` (+`gitcmd`), `gitops`, `internal`
-  (+`buildlog`, `timeouts`), `ops`, `project`, `releases` (+`dateref`, `timeref`). The
-  root (CLI) module keeps `main.go` + `cmd/` (including `cmd/ops` and the hidden `vanity`
-  command).
-- **Cost:** import-path churn (`platform.prodigy9.co/builder` → `…/core/builder`) — a
-  mechanical one-shot sweep. Smoke (`tests.lock.yml`) is the drift gate.
-- **Nested-module tagging nuance:** if `core` is ever consumed externally it would need
-  `core/vX.Y.Z`-prefixed tags; consumed locally via `go.work` this never arises during
-  development.
-
-**Open at execution:** whether to also introduce a literal `cli/` directory (moving `cmd/`
-under it) for symmetry with `core/`. It's cosmetic — it does **not** change the module
-path or the install command. Lean: keep the CLI at the root for now (least churn), revisit
-a `cli/` directory when `srv/`/`webui/` land and force the symmetry.
+Single module, `cmd/` unchanged — there is **no module-split coding step**. The
+`core`/`cli`/`srv` layering is package discipline, enforced by the `test.sh` import lint
+added alongside `srv/`. Next real coding step is the builders reshape + infra builder.
 
 ## Open details (not blockers)
 
 - Where the `init` server marker lives — `platform.toml` `[server]` field vs CLI-global
   config.
-- Whether a literal `cli/` directory is introduced now or deferred (above).
 - The within-language run-stage dedup question carried in the builders-reshape note (§
   open).

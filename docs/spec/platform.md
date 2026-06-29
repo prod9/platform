@@ -53,15 +53,16 @@ No credential reaches into the cluster — the cluster pulls everything.
 
 ## Component contracts
 
-- **`api/` — platform server.** In-cluster, pod SA, Postgres. Owns Projects,
-  identity/RBAC, secret *values*, audit, deploy history. Brokers: kube tokens
-  (`TokenRequest`), the secret-pull endpoint, the gated deploy (git dance). Serves the API
-  the other clients use.
-- **`cli/` — platform CLI** (+ folded OpenTofu provider as a multi-call binary). `login`
-  (device-flow GitHub OAuth → platform token), `build` /`preview` (local Dagger, no
-  deploy), `deploy` (API call), `kubeconfig` (exec-credential), `tf install`.
-- **`ui/` — SvelteKit (plain JS)**, adapter-static, `go:embed` 'd into `api`. v1: Login,
-  Projects, Access, Deploys, Target status.
+- **`srv/` — platform server** (reached via `platform serve`; future). In-cluster, pod SA,
+  Postgres. Owns Projects, identity, secret *values*, audit, deploy history. Brokers: kube
+  tokens (`TokenRequest`), the secret-pull endpoint, the gated deploy (git dance). Serves the
+  API the other clients use. Authorization is **GitHub-derived, zero platform RBAC** — see
+  [`../notes/2026-06-29-platform-as-ci-design.md`](../notes/2026-06-29-platform-as-ci-design.md).
+- **`platform` CLI** (the existing `cmd/`-based binary; + folded OpenTofu provider as a
+  multi-call binary). `login` (GitHub OAuth → platform token), `build`/`preview` (local
+  Dagger, no deploy), `deploy` (API call), `kubeconfig` (exec-credential), `tf install`.
+- **`webui/` — SvelteKit (plain JS)**, adapter-static, `go:embed`'d into the `srv/` binary.
+  v1: Login, Projects, Access, Deploys, Target status.
 - **Shared Go packages** — flat at the top level, no `core/` grab-bag (see
   [`architecture.md`](architecture.md)): `builder` (Dagger strategies), `engine` (the Dagger
   pool + executor), `project` (`platform.toml`), `releases`, `gitctx`, `gitops`

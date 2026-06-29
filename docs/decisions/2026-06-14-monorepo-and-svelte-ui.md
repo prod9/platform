@@ -1,8 +1,16 @@
 # ADR: Monorepo layout + SvelteKit (JS) UI
 
-- **Status:** Accepted
+- **Status:** Superseded (2026-06-29) — see banner
 - **Date:** 2026-06-14
 - **From:** 2026-06 platformv2 design walk
+
+> **Superseded (2026-06-29):** the `core/` + `api/`/`cli/` monorepo restructure and the
+> single-module-spanning-`api/cli/core` layout are dropped. platform stays **one Go module
+> with flat top-level packages** (no `core/` grab-bag); the server ships in-binary as
+> `platform serve` (+ a future `srv/` package). See
+> [`../notes/2026-06-29-platform-as-ci-design.md`](../notes/2026-06-29-platform-as-ci-design.md).
+> The **SvelteKit-in-plain-JS UI** and **multi-call OpenTofu-provider-in-the-CLI** decisions
+> still stand.
 
 ## Context
 

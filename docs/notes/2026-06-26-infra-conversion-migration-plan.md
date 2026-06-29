@@ -1,8 +1,10 @@
-# Infra conversion + platform delivery migration plan (DRAFT)
+# Infra conversion + platform delivery migration plan
 
-**Status: DRAFT — pending chakrit's review.** Open decisions at the end are not settled.
-Supersedes the partial 5-step sketch in the platformv2 implementation-plan breadcrumb
-(whose "rewrite to house idiom" step is voided — see framing below).
+**Status: SUPERSEDED (2026-06-29) — historical record.** The `../infra` cutover below is not
+the path taken: platform self-delivers from a fresh standalone `./infra` repo, and the fleet
+migration now runs through the platform-as-CI component (see
+[`2026-06-29-platform-as-ci-design.md`](2026-06-29-platform-as-ci-design.md)). The
+ground-truth and resolved-decisions sections remain accurate as of their date.
 
 ## Goal
 
