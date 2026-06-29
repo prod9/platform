@@ -28,6 +28,7 @@ note still existing.
 Newest first. Notes are disposable, so this list may lag — the directory is the truth.
 
 - [2026-06-29 — Resume breadcrumb (audit + builders design)](2026-06-29-resume.md)
+- [2026-06-29 — Platform-as-CI architecture design](2026-06-29-platform-as-ci-design.md)
 - [2026-06-29 — Builders reshape design pass (#4)](2026-06-29-builders-reshape-design.md)
 - [2026-06-28 — Coding audit (general-coding + go-coding rubric + ledger)](2026-06-28-coding-audit.md)
 - [2026-06-27 — Resume breadcrumb](2026-06-27-resume.md)
