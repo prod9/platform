@@ -47,7 +47,7 @@ func (b PNPMStatic) Build(ctx context.Context, client *dagger.Client, unit *Buil
 
 	outdir := strings.TrimSpace(unit.BuildDir)
 	if outdir == "" {
-		outdir = "build"
+		outdir = defaultBuildDir
 	}
 
 	cmd := strings.TrimSpace(unit.CommandName)
@@ -55,12 +55,7 @@ func (b PNPMStatic) Build(ctx context.Context, client *dagger.Client, unit *Buil
 		cmd = "caddy"
 	}
 
-	args := []string{cmd}
-	if len(unit.CommandArgs) > 0 {
-		args = append(args, unit.CommandArgs...)
-	} else {
-		args = append(args, "file-server", "-l", "0.0.0.0:3000")
-	}
+	args := pnpmRunArgs(cmd, unit, "file-server", "-l", "0.0.0.0:3000")
 
 	runner := BaseImageForUnit(client, unit)
 	runner = withCaddyServer(runner).

@@ -72,27 +72,17 @@ func (PNPMWorkspace) Build(ctx context.Context, client *dagger.Client, unit *Bui
 	})
 
 	// prepare job parameters
-	pkg := unit.PackageName
-	if pkg == "" {
-		pkg = unit.Name
-	}
-
 	outdir := strings.TrimSpace(unit.BuildDir)
 	if outdir == "" {
-		outdir = "build"
+		outdir = defaultBuildDir
 	}
 
 	cmd := strings.TrimSpace(unit.CommandName)
 	if cmd == "" {
-		cmd = "/usr/local/bin/node"
+		cmd = defaultNodeBin
 	}
 
-	args := []string{cmd}
-	if len(unit.CommandArgs) > 0 {
-		args = append(args, unit.CommandArgs...)
-	} else {
-		args = append(args, ".")
-	}
+	args := pnpmRunArgs(cmd, unit, ".")
 
 	// build
 	base := BaseImageForUnit(client, unit)

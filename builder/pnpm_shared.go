@@ -13,6 +13,21 @@ const (
 	PNPMVersion = "9.15.5" // pnpm 10+ turns ignored-build warnings into errors
 )
 
+const (
+	defaultBuildDir = "build"               // pnpm output dir when BuildDir is unset
+	defaultNodeBin  = "/usr/local/bin/node" // run command for non-static pnpm builds
+)
+
+// pnpmRunArgs builds a pnpm runner's default args: the resolved command followed by
+// the operator's CommandArgs, or the builder's fallback args when none are given.
+func pnpmRunArgs(cmd string, unit *BuildUnit, fallback ...string) []string {
+	args := []string{cmd}
+	if len(unit.CommandArgs) > 0 {
+		return append(args, unit.CommandArgs...)
+	}
+	return append(args, fallback...)
+}
+
 var NInstallScript = strings.TrimSpace(`
 set -xe
 curl -fsSL https://raw.githubusercontent.com/tj/n/master/bin/n | \

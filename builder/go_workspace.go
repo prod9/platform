@@ -5,7 +5,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"dagger.io/dagger"
 	"fx.prodigy9.co/errutil"
@@ -70,18 +69,9 @@ func (GoWorkspace) Build(ctx context.Context, client *dagger.Client, unit *Build
 	}
 
 	// prepare job parameters
-	cmd := strings.TrimSpace(unit.CommandName)
-	switch {
-	case cmd == "" && unit.PackageName != "":
-		cmd = unit.PackageName
-	case cmd == "" && unit.Name != "":
-		cmd = unit.Name
-	}
+	appbin := goAppBin(unit)
 
-	args := []string{"./" + cmd}
-	if len(unit.CommandArgs) > 0 {
-		args = append(args, unit.CommandArgs...)
-	}
+	args := append([]string{"./" + appbin}, unit.CommandArgs...)
 
 	// build
 	base := BaseImageForUnit(client, unit)
@@ -120,12 +110,12 @@ func (GoWorkspace) Build(ctx context.Context, client *dagger.Client, unit *Build
 	builder = builder.
 		WithDirectory(".", host).
 		WithExec(testargs).
-		WithExec([]string{gobin, "build", "-v", "-o", "/out/" + cmd, pkg})
+		WithExec([]string{gobin, "build", "-v", "-o", "/out/" + appbin, pkg})
 
 	// run
 	runner := withRunnerPkgs(base)
 	runner = withUnitEnv(runner, unit)
-	runner = runner.WithFile("/app/"+cmd, builder.File("/out/"+cmd))
+	runner = runner.WithFile("/app/"+appbin, builder.File("/out/"+appbin))
 	for _, dir := range unit.AssetDirs {
 		runner = runner.WithDirectory(dir, builder.Directory(dir))
 	}
