@@ -1,7 +1,6 @@
 package releases
 
 import (
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -53,7 +52,7 @@ func (s Semver) NextName(prevName string, comp NameComponent) (string, error) {
 		parts[2] = "0"
 
 	default:
-		return "", errors.New("invalid version component: " + string(comp))
+		return "", fmt.Errorf("%w: %q", ErrBadVersionComponent, comp)
 	}
 
 	return strings.Join(parts, "."), nil

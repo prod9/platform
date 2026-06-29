@@ -56,7 +56,11 @@ func runBootstrapCmd(cmd *cobra.Command, args []string) {
 		replace = sess.YesNo(fmt.Sprintf("replace %d existing file(s)?", n))
 	}
 
-	if err := plan.Apply(replace); err != nil {
+	apply := plan.Apply
+	if replace {
+		apply = plan.ApplyOverwrite
+	}
+	if err := apply(); err != nil {
 		buildlog.Fatalln(err)
 	}
 	for _, f := range plan.Files {

@@ -175,6 +175,9 @@ func listCommits(git *gitctx.GitCtx, range_ string) (refs []CommitRef, err error
 	} else {
 		raw, err = git.CommitsSinceTag(strings.Split(range_, "..")[0])
 	}
+	if err != nil {
+		return nil, err
+	}
 
 	return slices.Collect(parseLogOutput(raw)), nil
 }

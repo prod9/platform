@@ -78,10 +78,17 @@ func Analyze(dir string, info *Info, defaultVars map[string]any) (*Plan, error) 
 	return &Plan{Dir: dir, Files: files, Vars: vars}, nil
 }
 
-// Apply writes the plan, creating parent directories as needed. Fresh writes
-// always land; an existing file is overwritten only when replace is set,
-// otherwise it is left untouched.
-func (p *Plan) Apply(replace bool) error {
+// Apply writes the plan's files, skipping any that would overwrite an existing file.
+func (p *Plan) Apply() error {
+	return p.write(false)
+}
+
+// ApplyOverwrite writes the plan's files, replacing existing files in place.
+func (p *Plan) ApplyOverwrite() error {
+	return p.write(true)
+}
+
+func (p *Plan) write(replace bool) error {
 	for _, f := range p.Files {
 		if f.Action == FileOverwrite && !replace {
 			continue

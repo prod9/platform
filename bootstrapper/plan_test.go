@@ -35,7 +35,7 @@ func TestAnalyze_freshRepoWritesEverything(t *testing.T) {
 	r.Contains(t, byPath, "platform")
 
 	// Apply lands them on disk; the platform script is executable.
-	r.NoError(t, plan.Apply(false))
+	r.NoError(t, plan.Apply())
 	info, err := os.Stat(filepath.Join(dir, "platform"))
 	r.NoError(t, err)
 	r.NotZero(t, info.Mode()&0100, "platform script must be executable")
@@ -73,7 +73,7 @@ cert_manager_version = "v1.16.0"
 	}
 	r.Equal(t, FileOverwrite, toml.Action)
 
-	r.NoError(t, plan.Apply(true))
+	r.NoError(t, plan.ApplyOverwrite())
 	got, err := os.ReadFile(filepath.Join(dir, "platform.toml"))
 	r.NoError(t, err)
 	out := string(got)
@@ -94,7 +94,7 @@ func TestApply_keepsExistingWhenNotReplacing(t *testing.T) {
 
 	// replace=false leaves the existing overwrite target untouched while still
 	// landing the fresh writes.
-	r.NoError(t, plan.Apply(false))
+	r.NoError(t, plan.Apply())
 	got, err := os.ReadFile(path)
 	r.NoError(t, err)
 	r.Equal(t, existing, string(got))

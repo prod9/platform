@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -134,18 +133,12 @@ func emit(outDir, name string, docs []Doc) error {
 	return os.WriteFile(path, data, 0o644)
 }
 
-// checkRelPath rejects absolute paths and any name that escapes the output dir.
+// checkRelPath rejects any name that is not local to the output dir: absolute paths,
+// empty names, and any path that escapes via "..". filepath.IsLocal is lexical only —
+// it does not resolve symlinks, matching the prior hand-rolled check.
 func checkRelPath(name string) error {
-	if name == "" {
-		return fmt.Errorf("emit: empty filename")
-	}
-	if filepath.IsAbs(name) {
-		return fmt.Errorf("emit: absolute path %q not allowed", name)
-	}
-
-	clean := filepath.Clean(name)
-	if clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
-		return fmt.Errorf("emit: path %q escapes output dir", name)
+	if !filepath.IsLocal(name) {
+		return fmt.Errorf("emit: %q must be a relative path within the output dir", name)
 	}
 	return nil
 }

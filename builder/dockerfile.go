@@ -53,22 +53,16 @@ func (d Dockerfile) Build(ctx context.Context, client *dagger.Client, unit *Buil
 
 	// not using BaseImageForJob because, well, dockerfiles have their own bases
 	// this builder should be discouraged
-	opts := dagger.DirectoryDockerBuildOpts{}
-	if len(unit.Env) > 0 {
-		for key, value := range unit.Env {
-			opts.BuildArgs = append(opts.BuildArgs,
-				dagger.BuildArg{Name: key, Value: value},
-			)
-		}
+	opts := dagger.DirectoryDockerBuildOpts{
+		Platform: dagger.Platform(unit.Platform),
+	}
+	for key, value := range unit.Env {
+		opts.BuildArgs = append(opts.BuildArgs,
+			dagger.BuildArg{Name: key, Value: value},
+		)
 	}
 
-	builder := host.DockerBuild(dagger.DirectoryDockerBuildOpts{
-		Platform:   dagger.Platform(unit.Platform),
-		Dockerfile: "",
-		Target:     "",
-		BuildArgs:  []dagger.BuildArg{},
-		Secrets:    []*dagger.Secret{},
-	})
+	builder := host.DockerBuild(opts)
 
 	builder = withUnitEnv(builder, unit)
 	if len(args) > 0 {

@@ -35,7 +35,7 @@ func TestAnalyzeInit_writesComponentsProjectFileAndScript(t *testing.T) {
 	r.Contains(t, byPath, "platform")
 	r.Equal(t, os.FileMode(0744), byPath["platform"].Mode)
 
-	r.NoError(t, plan.Apply(false))
+	r.NoError(t, plan.Apply())
 	got, err := os.ReadFile(filepath.Join(dir, "apps", "cert-manager.platform"))
 	r.NoError(t, err)
 	r.Contains(t, string(got), `emit "cert-manager.yaml"`)

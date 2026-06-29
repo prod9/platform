@@ -59,6 +59,8 @@ func NewContext(ctx context.Context, eng *Engine) context.Context {
 	return context.WithValue(ctx, engineContextKey{}, eng)
 }
 
+// FromContext returns the engine carried by ctx, panicking if none is present. It is the
+// Must-style counterpart to LookupFromContext; use it where the engine is a precondition.
 func FromContext(ctx context.Context) *Engine {
 	return ctx.Value(engineContextKey{}).(*Engine)
 }

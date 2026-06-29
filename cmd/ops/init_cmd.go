@@ -79,7 +79,11 @@ func runInitCmd(cmd *cobra.Command, args []string) {
 	if err := ensureGitRepo(wd); err != nil {
 		buildlog.Fatalln(err)
 	}
-	if err := plan.Apply(replace); err != nil {
+	apply := plan.Apply
+	if replace {
+		apply = plan.ApplyOverwrite
+	}
+	if err := apply(); err != nil {
 		buildlog.Fatalln(err)
 	}
 	for _, f := range plan.Files {

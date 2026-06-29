@@ -76,9 +76,14 @@ func runPublish(cmd *cobra.Command, args []string) {
 		buildlog.Fatalln(err)
 	}
 
+	anyerr := false
 	for _, result := range results {
 		if result.Err != nil {
 			buildlog.Error(result.Err)
+			anyerr = true
 		}
+	}
+	if anyerr {
+		os.Exit(1)
 	}
 }

@@ -3,9 +3,9 @@ package cmd
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"strings"
-	"time"
 
 	"dagger.io/dagger"
 	"fx.prodigy9.co/cmd/prompts"
@@ -91,12 +91,13 @@ func runPreview(cmd *cobra.Command, args []string) {
 		buildlog.Fatalln(err)
 	}
 
-	if previewPort <= 1 {
-		if preview.Port == nil {
+	if previewPort == 0 {
+		if preview.Port == 0 {
 			buildlog.Fatalln(errors.New("specify preview port with --port or port= key in platform.toml"))
-		} else {
-			previewPort = *preview.Port
 		}
+		previewPort = preview.Port
+	} else if previewPort < 1000 {
+		buildlog.Fatalln(fmt.Errorf("preview port %d is reserved; use a port >= 1000", previewPort))
 	}
 	if custom := strings.TrimSpace(previewCmd); custom != "" {
 		preview.CommandName = custom
@@ -116,14 +117,11 @@ func runPreview(cmd *cobra.Command, args []string) {
 		tunnel.Stop(ctx)
 		os.Exit(0)
 	})
-	go func() {
-		tunnel, err = tunnel.Start(ctx)
-		if err != nil {
-			buildlog.Fatalln(err)
-		}
-	}()
+	tunnel, err = tunnel.Start(ctx)
+	if err != nil {
+		buildlog.Fatalln(err)
+	}
 
-	time.Sleep(3 * time.Second)
 	addr, err := tunnel.Endpoint(ctx, dagger.ServiceEndpointOpts{
 		Port: previewPort,
 	})
