@@ -129,7 +129,8 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
   `bootstrap` cmd prints the plan and confirms (fx prompt); `--force` applies unprompted.
 - `releases/` — Release strategies: `semver`, `timestamp`, `datestamp`. `Generate`
   diffs commits since last tag, `Create` tags + pushes. `collection.go` recovers
-  history from git tags.
+  history from git tags. `dateref`/`timeref` subpackages parse the datestamp/timestamp
+  ref formats.
 - `gitctx/` — Wraps `gitcmd/` shell helpers; caches current branch and tracking
   remote via `sync.OnceValues`. Distinguishes version tags (annotated, push) vs
   environment tags (force-updated, force-pushed).
@@ -167,8 +168,8 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
   [committed-image correction ADR](docs/decisions/2026-06-26-render-is-pure-function-of-committed-git.md)).
   `Publish` (gzipped-tar layer + Flux media types, oras-go), `RemoteRepository` (`oci://` ref +
   `REGISTRY_USERNAME`/`REGISTRY_PASSWORD` auth). Wired as `platform ops render`/`publish`.
-- `internal/` — `plog` (structured logger), `multiplexer` (parallel job runner),
-  `timeouts` (TOML duration), `fileutil`, `dateref`, `timeref`.
+- `internal/` — `buildlog` (build/CLI structured logger), `multiplexer` (parallel job
+  runner), `timeouts` (TOML duration).
 - `testbeds/` — Sample projects per builder type, exercised by smoke tests.
 
 ### Testing

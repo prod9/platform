@@ -74,7 +74,7 @@ lands a local working tree; the builder renders in-process against it.
 | 4  | Generic workspace discovery    | **Defer** — discovery + local-repo bootstrapping is its own feature set (a marker-file scanner), to design wholesale, not piecemeal-DRY now. |
 | 5  | Drop `Layout()`/`Class()`      | **Keep** — latent placeholders for a planned (currently dormant) IO/file-manipulation + bootstrap feature. |
 | 6  | Replace order-sensitive registry | **Defer** — ordering only matters during discovery (`platform.toml` requires an explicit `builder=""` otherwise); fold into the discovery redesign. |
-| 7  | `fileutil` rename              | **Accept** — merge/rename to end the `builder/fileutil` vs `internal/fileutil` collision. |
+| 7  | `fileutil` rename              | **Drop** — premise void: `internal/fileutil` never existed, so there is no collision. `builder/fileutil` (`DetectFile`/`WalkSubdirs`) keeps its name. |
 | 8  | Dockerfile build-args bug      | **Already fixed** — landed in `a393a0f` (audit triage). |
 
 Also confirmed: **II.1** platform-builds-itself fits `GoBasic` as-is (only friction:
@@ -82,9 +82,9 @@ Also confirmed: **II.1** platform-builds-itself fits `GoBasic` as-is (only frict
 infra-render is a *new* builder, not a generalization of the contract (above).
 
 What survives as near-term reshape work: the two-phase cmd/args separation (§2), the
-`fileutil` rename (§7), the `GoBasic` test opt-out, making feature non-support explicit
-(§3) — then the new `platform/infra` builder. Dropped/deferred: universal run-stage,
-generic discovery, dropping `Layout()`/`Class()`, registry reorder.
+`GoBasic` test opt-out, making feature non-support explicit (§3) — then the new
+`platform/infra` builder. Dropped/deferred: universal run-stage, generic discovery,
+dropping `Layout()`/`Class()`, registry reorder, the `fileutil` rename (no collision).
 
 ## 1. What's actually wrong (not style — structure)
 
@@ -114,9 +114,7 @@ for the work every builder shares, so the sharing is copy-paste:
    implementor. They are documentation masquerading as behavior.
 6. **Order-sensitive registry** (`builder.go:75-82`): correctness depends on slice
    position (workspace must precede basic), guarded only by a comment.
-7. **Two `fileutil` packages** (`builder/fileutil` vs `internal/fileutil`) — a name
-   collision.
-8. **One real bug rides along:** `dockerfile.go:56` assembles `opts` with `Env` build-args
+7. **One real bug rides along:** `dockerfile.go:56` assembles `opts` with `Env` build-args
    then passes a *fresh empty* opts to `DockerBuild` — build-args are silently dropped.
 
 ## 2. The crux: the new builders don't fit the current contract
@@ -189,10 +187,9 @@ valid under either option.
    }
    ```
 (Same as today minus `Layout()`/`Class()`. Output type unchanged under Option A.)
-6. **Ride-along fixes** folded into the reshape: `dockerfile.go` build-args bug (§1.8);
-   rename `builder/fileutil` to a responsibility name (e.g. `dirscan`) to end the
-   collision (§1.7); `GoBasic` test-step opt-out on the unit (§2); PNPMStatic single base
-   pull + honor env/assets.
+6. **Ride-along fixes** folded into the reshape: `dockerfile.go` build-args bug (§1.7);
+   `GoBasic` test-step opt-out on the unit (§2); PNPMStatic single base pull + honor
+   env/assets.
 7. **Tag application (GC-U6).** `cmd/publish.go:66` + `deploy.go:92` inline `ImageName +=
    ":"+tag` — move onto the attempt/unit so one place owns it; both commands call it.
 
@@ -203,8 +200,7 @@ valid under either option.
    env/assets/sync.
 3. Generic `discoverWorkspace`.
 4. Drop `Layout()`/`Class()`; fix registry ordering.
-5. Ride-along fixes (dockerfile args, fileutil rename, GoBasic test opt-out,
-   tag-on-attempt).
+5. Ride-along fixes (dockerfile args, GoBasic test opt-out, tag-on-attempt).
 6. Then add the platform self-builder (trivial) and — per the fork — the infra-render
    path.
 

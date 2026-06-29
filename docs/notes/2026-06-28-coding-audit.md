@@ -183,7 +183,7 @@ SAFE fixes landed in `builder: Whitespace + flatten…` (45e43d5). Rest are LOG.
 - GC-C2 | gowork.go:16 ParseFile else-nesting | FIXED (early-return).
 - GC-F1 | gowork.go:29 ParseReader double-close | FIXED (caller owns reader).
 - GC-S1/T3 | fileutil.go:23 WalkSubdirs err-after-deref | FIXED (err checked first).
-- GC-N4 | builder/fileutil naming | LOGGED (scoped-name borderline; + collides with internal/fileutil).
+- GC-N4 | builder/fileutil naming | WONTFIX (no collision — internal/fileutil never existed; scoped name acceptable).
 - GO-N3 | unit.go:28 `Port *int` | LOGGED (mirrors project.Module.Port; → int ripples cross-pkg).
 - GC-D1 ×3 | attempt.go:38, go_basic.go:38, pnpm_basic.go:42 | LOGGED — dedupe targets; fold into #4 builders reshape.
 - GC-D1/bug | dockerfile.go:56 dead `opts.BuildArgs` (Env build-args silently dropped) | LOGGED — real bug, needs intent decision.
