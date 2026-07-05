@@ -87,9 +87,12 @@ hard, non-configurable gate. Recorded in the
 [test-in-build ADR](../decisions/2026-07-05-test-in-build-is-a-hard-gate.md). **II.2**
 infra-render is a *new* builder, not a generalization of the contract (above).
 
-What survives as near-term reshape work: the two-phase cmd/args separation (§2) and making
-feature non-support explicit (§3) — then the new `platform/infra` builder. Dropped/deferred:
-the `GoBasic` test opt-out (WONTFIX, above), universal run-stage, generic discovery, dropping
+What survives as near-term reshape work: only the new `platform/infra` builder. The
+two-phase cmd/args separation (§2) landed in slices 2/2b (`36ab695`, `911e9db`); §3's
+"feature non-support explicit" was reshaped and landed as static *honoring* env/assets
+(`b647e5f`, slice 4) — platform owns the runner, so non-support became a fix, not a
+rejection. See [`2026-07-05-resume.md`](2026-07-05-resume.md). Dropped/deferred: the
+`GoBasic` test opt-out (WONTFIX, above), universal run-stage, generic discovery, dropping
 `Layout()`/`Class()`, registry reorder, the `fileutil` rename (no collision).
 
 ## 1. What's actually wrong (not style — structure)

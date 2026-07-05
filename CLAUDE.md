@@ -142,8 +142,12 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
     `GoBasic`, `PNPMStatic`, `PNPMBasic`, `Dockerfile`.
   - `base.go` — Wolfi base image (`cgr.dev/chainguard/wolfi-base`), apk cache mount,
     `CacheBuster` const for global cache invalidation.
-  - `Build/Publish` use `internal.Multiplexer` for parallel job execution.
-  - Registry creds via fx env config: `REGISTRY`, `REGISTRY_USERNAME`, `REGISTRY_PASSWORD`.
+- `engine/` — the Dagger execution layer. `New`/`NewContext` open an `Engine` (a client
+  pool over the discovered engine fleet); `Build` runs an attempt's units and `Publish`
+  pushes them, both fanning out via `internal.Multiplexer`. `BuildAndPublish` is the reusable
+  build+tag+push unit that `publish`/`deploy` drive now and a tag-watch server drives later
+  (see the [delivery-verbs ADR](docs/decisions/2026-07-05-delivery-verbs-are-orthogonal.md)).
+  Registry creds via fx env config: `REGISTRY`, `REGISTRY_USERNAME`, `REGISTRY_PASSWORD`.
 - `bootstrapper/` — Embeds the `platform.template`; discovers builders, writes
   `platform.toml` and an executable `platform` script. `Analyze` validates the
   target wd (must exist, be a dir, live in a git repo — hard gate) and computes a `Plan`
