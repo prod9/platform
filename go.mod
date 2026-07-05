@@ -1,10 +1,10 @@
 module platform.prodigy9.co
 
-go 1.25.5
+go 1.26.1
 
 require (
 	cuelang.org/go v0.15.4
-	dagger.io/dagger v0.20.8
+	dagger.io/dagger v0.21.7
 	fx.prodigy9.co v0.8.6
 	github.com/BurntSushi/toml v1.4.0
 	github.com/felixge/httpsnoop v1.0.4
@@ -30,6 +30,7 @@ require (
 	github.com/chakrit/gendiff v0.0.0-20190724171441-c6e430f125ca // indirect
 	github.com/cockroachdb/apd/v3 v3.2.1 // indirect
 	github.com/containerd/console v1.0.4 // indirect
+	github.com/dagger/querybuilder v0.0.0-20260402040506-574a5e81cb59 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/emicklei/proto v1.14.2 // indirect
 	github.com/getsentry/sentry-go v0.34.1 // indirect
