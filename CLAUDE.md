@@ -40,6 +40,29 @@ Claude …` trailer. Not `type(scope):`.
 Drive `ops init` / `bootstrap` non-interactively with `ALWAYS_YES=1`, not `--force` (which means
 "replace existing files").
 
+## Design approach — how this project cuts
+
+The recurring failure when working here is **conflating concerns the design keeps separate**,
+and **adding code for the remainder** the design discards. Counter both:
+
+- **One high-ROI concern per unit; discard the rest by convention, not code.** A verb, a
+  package, a command does exactly one thing. The parts it does *not* handle are covered by a
+  stated convention (a rule you follow), not by a guard, a flag, a helper, or an extra
+  command. Absence of scaffolding is deliberate, not an omission to fix. (E.g. no
+  release-but-unpublished guard — it's fine by convention.)
+- **Separate the domain from the mechanism.** When two things co-occur, that is often a
+  coupling of the *mechanism* that happens to run them together, not evidence they are the
+  same concern. Ask "domain or mechanism?" before merging. Default to the **narrower cut**.
+- **Don't be exhaustive.** Completeness, symmetry, and "while I'm here" bundling are the smell.
+  Build the narrow thing; leave the rest to convention. When unsure whether a part is in
+  scope, it is probably out — ask, don't add.
+
+Delivery verbs are the canonical instance: `release` (cut a tag) / `publish` (build + push an
+image) / `deploy` (point an env at a published image) are **orthogonal — none implies
+another**. One publish engine (`engine` package), two drivers: the local CLI now, a tag-watch
+server later. See
+[delivery-verbs-are-orthogonal](docs/decisions/2026-07-05-delivery-verbs-are-orthogonal.md).
+
 ## Build & delivery facts
 
 `publish`/`deploy` build `publish_arch` (default `amd64`) so an arm laptop never ships an
