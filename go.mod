@@ -1,6 +1,6 @@
 module platform.prodigy9.co
 
-go 1.26.1
+go 1.26.4
 
 require (
 	cuelang.org/go v0.15.4
