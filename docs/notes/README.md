@@ -27,6 +27,7 @@ note still existing.
 
 Newest first. Notes are disposable, so this list may lag — the directory is the truth.
 
+- [2026-07-05 — Resume breadcrumb (builders reshape: slices 1–2b landed)](2026-07-05-resume.md)
 - [2026-06-29 — Resume breadcrumb (audit + builders design)](2026-06-29-resume.md)
 - [2026-06-29 — Platform-as-CI architecture design](2026-06-29-platform-as-ci-design.md)
 - [2026-06-29 — Builders reshape design pass (#4)](2026-06-29-builders-reshape-design.md)
