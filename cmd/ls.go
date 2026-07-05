@@ -53,8 +53,8 @@ func runList(cmd *cobra.Command, args []string) {
 
 	stdout, err := builder.BaseImageForUnit(client, preview).
 		WithExec([]string{"apk", "add", "--no-cache", "tree"}).
-		WithDirectory("/app", moddir).
-		WithExec([]string{"tree", "-L", "2"}).
+		WithDirectory(builder.SrcDir, moddir).
+		WithExec([]string{"tree", "-L", "2", builder.SrcDir}).
 		Stdout(ctx)
 	if err != nil {
 		buildlog.Fatalln(err)

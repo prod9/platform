@@ -3,6 +3,7 @@ package builder
 import (
 	"context"
 	"path/filepath"
+	"strings"
 
 	"dagger.io/dagger"
 	"fx.prodigy9.co/errutil"
@@ -34,18 +35,22 @@ func (GoBasic) Build(ctx context.Context, client *dagger.Client, unit *BuildUnit
 	})
 
 	// prepare job parameters
-	appbin := goAppBin(unit)
+	outbin := unit.Name
 
 	goversion, _, err := gowork.ParseFile(filepath.Join(unit.WorkDir, "go.mod"))
 	if err != nil {
 		return nil, err
 	}
 
-	args := append([]string{"./" + appbin}, unit.CommandArgs...)
+	cmd := strings.TrimSpace(unit.CommandName)
+	if cmd == "" {
+		cmd = outbin
+	}
+	args := append([]string{cmd}, unit.CommandArgs...)
 
 	// build
 	base := BaseImageForUnit(client, unit)
-	builder := withBuildPkgs(base, "go")
+	builder := withBuildPkgs(base, "go").WithWorkdir(SrcDir)
 	builder, gobin := withGoVersion(builder, goversion)
 	builder = withGoPkgCache(client, builder, goversion)
 
@@ -57,12 +62,12 @@ func (GoBasic) Build(ctx context.Context, client *dagger.Client, unit *BuildUnit
 	builder = builder.
 		WithDirectory(".", host).
 		WithExec([]string{gobin, "test", "-v", "./..."}).
-		WithExec([]string{gobin, "build", "-v", "-o", "/out/" + appbin, unit.PackageName})
+		WithExec([]string{gobin, "build", "-v", "-o", BinDir + "/" + outbin, unit.PackageName})
 
 	// run
 	runner := withRunnerPkgs(base)
 	runner = withUnitEnv(runner, unit)
-	runner = runner.WithFile("/app/"+appbin, builder.File("/out/"+appbin))
+	runner = runner.WithFile(BinDir+"/"+outbin, builder.File(BinDir+"/"+outbin))
 	for _, dir := range unit.AssetDirs {
 		runner = runner.WithDirectory(dir, builder.Directory(dir))
 	}

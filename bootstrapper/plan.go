@@ -176,12 +176,9 @@ func generateProjectFile(dir string, info *Info, defaultVars map[string]any) ([]
 			mod.WorkDir = "."
 		}
 
-		switch bldr.Class() {
-		case builder.ClassNative: // run the compiled binary directly
-			mod.CommandName = name
-		default: // bytecode/interpreted need an interpreter or vm binary
-			mod.CommandName = ""
-		}
+		// CommandName is left empty: it is an optional runtime-command override.
+		// Unset, the builder runs the module-named binary (Go) or the interpreter
+		// (pnpm) by default.
 
 		proj.Modules[name] = &mod
 	}

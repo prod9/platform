@@ -9,9 +9,7 @@ excludes = ["*.docker", "*.local", ".dockerignore", ".git", ".github", ".gitigno
     workdir = "./app"
     timeout = "1m0s"
     builder = "go/workspace"
-    cmd = "app"
   [modules.fx]
     workdir = "./fx"
     timeout = "1m0s"
     builder = "go/workspace"
-    cmd = "fx"

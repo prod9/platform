@@ -38,6 +38,16 @@ const (
 	CacheBuster = "cache-buster-b78bb982"
 )
 
+// The platform runtime filesystem convention — a small FHS-style tree every
+// builder lays down, so an operator shelling into a built container always finds
+// things in the same place: sources under src, executables on PATH under bin, and
+// the app's working directory (assets, data) under run.
+const (
+	SrcDir = "/platform/src" // build workspace: host sources compile here
+	BinDir = "/platform/bin" // compiled executables, on PATH
+	RunDir = "/platform/run" // runtime working directory (assets, data)
+)
+
 func BaseImageForUnit(client *dagger.Client, unit *BuildUnit) *dagger.Container {
 	apkCache := client.CacheVolume("platform-apk-cache")
 
@@ -46,9 +56,10 @@ func BaseImageForUnit(client *dagger.Client, unit *BuildUnit) *dagger.Container 
 			Platform: dagger.Platform(unit.Platform),
 		}).
 		From(BaseImageName).
-		WithWorkdir("/app").
 		WithLabel("org.opencontainers.image.source", unit.Repository).
-		WithExec([]string{"mkdir", "-p", "/app", "/out"}).
+		WithExec([]string{"mkdir", "-p", SrcDir, BinDir, RunDir}).
+		WithEnvVariable("PATH", BinDir+":${PATH}", dagger.ContainerWithEnvVariableOpts{Expand: true}).
+		WithWorkdir(RunDir).
 		WithNewFile("/"+CacheBuster, CacheBuster).
 
 		// optimize dnf

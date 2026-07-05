@@ -59,6 +59,7 @@ the part that prevents re-litigation.
 
 Newest first.
 
+- [2026-07-05 — Platform FHS container layout; cmd is the runtime command](2026-07-05-platform-fhs-container-layout.md)
 - [2026-06-26 — Render is a pure function of committed git](2026-06-26-render-is-pure-function-of-committed-git.md)
 - [2026-06-24 — Split build and server log channels](2026-06-24-split-build-and-server-log-channels.md)
 - [2026-06-23 — Render via the linked CUE engine](2026-06-23-render-via-linked-cue-engine.md)

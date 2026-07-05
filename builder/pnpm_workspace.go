@@ -89,16 +89,18 @@ func (PNPMWorkspace) Build(ctx context.Context, client *dagger.Client, unit *Bui
 	base = withPNPMBase(base)
 	base = withPNPMPkgCache(client, base)
 	base = withUnitEnv(base, unit)
+	base = base.WithWorkdir(SrcDir)
 
 	builder := withBuildPkgs(base).
-		WithDirectory("/app", host).
+		WithDirectory(".", host).
 		WithExec([]string{"pnpm", "-r", "install"}).
 		WithExec([]string{"pnpm", "-r", "build"})
 
 	// run
 	runner := withRunnerPkgs(base).
-		WithDirectory("/app", builder.Directory("/app/"+unit.Name+"/"+outdir)).
-		WithDirectory("/app/node_modules", builder.Directory("/app/"+unit.Name+"/node_modules"))
+		WithWorkdir(RunDir).
+		WithDirectory(RunDir, builder.Directory(unit.Name+"/"+outdir)).
+		WithDirectory(RunDir+"/node_modules", builder.Directory(unit.Name+"/node_modules"))
 
 	runner = withTypeModulePackageJSON(runner)
 	for _, dir := range unit.AssetDirs {

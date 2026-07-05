@@ -9,4 +9,3 @@ excludes = ["*.docker", "*.local", ".dockerignore", ".git", ".github", ".gitigno
     workdir = "."
     timeout = "1m0s"
     builder = "go/basic"
-    cmd = "gobasic"

@@ -39,10 +39,11 @@ func (b PNPMStatic) Build(ctx context.Context, client *dagger.Client, unit *Buil
 	builder = withPNPMPkgCache(client, builder)
 
 	builder = builder.
+		WithWorkdir(SrcDir).
 		WithFile("package.json", host.File("package.json")).
 		WithFile("pnpm-lock.yaml", host.File("pnpm-lock.yaml")).
 		WithExec([]string{"pnpm", "i"}).
-		WithDirectory("/app", host).
+		WithDirectory(".", host).
 		WithExec([]string{"pnpm", "build"})
 
 	outdir := strings.TrimSpace(unit.BuildDir)
@@ -59,7 +60,7 @@ func (b PNPMStatic) Build(ctx context.Context, client *dagger.Client, unit *Buil
 
 	runner := BaseImageForUnit(client, unit)
 	runner = withCaddyServer(runner).
-		WithDirectory("/app", builder.Directory(outdir)).
+		WithDirectory(RunDir, builder.Directory(outdir)).
 		WithDefaultArgs(args)
 
 	return runner, nil

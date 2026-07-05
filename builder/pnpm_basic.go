@@ -52,17 +52,19 @@ func (PNPMBasic) Build(ctx context.Context, client *dagger.Client, unit *BuildUn
 	base = withPNPMPkgCache(client, base)
 	base = withUnitEnv(base, unit)
 	base = base.
+		WithWorkdir(SrcDir).
 		WithFile("package.json", host.File("package.json")).
 		WithFile("pnpm-lock.yaml", host.File("pnpm-lock.yaml")).
 		WithExec([]string{"pnpm", "i"})
 
 	builder := base.
-		WithDirectory("/app", host).
+		WithDirectory(".", host).
 		WithExec([]string{"pnpm", "build"})
 
 	// runner
 	runner := withRunnerPkgs(base).
-		WithDirectory("/app", builder.Directory(outdir))
+		WithWorkdir(RunDir).
+		WithDirectory(RunDir, builder.Directory(outdir))
 	for _, dir := range unit.AssetDirs {
 		runner = runner.WithDirectory(dir, builder.Directory(dir))
 	}

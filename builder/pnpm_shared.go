@@ -43,7 +43,7 @@ func withPNPMBase(base *dagger.Container) *dagger.Container {
 }
 
 func withTypeModulePackageJSON(base *dagger.Container) *dagger.Container {
-	return base.WithNewFile("/app/package.json", `{"type":"module"}`)
+	return base.WithNewFile(RunDir+"/package.json", `{"type":"module"}`)
 }
 
 func withPNPMPkgCache(client *dagger.Client, base *dagger.Container) *dagger.Container {

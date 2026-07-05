@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"dagger.io/dagger"
 	"fx.prodigy9.co/errutil"
@@ -69,14 +70,18 @@ func (GoWorkspace) Build(ctx context.Context, client *dagger.Client, unit *Build
 	}
 
 	// prepare job parameters
-	appbin := goAppBin(unit)
+	outbin := unit.Name
 
-	args := append([]string{"./" + appbin}, unit.CommandArgs...)
+	cmd := strings.TrimSpace(unit.CommandName)
+	if cmd == "" {
+		cmd = outbin
+	}
+	args := append([]string{cmd}, unit.CommandArgs...)
 
 	// build
 	base := BaseImageForUnit(client, unit)
 
-	builder := withBuildPkgs(base, "go")
+	builder := withBuildPkgs(base, "go").WithWorkdir(SrcDir)
 	builder, gobin := withGoVersion(builder, goversion)
 	builder = withGoPkgCache(client, builder, goversion)
 
@@ -88,8 +93,8 @@ func (GoWorkspace) Build(ctx context.Context, client *dagger.Client, unit *Build
 	// otherwise it'll try to fetch them from the internet during build
 	for _, mod := range workmods {
 		builder = builder.
-			WithFile("/app/"+mod+"/go.mod", host.File("./"+mod+"/go.mod")).
-			WithFile("/app/"+mod+"/go.sum", host.File("./"+mod+"/go.sum"))
+			WithFile(SrcDir+"/"+mod+"/go.mod", host.File("./"+mod+"/go.mod")).
+			WithFile(SrcDir+"/"+mod+"/go.sum", host.File("./"+mod+"/go.sum"))
 	}
 
 	// NOTE: Users should `go work sync` if mod doesn't match as build logs maybe invisible
@@ -110,12 +115,12 @@ func (GoWorkspace) Build(ctx context.Context, client *dagger.Client, unit *Build
 	builder = builder.
 		WithDirectory(".", host).
 		WithExec(testargs).
-		WithExec([]string{gobin, "build", "-v", "-o", "/out/" + appbin, pkg})
+		WithExec([]string{gobin, "build", "-v", "-o", BinDir + "/" + outbin, pkg})
 
 	// run
 	runner := withRunnerPkgs(base)
 	runner = withUnitEnv(runner, unit)
-	runner = runner.WithFile("/app/"+appbin, builder.File("/out/"+appbin))
+	runner = runner.WithFile(BinDir+"/"+outbin, builder.File(BinDir+"/"+outbin))
 	for _, dir := range unit.AssetDirs {
 		runner = runner.WithDirectory(dir, builder.Directory(dir))
 	}
