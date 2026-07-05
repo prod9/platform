@@ -37,9 +37,11 @@ Top (closest to the human) to bottom (closest to the metal). One owner each.
   artifact onto the cluster; applies/prunes; drift correction. No Argo. No Helm.
 - **`platform-init`** (embedded in the tool) — the cluster baseline: Flux, cert-manager,
   NGF, the Dagger engine, platform itself. **Embedded** in platform (not a separate repo)
-  as a **flat list** of `.cue` apps + `.platform` directives; `ops init` writes the
-  operator-chosen subset into the infra repo's `apps/`. Seeded once (manual), then
-  Flux-reconciled (except Flux's own lifecycle — never self-managed). See the
+  as a **flat list** of `.cue` apps + `.platform` directives, **destination-encoded by name**;
+  `ops init` installs each operator-chosen file to the destination its name encodes — the repo
+  root, `apps/` (render-able components), or the mandatory `defaults/` package (shared defs like
+  `#Basics`, imported by `apps/`). Seeded once (manual), then Flux-reconciled (except Flux's own
+  lifecycle — never self-managed). See the
   [appliance ADR](../decisions/2026-06-17-opinionated-appliance-embedded-init.md) and the
   [flat-baseline ADR](../decisions/2026-06-22-flat-baseline-install-time-selection.md).
 
@@ -58,7 +60,7 @@ Top (closest to the human) to bottom (closest to the metal). One owner each.
 | App image (the container)             | OCI registry     | immutable tag/digest            |
 | Config artifact (Flux source)         | OCI registry     | moving per-env tag              |
 | What's deployed where, drift          | Flux             | reconciles from OCI             |
-| Cluster baseline (Flux/CM/NGF/engine) | embedded         | files → `apps/` (ops init)      |
+| Cluster baseline (Flux/CM/NGF/engine) | embedded         | files → `apps/`,`defaults/`,root |
 | Cloud / DNS                           | `tf/` (**v2.1**) | OpenTofu                        |
 
 ## Repos & artifacts
@@ -69,9 +71,9 @@ Top (closest to the human) to bottom (closest to the metal). One owner each.
   `k8s/` manifest tree → pushed as the OCI config artifact under a **moving** per-env tag.
   App image refs *inside* are **immutable**.
 - **`tf/`** — OpenTofu env/target list; manual local apply in v2.
-- **`platform-init`** — cluster baseline, **embedded in the tool** as a flat file list; `ops
-  init` emits the operator-chosen subset into the infra repo's `apps/`; one manual seed, then
-  Flux.
+- **`platform-init`** — cluster baseline, **embedded in the tool** as a flat, destination-encoded
+  file list; `ops init` installs each chosen file to the destination its name encodes (repo root,
+  `apps/`, or the mandatory `defaults/` package); one manual seed, then Flux.
 
 ## Deploy flow (where the surfaces meet)
 

@@ -76,9 +76,11 @@ No credential reaches into the cluster — the cluster pulls everything.
 - **Postgres** — platform state (projects, `users` /`identities`, secrets-encrypted,
   audit).
 - **`platform-init`** — the baseline (Flux, cert-manager, NGF, engine, platform),
-  **embedded in the tool** as a flat list of `.cue` apps + `.platform` directives; `ops init`
-  writes the operator-chosen subset into the infra repo's `apps/`, seeded once then
-  Flux-reconciled. Not a separate repo — see the
+  **embedded in the tool** as a flat list of `.cue` apps + `.platform` directives,
+  **destination-encoded by name**; `ops init` installs each operator-chosen file to the
+  destination its name encodes — the repo root, `apps/` (render-able), or the mandatory
+  `defaults/` package (shared defs, imported by `apps/`) — seeded once then Flux-reconciled.
+  Not a separate repo — see the
   [appliance ADR](../decisions/2026-06-17-opinionated-appliance-embedded-init.md) and the
   [flat-baseline ADR](../decisions/2026-06-22-flat-baseline-install-time-selection.md).
 

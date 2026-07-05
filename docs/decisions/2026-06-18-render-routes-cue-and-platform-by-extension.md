@@ -33,9 +33,9 @@ detour; this restores that.
    `k8s/<component>/` render-output tree.
 
 2. **Model I — render-time, nothing rendered is committed.** The DSL runs at render time.
-   The infra repo holds *sources* (`apps/*.cue` + `baseline/*.platform`); the `k8s/` tree is
-   render output, shipped by `ops publish`. This keeps the no-committed-rendered-YAML rule
-   intact for the whole pipeline.
+   The infra repo holds *sources* — render-able `apps/*.{cue,platform}` plus the shared
+   `defaults/` package they import; the `k8s/` tree is render output, shipped by `ops publish`.
+   This keeps the no-committed-rendered-YAML rule intact for the whole pipeline.
 
 3. **Uniform output contract:** filename → document-list → named files. `core/baseline` owns
    the directive-file → `k8s/<component>` directory mapping, where `<component>` is the

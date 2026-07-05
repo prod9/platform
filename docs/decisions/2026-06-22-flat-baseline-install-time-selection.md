@@ -2,17 +2,24 @@
 
 - **Date:** 2026-06-22
 - **PR:** manual
-- **Status:** accepted (supersedes the marker grammar + render-time gating from D3b-2)
+- **Status:** accepted (supersedes the marker grammar + render-time gating from D3b-2;
+  naming + destinations amended 2026-07-06 for the three-destination root/`apps/`/`defaults/`
+  model)
 
 ## Decision
 
 The embedded cluster baseline is **one flat list** of component files (`core/baseline/files/*`
-— both `.platform` directives and `.cue` apps, with clean names) plus a **hard-coded
-`Defaults`** list. `platform init` shows the whole list with `Defaults` pre-checked; the
-operator's chosen subset is written into the target repo's `apps/`. `ops render` applies
-**whatever is present** (route by extension). There is **no** filename marker grammar
-(`@variant`, `+flag`), **no** `baseline.Select`/`ScanOptions`, and **no** render-time gating
-on `[ops.vars]`. `[ops.vars]` carries version pins only — selection is not a var.
+— both `.platform` directives and `.cue` apps, **destination-encoded by name**) plus a
+**hard-coded `Defaults`** list. `platform init` shows the whole list with `Defaults`
+pre-checked; each chosen file installs to the destination its name encodes — `apps-*` → the
+target repo's `apps/`, `defaults-*` → `defaults/`, root files (e.g. `platform.toml`) → the repo
+root. `apps/` holds **only render-able** components (each top-level key becomes an `ops render`
+output); shared definitions (e.g. `#Basics`) live in the **mandatory** `defaults/` package,
+imported by `apps/`. `ops render` applies **whatever is present** (route by extension). There is
+**no** filename marker grammar (`@variant`, `+flag`), **no** `baseline.Select`/`ScanOptions`,
+and **no** render-time gating on `[ops.vars]`. `[ops.vars]` carries version pins only — selection
+is not a var. (The destination prefix is a routing key, not a selection marker — orthogonal to
+the grammar rejected above.)
 
 ## Rationale
 
@@ -46,10 +53,12 @@ selection toggles (`argocd`, `ngf_experimental`).
   model — `renderDirectives` applies every `.platform` found, `renderCue` exports the `.cue`
   files (skipped when there are none). Both read the same co-located `apps/` dir; the
   directive→output-dir mapping moved here as `outputName` (baseline no longer owns it).
-- Files renamed to clean names; `nginx-gateway.platform` (stable, `standard-install`) added
-  alongside `nginx-gateway-experimental.platform` for the TCPRoute-graduates future.
-- `.platform` and `.cue` co-locate in the target's `apps/` (one source tree, route by
-  extension) — the separate `baseline/` dir is gone.
+- Files are **destination-encoded by name** (`apps-*`, `defaults-*`, root); `nginx-gateway.platform`
+  (stable, `standard-install`) sits alongside `nginx-gateway-experimental.platform` for the
+  TCPRoute-graduates future.
+- Render-able `.platform` and `.cue` co-locate in the target's `apps/` (route by extension);
+  shared definitions live in `defaults/`, imported by `apps/`. The separate `baseline/` dir is
+  gone.
 - The init picker is one `prompts.OptionalMultiSelect(question, Defaults, allFiles)`.
 - **Do not re-introduce filename markers or render-time selection gating.** If a future need
   looks like it wants them, prefer another flat-list + Defaults pass first.

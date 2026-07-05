@@ -7,8 +7,9 @@
 ## Decision
 
 `ops render` is a pure function of the committed infra repo: it takes the repo's `apps/` sources
-plus the committed `[ops.vars]` table and produces the `k8s/` manifest tree. Nothing about the
-target image, or any other deploy input, is supplied at render time by a CLI flag.
+(each a render output, importing the shared `defaults/` package) plus the committed `[ops.vars]`
+table and produces the `k8s/` manifest tree. Nothing about the target image, or any other deploy
+input, is supplied at render time by a CLI flag.
 
 The image ref a workload runs is a **committed CUE literal** in its app (e.g.
 `#image: "ghcr.io/prod9/platform:<tag>"`). A new deploy is a git commit that changes that
