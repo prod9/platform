@@ -8,6 +8,7 @@ import (
 	"oras.land/oras-go/v2/registry"
 	"oras.land/oras-go/v2/registry/remote"
 	"oras.land/oras-go/v2/registry/remote/auth"
+	"oras.land/oras-go/v2/registry/remote/credentials"
 	"oras.land/oras-go/v2/registry/remote/retry"
 )
 
@@ -42,21 +43,29 @@ func RemoteRepository(ref string) (*remote.Repository, string, error) {
 	return repo, parsed.Reference, nil
 }
 
-// registryClient returns an authenticated client when credentials are present
-// in the environment, or nil to fall back to oras's anonymous default.
+// registryClient authenticates pushes, preferring REGISTRY_USERNAME/PASSWORD from the
+// environment and otherwise falling back to the docker credential store (config.json +
+// OS keychain) — the same creds `publish` uses via Dagger, so a local push needs no env
+// vars. Returns nil (oras's anonymous default) only when neither source has anything.
 func registryClient(host string) remote.Client {
-	cfg := fxconfig.Configure()
-	username := fxconfig.Get(cfg, RegistryUsernameConfig)
-	if username == "" {
-		return nil
-	}
-
-	return &auth.Client{
+	client := &auth.Client{
 		Client: retry.DefaultClient,
 		Cache:  auth.NewCache(),
-		Credential: auth.StaticCredential(host, auth.Credential{
+	}
+
+	cfg := fxconfig.Configure()
+	if username := fxconfig.Get(cfg, RegistryUsernameConfig); username != "" {
+		client.Credential = auth.StaticCredential(host, auth.Credential{
 			Username: username,
 			Password: fxconfig.Get(cfg, RegistryPasswordConfig),
-		}),
+		})
+		return client
 	}
+
+	store, err := credentials.NewStoreFromDocker(credentials.StoreOptions{})
+	if err != nil {
+		return nil
+	}
+	client.Credential = credentials.Credential(store)
+	return client
 }
