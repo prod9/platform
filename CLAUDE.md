@@ -89,8 +89,9 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
 | configure | Print effective parsed config.                                   |
 | deploy    | Build+publish image tagged `:env` and set/push environment git tag. |
 | discover  | Print detected modules and their builder.                        |
+| exec      | Run a command in, or shell into, the built container; bare+piped prints a summary (debugging). |
 | export    | Build and export container as `.docker` tarball.                 |
-| ls        | List files inside built container (debugging).                   |
+| ls        | Tree the source files going into the container (debugging).      |
 | ops       | GitOps delivery namespace: `ops render` (infra CUE → manifests), `ops publish` (push as OCI config artifact). |
 | preview   | Build and serve container locally via Dagger tunnel.             |
 | publish   | Build+publish image tagged `:release-name` from latest release tag. |
@@ -112,8 +113,8 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
 - `builder/` — Dagger-based build pipeline.
   - `Interface`: `Name/Layout/Class/Discover/Build`.
   - Layouts: `basic` (single module) | `workspace` (multi-module).
-  - Classes: `native` (Go/Rust) | `bytecode` (JVM-likes) | `interpreted` (Node/Ruby) |
-    `custom` (Dockerfile).
+  - Classes (runtime shape): `native` (Go/Rust) | `bytecode` (JVM-likes) | `interpreted`
+    (Node/Ruby) | `static` (served bundles: Astro) | `custom` (Dockerfile).
   - Known builders (order-sensitive for discovery): `GoWorkspace`, `PNPMWorkspace`,
     `GoBasic`, `PNPMStatic`, `PNPMBasic`, `Dockerfile`.
   - `base.go` — Wolfi base image (`cgr.dev/chainguard/wolfi-base`), apk cache mount,
