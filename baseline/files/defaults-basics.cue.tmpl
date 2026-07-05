@@ -1,0 +1,12 @@
+package defaults
+
+import "prodigy9.co/defs/packs"
+
+#Basics: packs.#Basics & {
+	// #registry defaults to ghcr.io; uncomment to override.
+	// #registry: "ghcr.io"
+	#registry_username: "{{ .RegistryUsername }}"
+	#registry_password: "{{ .RegistryPassword }}"
+
+	[...]
+}

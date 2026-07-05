@@ -1,6 +1,7 @@
 package ops
 
 import (
+	"errors"
 	"fmt"
 	"maps"
 	"os"
@@ -35,6 +36,11 @@ func runInitCmd(cmd *cobra.Command, args []string) {
 		buildlog.Fatalln(err)
 	}
 
+	daggerVersion := baseline.DaggerVersion()
+	if daggerVersion == "" {
+		buildlog.Fatalln(errors.New("could not determine the linked dagger SDK version"))
+	}
+
 	sess := prompts.New(nil, args)
 	info := &bootstrapper.Info{
 		ProjectName:     filepath.Base(wd),
@@ -47,10 +53,23 @@ func runInitCmd(cmd *cobra.Command, args []string) {
 		DefsVersion:     baseline.DefsVersion,
 	}
 
-	// Greenfield only: a fresh infra repo needs a cue.mod so render can load its apps; an
-	// existing module is the operator's truth and is left untouched, so don't prompt for it.
-	if !bootstrapper.HasCueModule(wd) {
+	// The module path feeds both the cue.mod scaffold and the `<module>/defaults` import in
+	// templated apps. A fresh repo prompts for it (and gets a scaffolded cue.mod); an existing
+	// module is the operator's truth — read its path, leave the module file untouched.
+	if bootstrapper.HasCueModule(wd) {
+		info.ModulePath, err = bootstrapper.ModulePath(wd)
+		if err != nil {
+			buildlog.Fatalln(err)
+		}
+	} else {
 		info.ModulePath = sess.OptionalStr("cue module path", info.Repository)
+	}
+
+	data := baseline.TemplateData{
+		DaggerVersion:    daggerVersion,
+		RegistryUsername: sess.Str("registry username"),
+		RegistryPassword: sess.SensitiveStr("registry password"),
+		ModulePath:       info.ModulePath,
 	}
 
 	files, err := baseline.EmbeddedFiles()
@@ -58,12 +77,18 @@ func runInitCmd(cmd *cobra.Command, args []string) {
 		buildlog.Fatalln(err)
 	}
 
-	vars := maps.Clone(baseline.DefaultVars)
-	selected := selectComponents(sess, files)
-
-	plan, err := bootstrapper.AnalyzeInit(wd, info, selected, vars)
+	rendered, err := baseline.Render(selectComponents(sess, files), data)
 	if err != nil {
 		buildlog.Fatalln(err)
+	}
+
+	vars := maps.Clone(baseline.DefaultVars)
+	plan, err := bootstrapper.AnalyzeInit(wd, info, vars)
+	if err != nil {
+		buildlog.Fatalln(err)
+	}
+	for _, f := range rendered {
+		plan.AddFile(f.Path, f.Body, 0644)
 	}
 
 	plan.Print(os.Stdout)
@@ -91,29 +116,33 @@ func runInitCmd(cmd *cobra.Command, args []string) {
 	}
 }
 
-// selectComponents picks which built-in components to install: a checkbox list of every
-// built-in file with Defaults pre-checked, driven interactively, by positional args, or
-// defaulting under ALWAYS_YES. Returns the chosen subset of files (written into apps/).
+// selectComponents picks which built-in components to install: a checkbox list of the
+// optional files with Defaults pre-checked, driven interactively, by positional args, or
+// defaulting under ALWAYS_YES. Mandatory files (the shared defaults/ package) are never
+// offered — they are always included. Returns the files to install, keyed by name.
 func selectComponents(sess *prompts.Session, files map[string][]byte) map[string][]byte {
-	names := fileNames(files)
-	sort.Strings(names)
-	chosen := sess.OptionalMultiSelect("install components", baseline.Defaults, names)
+	mandatory := map[string]bool{}
+	for _, name := range baseline.Mandatory {
+		mandatory[name] = true
+	}
+
+	optional := make([]string, 0, len(files))
+	for name := range files {
+		if !mandatory[name] {
+			optional = append(optional, name)
+		}
+	}
+	sort.Strings(optional)
+
+	chosen := sess.OptionalMultiSelect("install components", baseline.Defaults, optional)
 
 	selected := map[string][]byte{}
-	for _, name := range chosen {
+	for _, name := range append(chosen, baseline.Mandatory...) {
 		if body, ok := files[name]; ok {
 			selected[name] = body
 		}
 	}
 	return selected
-}
-
-func fileNames(files map[string][]byte) []string {
-	out := make([]string, 0, len(files))
-	for n := range files {
-		out = append(out, n)
-	}
-	return out
 }
 
 // ensureGitRepo runs `git init` when dir is not already its own git repo root —

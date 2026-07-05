@@ -78,6 +78,13 @@ func Analyze(dir string, info *Info, defaultVars map[string]any) (*Plan, error) 
 	return &Plan{Dir: dir, Files: files, Vars: vars}, nil
 }
 
+// AddFile folds an externally-produced file into the plan (e.g. a baseline component routed
+// and templated by baseline.Render), resolving write-vs-overwrite against the plan's Dir so
+// Print and Apply treat it like any bootstrap file.
+func (p *Plan) AddFile(rel string, content []byte, mode fs.FileMode) {
+	p.Files = append(p.Files, fileChange(p.Dir, rel, content, mode))
+}
+
 // Apply writes the plan's files, skipping any that would overwrite an existing file.
 func (p *Plan) Apply() error {
 	return p.write(false)

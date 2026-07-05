@@ -10,7 +10,7 @@ import (
 	"io/fs"
 )
 
-//go:embed files/*.platform files/*.cue
+//go:embed files
 var embedded embed.FS
 
 // DefsModule is the infra-defs CUE dependency the baseline apps import; DefsVersion is the
@@ -40,18 +40,26 @@ var DefaultVars = map[string]any{
 
 // Defaults is the working set installed when the operator makes no other choice — the
 // components a functioning cluster needs out of the box. The stable nginx-gateway is off by
-// default; the operator opts into it at init. platform.cue carries the build engine + (for
-// prod9's self-host) the vanity server and its NetworkPolicies.
+// default; the operator opts into it at init. apps-platform.cue.tmpl carries the build engine
+// + (for prod9's self-host) the vanity server and its NetworkPolicies.
 var Defaults = []string{
-	"cert-manager.platform",
-	"flux.platform",
-	"platform.cue",
-	"nginx-gateway-exp.platform",
+	"apps-cert-manager.platform",
+	"apps-flux.platform",
+	"apps-platform.cue.tmpl",
+	"apps-nginx-gateway-exp.platform",
 }
 
-// EmbeddedFiles returns every built-in component file (both `.platform` directives and
-// `.cue` apps) shipped in the binary, keyed by filename. This is the full list init
-// offers; the chosen subset is written into the target repo's apps/.
+// Mandatory files install on every init regardless of the picker: the shared defaults/
+// package every app imports for #Basics (namespace + registry pull secret). Not offered as
+// a choice — deselecting it would break every app.
+var Mandatory = []string{
+	"defaults-basics.cue.tmpl",
+}
+
+// EmbeddedFiles returns every built-in component file shipped in the binary, keyed by
+// filename. Names are destination-encoded (`apps-*`, `defaults-*`, root); baseline.Render
+// routes and templates them. This is the full list init offers, minus Mandatory ones which
+// install unconditionally.
 func EmbeddedFiles() (map[string][]byte, error) {
 	entries, err := embedded.ReadDir("files")
 	if err != nil {

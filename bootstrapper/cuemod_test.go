@@ -23,7 +23,7 @@ func cueModInfo() *Info {
 func TestAnalyzeInit_scaffoldsCueModule(t *testing.T) {
 	dir := t.TempDir()
 
-	plan, err := AnalyzeInit(dir, cueModInfo(), nil, nil)
+	plan, err := AnalyzeInit(dir, cueModInfo(), nil)
 	r.NoError(t, err)
 
 	rel := filepath.Join("cue.mod", "module.cue")
@@ -53,7 +53,7 @@ func TestAnalyzeInit_keepsExistingCueModule(t *testing.T) {
 	r.NoError(t, os.WriteFile(mod,
 		[]byte("module: \"kept.example/infra\"\nlanguage: version: \"v0.15.4\"\n"), 0o644))
 
-	plan, err := AnalyzeInit(dir, cueModInfo(), nil, nil)
+	plan, err := AnalyzeInit(dir, cueModInfo(), nil)
 	r.NoError(t, err)
 
 	for _, f := range plan.Files {

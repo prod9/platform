@@ -3,6 +3,7 @@ package bootstrapper
 import (
 	"os"
 	"path/filepath"
+	"strings"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/mod/modfile"
@@ -17,6 +18,23 @@ var cueModuleFile = filepath.Join("cue.mod", "module.cue")
 func HasCueModule(dir string) bool {
 	_, err := os.Stat(filepath.Join(dir, cueModuleFile))
 	return err == nil
+}
+
+// ModulePath reads the import path of an existing CUE module (cue.mod/module.cue), stripping
+// any `@vN` major-version suffix so callers can form import paths like `<module>/defaults`.
+func ModulePath(dir string) (string, error) {
+	data, err := os.ReadFile(filepath.Join(dir, cueModuleFile))
+	if err != nil {
+		return "", err
+	}
+
+	file, err := modfile.Parse(data, cueModuleFile)
+	if err != nil {
+		return "", err
+	}
+
+	path, _, _ := strings.Cut(file.Module, "@")
+	return path, nil
 }
 
 // planCueModule scaffolds cue.mod/module.cue for a fresh infra repo: the operator's module

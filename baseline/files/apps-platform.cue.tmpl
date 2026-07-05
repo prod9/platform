@@ -1,15 +1,20 @@
 package apps
 
 import (
+	"{{ .ModulePath }}/defaults"
 	"prodigy9.co/defs"
 	"prodigy9.co/defs/packs"
 	"prodigy9.co/defs/parts"
 )
 
 platform: {
-	let nsp = defs.#Namespace & {#name: "platform"}
+	let nsp = defaults.#Basics & {
+		#name: "platform"
 
-	let dagger_version = "v0.20.8"
+		[...]
+	}
+
+	let dagger_version = "{{ .DaggerVersion }}"
 	let engine_port = 1234
 	let server_port = 8000
 
@@ -52,7 +57,7 @@ platform: {
 		#name:         "platform"
 		#ns:           nsp.#name
 		#image:        "ghcr.io/prod9/platform:latest"
-		#pull_secret:  "ghcr.io-pull-secret"
+		#pull_secret:  nsp.#out.pull_secret_name
 		#port:         server_port
 		#replicas:     2
 		#host:         "platform.prodigy9.co"

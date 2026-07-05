@@ -21,9 +21,9 @@ func TestEmbeddedCertManager(t *testing.T) {
 		t.Fatalf("EmbeddedFiles: %v", err)
 	}
 
-	body, ok := files["cert-manager.platform"]
+	body, ok := files["apps-cert-manager.platform"]
 	if !ok {
-		t.Fatalf("cert-manager.platform not embedded; have %v", keys(files))
+		t.Fatalf("apps-cert-manager.platform not embedded; have %v", keys(files))
 	}
 
 	version := fmt.Sprint(baseline.DefaultVars["CERT_MANAGER_VERSION"])
@@ -72,8 +72,8 @@ func TestDefaultsAreEmbedded(t *testing.T) {
 			t.Errorf("Defaults names %q but it is not embedded; have %v", name, keys(files))
 		}
 	}
-	if _, ok := files["platform.cue"]; !ok {
-		t.Errorf("platform.cue not embedded; have %v", keys(files))
+	if _, ok := files["apps-platform.cue.tmpl"]; !ok {
+		t.Errorf("apps-platform.cue.tmpl not embedded; have %v", keys(files))
 	}
 }
 
@@ -87,7 +87,7 @@ func TestEmbeddedNginxGateway(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EmbeddedFiles: %v", err)
 	}
-	body, ok := files["nginx-gateway-exp.platform"]
+	body, ok := files["apps-nginx-gateway-exp.platform"]
 	if !ok {
 		t.Fatalf("nginx-gateway directive not embedded; have %v", keys(files))
 	}
