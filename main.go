@@ -36,6 +36,7 @@ func init() {
 		cmd.ConfigureCmd,
 		cmd.DeployCmd,
 		cmd.DiscoverCmd,
+		cmd.ExecCmd,
 		cmd.ExportCmd,
 		cmd.ListCmd,
 		ops.Cmd,
