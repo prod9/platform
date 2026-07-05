@@ -14,18 +14,15 @@ import (
 
 var ErrNoJobs = errors.New("engine: empty units list, nothing to do")
 
-// BuildAndPublish is the reusable publish unit: it opens an engine, builds every module
-// matched by args, tags each image with tag, and publishes it. The local `publish` and
-// `deploy` commands drive it now; a tag-watch platform server drives the same unit later.
-func BuildAndPublish(cfg *project.Project, args []string, tag string) error {
+// BuildAndPublish composes Build and Publish over the engine carried by ctx: it builds
+// every module matched by args, tags each image with tag, and publishes it — reusing the
+// caller's engine instead of opening its own. The local `publish` and `deploy` commands
+// drive it now; a tag-watch platform server drives the same unit later.
+func BuildAndPublish(ctx context.Context, cfg *project.Project, args []string, tag string) error {
 	attempt, err := builder.AttemptFrom(cfg, args, builder.PublishBuild)
 	if err != nil {
 		return err
 	}
-
-	eng := New(fxconfig.Configure())
-	defer eng.Close()
-	ctx := NewContext(context.Background(), eng)
 
 	for _, unit := range attempt.Units {
 		unit.ImageName = unit.ImageName + ":" + tag

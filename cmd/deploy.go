@@ -1,10 +1,12 @@
 package cmd
 
 import (
+	"context"
 	"errors"
 	"os"
 
 	"fx.prodigy9.co/cmd/prompts"
+	fxconfig "fx.prodigy9.co/config"
 	"github.com/BurntSushi/toml"
 	"github.com/spf13/cobra"
 	"platform.prodigy9.co/engine"
@@ -72,7 +74,11 @@ func runDeploy(cmd *cobra.Command, args []string) {
 
 	// build and publish image
 	if !skipBuildOnDeploy {
-		if err := engine.BuildAndPublish(cfg, p.Args(), targetEnv); err != nil {
+		eng := engine.New(fxconfig.Configure())
+		defer eng.Close()
+		ctx := engine.NewContext(context.Background(), eng)
+
+		if err := engine.BuildAndPublish(ctx, cfg, p.Args(), targetEnv); err != nil {
 			buildlog.Fatalln(err)
 		}
 	}
