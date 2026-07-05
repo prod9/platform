@@ -42,7 +42,9 @@ func withPNPMBase(base *dagger.Container) *dagger.Container {
 		WithExec([]string{"corepack", "install", "-g", "pnpm@" + PNPMVersion})
 }
 
-func withTypeModulePackageJSON(base *dagger.Container) *dagger.Container {
+// withPNPMModuleFix marks the runner's served directory as ESM so bare node treats
+// the pnpm/workspace output as modules. pnpm-specific — no other class needs it.
+func withPNPMModuleFix(base *dagger.Container) *dagger.Container {
 	return base.WithNewFile(RunDir+"/package.json", `{"type":"module"}`)
 }
 

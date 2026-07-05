@@ -217,7 +217,19 @@ drift gate at each step.
 
 - **§3 fork:** Option A (builder stays container-only, infra-render in gitops) vs B
   (generalize output type). Recommend A. *Everything else can proceed regardless.*
-- **Drop `Layout()`/`Class()`?** They're dead today. Keep only if they're meant to drive
-  near-term behavior (display grouping, discovery priority) — say which.
+- **Drop `Layout()`/`Class()`?** ~~They're dead today.~~ **Resolved for `Class` (slice 4,
+  2026-07-05): kept and repurposed as the runtime-shape taxonomy, not dropped.** `Class`
+  describes what the *runner* is — native binary / bytecode+VM / interpreted process /
+  static-served / custom — independent of the build toolchain. Added `ClassStatic` and moved
+  `PNPMStatic` onto it (it was mis-labelled `ClassInterpreted`, whose own doc requires the
+  build tooling at runtime — false for a caddy-served bundle). Still descriptive-only (nothing
+  switches on it yet), but now a correct axis to switch on later. `Layout` still dead.
+
+  **Deferred larger rethink (chakrit's, 2026-07-05):** split the two axes the builders
+  currently fuse — a **runtime-shape** axis (`Class`: static-binary / static-served / …) and a
+  **language/framework metadata** axis (go, pnpm/node, …) — toward *one builder per class* with
+  language carried as metadata (e.g. a single static-binary builder + Go metadata, rather than
+  `GoBasic`/`GoWorkspace` each re-encoding "produces a native binary"). `ClassStatic` is the
+  first correct instance of that shape. Full split is a much larger refactor — not now.
 - **Registry ordering:** replace the implicit slice-order contract with explicit priority,
   or keep the comment-guarded order?

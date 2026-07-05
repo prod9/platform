@@ -14,7 +14,7 @@ type PNPMStatic struct{}
 
 func (PNPMStatic) Name() string   { return "pnpm/static" }
 func (PNPMStatic) Layout() Layout { return LayoutBasic }
-func (PNPMStatic) Class() Class   { return ClassInterpreted }
+func (PNPMStatic) Class() Class   { return ClassStatic }
 
 func (b PNPMStatic) Discover(wd string) (map[string]Interface, error) {
 	// Assumes astro = static site, for now.
@@ -34,18 +34,7 @@ func (b PNPMStatic) Build(ctx context.Context, client *dagger.Client, unit *Buil
 	host := client.Host().
 		Directory(unit.WorkDir, dagger.HostDirectoryOpts{Exclude: unit.Excludes})
 
-	builder := BaseImageForUnit(client, unit)
-	builder = withPNPMBase(builder)
-	builder = withPNPMPkgCache(client, builder)
-
-	builder = builder.
-		WithWorkdir(SrcDir).
-		WithFile("package.json", host.File("package.json")).
-		WithFile("pnpm-lock.yaml", host.File("pnpm-lock.yaml")).
-		WithExec([]string{"pnpm", "i"}).
-		WithDirectory(".", host).
-		WithExec([]string{"pnpm", "build"})
-
+	// prepare job parameters
 	outdir := strings.TrimSpace(unit.BuildDir)
 	if outdir == "" {
 		outdir = defaultBuildDir
@@ -58,10 +47,28 @@ func (b PNPMStatic) Build(ctx context.Context, client *dagger.Client, unit *Buil
 
 	args := pnpmRunArgs(cmd, unit, "file-server", "-l", "0.0.0.0:3000")
 
-	runner := BaseImageForUnit(client, unit)
-	runner = withCaddyServer(runner).
-		WithDirectory(RunDir, builder.Directory(outdir)).
-		WithDefaultArgs(args)
+	// build
+	base := BaseImageForUnit(client, unit)
+	base = withPNPMBase(base)
+	base = withPNPMPkgCache(client, base)
+	base = withUnitEnv(base, unit)
+	base = base.
+		WithWorkdir(SrcDir).
+		WithFile("package.json", host.File("package.json")).
+		WithFile("pnpm-lock.yaml", host.File("pnpm-lock.yaml")).
+		WithExec([]string{"pnpm", "i"})
 
-	return runner, nil
+	builder := base.
+		WithDirectory(".", host).
+		WithExec([]string{"pnpm", "build"})
+
+	// runner
+	runner := withRunnerPkgs(base)
+	runner = withCaddyServer(runner).
+		WithWorkdir(RunDir).
+		WithDirectory(RunDir, builder.Directory(outdir))
+	runner = withUnitAssets(runner, builder, unit)
+
+	runner = runner.WithDefaultArgs(args)
+	return runner.Sync(ctx)
 }

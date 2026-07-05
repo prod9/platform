@@ -92,3 +92,10 @@ func withUnitEnv(base *dagger.Container, unit *BuildUnit) *dagger.Container {
 	}
 	return base
 }
+
+func withUnitAssets(runner, builder *dagger.Container, unit *BuildUnit) *dagger.Container {
+	for _, dir := range unit.AssetDirs {
+		runner = runner.WithDirectory(dir, builder.Directory(dir))
+	}
+	return runner
+}

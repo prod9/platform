@@ -65,9 +65,7 @@ func (PNPMBasic) Build(ctx context.Context, client *dagger.Client, unit *BuildUn
 	runner := withRunnerPkgs(base).
 		WithWorkdir(RunDir).
 		WithDirectory(RunDir, builder.Directory(outdir))
-	for _, dir := range unit.AssetDirs {
-		runner = runner.WithDirectory(dir, builder.Directory(dir))
-	}
+	runner = withUnitAssets(runner, builder, unit)
 
 	runner = runner.WithDefaultArgs(args)
 	return runner.Sync(ctx)

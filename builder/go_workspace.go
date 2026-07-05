@@ -121,9 +121,7 @@ func (GoWorkspace) Build(ctx context.Context, client *dagger.Client, unit *Build
 	runner := withRunnerPkgs(base)
 	runner = withUnitEnv(runner, unit)
 	runner = runner.WithFile(BinDir+"/"+outbin, builder.File(BinDir+"/"+outbin))
-	for _, dir := range unit.AssetDirs {
-		runner = runner.WithDirectory(dir, builder.Directory(dir))
-	}
+	runner = withUnitAssets(runner, builder, unit)
 
 	runner = runner.WithDefaultArgs(args)
 	return runner.Sync(ctx)

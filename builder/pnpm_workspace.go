@@ -102,10 +102,8 @@ func (PNPMWorkspace) Build(ctx context.Context, client *dagger.Client, unit *Bui
 		WithDirectory(RunDir, builder.Directory(unit.Name+"/"+outdir)).
 		WithDirectory(RunDir+"/node_modules", builder.Directory(unit.Name+"/node_modules"))
 
-	runner = withTypeModulePackageJSON(runner)
-	for _, dir := range unit.AssetDirs {
-		runner = runner.WithDirectory(dir, builder.Directory(dir))
-	}
+	runner = withPNPMModuleFix(runner)
+	runner = withUnitAssets(runner, builder, unit)
 
 	runner = runner.WithDefaultArgs(args)
 	return runner.Sync(ctx)

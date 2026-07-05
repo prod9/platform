@@ -62,6 +62,14 @@ const (
 	// Examples: Ruby on Rails, Node.js
 	ClassInterpreted Class = "interpreted"
 
+	// ClassStatic specifies that the builder produces a set of static assets served
+	// directly by a webserver, with no language runtime or interpreter present in the
+	// runtime container. The build toolchain and the runtime server are fully decoupled,
+	// so the build language is incidental to the class.
+	//
+	// Examples: Astro, Hugo, plain HTML
+	ClassStatic Class = "static"
+
 	// ClassCustom specifies that the builder has its own heavily customized build process
 	// that cannot be easily categorized or genericized into the other classes.
 	//
