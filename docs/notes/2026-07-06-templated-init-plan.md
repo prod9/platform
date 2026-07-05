@@ -4,6 +4,31 @@ Executable from a fresh session. Goal: **one `platform init` (or `ops init`) run
 fully working infra repo** — immediately ready to `render` → `build` → `publish` → `deploy`
 into a working platform-managed cluster, **zero manual fixups**.
 
+## Progress — 2026-07-06 (session 2)
+
+Tasks 1–8 **done and validated end-to-end** (commits `5ce9e2b`, `eff663b`). A sandbox
+`ops init` (temp dir, dummy creds) → `ops render` was zero-fixup: routing (`apps/`,
+`defaults/basics.cue`, `cue.mod`, root), templating (creds into `defaults/basics.cue`,
+`import "<module>/defaults"` + `dagger_version = "v0.21.7"` into `apps/platform.cue`), and
+render all correct — `#Basics` emitted the `platform` namespace + `ghcr.io-pull-secret`, the
+engine pinned `registry.dagger.io/engine:v0.21.7`, `imagePullSecrets` wired.
+
+- Task 2 (`DefsModule` hardcoded) was already true — dropped.
+- Concern boundary corrected: `baseline` owns infra-file copy/routing/templating
+  (`baseline.Render`); `bootstrapper.AnalyzeInit` now produces only platform.toml + launcher
+  + cue.mod; `ops init` stitches via `Plan.AddFile`.
+- `defaults-basics.cue.tmpl` is `Mandatory` (always installed, never in the picker).
+- Dagger version from linked SDK via `debug.ReadBuildInfo()` (`baseline.DaggerVersion`).
+
+**Remaining before the real dogfood (task 9):**
+
+1. **Flux self-sync fold** (parked `infra/apps/flux.cue`) — the `OCIRepository`+`Kustomization`
+   that makes the cluster pull the config artifact (without it, deploy won't roll). **Open
+   decision:** the `oci://` URL — committed literal vs. templated from `[ops].Image` at init.
+   This is the last gap for a zero-fixup dogfood.
+2. **Task 9 dogfood** — destructive (`rm -rf ./infra`), needs real creds + a live cluster;
+   the operator's call to run.
+
 ## Settled design decisions — do NOT re-litigate
 
 - **`defaults/` package is mandatory** on every infra repo. `apps/` holds **only render-able
