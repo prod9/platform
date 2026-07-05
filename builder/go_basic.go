@@ -51,8 +51,8 @@ func (GoBasic) Build(ctx context.Context, client *dagger.Client, unit *BuildUnit
 	// build
 	base := BaseImageForUnit(client, unit)
 	builder := withBuildPkgs(base, "go").WithWorkdir(SrcDir)
+	builder = withGoCaches(client, builder, goversion)
 	builder, gobin := withGoVersion(builder, goversion)
-	builder = withGoPkgCache(client, builder, goversion)
 
 	builder = builder.
 		WithFile("go.mod", host.File("go.mod")).

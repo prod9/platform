@@ -82,8 +82,8 @@ func (GoWorkspace) Build(ctx context.Context, client *dagger.Client, unit *Build
 	base := BaseImageForUnit(client, unit)
 
 	builder := withBuildPkgs(base, "go").WithWorkdir(SrcDir)
+	builder = withGoCaches(client, builder, goversion)
 	builder, gobin := withGoVersion(builder, goversion)
-	builder = withGoPkgCache(client, builder, goversion)
 
 	builder = builder.
 		WithFile("go.work", host.File("go.work")).
