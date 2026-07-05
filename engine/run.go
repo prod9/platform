@@ -9,9 +9,45 @@ import (
 	"platform.prodigy9.co/builder"
 	"platform.prodigy9.co/internal"
 	"platform.prodigy9.co/internal/buildlog"
+	"platform.prodigy9.co/project"
 )
 
 var ErrNoJobs = errors.New("engine: empty units list, nothing to do")
+
+// BuildAndPublish is the reusable publish unit: it opens an engine, builds every module
+// matched by args, tags each image with tag, and publishes it. The local `publish` and
+// `deploy` commands drive it now; a tag-watch platform server drives the same unit later.
+func BuildAndPublish(cfg *project.Project, args []string, tag string) error {
+	attempt, err := builder.AttemptFrom(cfg, args, builder.PublishBuild)
+	if err != nil {
+		return err
+	}
+
+	eng := New(fxconfig.Configure())
+	defer eng.Close()
+	ctx := NewContext(context.Background(), eng)
+
+	for _, unit := range attempt.Units {
+		unit.ImageName = unit.ImageName + ":" + tag
+	}
+
+	builds, err := Build(ctx, attempt)
+	if err != nil {
+		return err
+	}
+	results, err := Publish(ctx, builds...)
+	if err != nil {
+		return err
+	}
+
+	var errs []error
+	for _, result := range results {
+		if result.Err != nil {
+			errs = append(errs, result.Err)
+		}
+	}
+	return errors.Join(errs...)
+}
 
 // Registry credentials for publishing built images, supplied via fx env config.
 var (

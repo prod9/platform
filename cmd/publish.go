@@ -1,14 +1,11 @@
 package cmd
 
 import (
-	"context"
 	"os"
 
 	"fx.prodigy9.co/cmd/prompts"
-	fxconfig "fx.prodigy9.co/config"
 	"github.com/BurntSushi/toml"
 	"github.com/spf13/cobra"
-	"platform.prodigy9.co/builder"
 	"platform.prodigy9.co/engine"
 	"platform.prodigy9.co/gitctx"
 	"platform.prodigy9.co/internal/buildlog"
@@ -53,37 +50,7 @@ func runPublish(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	attempt, err := builder.AttemptFrom(cfg, p.Args(), builder.PublishBuild)
-	if err != nil {
+	if err := engine.BuildAndPublish(cfg, p.Args(), rel.Name); err != nil {
 		buildlog.Fatalln(err)
-	}
-
-	eng := engine.New(fxconfig.Configure())
-	defer eng.Close()
-	ctx := engine.NewContext(context.Background(), eng)
-
-	// Tag the image with the release name
-	for _, unit := range attempt.Units {
-		unit.ImageName = unit.ImageName + ":" + rel.Name
-	}
-
-	builds, err := engine.Build(ctx, attempt)
-	if err != nil {
-		buildlog.Fatalln(err)
-	}
-	results, err := engine.Publish(ctx, builds...)
-	if err != nil {
-		buildlog.Fatalln(err)
-	}
-
-	anyerr := false
-	for _, result := range results {
-		if result.Err != nil {
-			buildlog.Error(result.Err)
-			anyerr = true
-		}
-	}
-	if anyerr {
-		os.Exit(1)
 	}
 }
