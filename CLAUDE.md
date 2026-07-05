@@ -174,6 +174,22 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
 
 ### Testing
 
+**Philosophy (per-repo Law): blackbox-first; test-in-build is a hard gate.** Prefer
+blackbox smoke tests over many small unit tests — tests earn ROI at the boundary, so
+platform leans almost entirely on `./test.sh`, with `go test` the light hermetic
+complement, not the primary strategy. Building an image from red tests is a non-use-case:
+green tests are a **baked-in, non-configurable** precondition of every build — no
+skip-tests opt-out will be added (opinionated flow, not CI phases). See the
+[test-in-build ADR](docs/decisions/2026-07-05-test-in-build-is-a-hard-gate.md).
+
+Two suites, at different layers:
+
+- **`go test ./...`** — hermetic unit tests (no docker/network, fresh-clone runnable). Runs
+  inside **every image build** (the `Go*` builder gate) and locally on demand.
+- **`./test.sh`** — blackbox smoke (`chakrit/smoke`): drives the built binary through Dagger
+  against the testbeds; **needs docker**. Runs on the host, manually / pre-deploy — the
+  drift detector detailed below.
+
 `./test.sh` → runs `cue eval tests.cue → tests.yml` → `chakrit/smoke` runner. Tests
 build the binary, then for each testbed run `discover`/`bootstrap`/`build` checking
 exitcode/stdout/expected-files. `./testbed.sh <dir> <args>` runs platform inside a

@@ -77,14 +77,20 @@ lands a local working tree; the builder renders in-process against it.
 | 7  | `fileutil` rename              | **Drop** — premise void: `internal/fileutil` never existed, so there is no collision. `builder/fileutil` (`DetectFile`/`WalkSubdirs`) keeps its name. |
 | 8  | Dockerfile build-args bug      | **Already fixed** — landed in `a393a0f` (audit triage). |
 
-Also confirmed: **II.1** platform-builds-itself fits `GoBasic` as-is (only friction:
-`GoBasic`'s unconditional `go test -v ./...` needs a per-unit opt-out). **II.2**
+Also confirmed: **II.1** platform-builds-itself fits `GoBasic` **as-is, no opt-out needed**.
+The "friction" once claimed here — that `GoBasic`'s unconditional `go test -v ./...` needs a
+per-unit opt-out — was a **conflation** of the in-build hermetic suite (`go test ./...`, no
+docker) with the docker smoke harness (`./test.sh`, host-only). Platform's `go test ./...` is
+hermetic and runs fine in a fresh clone, so self-build was never blocked. The opt-out is
+**WONTFIX** (same class of error as the `fileutil` "collision", slice 1); test-in-build is a
+hard, non-configurable gate. Recorded in the
+[test-in-build ADR](../decisions/2026-07-05-test-in-build-is-a-hard-gate.md). **II.2**
 infra-render is a *new* builder, not a generalization of the contract (above).
 
-What survives as near-term reshape work: the two-phase cmd/args separation (§2), the
-`GoBasic` test opt-out, making feature non-support explicit (§3) — then the new
-`platform/infra` builder. Dropped/deferred: universal run-stage, generic discovery,
-dropping `Layout()`/`Class()`, registry reorder, the `fileutil` rename (no collision).
+What survives as near-term reshape work: the two-phase cmd/args separation (§2) and making
+feature non-support explicit (§3) — then the new `platform/infra` builder. Dropped/deferred:
+the `GoBasic` test opt-out (WONTFIX, above), universal run-stage, generic discovery, dropping
+`Layout()`/`Class()`, registry reorder, the `fileutil` rename (no collision).
 
 ## 1. What's actually wrong (not style — structure)
 
@@ -122,9 +128,9 @@ for the work every builder shares, so the sharing is copy-paste:
 `Interface.Build(ctx, *dagger.Client, *BuildUnit) (*dagger.Container, error)`.
 
 - **platform-builds-itself (a Go binary)** fits `GoBasic` *as-is* — single `go.mod`, no
-  work needed. The only friction: `GoBasic` runs `go test -v ./...` unconditionally inside
-  the build (`go_basic.go:69`), so a slow/failing test blocks the image. Needs an opt-out
-  on the unit.
+  work needed. (An earlier draft flagged `GoBasic`'s in-build `go test -v ./...` as needing
+  an opt-out; that conflated the hermetic in-build suite with the docker smoke harness —
+  **WONTFIX**, see §0 II.1 and the test-in-build ADR. The gate is deliberate.)
 - **infra-render (CUE/manifests → OCI artifact)** does **not** fit. It produces an
   artifact, not a runnable container. The closest existing shape is `gitops.Publish`/`ops`
   — already an OCI-artifact path **outside** `builder/`. Forcing it through `Build →
@@ -188,8 +194,8 @@ valid under either option.
    ```
 (Same as today minus `Layout()`/`Class()`. Output type unchanged under Option A.)
 6. **Ride-along fixes** folded into the reshape: `dockerfile.go` build-args bug (§1.7);
-   `GoBasic` test-step opt-out on the unit (§2); PNPMStatic single base pull + honor
-   env/assets.
+   PNPMStatic single base pull + honor env/assets. (The `GoBasic` test opt-out once listed
+   here is WONTFIX — see §0 II.1.)
 7. **Tag application (GC-U6).** `cmd/publish.go:66` + `deploy.go:92` inline `ImageName +=
    ":"+tag` — move onto the attempt/unit so one place owns it; both commands call it.
 
@@ -200,7 +206,7 @@ valid under either option.
    env/assets/sync.
 3. Generic `discoverWorkspace`.
 4. Drop `Layout()`/`Class()`; fix registry ordering.
-5. Ride-along fixes (dockerfile args, GoBasic test opt-out, tag-on-attempt).
+5. Ride-along fixes (dockerfile args, tag-on-attempt). [GoBasic test opt-out: WONTFIX, §0 II.1]
 6. Then add the platform self-builder (trivial) and — per the fork — the infra-render
    path.
 
