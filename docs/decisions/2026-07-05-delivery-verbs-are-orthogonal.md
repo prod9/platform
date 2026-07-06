@@ -67,3 +67,11 @@ Cut to the one high-ROI concern per verb; handle the remainder **by convention, 
 (no unpublished-guard, no remote-build plumbing, no fused command). When two things co-occur,
 ask whether that is the *domain* or a *mechanism coupling* before merging them — default to
 the narrower cut.
+
+## Deploy without a platform server (the manual path)
+
+Until an app/site runs the platform server to drive its reconcile loop, the deploy step is
+**manual and serverless**: `platform ops render` (→ `render`, once `ops` is flattened) emits the
+`k8s/` manifests, and the operator `kubectl apply`s them directly — no OCI publish, no Flux, no
+`deploy` verb. The server model automates the same intent (commit → `ops publish` → Flux pull);
+the serverless path is just a human running render + apply by hand.
