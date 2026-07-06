@@ -30,6 +30,7 @@ cloud IAM).
 
 - Multi-cluster (central control-plane + per-cluster agents, pulling outbound) is **phase
   2**; the agent generalizes the token-broker.
-- A target in v2 is effectively an env (namespace) in the home cluster.
+- Per-environment isolation is a namespace in the home cluster — expressed in the infra repo's
+  CUE (a template instantiated per env), not a platform-managed target.
 - First-cluster bootstrap is a manual seed (Flux + `platform-init`, which includes platform
   itself).

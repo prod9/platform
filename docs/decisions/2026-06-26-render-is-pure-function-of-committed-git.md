@@ -12,9 +12,11 @@ table and produces the `k8s/` manifest tree. Nothing about the target image, or 
 input, is supplied at render time by a CLI flag.
 
 The image ref a workload runs is a **committed CUE literal** in its app (e.g.
-`#image: "ghcr.io/prod9/platform:<tag>"`). A new deploy is a git commit that changes that
-literal — not a `render --image=…` invocation. `platform publish` cuts the immutable tag; the
-operator commits it.
+`#image: "ghcr.io/prod9/platform:<tag>"`). A new desired state is a git commit that changes that
+literal — not a `render --image=…` invocation. `platform publish` builds + pushes the image for a
+version; the **operator hand-commits** its ref into the infra CUE (platform never rewrites the
+operator's source). The record of what runs is that git commit — pin a `tag@sha256` digest to
+dodge stale node cache, but immutability is a tactic, not the invariant.
 
 `[ops.vars]` feed two render routes from one table: CUE `@tag(name)` holes and `.platform`
 directive `\(var)` interpolation. The export step injects a var as a CUE tag **only when a
@@ -42,7 +44,7 @@ working.
   [linked-CUE-engine ADR](2026-06-23-render-via-linked-cue-engine.md) and the Slice-1 / D3b-3
   passages of the [implementation plan](../notes/2026-06-16-platformv2-implementation-plan.md):
   there is no `--inject image=` and no `RenderOptions.Image`.
-- A deploy is `git commit` + `ops publish` + Flux reconcile (or, pre-Flux, a gated apply) — never
-  a render-time flag.
+- Committing desired state is `git commit` + `ops publish` + Flux reconcile (or, no-server,
+  `ops render` + `kubectl apply`) — never a render-time flag. There is no `deploy` verb.
 - `exportCue` probes the apps for declared `@tag` names before injecting; an undeclared
   `[ops.vars]` entry is silently directive-only, not an export error.

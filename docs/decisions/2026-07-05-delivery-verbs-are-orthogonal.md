@@ -5,15 +5,19 @@ Status: **accepted**
 
 ## The ruling
 
-`release`, `publish`, and `deploy` are **three orthogonal verbs**. Each does exactly one
-thing; none implies another. The build+push logic is a single **publish engine** that runs
-under two drivers — the local CLI now, a platform server later.
+`release` and `publish` are **orthogonal** app-image verbs — neither implies the other. There
+is **no `deploy` verb**: in the pull model "deploy" is the operator committing the app-image ref
+into the infra repo, then `ops publish` (with a platform server + Flux) or `ops render` +
+`kubectl apply` (no server). The build+push logic is a single **publish engine** that runs under
+two drivers — the local CLI now, a platform server later.
 
 | Verb      | Its one job                                          | Produces                     |
 | --------- | ---------------------------------------------------- | ---------------------------- |
 | `release` | cut a version                                        | a git tag (immutable marker) |
 | `publish` | build + push the image *for* a version               | a registry image + digest    |
-| `deploy`  | point an environment at an **already-published** image | a committed ref → Flux pulls |
+
+There is no `deploy` row: deploying is the operator committing the ref (platform never rewrites
+their CUE) + `ops publish`. Infra config is its own `ops render` / `ops publish` concern.
 
 ## Why this is written down (the conflation it heads off)
 
@@ -29,10 +33,10 @@ Strip the trigger and the concerns separate cleanly:
 - **publish** is the only verb that produces an image. It is the local stand-in for what the
   CI server does; run it yourself when there is no server (right now) or for a project with
   no server-side host yet.
-- **deploy** references an image that publish already made. It does **not** build. (Today's
-  `deploy` still fuses build+promote; that fusion is legacy and gets de-fused toward the
-  committed-literal ref — see
-  [render-is-pure-function-of-committed-git](2026-06-26-render-is-pure-function-of-committed-git.md).)
+- **deploy is not a verb.** Getting a new image running is the operator committing its ref into
+  the infra repo — platform never rewrites the operator's CUE (see
+  [render-is-pure-function-of-committed-git](2026-06-26-render-is-pure-function-of-committed-git.md)) —
+  then `ops publish` + Flux. The legacy build+promote `deploy` command has been removed.
 
 ## One publish engine, two drivers
 

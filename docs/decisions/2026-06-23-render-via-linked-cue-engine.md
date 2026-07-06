@@ -37,7 +37,8 @@ that's our core for a lot of things, so it's warranted."
 
 - `exportCue` (was `exportApps`) uses `load.Instances` + `cuecontext.BuildInstance` +
   `cueyaml.Encode`; `[ops.vars]` feed `@tag` holes via `load.Config.Tags` (only the names a
-  `@tag` declares are injected — see the
+  `@tag` declares are injected, and only in the **root package** — `@tag` does not cross the
+  import barrier into `defaults/`, which errors "no tag for X"; see the
   [committed-image correction ADR](2026-06-26-render-is-pure-function-of-committed-git.md));
   registry via `modconfig.NewRegistry{CUERegistry: $CUE_REGISTRY or DefaultRegistry}`.
   `buildTree` and the emitted YAML shape are unchanged. `exec.Command`/`registryEnv` removed.

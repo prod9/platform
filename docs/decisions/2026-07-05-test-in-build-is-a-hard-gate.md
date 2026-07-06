@@ -21,7 +21,7 @@ Two suites run at two layers:
 - **`go test ./...`** — hermetic unit tests: no docker, no network, runnable in a fresh dev
   clone. Runs **inside every image build** (the gate) and locally on demand.
 - **`./test.sh`** — blackbox smoke (`chakrit/smoke`): needs docker. Runs **on the host**,
-  manually / pre-deploy — the drift detector.
+  manually / pre-publish — the drift detector.
 
 Tests needing infra beyond the hermetic default (docker, a DB, an e2e harness) must be
 build-tagged out of the default `go test ./...` so they never leak into the in-build gate;

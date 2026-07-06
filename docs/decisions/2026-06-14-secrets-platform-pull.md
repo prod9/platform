@@ -23,7 +23,7 @@ them for the main container. Git holds only references.
   reconciler; opaque blobs in git.
 - **External Secrets Operator** — a controller + CRDs (plan non-goal); heavier than
   needed.
-- **Platform pushes the Secret at deploy** — requires inbound cluster creds; rejected.
+- **Platform pushes the Secret at apply time** — requires inbound cluster creds; rejected.
 
 ## Consequences
 

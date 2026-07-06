@@ -85,8 +85,9 @@ boundary.
 - A CUE app (`apps/dagger-engine.cue`, `package apps`) on `defs.#StatefulSet` authors the
   StatefulSet (`replicas: 2`, `--addr tcp://0.0.0.0:1234`, privileged + `CAP_SYS_ADMIN`,
   `overlayfs`, `/var/lib/dagger` from `volumeClaimTemplates`, preferred `podAntiAffinity`),
-  the headless Service, and the namespace/RBAC it needs. Engine image pinned to the SDK
-  version (`v0.20.8`). The engine-specific bits land as **mixins in `infra-defs`** (its
+  the headless Service, and the namespace/RBAC it needs. Engine image tracks the linked
+  `dagger.io/dagger` SDK version (derived from the dependency at init, not a hardcoded literal).
+  The engine-specific bits land as **mixins in `infra-defs`** (its
   documented mixin design); rendered via the `.cue` route of `ops render`.
 - Platform's build path selects an engine per job via `dagger.WithRunnerHost`; a round-robin
   dispatcher in `builder` resolves the headless Service A-records (DNS, no RBAC) into a client
