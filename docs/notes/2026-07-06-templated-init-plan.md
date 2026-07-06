@@ -1,8 +1,9 @@
 # Plan — Templated `init` + one-shot dogfood
 
 Executable from a fresh session. Goal: **one `platform init` (or `ops init`) run produces a
-fully working infra repo** — immediately ready to `render` → `build` → `publish` → `deploy`
-into a working platform-managed cluster, **zero manual fixups**.
+fully working infra repo** — immediately ready to `render` → `build` → `publish` → commit +
+`ops publish` (Flux rolls it) into a working platform-managed cluster, **zero manual fixups**.
+(There is no `deploy` verb — "deploy" is the operator committing desired state + `ops publish`.)
 
 ## Progress — 2026-07-06 (session 2)
 
@@ -83,7 +84,7 @@ engine pinned `registry.dagger.io/engine:v0.21.7`, `imagePullSecrets` wired.
 8. **Init template render** — amend the init routine to run a go-template render, injecting the
    dagger version (task 4) + prompted creds (task 7) into the emitted files.
 9. **Dogfood = acceptance test.** Delete `./infra/`, run init **once**, and the result must be
-   immediately ready to `render` → `build` → `publish` → `deploy` into a working
+   immediately ready to `render` → `build` → `publish` → commit + `ops publish` into a working
    platform-managed cluster with **zero manual fixups**. Any gap that needs hand-editing means
    the flow is incomplete — **revisit and fix/add features until a single init yields a fully
    working copy.**
@@ -105,7 +106,8 @@ engine pinned `registry.dagger.io/engine:v0.21.7`, `imagePullSecrets` wired.
 ## Reference (this session's real, committed progress — mostly survives the infra blast)
 
 - Delivery-verbs ADR: `docs/decisions/2026-07-05-delivery-verbs-are-orthogonal.md`
-  (release/publish/deploy orthogonal; one publish engine, two drivers).
+  (release/publish orthogonal app-image verbs; `deploy` verb removed; one publish engine,
+  two drivers).
 - `engine.BuildAndPublish` extraction + `ctx` reuse (`09d6a2a`, `842defe`).
 - **gitops keychain fallback (`187f20d`) — KEEP.** `ops publish` now falls back to the docker
   keychain when `REGISTRY_USERNAME/PASSWORD` are unset. This is what let the local `ops publish`

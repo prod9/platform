@@ -14,11 +14,16 @@ strict `bare=var / quoted=string` values, and `focus`/`reset` scope (no `[field=
 `PLANS.md`. **Reads against:** `docs/spec/platform.md`, `config-allocation.md`,
 `gitops-build-plan.md`, and `docs/decisions/*`.
 
-> **Superseded for the delivery path (2026-06-27).** The `../infra` conversion below is
-> abandoned — platform now self-delivers from a fresh standalone `./infra` repo, live on
-> stage9 as v0.8.3 amd64. See [`2026-06-27-resume.md`](2026-06-27-resume.md) for current
-> state and next steps. The render/publish/DSL mechanics here still hold; the
-> `../infra`-cutover sequencing does not.
+> **Historical (2026-07-06). Read as context, not the live plan.** The render/publish/DSL
+> mechanics here still hold, but several framings below are superseded:
+> - The `../infra` conversion is abandoned — platform self-delivers from a standalone `./infra`
+>   repo (2026-06-27).
+> - The `deploy` verb and platform-managed environments (Phase-B "gated deploy", env/target
+>   lists) are **removed** — deploy = operator commit + `ops publish`, multi-env is infra CUE +
+>   namespacing, gate = GitHub push perms. See the
+>   [delivery-verbs ADR](../decisions/2026-07-05-delivery-verbs-are-orthogonal.md).
+> - The baseline is three-destination + folder-encoded with templated init — see
+>   [`2026-07-06-templated-init-plan.md`](2026-07-06-templated-init-plan.md), the current plan.
 
 **Resume here (2026-06-26 — platform LIVE on stage9; tool-hardening + ../infra conversion pending):**
 
