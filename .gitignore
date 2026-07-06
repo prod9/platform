@@ -1,6 +1,9 @@
 *.docker
 .idea
 bin
+/build/
+.env
+.env.local
 /infra/
 .inbox.log
 .afk.log
