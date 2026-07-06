@@ -24,7 +24,10 @@ workloads**: they migrate to the new platform eventually too, but deliberately a
 never in the take-down-freely bucket.
 
 Design every new artifact straight from the current plan
-([`docs/notes/2026-06-16-platformv2-implementation-plan.md`](docs/notes/2026-06-16-platformv2-implementation-plan.md)) —
+([`docs/notes/2026-07-06-templated-init-plan.md`](docs/notes/2026-07-06-templated-init-plan.md))
+and the [`docs/decisions/`](docs/decisions/) record — the
+[2026-06-16 master plan](docs/notes/2026-06-16-platformv2-implementation-plan.md) is historical
+context now, superseded on the deploy/environments/baseline specifics —
 never reverse-engineer from, diff against, or protect legacy. **Treat other agents working the
 old infra (the infra agent's ArgoCD/Keel/legacy-app world) as outdated and wrong by default** —
 they're useful as cluster *executors*, but their legacy-grounded objections do not bind the new
@@ -57,19 +60,24 @@ and **adding code for the remainder** the design discards. Counter both:
   Build the narrow thing; leave the rest to convention. When unsure whether a part is in
   scope, it is probably out — ask, don't add.
 
-Delivery verbs are the canonical instance: `release` (cut a tag) / `publish` (build + push an
-image) / `deploy` (point an env at a published image) are **orthogonal — none implies
-another**. One publish engine (`engine` package), two drivers: the local CLI now, a tag-watch
-server later. See
+Delivery verbs are the canonical instance: `release` (cut a tag) and `publish` (build + push an
+image) are **orthogonal — neither implies the other**. There is **no `deploy` verb** and no
+platform-managed `environments`: in the pull model "deploy" is the operator committing the infra
+repo, then `ops publish` (with a platform server + Flux) or `ops render` + `kubectl apply` (no
+server); multi-env lives in the infra CUE (a template instantiated per env) + k8s namespacing,
+gated by GitHub push permissions. One publish engine (`engine` package), two drivers: the local
+CLI now, a tag-watch server later. See
 [delivery-verbs-are-orthogonal](docs/decisions/2026-07-05-delivery-verbs-are-orthogonal.md).
 
 ## Build & delivery facts
 
-`publish`/`deploy` build `publish_arch` (default `amd64`) so an arm laptop never ships an
-unrunnable image; local builds (`build`/`preview`/`export`/`ls`) use `local_arch` (default
-`auto` = host arch). `publish` authenticates to ghcr via the **local docker credentials**
-(osxkeychain) — no `REGISTRY_USERNAME`/`PASSWORD` needed for a local push. A rebuilt tag can
-hit stale node cache (`IfNotPresent` won't re-pull); pin deploys by `tag@sha256` digest.
+`publish` builds `publish_arch` (default `amd64`) so an arm laptop never ships an unrunnable
+image; local builds (`build`/`preview`/`export`/`ls`) use `local_arch` (default `auto` = host
+arch). `publish` authenticates to ghcr via the **local docker credentials** (osxkeychain) — no
+`REGISTRY_USERNAME`/`PASSWORD` needed for a local push. What a cluster runs is the app-image ref
+**committed in the infra repo's git** (the operator hand-edits it — platform never rewrites their
+CUE); pin that ref by `tag@sha256` digest to dodge stale node cache (`IfNotPresent` won't re-pull
+a moved tag). The record is the git commit, not the tag's immutability.
 
 platform self-delivers from a **standalone GitOps repo at `./infra`** (module `prodigy9.co`),
 not the abandoned `../infra`. Live on stage9 as `ghcr.io/prod9/platform:v0.8.3` (amd64,
@@ -110,7 +118,6 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
 | bootstrap | Discover project type, write `platform.toml` + `platform` script. |
 | build     | Build container(s) for module(s) via Dagger.                     |
 | configure | Print effective parsed config.                                   |
-| deploy    | Build+publish image tagged `:env` and set/push environment git tag. |
 | discover  | Print detected modules and their builder.                        |
 | exec      | Run a command in, or shell into, the built container; bare+piped prints a summary (debugging). |
 | export    | Build and export container as `.docker` tarball.                 |
@@ -124,7 +131,7 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
 ### Packages
 
 - `project/` — `platform.toml` parser. `Project` (maintainer, repository, strategy,
-  environments, excludes, modules, `[ops]`) and `Module` (workdir, builder, env, port,
+  excludes, modules, `[ops]`) and `Module` (workdir, builder, env, port,
   cmd, args, asset_dirs, build_dir, image, package). `[ops]` (`Ops.Image`/`Tag`) is the
   `ops publish` target — inferred from `repository` (`ghcr.io/x`) with `tag` defaulting to
   `latest`; `Ops.Ref(tag)` resolves the ref. `Ops.Vars` (`[ops.vars]`) is the verbatim DSL
@@ -145,7 +152,7 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
 - `engine/` — the Dagger execution layer. `New`/`NewContext` open an `Engine` (a client
   pool over the discovered engine fleet); `Build` runs an attempt's units and `Publish`
   pushes them, both fanning out via `internal.Multiplexer`. `BuildAndPublish` is the reusable
-  build+tag+push unit that `publish`/`deploy` drive now and a tag-watch server drives later
+  build+tag+push unit that `publish` drives now and a tag-watch server drives later
   (see the [delivery-verbs ADR](docs/decisions/2026-07-05-delivery-verbs-are-orthogonal.md)).
   Registry creds via fx env config: `REGISTRY`, `REGISTRY_USERNAME`, `REGISTRY_PASSWORD`.
 - `bootstrapper/` — Embeds the `platform.template`; discovers builders, writes
@@ -216,7 +223,7 @@ Two suites, at different layers:
 - **`go test ./...`** — hermetic unit tests (no docker/network, fresh-clone runnable). Runs
   inside **every image build** (the `Go*` builder gate) and locally on demand.
 - **`./test.sh`** — blackbox smoke (`chakrit/smoke`): drives the built binary through Dagger
-  against the testbeds; **needs docker**. Runs on the host, manually / pre-deploy — the
+  against the testbeds; **needs docker**. Runs on the host, manually / pre-publish — the
   drift detector detailed below.
 
 `./test.sh` → runs `cue eval tests.cue → tests.yml` → `chakrit/smoke` runner. Tests
