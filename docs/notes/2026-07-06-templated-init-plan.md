@@ -29,6 +29,14 @@ engine pinned `registry.dagger.io/engine:v0.21.7`, `imagePullSecrets` wired.
 2. **Task 9 dogfood** — destructive (`rm -rf ./infra`), needs real creds + a live cluster;
    the operator's call to run.
 
+## Follow-ups (deferred)
+
+- **Init end-of-run UX** (fold in when the `ops` command is reworked): after writing, `init`
+  should print a written-files summary (`wrote platform.toml`, …) and then the `configure`
+  command's output (the effective parsed config) so the operator sees the resolved result in
+  one shot. Today it logs per-file `INFO write filename: …` lines but no closing summary and no
+  configure dump.
+
 ## Settled design decisions — do NOT re-litigate
 
 - **`defaults/` package is mandatory** on every infra repo. `apps/` holds **only render-able
