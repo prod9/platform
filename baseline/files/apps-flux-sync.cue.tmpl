@@ -1,0 +1,40 @@
+package apps
+
+import "{{ .ModulePath }}/defaults"
+
+"flux-sync": {
+	// Namespace + ghcr.io-pull-secret via the shared #Basics (creds in defaults/basics.cue).
+	let nsp = defaults.#Basics & {
+		#name: "flux-system"
+
+		[...]
+	}
+
+	let source = {
+		apiVersion: "source.toolkit.fluxcd.io/v1"
+		kind:       "OCIRepository"
+		metadata: {name: "infra", namespace: "flux-system"}
+		spec: {
+			interval: "1m"
+			url:      "oci://{{ .OpsImage }}"
+			ref: tag: "latest"
+			secretRef: name: nsp.#out.pull_secret_name
+		}
+	}
+
+	let kustomize = {
+		apiVersion: "kustomize.toolkit.fluxcd.io/v1"
+		kind:       "Kustomization"
+		metadata: {name: "infra", namespace: "flux-system"}
+		spec: {
+			interval:  "10m"
+			sourceRef: {kind: "OCIRepository", name: "infra"}
+			path:      "./"
+			prune:     true
+			wait:      true
+		}
+	}
+
+	"namespace.yaml":   nsp
+	"flux-config.yaml": [source, kustomize]
+}

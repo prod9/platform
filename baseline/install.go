@@ -24,6 +24,7 @@ type TemplateData struct {
 	RegistryUsername string
 	RegistryPassword string
 	ModulePath       string
+	OpsImage         string // OCI artifact base for the flux self-sync (oci://<OpsImage>)
 }
 
 // Render resolves the selected baseline files for installation: it routes each to its

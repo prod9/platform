@@ -15,6 +15,7 @@ import (
 	"platform.prodigy9.co/baseline"
 	"platform.prodigy9.co/bootstrapper"
 	"platform.prodigy9.co/internal/buildlog"
+	"platform.prodigy9.co/project"
 )
 
 var initForce bool
@@ -70,6 +71,7 @@ func runInitCmd(cmd *cobra.Command, args []string) {
 		RegistryUsername: sess.Str("registry username"),
 		RegistryPassword: sess.SensitiveStr("registry password"),
 		ModulePath:       info.ModulePath,
+		OpsImage:         project.InferOpsImage(info.Repository),
 	}
 
 	files, err := baseline.EmbeddedFiles()

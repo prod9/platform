@@ -45,6 +45,7 @@ var DefaultVars = map[string]any{
 var Defaults = []string{
 	"apps-cert-manager.platform",
 	"apps-flux.platform",
+	"apps-flux-sync.cue.tmpl",
 	"apps-platform.cue.tmpl",
 	"apps-nginx-gateway-exp.platform",
 }

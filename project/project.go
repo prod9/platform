@@ -145,11 +145,18 @@ func (p *Project) assignEnvOverrides() {
 	}
 }
 
-func (p *Project) inferValues() {
-	var base string
-	if strings.HasPrefix(p.Repository, "github.com") {
-		base = "ghcr.io" + p.Repository[10:]
+// InferOpsImage derives the OCI image base from a repository address: a github.com path maps
+// to its ghcr.io mirror (github.com/org/repo → ghcr.io/org/repo). Empty for anything else —
+// callers that require an image (e.g. the flux self-sync URL) treat empty as unset.
+func InferOpsImage(repository string) string {
+	if strings.HasPrefix(repository, "github.com") {
+		return "ghcr.io" + repository[10:]
 	}
+	return ""
+}
+
+func (p *Project) inferValues() {
+	base := InferOpsImage(p.Repository)
 
 	singleModule := len(p.Modules) == 1
 	for name, mod := range p.Modules {
