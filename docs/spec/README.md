@@ -21,7 +21,7 @@ superseded moves to `../notes/` — `spec/` holds current design only, never his
 
 - [`architecture.md`](architecture.md) — the build pipeline (parse → interpret → engine)
   and the object model: `BuildAttempt`/`BuildUnit`, package layout, data-vs-behavior rules.
-- [`platform.md`](platform.md) — the platformv2 vision: an in-cluster build + deploy control
+- [`platform.md`](platform.md) — the platformv2 vision: an in-cluster build + delivery control
   plane (components, identity, phases, anchors).
 - [`config-allocation.md`](config-allocation.md) — one owner per config kind across
   `platform.toml` / `infra/` / `tf/` / OCI / Flux; the no-overlap map.

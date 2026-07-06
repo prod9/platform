@@ -26,13 +26,14 @@ Top (closest to the human) to bottom (closest to the metal). One owner each.
   state.
 - **`platform.toml`** (in each source repo, git) — per-repo build/project metadata + the
   infra pointer + which Project it binds to. Changes with the code.
-- **`infra/` repo|path** (CUE, git) — per-target desired state: app image refs,
-  components, replicas, env. The thing CI renders (via the linked CUE engine, no `cue`
-  binary). No committed rendered YAML.
-- **`tf/` repo|path** (OpenTofu, git) — the env/target list (and later cloud/DNS). Applied
-  **manually, locally** in v2.
-- **OCI registry** — app images (immutable tags) + the rendered config artifact (moving
-  per-env tag). The source Flux pulls.
+- **`infra/` repo|path** (CUE, git) — the cluster's desired state: app image refs (committed
+  literals the operator hand-edits — platform never rewrites this CUE), components, replicas, and
+  per-env instances separated by k8s namespace. The thing CI renders (via the linked CUE engine,
+  no `cue` binary). No committed rendered YAML.
+- **`tf/` repo|path** (OpenTofu, git) — cloud/DNS provisioning (v2.1); not a platform env list.
+  Applied **manually, locally**.
+- **OCI registry** — app images (digest-pinned to dodge stale cache) + the rendered config
+  artifact (moving tag; the infra repo's git history is the record). The source Flux pulls.
 - **Flux** (in-cluster: source-controller + kustomize-controller) — reconciles the config
   artifact onto the cluster; applies/prunes; drift correction. No Argo. No Helm.
 - **`platform-init`** (embedded in the tool) — the cluster baseline: Flux, cert-manager,
@@ -55,10 +56,9 @@ Top (closest to the human) to bottom (closest to the metal). One owner each.
 | Identity, linked accounts, audit      | platform server  | Postgres (`users`/`identities`) |
 | Secret *values*                       | platform server  | Postgres, encrypted at rest     |
 | Secret *references*                   | `infra/`         | CUE (init-container pulls)      |
-| Per-target desired state (image, env) | `infra/`         | CUE (linked engine) → OCI       |
-| Env/target list                       | `tf/`            | OpenTofu (manual local apply)   |
-| App image (the container)             | OCI registry     | immutable tag/digest            |
-| Config artifact (Flux source)         | OCI registry     | moving per-env tag              |
+| Desired state (image, replicas, env)  | `infra/`         | CUE (linked engine) → OCI       |
+| App image (the container)             | OCI registry     | digest-pinned tag               |
+| Config artifact (Flux source)         | OCI registry     | moving tag (git = record)       |
 | What's deployed where, drift          | Flux             | reconciles from OCI             |
 | Cluster baseline (Flux/CM/NGF/engine) | embedded         | files → `apps/`,`defaults/`,root |
 | Cloud / DNS                           | `tf/` (**v2.1**) | OpenTofu                        |
@@ -67,30 +67,31 @@ Top (closest to the human) to bottom (closest to the metal). One owner each.
 
 - **source repo** — app code + `platform.toml`. App CI (Dagger) builds the immutable
   image.
-- **`infra/`** — per-target CUE. CI (= platform) renders via the linked CUE engine → the
-  `k8s/` manifest tree → pushed as the OCI config artifact under a **moving** per-env tag.
-  App image refs *inside* are **immutable**.
-- **`tf/`** — OpenTofu env/target list; manual local apply in v2.
+- **`infra/`** — the desired-state CUE. CI (= platform) renders via the linked CUE engine → the
+  `k8s/` manifest tree → pushed as the OCI config artifact under a **moving** tag (git history is
+  the record). App image refs *inside* are committed literals, digest-pinned to dodge stale cache.
+- **`tf/`** — OpenTofu cloud/DNS provisioning (v2.1); manual local apply. Not a platform env list.
 - **`platform-init`** — cluster baseline, **embedded in the tool** as a flat, destination-encoded
   file list; `ops init` installs each chosen file to the destination its name encodes (repo root,
   `apps/`, or the mandatory `defaults/` package); one manual seed, then Flux.
 
 ## Deploy flow (where the surfaces meet)
 
-1. App CI builds + pushes the immutable app image.
-2. Gated deploy (CLI/UI, authed user) writes the image ref into `infra/` CUE,
-   author-as-user via the GitHub App.
-3. Platform (CI) renders `infra/` → pushes the config artifact to the moving env tag.
+1. App CI builds + pushes the app image (digest-pinned).
+2. The operator **hand-edits** the app-image ref in `infra/` CUE and commits — platform never
+   rewrites the CUE. The gate is GitHub push permissions on the infra repo (later, the server may
+   author the commit as the user via the GitHub App).
+3. `ops render` + `ops publish` push the config artifact to the moving tag.
 4. Flux's `OCIRepository` follows the tag → reconciles → pods run the pinned image.
 5. Pods' init-containers pull their secrets from platform (outbound) at start.
 
-No step pushes into the cluster. The gate is the CUE commit; everything after is pull.
+No step pushes into the cluster. The gate is the git commit; everything after is pull.
 
 ## Phase boundaries
 
 - **v2** — single home cluster; platform in-cluster; GitHub-only IdP; secrets via
   platform-pull init-container; `tf/` manual; no DNS.
-- **v2.1** — DNS (Cloudflare via `tf/`), PR/branch deploys, the approvals/plan-gate UI,
-  platform-run tofu.
+- **v2.1** — DNS (Cloudflare via `tf/`), PR/branch preview instances (infra CUE + namespacing),
+  platform-run tofu. Gating stays GitHub push permissions — no separate approvals/plan-gate UI.
 - **phase 2** — multi-cluster (central control-plane + per-cluster agents); additional
   IdPs/service links (Google, Sentry, custom) via the `identities` table.

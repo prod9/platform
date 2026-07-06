@@ -73,7 +73,7 @@ Domain packages live at the top level by their own name: `baseline/`, `gitops/`,
 ## Arch target (local vs publish)
 
 Two kinds of build run from one machine: fast local iteration and server-bound
-publish/deploy. They need different architectures, so the config splits them:
+publishing. They need different architectures, so the config splits them:
 
 - `local_arch` — default `auto` (tracks the host arch; fast native local builds).
 - `publish_arch` — default `amd64` (matches the servers, so an arm laptop never ships
@@ -84,6 +84,6 @@ containers, so `BuildUnit.Platform` is derived as `"linux/" + arch` (or the host
 `auto`). The deprecated single-target `platform` key stays readable for backward
 compatibility and seeds `local_arch` when unset.
 
-`build` / `preview` / `export` / `ls` build with `local_arch`; `publish` / `deploy`
-build with `publish_arch`. The **infra-package manifest artifact** (`ops publish`) has
+`build` / `preview` / `export` / `ls` build with `local_arch`; `publish`
+builds with `publish_arch`. The **infra-package manifest artifact** (`ops publish`) has
 no executable and no arch — it is untouched by this.
