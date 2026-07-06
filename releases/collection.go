@@ -20,12 +20,7 @@ type Collection struct {
 
 func Recover(cfg *project.Project, git *gitctx.GitCtx) (*Collection, error) {
 	// ensure the local wd has all the up-to-date tags
-	//
-	// note that environment tags will change as we deploy to the environment so we need to
-	// do a fetch --force just for those tags.
-	if err := git.UpdateEnvironmentTags(); err != nil {
-		return nil, err
-	} else if err := git.UpdateAllTags(); err != nil {
+	if err := git.UpdateAllTags(); err != nil {
 		return nil, err
 	}
 

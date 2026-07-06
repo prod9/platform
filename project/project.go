@@ -31,8 +31,7 @@ type (
 		LocalArch   string `toml:"local_arch,omitempty"`
 		PublishArch string `toml:"publish_arch,omitempty"`
 
-		Strategy     string   `toml:"strategy"`
-		Environments []string `toml:"environments"`
+		Strategy string `toml:"strategy"`
 
 		Excludes []string           `toml:"excludes"`
 		Modules  map[string]*Module `toml:"modules,omitempty"`

@@ -63,16 +63,6 @@ func (ctx *GitCtx) IsClean() error {
 
 // Tag Operations following your naming convention
 
-// UpdateEnvironmentTags fetches environment tags with force (equivalent to git fetch -f)
-func (ctx *GitCtx) UpdateEnvironmentTags() error {
-	remote, err := ctx.MainRemoteName()
-	if err != nil {
-		return err
-	}
-	_, err = gitcmd.FetchFTags(ctx.proj.ConfigDir, remote, ctx.proj.Environments)
-	return err
-}
-
 // UpdateAllTags fetches all version tags from remote
 func (ctx *GitCtx) UpdateAllTags() error {
 	remote, err := ctx.MainRemoteName()
@@ -88,11 +78,6 @@ func (ctx *GitCtx) SetVersionTag(tagname, message string) (string, error) {
 	return gitcmd.Tag(ctx.proj.ConfigDir, tagname, message)
 }
 
-// SetEnvironmentTag creates or updates an environment tag (force operation)
-func (ctx *GitCtx) SetEnvironmentTag(tagname string) (string, error) {
-	return gitcmd.TagF(ctx.proj.ConfigDir, tagname)
-}
-
 // PushVersionTag pushes a version tag to remote
 func (ctx *GitCtx) PushVersionTag(tagname string) error {
 	remote, err := ctx.MainRemoteName()
@@ -100,16 +85,6 @@ func (ctx *GitCtx) PushVersionTag(tagname string) error {
 		return err
 	}
 	_, err = gitcmd.PushTag(ctx.proj.ConfigDir, remote, tagname)
-	return err
-}
-
-// PushEnvironmentTag pushes an environment tag to remote (force operation)
-func (ctx *GitCtx) PushEnvironmentTag(tagname string) error {
-	remote, err := ctx.MainRemoteName()
-	if err != nil {
-		return err
-	}
-	_, err = gitcmd.PushTagF(ctx.proj.ConfigDir, remote, tagname)
 	return err
 }
 

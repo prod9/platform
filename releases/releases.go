@@ -99,9 +99,6 @@ func Create(cfg *project.Project, git *gitctx.GitCtx, rel *Release) error {
 	// always fetch remote tags before making changes because someone else might have
 	// pushed a tag since we last fetched (or you yourself might have pushed a tag from
 	// another machine and forgot)
-	if err := git.UpdateEnvironmentTags(); err != nil {
-		return err
-	}
 	if err := git.UpdateAllTags(); err != nil {
 		return err
 	}

@@ -34,7 +34,6 @@ func init() {
 		cmd.BootstrapCmd,
 		cmd.BuildCmd,
 		cmd.ConfigureCmd,
-		cmd.DeployCmd,
 		cmd.DiscoverCmd,
 		cmd.ExecCmd,
 		cmd.ExportCmd,
