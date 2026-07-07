@@ -40,7 +40,7 @@ Commit messages **(per-repo Law)**: `area: Capitalized description`. Prefix is a
 put clarifiers in parens at the end; never a `(scope)` in the prefix. Keep the `Co-Authored-By:
 Claude …` trailer. Not `type(scope):`.
 
-Drive `ops init` / `bootstrap` non-interactively with `ALWAYS_YES=1`, not `--force` (which means
+Drive `init` non-interactively with `ALWAYS_YES=1`, not `--force` (which means
 "replace existing files").
 
 ## Design approach — how this project cuts
@@ -63,7 +63,7 @@ and **adding code for the remainder** the design discards. Counter both:
 Delivery verbs are the canonical instance: `release` (cut a tag) and `publish` (build + push an
 image) are **orthogonal — neither implies the other**. There is **no `deploy` verb** and no
 platform-managed `environments`: in the pull model "deploy" is the operator committing the infra
-repo, then `ops publish` (with a platform server + Flux) or `ops render` + `kubectl apply` (no
+repo, then `publish` (with a platform server + Flux) or `render` + `kubectl apply` (no
 server); multi-env lives in the infra CUE (a template instantiated per env) + k8s namespacing,
 gated by GitHub push permissions. One publish engine (`engine` package), two drivers: the local
 CLI now, a tag-watch server later. See
@@ -101,7 +101,7 @@ entrypoint to the build-pipeline design.
 
 `platform` is PRODIGY9's self-contained build/CI tool — a Go CLI (module
 `platform.prodigy9.co`, Go 1.25.5) that auto-detects project type, builds containers via
-Dagger, manages releases via git tags, and bootstraps new repos with a `platform.toml` +
+Dagger, manages releases via git tags, and scaffolds new repos with a `platform.toml` +
 build script.
 
 Goal: zero per-project build config; new repos onboard quickly; no tech-stack lock-in.
@@ -115,17 +115,16 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
 
 | Cmd | Purpose |
 |-----------|------------------------------------------------------------------|
-| bootstrap | Discover project type, write `platform.toml` + `platform` script. |
+| init      | Scaffold a repo — app (`platform.toml` + script) or, in an `infra`-named repo, the full GitOps baseline. Alias `scaffold`. |
 | build     | Build container(s) for module(s) via Dagger.                     |
 | configure | Print effective parsed config.                                   |
-| discover  | Print detected modules and their builder.                        |
 | exec      | Run a command in, or shell into, the built container; bare+piped prints a summary (debugging). |
 | export    | Build and export container as `.docker` tarball.                 |
 | ls        | Tree the source files going into the container (debugging).      |
-| ops       | GitOps delivery namespace: `ops render` (infra CUE → manifests), `ops publish` (push as OCI config artifact). |
 | preview   | Build and serve container locally via Dagger tunnel.             |
-| publish   | Build+publish image tagged `:release-name` from latest release tag. |
-| release   | Create new release tag (semver/timestamp/datestamp); supports `-p/-m/--major`. |
+| render    | Render an infra repo's `apps/` (CUE + `.platform`) to a `k8s/` manifest tree. |
+| publish   | Build+publish a module's image (app: release tag; infra: moving `latest`). |
+| release   | Create new release tag (semver/timestamp/datestamp/latest); supports `-p/-m/--major`. |
 | vanity    | Hidden HTTP server: redirects `go get platform.prodigy9.co` to GitHub. |
 
 ### Packages
@@ -133,7 +132,7 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
 - `project/` — `platform.toml` parser. `Project` (maintainer, repository, strategy,
   excludes, modules, `[ops]`) and `Module` (workdir, builder, env, port,
   cmd, args, asset_dirs, build_dir, image, package). `[ops]` (`Ops.Image`/`Tag`) is the
-  `ops publish` target — inferred from `repository` (`ghcr.io/x`) with `tag` defaulting to
+  `publish` target — inferred from `repository` (`ghcr.io/x`) with `tag` defaulting to
   `latest`; `Ops.Ref(tag)` resolves the ref. `Ops.Vars` (`[ops.vars]`) is the verbatim DSL
   `\(var)` table — a generic `map[string]any` (values keep their TOML type), pure passthrough
   (no defaults/inference).
@@ -150,18 +149,19 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
   - `base.go` — Wolfi base image (`cgr.dev/chainguard/wolfi-base`), apk cache mount,
     `CacheBuster` const for global cache invalidation.
 - `engine/` — the Dagger execution layer. `New`/`NewContext` open an `Engine` (a client
-  pool over the discovered engine fleet); `Build` runs an attempt's units and `Publish`
+  pool over the discovered runners); `Build` runs an attempt's units and `Publish`
   pushes them, both fanning out via `internal.Multiplexer`. `BuildAndPublish` is the reusable
   build+tag+push unit that `publish` drives now and a tag-watch server drives later
   (see the [delivery-verbs ADR](docs/decisions/2026-07-05-delivery-verbs-are-orthogonal.md)).
   Registry creds via fx env config: `REGISTRY`, `REGISTRY_USERNAME`, `REGISTRY_PASSWORD`.
 - `scaffold/` — Embeds the `platform.template`; discovers builders, writes
-  `platform.toml` and an executable `platform` script. `Analyze` validates the
-  target wd (must exist, be a dir, live in a git repo — hard gate) and computes a `Plan`
+  `platform.toml` and an executable `platform` script. `Analyze` (app repo; existing-git
+  hard gate) and `AnalyzeInit` (infra repo; creates git, adds cue.mod) compute a `Plan`
   (files to write/overwrite, baseline vars appended/preserved) without mutating; `Plan.Apply`
-  writes it. Re-bootstrap merges `[ops.vars]` surgically (`mergeOpsVars`: append new default
+  writes it. Re-init merges `[ops.vars]` surgically (`mergeOpsVars`: append new default
   keys, preserve operator values + comments/order) rather than clobbering platform.toml. The
-  `bootstrap` cmd prints the plan and confirms (fx prompt); `--force` applies unprompted.
+  `init` cmd (dir named `infra` → infra path, else app) prints the plan and confirms (fx
+  prompt); `--force` applies unprompted. Collapsing the two Analyze paths is a deferred task.
 - `releases/` — Release strategies: `semver`, `timestamp`, `datestamp`. `Generate`
   diffs commits since last tag, `Create` tags + pushes. `collection.go` recovers
   history from git tags. `dateref`/`timeref` subpackages parse the datestamp/timestamp
@@ -191,19 +191,21 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
   `download` URLs — selection is **not** a var). Selection is **install-time**: `platform init`'s
   picker (`OptionalMultiSelect`) installs each chosen file to the destination its name encodes —
   the repo root, `apps/` (render-able components), or the mandatory `defaults/` package (shared
-  defs like `#Basics`, imported by `apps/`). `ops render` applies whatever is present under
+  defs like `#Basics`, imported by `apps/`). `render` applies whatever is present under
   `apps/`, routing by extension — `renderCue` (`.cue` → linked CUE engine, no `cue` binary) and
   `renderDirectives` (`.platform` → `dsl.Apply`, emitting into `k8s/<stem>/`) — into one `k8s/`
   tree (see the
   [render-routing ADR](docs/decisions/2026-06-18-render-routes-cue-and-platform-by-extension.md)).
-- `gitops/` — pull-based GitOps delivery. `Render` walks `apps/` and routes by extension
-  into one `k8s/<component>/<file>` tree: `.cue` → file-map export via the linked CUE engine
-  (`exportCue`), `.platform` → `dsl.Apply`. `[ops.vars]` feed both routes — CUE `@tag(name)`
-  holes (only the names a `@tag` actually declares are injected; the rest are directive-only)
-  and directive `\(var)`. The image ref is a **committed CUE literal**, never injected (see the
+- `gitops/` — infra manifest rendering (the publish half retired with oras). `Render` walks
+  `apps/` and routes by extension into one `k8s/<component>/<file>` tree: `.cue` → file-map
+  export via the linked CUE engine (`exportCue`), `.platform` → `dsl.Apply`. `[ops.vars]` feed
+  both routes — CUE `@tag(name)` holes (only the names a `@tag` actually declares are injected;
+  the rest are directive-only) and directive `\(var)`. The image ref is a **committed CUE
+  literal**, never injected (see the
   [committed-image correction ADR](docs/decisions/2026-06-26-render-is-pure-function-of-committed-git.md)).
-  `Publish` (gzipped-tar layer + Flux media types, oras-go), `RemoteRepository` (`oci://` ref +
-  `REGISTRY_USERNAME`/`REGISTRY_PASSWORD` auth). Wired as `platform ops render`/`publish`.
+  Wired as `platform render`; the `platform/infra` builder packs this tree into the published
+  image, pushed by the ordinary `publish` (oras retired — see the
+  [plain-image ADR](docs/decisions/2026-07-05-infra-publishes-as-plain-image-retire-oras.md)).
 - `internal/` — `buildlog` (build/CLI structured logger), `multiplexer` (parallel job
   runner), `timeouts` (TOML duration).
 - `testbeds/` — Sample projects per builder type, exercised by smoke tests.
@@ -227,7 +229,7 @@ Two suites, at different layers:
   drift detector detailed below.
 
 `./test.sh` → runs `cue eval tests.cue → tests.yml` → `chakrit/smoke` runner. Tests
-build the binary, then for each testbed run `discover`/`bootstrap`/`build` checking
+build the binary, then for each testbed run `init`/`build` checking
 exitcode/stdout/expected-files. `./testbed.sh <dir> <args>` runs platform inside a
 specific testbed.
 
