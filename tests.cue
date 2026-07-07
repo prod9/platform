@@ -42,18 +42,16 @@ let testbeds = [...{name: string, dir: string}] &
 				name: testbed.name
 				tests: [
 					{
-						name: "Discover"
-						checks: ["stdout"]
-						commands: ["./testbed.sh \(testbed.dir) discover | sort"]
-					},
-					{
-						name: "Bootstrap"
+						// init on a non-"infra" testbed dir takes the app-scaffold path;
+						// the written platform.toml [modules] captures the discovered builder,
+						// so the dropped standalone `discover` command needs no separate test.
+						name: "Init"
 						checks: [
 							"./testbeds/\(testbed.dir)/platform.toml",
 							"./testbeds/\(testbed.dir)/platform",
 						]
 						commands: [
-							"./testbed.sh \(testbed.dir) bootstrap \"Johnny Appleseed\" \"john@apple.com\" \"github.com/prod9/platform\" \"ghcr.io/prod9/platform\"",
+							"./testbed.sh \(testbed.dir) init \"Johnny Appleseed\" \"john@apple.com\" \"github.com/prod9/platform\" \"ghcr.io/prod9/platform\"",
 						]
 					},
 					{
