@@ -8,14 +8,12 @@ require (
 	fx.prodigy9.co v0.8.6
 	github.com/BurntSushi/toml v1.4.0
 	github.com/felixge/httpsnoop v1.0.4
-	github.com/opencontainers/image-spec v1.1.1
 	github.com/pterm/pterm v0.12.79
 	github.com/spf13/cobra v1.10.1
 	github.com/stretchr/testify v1.11.1
 	go.jonnrb.io/vanity v0.2.0
 	golang.org/x/mod v0.33.0
 	gopkg.in/yaml.v3 v3.0.1
-	oras.land/oras-go/v2 v2.6.1
 )
 
 require (
@@ -54,6 +52,7 @@ require (
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/mitchellh/go-wordwrap v1.0.1 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
+	github.com/opencontainers/image-spec v1.1.1 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/protocolbuffers/txtpbfmt v0.0.0-20251016062345-16587c79cd91 // indirect

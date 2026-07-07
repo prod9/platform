@@ -4,7 +4,6 @@ import (
 	fxcmd "fx.prodigy9.co/cmd"
 	"github.com/spf13/cobra"
 	"platform.prodigy9.co/cmd"
-	"platform.prodigy9.co/cmd/ops"
 	"platform.prodigy9.co/internal/buildlog"
 	"platform.prodigy9.co/project"
 )
@@ -37,8 +36,8 @@ func init() {
 		cmd.ExecCmd,
 		cmd.ExportCmd,
 		cmd.ListCmd,
-		ops.Cmd,
 		cmd.PreviewCmd,
+		cmd.RenderCmd,
 		cmd.PublishCmd,
 		cmd.ReleaseCmd,
 		cmd.VanityCmd,
