@@ -5,16 +5,9 @@
         - name: exitcode
           data:
             - "0"
-- name: Platform \ Go Basic \ Discover
+- name: Platform \ Go Basic \ Init
   commands:
-    - command: ./testbed.sh gobasic discover | sort
-      checks:
-        - name: stdout
-          data:
-            - gobasic -> go/basic
-- name: Platform \ Go Basic \ Bootstrap
-  commands:
-    - command: ./testbed.sh gobasic bootstrap "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform" "ghcr.io/prod9/platform"
+    - command: ./testbed.sh gobasic init "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform" "ghcr.io/prod9/platform"
       checks:
         - name: ./testbeds/gobasic/platform.toml
           data:
@@ -49,17 +42,9 @@
         - name: exitcode
           data:
             - "0"
-- name: Platform \ Go Workspace \ Discover
+- name: Platform \ Go Workspace \ Init
   commands:
-    - command: ./testbed.sh gowork discover | sort
-      checks:
-        - name: stdout
-          data:
-            - app -> go/workspace
-            - fx -> go/workspace
-- name: Platform \ Go Workspace \ Bootstrap
-  commands:
-    - command: ./testbed.sh gowork bootstrap "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform" "ghcr.io/prod9/platform"
+    - command: ./testbed.sh gowork init "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform" "ghcr.io/prod9/platform"
       checks:
         - name: ./testbeds/gowork/platform.toml
           data:
@@ -98,16 +83,9 @@
         - name: exitcode
           data:
             - "0"
-- name: Platform \ PNPM Basic \ Discover
+- name: Platform \ PNPM Basic \ Init
   commands:
-    - command: ./testbed.sh pnpmbasic discover | sort
-      checks:
-        - name: stdout
-          data:
-            - pnpmbasic -> pnpm/basic
-- name: Platform \ PNPM Basic \ Bootstrap
-  commands:
-    - command: ./testbed.sh pnpmbasic bootstrap "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform" "ghcr.io/prod9/platform"
+    - command: ./testbed.sh pnpmbasic init "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform" "ghcr.io/prod9/platform"
       checks:
         - name: ./testbeds/pnpmbasic/platform.toml
           data:
@@ -142,17 +120,9 @@
         - name: exitcode
           data:
             - "0"
-- name: Platform \ PNPM Workspace \ Discover
+- name: Platform \ PNPM Workspace \ Init
   commands:
-    - command: ./testbed.sh pnpmwork discover | sort
-      checks:
-        - name: stdout
-          data:
-            - lib -> pnpm/workspace
-            - web -> pnpm/workspace
-- name: Platform \ PNPM Workspace \ Bootstrap
-  commands:
-    - command: ./testbed.sh pnpmwork bootstrap "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform" "ghcr.io/prod9/platform"
+    - command: ./testbed.sh pnpmwork init "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform" "ghcr.io/prod9/platform"
       checks:
         - name: ./testbeds/pnpmwork/platform.toml
           data:
@@ -191,16 +161,9 @@
         - name: exitcode
           data:
             - "0"
-- name: Platform \ PNPM Static \ Discover
+- name: Platform \ PNPM Static \ Init
   commands:
-    - command: ./testbed.sh pnpmstatic discover | sort
-      checks:
-        - name: stdout
-          data:
-            - pnpmstatic -> pnpm/static
-- name: Platform \ PNPM Static \ Bootstrap
-  commands:
-    - command: ./testbed.sh pnpmstatic bootstrap "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform" "ghcr.io/prod9/platform"
+    - command: ./testbed.sh pnpmstatic init "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform" "ghcr.io/prod9/platform"
       checks:
         - name: ./testbeds/pnpmstatic/platform.toml
           data:
@@ -235,16 +198,9 @@
         - name: exitcode
           data:
             - "0"
-- name: Platform \ Dockerfile \ Discover
+- name: Platform \ Dockerfile \ Init
   commands:
-    - command: ./testbed.sh dockerfile discover | sort
-      checks:
-        - name: stdout
-          data:
-            - dockerfile -> dockerfile
-- name: Platform \ Dockerfile \ Bootstrap
-  commands:
-    - command: ./testbed.sh dockerfile bootstrap "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform" "ghcr.io/prod9/platform"
+    - command: ./testbed.sh dockerfile init "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform" "ghcr.io/prod9/platform"
       checks:
         - name: ./testbeds/dockerfile/platform.toml
           data:
@@ -281,7 +237,7 @@
             - "0"
 - name: Platform \ Render
   commands:
-    - command: ./testbed.sh infra-basic ops render
+    - command: ./testbed.sh infra-basic render
       checks:
         - name: exitcode
           data:
@@ -386,3 +342,10 @@
             - '              port: 8080'
             - '-----END objects.yaml-----'
             - ""
+- name: Platform \ Infra Build
+  commands:
+    - command: ./testbed.sh infra-basic -q build
+      checks:
+        - name: exitcode
+          data:
+            - "0"
