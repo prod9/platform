@@ -9,7 +9,7 @@ import (
 )
 
 // clients is the connection cache: one reused *dagger.Client per engine endpoint. It knows
-// nothing about discovery. Get validates a cached client with a cheap Version() ping and
+// nothing about runners. Get validates a cached client with a cheap Version() ping and
 // redials when the engine has gone (graceful DNS removal or an outright crash), so callers
 // always receive a live client — there is no separate prune step and nothing is ever closed
 // mid-build. The lock is held only around map reads/writes, never across a dial or ping.

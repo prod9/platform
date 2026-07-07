@@ -19,19 +19,19 @@ var (
 	DaggerEnginePortConfig = fxconfig.IntDef("DAGGER_ENGINE_PORT", 1234)
 )
 
-// discovery resolves the configured Dagger engine endpoints. It reports only what it finds —
+// runners resolves the configured Dagger engine endpoints. It reports only what it finds —
 // an empty result when DAGGER_ENGINE is unset or resolves to nothing — and never decides to
 // fall back to a local engine; that policy lives in the core. Resolution is via the resolver
 // (no k8s API / RBAC), which caches per the record TTL, so a new pod becomes selectable as
 // soon as DNS reflects it.
-type discovery struct {
+type runners struct {
 	dns    string
 	port   int
 	lookup func(ctx context.Context, host string) ([]string, error)
 }
 
-func newDiscovery(cfg *fxconfig.Source) *discovery {
-	return &discovery{
+func newRunners(cfg *fxconfig.Source) *runners {
+	return &runners{
 		dns:    fxconfig.Get(cfg, DaggerEngineConfig),
 		port:   fxconfig.Get(cfg, DaggerEnginePortConfig),
 		lookup: net.DefaultResolver.LookupHost,
@@ -41,7 +41,7 @@ func newDiscovery(cfg *fxconfig.Source) *discovery {
 // Hosts returns one tcp:// runner-host URL per ready engine pod, sorted for stable
 // round-robin. It returns an empty slice when no engine is configured or none have resolved
 // yet; a lookup failure is a real error worth surfacing.
-func (d *discovery) Hosts(ctx context.Context) ([]string, error) {
+func (d *runners) Hosts(ctx context.Context) ([]string, error) {
 	if d.dns == "" {
 		return nil, nil
 	}

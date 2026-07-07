@@ -12,21 +12,21 @@ import (
 // concurrency-safe set of connections dialed lazily and reused. Build one from config,
 // share it across the process, and carry it on a context with NewContext.
 //
-// It orchestrates two single-purpose units: discovery (which endpoints exist) and clients
+// It orchestrates two single-purpose units: runners (which endpoints exist) and clients
 // (one reused, ping-checked client per endpoint). Engine itself holds no lock — only a
 // round-robin cursor — so the good path is obvious: discover, pick, get.
 type Engine struct {
-	cfg       *fxconfig.Source
-	discovery *discovery
-	clients   *clients
-	cursor    atomic.Uint64
+	cfg     *fxconfig.Source
+	runners *runners
+	clients *clients
+	cursor  atomic.Uint64
 }
 
 func New(cfg *fxconfig.Source) *Engine {
 	return &Engine{
-		cfg:       cfg,
-		discovery: newDiscovery(cfg),
-		clients:   newClients(),
+		cfg:     cfg,
+		runners: newRunners(cfg),
+		clients: newClients(),
 	}
 }
 
@@ -37,7 +37,7 @@ func (e *Engine) Close() error { return e.clients.Close() }
 // a live client for it. Build/Publish use it per unit; commands that need ad-hoc Dagger
 // access (ls, preview) call it directly.
 func (e *Engine) Client(ctx context.Context) (*dagger.Client, error) {
-	hosts, err := e.discovery.Hosts(ctx)
+	hosts, err := e.runners.Hosts(ctx)
 	if err != nil {
 		return nil, err
 	}

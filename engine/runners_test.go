@@ -10,7 +10,7 @@ import (
 
 func TestHostsResolvesAndSorts(t *testing.T) {
 	var asked string
-	d := &discovery{
+	d := &runners{
 		dns:  "dagger-engine.platform.svc.cluster.local",
 		port: 1234,
 		lookup: func(_ context.Context, host string) ([]string, error) {
@@ -27,7 +27,7 @@ func TestHostsResolvesAndSorts(t *testing.T) {
 
 func TestHostsEmptyWhenUnconfigured(t *testing.T) {
 	called := false
-	d := &discovery{dns: "", lookup: func(context.Context, string) ([]string, error) {
+	d := &runners{dns: "", lookup: func(context.Context, string) ([]string, error) {
 		called = true
 		return nil, nil
 	}}
@@ -39,7 +39,7 @@ func TestHostsEmptyWhenUnconfigured(t *testing.T) {
 }
 
 func TestHostsErrorsOnLookupFailure(t *testing.T) {
-	d := &discovery{dns: "x", port: 1234, lookup: func(context.Context, string) ([]string, error) {
+	d := &runners{dns: "x", port: 1234, lookup: func(context.Context, string) ([]string, error) {
 		return nil, errors.New("nxdomain")
 	}}
 
