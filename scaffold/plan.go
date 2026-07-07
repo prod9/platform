@@ -188,6 +188,12 @@ func generateProjectFile(dir string, info *Info, defaultVars map[string]any) ([]
 		// (pnpm) by default.
 
 		proj.Modules[name] = &mod
+
+		// An infra repo has no versions to cut — its image is the moving `latest` tag
+		// Flux follows — so it takes the non-versioned release strategy.
+		if bldr.Name() == "platform/infra" {
+			proj.Strategy = "latest"
+		}
 	}
 
 	var buf bytes.Buffer

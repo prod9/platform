@@ -81,6 +81,7 @@ var (
 	// IMPORTANT: This list is **Order Sensitive** due to Discover() calls on different
 	// builders discovering the same subfolder a little differently.
 	knownBuilders = []Interface{
+		Infra{},
 		GoWorkspace{},
 		PNPMWorkspace{},
 		GoBasic{},

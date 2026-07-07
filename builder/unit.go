@@ -33,6 +33,10 @@ type BuildUnit struct {
 	ImageName   string
 	PackageName string
 	Repository  string
+
+	// Vars is the [ops.vars] table, carried for the infra builder to feed its render
+	// (CUE @tag / directive \(var) interpolation). Empty for ordinary app builders.
+	Vars map[string]any
 }
 
 func unitFromModule(cfg *project.Project, name string, mod *project.Module, purpose Purpose) (*BuildUnit, error) {
@@ -65,6 +69,8 @@ func unitFromModule(cfg *project.Project, name string, mod *project.Module, purp
 		ImageName:   mod.ImageName,
 		PackageName: mod.PackageName,
 		Repository:  cfg.Repository,
+
+		Vars: cfg.Ops.Vars,
 	}, nil
 }
 
