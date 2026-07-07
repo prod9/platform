@@ -9,7 +9,6 @@ import (
 	"github.com/BurntSushi/toml"
 	"platform.prodigy9.co/internal/buildlog"
 	"platform.prodigy9.co/internal/timeouts"
-	"platform.prodigy9.co/ops"
 )
 
 type (
@@ -35,7 +34,7 @@ type (
 
 		Excludes []string           `toml:"excludes"`
 		Modules  map[string]*Module `toml:"modules,omitempty"`
-		Ops      ops.Ops            `toml:"ops"`
+		Ops      Ops                `toml:"ops"`
 	}
 
 	Module struct {
