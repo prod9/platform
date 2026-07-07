@@ -151,13 +151,30 @@ two-producer publish into the pipeline description), `config-allocation.md`, the
    cleanups.
 6. **Docs/specs sweep.**
 
-## Confirm before I code
+## Decisions locked (chakrit, this session)
 
-1. **Overall shape** — six concepts, the package table, the final command surface.
-2. **`publish` is uniform** via infra-as-builder (oras retired) — folds in
-   [the oras-drop decision](../decisions/2026-07-05-infra-publishes-as-plain-image-retire-oras.md).
-   This adds a migration slice: write the `platform/infra` builder + retire `gitops.Publish`.
-3. **ADR touch-ups** — delivery-verbs' "infra config is its own concern" line is already
-   refined by the oras-drop ADR; core release/publish orthogonality stands.
-4. Minor, I'll proceed unless you object: rename `bootstrapper/` → `scaffold/`; keep
-   `baseline/` as its own embedded-data package (not merged into `scaffold`).
+- **App-vs-infra is detected by the repo name**, not the picker: a repo **named `infra`**
+  (`filepath.Base(wd) == "infra"`) is an infra repo → full GitOps baseline; anything else is
+  an app repo → just `platform.toml` + build script. (Supersedes the earlier picker-decides
+  framing in §Fold mechanics above.)
+- The `init` command is aliased **`scaffold`**.
+- `engine`'s runner discovery is renamed **`pool`** was rejected (collides with the existing
+  `Pool`/`clients`); use the Dagger term — the unit is renamed to reflect the **runners** it
+  discovers.
+- Package renamed `bootstrapper/` → `scaffold/`; `baseline/` stays its own package.
+
+## Progress
+
+- ✅ Slice 0 (spec), 1 (`ops`→`project`), 2 (`scaffold` rename + `init`/`scaffold` alias) —
+  landed and committed, green.
+- ▶ Remaining: command merge (`bootstrap`+`ops init`→top-level `init`, drop `discover`);
+  infra-as-builder + retire oras; `engine` runner rename; final doc/spec/tests.cue sweep.
+
+## Deferred follow-up (after the slices)
+
+**Rethink what "component" means now that infra `init` and app `init`/`discover` are one
+command, and streamline the `scaffold` package accordingly.** The `baseline.Mandatory` /
+`Defaults` / picker model and the `Analyze`/`AnalyzeInit` split were built when infra-init
+was its own command; with detection by repo-name and a unified `init`, the component model
+and the two-plan split likely collapse. Its own design pass — do not fold into the mechanical
+slices.

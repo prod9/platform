@@ -31,10 +31,9 @@ func init() {
 		project.PlatformFilename, "specify a different platform.toml to load")
 
 	rootCmd.AddCommand(
-		cmd.BootstrapCmd,
+		cmd.InitCmd,
 		cmd.BuildCmd,
 		cmd.ConfigureCmd,
-		cmd.DiscoverCmd,
 		cmd.ExecCmd,
 		cmd.ExportCmd,
 		cmd.ListCmd,

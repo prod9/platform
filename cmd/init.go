@@ -1,4 +1,4 @@
-package ops
+package cmd
 
 import (
 	"errors"
@@ -24,8 +24,8 @@ var initForce bool
 var InitCmd = &cobra.Command{
 	Use:     "init",
 	Aliases: []string{"scaffold"},
-	Short:   "Initialise an infra repository: git init, baseline directives, platform.toml",
-	Run:     runInitCmd,
+	Short:   "Scaffold a repo — an app repo (platform.toml + build script) or an infra repo (full GitOps baseline)",
+	Run:     runInit,
 }
 
 func init() {
@@ -33,18 +33,54 @@ func init() {
 		"replace existing files instead of keeping them")
 }
 
-func runInitCmd(cmd *cobra.Command, args []string) {
+// isInfraRepo reports whether wd is an infra repo, detected by directory name: the
+// convention is the infra repo is named "infra" (platform's ./infra). An infra repo gets
+// the embedded GitOps baseline (operator-selected components, the mandatory defaults/
+// package, cue.mod); any other repo gets just platform.toml + the build script.
+func isInfraRepo(wd string) bool {
+	return filepath.Base(wd) == "infra"
+}
+
+func runInit(cmd *cobra.Command, args []string) {
 	wd, err := os.Getwd()
 	if err != nil {
 		buildlog.Fatalln(err)
 	}
+	sess := prompts.New(nil, args)
 
+	if isInfraRepo(wd) {
+		applyPlan(wd, sess, planInfra(wd, sess))
+	} else {
+		applyPlan(wd, sess, planApp(wd, sess))
+	}
+}
+
+// planApp scaffolds an ordinary app repo: platform.toml (with discovered modules) plus the
+// executable platform build script.
+func planApp(wd string, sess *prompts.Session) *scaffold.Plan {
+	info := &scaffold.Info{
+		ProjectName:     filepath.Base(wd),
+		GoVersion:       runtime.Version()[2:],
+		Maintainer:      sess.Str("your name"),
+		MaintainerEmail: sess.Str("your email"),
+		Repository:      sess.Str("github repository address (without https:// prefix)"),
+		ImagePrefix:     sess.Str("docker image prefix (e.g. ghcr.io/prod9/)"),
+	}
+	plan, err := scaffold.Analyze(wd, info, nil)
+	if err != nil {
+		buildlog.Fatalln(err)
+	}
+	return plan
+}
+
+// planInfra scaffolds an infra repo: the app-repo base plus the embedded GitOps baseline
+// (operator-selected components, the mandatory defaults/ package, cue.mod).
+func planInfra(wd string, sess *prompts.Session) *scaffold.Plan {
 	daggerVersion := baseline.DaggerVersion()
 	if daggerVersion == "" {
 		buildlog.Fatalln(errors.New("could not determine the linked dagger SDK version"))
 	}
 
-	sess := prompts.New(nil, args)
 	info := &scaffold.Info{
 		ProjectName:     filepath.Base(wd),
 		GoVersion:       runtime.Version()[2:],
@@ -60,6 +96,7 @@ func runInitCmd(cmd *cobra.Command, args []string) {
 	// templated apps. A fresh repo prompts for it (and gets a scaffolded cue.mod); an existing
 	// module is the operator's truth — read its path, leave the module file untouched.
 	if scaffold.HasCueModule(wd) {
+		var err error
 		info.ModulePath, err = scaffold.ModulePath(wd)
 		if err != nil {
 			buildlog.Fatalln(err)
@@ -80,7 +117,6 @@ func runInitCmd(cmd *cobra.Command, args []string) {
 	if err != nil {
 		buildlog.Fatalln(err)
 	}
-
 	rendered, err := baseline.Render(selectComponents(sess, files), data)
 	if err != nil {
 		buildlog.Fatalln(err)
@@ -94,7 +130,12 @@ func runInitCmd(cmd *cobra.Command, args []string) {
 	for _, f := range rendered {
 		plan.AddFile(f.Path, f.Body, 0644)
 	}
+	return plan
+}
 
+// applyPlan is the shared tail: show the plan, confirm, ensure a git repo, write the files,
+// then print the effective parsed config so the operator sees the resolved result in one shot.
+func applyPlan(wd string, sess *prompts.Session, plan *scaffold.Plan) {
 	plan.Print(os.Stdout)
 	if !sess.YesNo("apply this plan?") {
 		return
@@ -119,8 +160,8 @@ func runInitCmd(cmd *cobra.Command, args []string) {
 		buildlog.File(f.Action.String(), f.Path)
 	}
 
-	// Close with the effective parsed config (same view as `configure`) so the operator
-	// sees the resolved result of the freshly written platform.toml in one shot.
+	// Close with the effective parsed config (same view as `configure`) so the operator sees
+	// the resolved result of the freshly written platform.toml.
 	cfg, err := project.Configure(wd)
 	if err != nil {
 		buildlog.Fatalln(err)
@@ -159,14 +200,13 @@ func selectComponents(sess *prompts.Session, files map[string][]byte) map[string
 	return selected
 }
 
-// ensureGitRepo runs `git init` when dir is not already its own git repo root —
-// `platform ops init` scaffolds a standalone infra repo (GitOps delivery needs
-// one), even when the target sits nested inside another checkout.
+// ensureGitRepo runs `git init` when dir is not already its own git repo root — an infra
+// scaffold creates a standalone repo (GitOps delivery needs one), even nested inside another
+// checkout. For an app repo (which already has git) this is a no-op.
 func ensureGitRepo(dir string) error {
 	if scaffold.IsGitRoot(dir) {
 		return nil
 	}
-
 	gitInit := exec.Command("git", "init", dir)
 	gitInit.Stdout, gitInit.Stderr = os.Stdout, os.Stderr
 	return gitInit.Run()

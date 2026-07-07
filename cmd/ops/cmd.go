@@ -2,14 +2,15 @@ package ops
 
 import "github.com/spf13/cobra"
 
-// Cmd groups the GitOps delivery spine: initialise an infra repo, render its CUE
-// apps to manifests, and publish them as OCI config artifacts. Added to the root
-// as a single `ops` subcommand.
+// Cmd groups the GitOps delivery spine: render an infra repo's CUE apps to manifests
+// and publish them. Added to the root as a single `ops` subcommand. (Infra-repo
+// scaffolding is the top-level `init`; these two collapse into top-level `render`/
+// `publish` once infra becomes a builder.)
 var Cmd = &cobra.Command{
 	Use:   "ops",
-	Short: "GitOps delivery: init, render, and publish infra manifests",
+	Short: "GitOps delivery: render and publish infra manifests",
 }
 
 func init() {
-	Cmd.AddCommand(InitCmd, RenderCmd, PublishCmd)
+	Cmd.AddCommand(RenderCmd, PublishCmd)
 }
