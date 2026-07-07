@@ -34,10 +34,12 @@ End-to-end, verbs and artifacts:
    hand-edited and committed, or (later) the server authoring that commit **as the user** via the
    GitHub App. The gate is the user's GitHub push permission on the infra repo; the commit is the
    record. Platform never rewrites the operator's CUE. There is no `deploy` verb.
-5. **Render + publish.** `ops render`/`ops publish` render the `infra/` CUE via the **linked CUE
-   engine** (`cuelang.org/go`, in-process — no `cue` binary) over infra-defs, and push the
-   **rendered manifests** as the config OCI artifact under a **moving** tag. Third-party
-   installs (cert-manager, NGF) are adapted by the
+5. **Render + publish.** Infra is a builder: it renders the `infra/` CUE via the **linked CUE
+   engine** (`cuelang.org/go`, in-process — no `cue` binary) over infra-defs, packs the
+   **rendered manifests** into a `FROM scratch` image, and `publish` pushes it under a
+   **moving** tag — the ordinary Dagger publish path, no bespoke OCI pusher (see
+   [infra-publishes-as-plain-image-retire-oras](../decisions/2026-07-05-infra-publishes-as-plain-image-retire-oras.md)).
+   Third-party installs (cert-manager, NGF) are adapted by the
    [manifest patch DSL](manifest-patch-dsl.md), not CUE.
 6. **Reconcile.** Flux follows the moving tag → applies/prunes → pods run the pinned
    image. Drift is corrected continuously.
@@ -64,7 +66,7 @@ No credential reaches into the cluster — the cluster pulls everything.
 - **`platform` CLI** (the existing `cmd/`-based binary; + folded OpenTofu provider as a
   multi-call binary). `login` (GitHub OAuth → platform token), `build`/`preview` (local
   Dagger), `kubeconfig` (exec-credential), `tf install`. (No `deploy` command — a new version is
-  an infra-repo commit; delivery is `ops render`/`ops publish`.)
+  an infra-repo commit; delivery is `render` + `publish`, infra being a builder.)
 - **`webui/` — SvelteKit (plain JS)**, adapter-static, `go:embed`'d into the `srv/` binary.
   v1: Login, Projects, Access, delivery history, reconcile status.
 - **Shared Go packages** — flat at the top level, no `core/` grab-bag (see

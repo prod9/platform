@@ -13,15 +13,14 @@ one's internals.
 platform.toml ─parse─▶ config model ─interpret─▶ BuildAttempt ─▶ engine.Build ─▶ images
 ```
 
-| Stage        | Package    | Responsibility                                                |
-| ------------ | ---------- | ------------------------------------------------------------- |
-| parse        | `project/` | read `platform.toml` → the **config model**                   |
-| config model | `project/` | `Project` / `Module` — parsed, defaulted, inferred config     |
-| ops model    | `ops/`     | the `[ops]` delivery target (`Image`/`Tag`/`Vars`)            |
-| interpret    | `builder/` | config → a **`BuildAttempt`** (one `BuildUnit` per module)    |
-| build model  | `builder/` | `BuildAttempt` has-many `BuildUnit` — the resolved build def  |
-| strategies   | `builder/` | the `Builder` implementations — per-stack build knowledge     |
-| engine       | `engine/`  | the Dagger `Pool` + the executor — runs the attempt's units   |
+| Stage        | Package    | Responsibility                                                    |
+| ------------ | ---------- | ----------------------------------------------------------------- |
+| parse        | `project/` | read `platform.toml` → the **config model**                       |
+| config model | `project/` | `Project` / `Module` / `Ops` — parsed, defaulted, inferred config |
+| interpret    | `builder/` | config → a **`BuildAttempt`** (one `BuildUnit` per module)        |
+| build model  | `builder/` | `BuildAttempt` has-many `BuildUnit` — the resolved build def      |
+| strategies   | `builder/` | the `Builder` implementations — per-stack build knowledge         |
+| engine       | `engine/`  | the Dagger `Engine` + executor — runs the attempt's units         |
 
 ## How to think about it (the durable principle)
 
@@ -50,7 +49,7 @@ This yields three standing rules:
 
 - **The consumer defines the engine interface.** A builder needs only `Client()` /
   `Context()` off the engine, so `builder` declares a small `Session` interface and the
-  strategies consume *that*. `engine`'s concrete `Pool` satisfies it implicitly —
+  strategies consume *that*. `engine`'s concrete `Engine` satisfies it implicitly —
   `builder` never imports `engine` to get it. **That** is the cycle-breaker (not any
   stringly-typing): the graph is `engine → builder → project`, one direction.
 
@@ -68,7 +67,33 @@ needs (`Excludes`, `Repository`), so the build stage stays self-contained.
 Every package is named for a responsibility. `core/`, `util/`, `common/`, `helpers/`,
 `misc/` are banned (general-coding) — they absorb anything vaguely shareable and rot.
 Domain packages live at the top level by their own name: `baseline/`, `gitops/`,
-`dsl/`, `ops/`, `engine/` — never nested under a `core/` catch-all.
+`dsl/`, `scaffold/`, `engine/` — never nested under a `core/` catch-all.
+
+## Package layout (target)
+
+The streamline collapses the old app-side/infra-side split into one config spine with the
+actions hanging off it. New code conforms; existing code migrates toward it.
+
+- `project/` — the config spine. The `Ops` delivery model (`[ops]` image/tag/vars) lives
+  here as a sub-model; there is no separate `ops/` package.
+- `scaffold/` — `platform init`: one plan builder, app and infra unified (the component
+  picker decides which, not a mode flag). Was `bootstrapper/`; consumes `baseline/` (the
+  embedded seed files) and `builder` stack-discovery to populate `[modules]`.
+- `builder/` — interpret config → `BuildUnit`s; the per-stack `Builder` strategies; and
+  **stack discovery** (a scaffold-time concern — the build path reads `[modules]`, never
+  re-discovers). Includes the `infra` builder: renders `apps/` (CUE + `.platform`) into a
+  `FROM scratch` image (see
+  [infra-publishes-as-plain-image-retire-oras](../decisions/2026-07-05-infra-publishes-as-plain-image-retire-oras.md)).
+- `engine/` — the Dagger runtime: discovers the available Dagger **runners** and distributes
+  each attempt's units across them.
+- `gitops/` — infra **render** only (CUE/`.platform` → manifest `Tree`). Publishing is the
+  ordinary `publish` path now that infra is a builder; the oras packer is retired.
+- `dsl/`, `baseline/`, `releases/`, `gitctx/`, `internal/` — unchanged in role.
+
+Command surface: `init  build  configure  exec  export  ls  preview  publish  release
+render  vanity`. `publish` is uniform (infra is just a builder module); `render` emits the
+`k8s/` tree for the serverless `kubectl apply` path. No `ops` group; no `discover` or
+`bootstrap` — re-run `init` to see detected modules.
 
 ## Arch target (local vs publish)
 
@@ -85,5 +110,23 @@ containers, so `BuildUnit.Platform` is derived as `"linux/" + arch` (or the host
 compatibility and seeds `local_arch` when unset.
 
 `build` / `preview` / `export` / `ls` build with `local_arch`; `publish`
-builds with `publish_arch`. The **infra-package manifest artifact** (`ops publish`) has
-no executable and no arch — it is untouched by this.
+builds with `publish_arch`. The infra manifest artifact is a `FROM scratch` image (YAML
+only, no executable) — arch is irrelevant to it, so it is untouched by this.
+
+## Infra delivery is a builder, not a separate pipeline
+
+Rendering and shipping the infra repo is **the same build pipeline**, not a parallel one.
+Infra is a builder class: its `Build` renders the `apps/` CUE + `.platform` directives (via
+the linked CUE engine + `dsl`) into a manifest tree and packs that tree into a `FROM scratch`
+image. So **infra publish is the ordinary `publish` verb** — Dagger builds the image, Dagger
+pushes it with the same local-docker credentials as any app image. There is no bespoke OCI
+pusher and no separate `ops publish`.
+
+Flux consumes the plain image via `OCIRepository` + a `layerSelector` that extracts the
+`application/vnd.oci.image.layer.v1.tar+gzip` layer; kustomize-controller applies the docs.
+Compatibility lives on the **consumer** side (a stock, in-production Flux path), which is why
+Dagger's native image output suffices and `oras-go` + the Flux-media-type packer are retired.
+Full rationale:
+[infra-publishes-as-plain-image-retire-oras](../decisions/2026-07-05-infra-publishes-as-plain-image-retire-oras.md).
+The `gitops` package keeps only the **render** half (manifest `Tree`); the serverless
+`render` → `kubectl apply` path is unaffected.

@@ -81,8 +81,11 @@ Top (closest to the human) to bottom (closest to the metal). One owner each.
 2. The operator **hand-edits** the app-image ref in `infra/` CUE and commits — platform never
    rewrites the CUE. The gate is GitHub push permissions on the infra repo (later, the server may
    author the commit as the user via the GitHub App).
-3. `ops render` + `ops publish` push the config artifact to the moving tag.
-4. Flux's `OCIRepository` follows the tag → reconciles → pods run the pinned image.
+3. `publish` (infra is a builder) builds the manifest tree into a `FROM scratch` image and
+   pushes it to the moving tag — the ordinary publish path, no bespoke OCI pusher. See
+   [infra-publishes-as-plain-image-retire-oras](../decisions/2026-07-05-infra-publishes-as-plain-image-retire-oras.md).
+4. Flux's `OCIRepository` follows the tag, extracts the layer via `layerSelector` →
+   reconciles → pods run the pinned image.
 5. Pods' init-containers pull their secrets from platform (outbound) at start.
 
 No step pushes into the cluster. The gate is the git commit; everything after is pull.

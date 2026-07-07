@@ -6,6 +6,12 @@ doesn't have to be re-fought next quarter. Each entry is frozen at the
 moment of decision; if a later ruling reverses it, write a new dated
 decision that links back and mark the old one `superseded`.
 
+**Spec first — always.** Never write a decision here before updating [`../spec/`](../spec/)
+to the design it rules on. The spec is the source of truth for current state; this log is
+only the frozen *why*. A decision recorded while the spec still teaches the old design gets
+re-litigated — the failure this whole discipline exists to prevent. See
+[Spec-first](../README.md#spec-first--the-spec-is-the-most-important-document).
+
 ## When to add an entry
 
 Add a decision when **the answer goes against the obvious default** —
@@ -59,6 +65,7 @@ the part that prevents re-litigation.
 
 Newest first.
 
+- [2026-07-05 — Infra publishes as a plain Dagger image; retire oras-go](2026-07-05-infra-publishes-as-plain-image-retire-oras.md)
 - [2026-07-05 — Delivery verbs are orthogonal; one publish engine, two drivers](2026-07-05-delivery-verbs-are-orthogonal.md)
 - [2026-07-05 — Test-in-build is a hard gate; blackbox-first testing](2026-07-05-test-in-build-is-a-hard-gate.md)
 - [2026-07-05 — Platform FHS container layout; cmd is the runtime command](2026-07-05-platform-fhs-container-layout.md)

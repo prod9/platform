@@ -338,7 +338,10 @@ The DSL lands across Phase A′ (see the
     [linked-CUE-engine ADR](../decisions/2026-06-23-render-via-linked-cue-engine.md)),
     `.platform` → `dsl.Apply` over every present directive file (download → patch → `emit`).
     Both write named files into a `k8s/<component>/` render-output tree (`gitops` owns the
-    directive→dir mapping as `outputName`); `ops publish` packages it. Render-time, nothing
+    directive→dir mapping as `outputName`); the infra builder packs it into the published
+    image (`publish`, no bespoke pusher — see
+    [infra-publishes-as-plain-image-retire-oras](../decisions/2026-07-05-infra-publishes-as-plain-image-retire-oras.md)).
+    Render-time, nothing
     rendered is committed (model I). Reworks Slice-1 render from the flat `-e objects` stream
     to the file-map contract. See the
     [render-routing ADR](../decisions/2026-06-18-render-routes-cue-and-platform-by-extension.md);
