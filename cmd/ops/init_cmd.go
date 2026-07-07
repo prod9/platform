@@ -11,6 +11,7 @@ import (
 	"sort"
 
 	"fx.prodigy9.co/cmd/prompts"
+	"github.com/BurntSushi/toml"
 	"github.com/spf13/cobra"
 	"platform.prodigy9.co/baseline"
 	"platform.prodigy9.co/bootstrapper"
@@ -115,6 +116,16 @@ func runInitCmd(cmd *cobra.Command, args []string) {
 	}
 	for _, f := range plan.Files {
 		buildlog.File(f.Action.String(), f.Path)
+	}
+
+	// Close with the effective parsed config (same view as `configure`) so the operator
+	// sees the resolved result of the freshly written platform.toml in one shot.
+	cfg, err := project.Configure(wd)
+	if err != nil {
+		buildlog.Fatalln(err)
+	}
+	if err := toml.NewEncoder(os.Stdout).Encode(cfg); err != nil {
+		buildlog.Fatalln(err)
 	}
 }
 
