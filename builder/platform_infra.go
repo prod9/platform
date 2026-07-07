@@ -3,11 +3,20 @@ package builder
 import (
 	"context"
 	"path/filepath"
+	"strings"
 
 	"dagger.io/dagger"
 	"fx.prodigy9.co/errutil"
 	"platform.prodigy9.co/gitops"
 )
+
+// IsInfra reports whether wd is an infra repo, matched by an "infra" glob on the directory
+// name — "infra", "fi-infra", "bluepages-infra", "infra-stage9" all qualify. A directory
+// marker like apps/ is a poor signal (an ordinary app may also have apps/), so identity is
+// the name. This is the single source of the app-vs-infra decision, shared by `init`.
+func IsInfra(wd string) bool {
+	return strings.Contains(filepath.Base(wd), "infra")
+}
 
 // Infra builds an infra repo's delivery image: it renders the repo's apps/ (CUE +
 // .platform directives) to a manifest tree in-process, then packs that tree into a plain
@@ -23,11 +32,9 @@ func (Infra) Name() string   { return "platform/infra" }
 func (Infra) Layout() Layout { return LayoutBasic }
 func (Infra) Class() Class   { return ClassCustom }
 
-// Discover matches by repo name, not a file marker: an infra repo is one named "infra"
-// (platform's ./infra). A directory marker like apps/ is a poor signal — an ordinary app
-// (Rails, say) may also have an apps/ — so identity is the directory name.
+// Discover matches by the infra-name glob (see IsInfra), not a file marker.
 func (i Infra) Discover(wd string) (map[string]Interface, error) {
-	if filepath.Base(wd) != "infra" {
+	if !IsInfra(wd) {
 		return nil, ErrNoBuilder
 	}
 	return map[string]Interface{filepath.Base(wd): i}, nil

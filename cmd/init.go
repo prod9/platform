@@ -14,6 +14,7 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/spf13/cobra"
 	"platform.prodigy9.co/baseline"
+	"platform.prodigy9.co/builder"
 	"platform.prodigy9.co/internal/buildlog"
 	"platform.prodigy9.co/project"
 	"platform.prodigy9.co/scaffold"
@@ -33,14 +34,6 @@ func init() {
 		"replace existing files instead of keeping them")
 }
 
-// isInfraRepo reports whether wd is an infra repo, detected by directory name: the
-// convention is the infra repo is named "infra" (platform's ./infra). An infra repo gets
-// the embedded GitOps baseline (operator-selected components, the mandatory defaults/
-// package, cue.mod); any other repo gets just platform.toml + the build script.
-func isInfraRepo(wd string) bool {
-	return filepath.Base(wd) == "infra"
-}
-
 func runInit(cmd *cobra.Command, args []string) {
 	wd, err := os.Getwd()
 	if err != nil {
@@ -48,7 +41,10 @@ func runInit(cmd *cobra.Command, args []string) {
 	}
 	sess := prompts.New(nil, args)
 
-	if isInfraRepo(wd) {
+	// An infra repo (name matches the infra glob — see builder.IsInfra) gets the embedded
+	// GitOps baseline (components, defaults/, cue.mod); any other repo gets just
+	// platform.toml + the build script.
+	if builder.IsInfra(wd) {
 		applyPlan(wd, sess, planInfra(wd, sess))
 	} else {
 		applyPlan(wd, sess, planApp(wd, sess))
