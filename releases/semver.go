@@ -12,6 +12,8 @@ type Semver struct{}
 
 var _ Strategy = Semver{}
 
+func (Semver) IsVersioned() bool { return true }
+
 func (s Semver) IsValid(name string) bool {
 	return semver.IsValid(name)
 }

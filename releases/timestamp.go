@@ -8,6 +8,8 @@ type Timestamp struct{}
 
 var _ Strategy = Timestamp{}
 
+func (Timestamp) IsVersioned() bool { return true }
+
 func (d Timestamp) IsValid(name string) bool {
 	return timeref.IsValid(name)
 }

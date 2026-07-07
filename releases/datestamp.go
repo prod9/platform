@@ -9,6 +9,8 @@ type Datestamp struct{}
 
 var _ Strategy = Datestamp{}
 
+func (Datestamp) IsVersioned() bool { return true }
+
 func (d Datestamp) IsValid(name string) bool {
 	_, err := dateref.Parse(name)
 	return err == nil

@@ -48,6 +48,11 @@ type (
 	Strategy interface {
 		IsValid(name string) bool
 		NextName(prevName string, comp NameComponent) (string, error)
+
+		// IsVersioned reports whether names carry a version. Versioned strategies derive
+		// the publish target from the latest git tag; a non-versioned one (Latest) has a
+		// single constant name and needs no tag — publishing is the deploy.
+		IsVersioned() bool
 	}
 )
 
@@ -55,6 +60,7 @@ var knownStrategies = map[string]Strategy{
 	"semver":    Semver{},
 	"timestamp": Timestamp{},
 	"datestamp": Datestamp{},
+	"latest":    Latest{},
 }
 
 func Generate(cfg *project.Project, git *gitctx.GitCtx, opts *Options) (*Release, error) {
