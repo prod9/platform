@@ -71,9 +71,9 @@ No credential reaches into the cluster — the cluster pulls everything.
   v1: Login, Projects, Access, delivery history, reconcile status.
 - **Shared Go packages** — flat at the top level, no `core/` grab-bag (see
   [`architecture.md`](architecture.md)): `builder` (Dagger strategies), `engine` (the Dagger
-  pool + executor), `project` (`platform.toml`), `releases`, `gitctx`, `gitops`
-  (linked-CUE-engine render + OCI publish), `dsl`, `baseline`, `ops`; api-client + shared
-  types land as the server grows.
+  runtime + executor), `project` (`platform.toml`, incl. the `[ops]` delivery model),
+  `scaffold` (`init`), `releases`, `gitctx`, `gitops` (linked-CUE-engine render + OCI
+  publish), `dsl`, `baseline`; api-client + shared types land as the server grows.
 - **Flux** — source-controller + kustomize-controller. Reconciles config artifacts;
   prunes; corrects drift. Its own lifecycle is *not* self-managed. No Argo, no Helm.
 - **Dagger engine** — in-cluster; builds run inside the engine pod (engine-opaque); the
@@ -138,5 +138,5 @@ GitHub push permission), and the kube-token + secret brokering. It **triggers/fe
 
 ## Open questions
 
-- Monorepo migration sequencing (touches test harness, Dockerfile, bootstrapper).
+- Monorepo migration sequencing (touches test harness, Dockerfile, scaffold).
 - v2.1 / phase-2 scope detail (DNS, branch deploys, multi-cluster agent protocol).

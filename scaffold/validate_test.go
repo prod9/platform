@@ -1,4 +1,4 @@
-package bootstrapper
+package scaffold
 
 import (
 	"os"
@@ -9,7 +9,7 @@ import (
 )
 
 func TestValidateWD(t *testing.T) {
-	// A non-existent target is a hard error — bootstrap never creates the repo
+	// A non-existent target is a hard error — scaffold never creates the repo
 	// root itself.
 	err := validateWD(filepath.Join(t.TempDir(), "nope"))
 	r.Error(t, err)

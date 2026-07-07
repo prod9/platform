@@ -1,4 +1,4 @@
-package bootstrapper
+package scaffold
 
 import (
 	"errors"
@@ -7,11 +7,11 @@ import (
 )
 
 var (
-	ErrWDNotDir = errors.New("bootstrap: target path is not a directory")
-	ErrWDNotGit = errors.New("bootstrap: target directory is not inside a git repository")
+	ErrWDNotDir = errors.New("scaffold: target path is not a directory")
+	ErrWDNotGit = errors.New("scaffold: target directory is not inside a git repository")
 )
 
-// validateWD checks the directory bootstrap is about to write into: it must
+// validateWD checks the directory scaffold is about to write into: it must
 // exist, be a directory, and live inside a git repository. The git check is a
 // hard gate — the appliance baseline is delivered through GitOps, so a non-repo
 // target is virtually always a mistake.

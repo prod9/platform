@@ -1,4 +1,4 @@
-package bootstrapper
+package scaffold
 
 import (
 	"os"
@@ -46,7 +46,7 @@ func TestAnalyze_rejectsNonGitDir(t *testing.T) {
 	r.ErrorIs(t, err, ErrWDNotGit)
 }
 
-func TestAnalyze_rebootstrapMergesVarsNotClobber(t *testing.T) {
+func TestAnalyze_rescaffoldMergesVarsNotClobber(t *testing.T) {
 	dir := gitRepo(t)
 	existing := `maintainer = "operator <op@b.co>"
 repository = "github.com/prod9/infra"

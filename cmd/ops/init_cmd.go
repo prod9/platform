@@ -14,17 +14,18 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/spf13/cobra"
 	"platform.prodigy9.co/baseline"
-	"platform.prodigy9.co/bootstrapper"
 	"platform.prodigy9.co/internal/buildlog"
 	"platform.prodigy9.co/project"
+	"platform.prodigy9.co/scaffold"
 )
 
 var initForce bool
 
 var InitCmd = &cobra.Command{
-	Use:   "init",
-	Short: "Initialise an infra repository: git init, baseline directives, platform.toml",
-	Run:   runInitCmd,
+	Use:     "init",
+	Aliases: []string{"scaffold"},
+	Short:   "Initialise an infra repository: git init, baseline directives, platform.toml",
+	Run:     runInitCmd,
 }
 
 func init() {
@@ -44,7 +45,7 @@ func runInitCmd(cmd *cobra.Command, args []string) {
 	}
 
 	sess := prompts.New(nil, args)
-	info := &bootstrapper.Info{
+	info := &scaffold.Info{
 		ProjectName:     filepath.Base(wd),
 		GoVersion:       runtime.Version()[2:],
 		Maintainer:      sess.Str("your name"),
@@ -58,8 +59,8 @@ func runInitCmd(cmd *cobra.Command, args []string) {
 	// The module path feeds both the cue.mod scaffold and the `<module>/defaults` import in
 	// templated apps. A fresh repo prompts for it (and gets a scaffolded cue.mod); an existing
 	// module is the operator's truth — read its path, leave the module file untouched.
-	if bootstrapper.HasCueModule(wd) {
-		info.ModulePath, err = bootstrapper.ModulePath(wd)
+	if scaffold.HasCueModule(wd) {
+		info.ModulePath, err = scaffold.ModulePath(wd)
 		if err != nil {
 			buildlog.Fatalln(err)
 		}
@@ -86,7 +87,7 @@ func runInitCmd(cmd *cobra.Command, args []string) {
 	}
 
 	vars := maps.Clone(baseline.DefaultVars)
-	plan, err := bootstrapper.AnalyzeInit(wd, info, vars)
+	plan, err := scaffold.AnalyzeInit(wd, info, vars)
 	if err != nil {
 		buildlog.Fatalln(err)
 	}
@@ -159,10 +160,10 @@ func selectComponents(sess *prompts.Session, files map[string][]byte) map[string
 }
 
 // ensureGitRepo runs `git init` when dir is not already its own git repo root —
-// `platform ops init` bootstraps a standalone infra repo (GitOps delivery needs
+// `platform ops init` scaffolds a standalone infra repo (GitOps delivery needs
 // one), even when the target sits nested inside another checkout.
 func ensureGitRepo(dir string) error {
-	if bootstrapper.IsGitRoot(dir) {
+	if scaffold.IsGitRoot(dir) {
 		return nil
 	}
 

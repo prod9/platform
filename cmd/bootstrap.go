@@ -8,8 +8,8 @@ import (
 
 	"fx.prodigy9.co/cmd/prompts"
 	"github.com/spf13/cobra"
-	"platform.prodigy9.co/bootstrapper"
 	"platform.prodigy9.co/internal/buildlog"
+	"platform.prodigy9.co/scaffold"
 )
 
 var bootstrapForce bool
@@ -32,7 +32,7 @@ func runBootstrapCmd(cmd *cobra.Command, args []string) {
 	}
 
 	sess := prompts.New(nil, args)
-	info := &bootstrapper.Info{
+	info := &scaffold.Info{
 		ProjectName:     filepath.Base(wd),
 		GoVersion:       runtime.Version()[2:],
 		Maintainer:      sess.Str("your name"),
@@ -41,7 +41,7 @@ func runBootstrapCmd(cmd *cobra.Command, args []string) {
 		ImagePrefix:     sess.Str("docker image prefix (e.g. ghcr.io/prod9/)"),
 	}
 
-	plan, err := bootstrapper.Analyze(wd, info, nil)
+	plan, err := scaffold.Analyze(wd, info, nil)
 	if err != nil {
 		buildlog.Fatalln(err)
 	}

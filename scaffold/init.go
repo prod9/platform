@@ -1,4 +1,4 @@
-package bootstrapper
+package scaffold
 
 // AnalyzeInit computes the platform.toml + `platform` launcher script + cue.mod scaffold for
 // `platform init`: platform.toml is seeded with the baseline's default [ops.vars], and the

@@ -1,4 +1,4 @@
-package bootstrapper
+package scaffold
 
 import (
 	"fmt"
@@ -8,7 +8,7 @@ import (
 )
 
 // VarChange records the disposition of one baseline default var during a
-// re-bootstrap merge: Appended means it was newly added, otherwise the
+// re-scaffold merge: Appended means it was newly added, otherwise the
 // operator's existing value was preserved. Value keeps the default's TOML type.
 type VarChange struct {
 	Key      string
@@ -131,7 +131,7 @@ func varKey(line string) string {
 
 // tomlValue renders a baseline default as a TOML scalar: strings are quoted and
 // escaped, bools and numbers are emitted bare, preserving their type on the
-// re-bootstrap append.
+// re-scaffold append.
 func tomlValue(v any) string {
 	switch x := v.(type) {
 	case string:

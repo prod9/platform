@@ -317,7 +317,7 @@ The DSL lands across Phase A′ (see the
   `Options.Vars`.
 - **D3b — baseline authoring + bootstrap-writes-DSL.** Split into four sub-slices, landing
   the hermetic mechanics before the content:
-  - **D3b-1 — bootstrap write-path.** ✅ **Landed.** `bootstrapper.Analyze` computes a
+  - **D3b-1 — bootstrap write-path.** ✅ **Landed.** `scaffold.Analyze` computes a
     `Plan` (files written/overwritten, vars appended/preserved) without mutating; `Plan.Apply`
     writes it. wd-validation is a hard gate (target must exist, be a dir, live in a git repo);
     re-`bootstrap` merges `[ops.vars]` surgically (`mergeOpsVars`: append new keys, preserve

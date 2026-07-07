@@ -1,4 +1,4 @@
-package bootstrapper
+package scaffold
 
 import (
 	"bytes"
@@ -39,7 +39,7 @@ type FileChange struct {
 	Mode    fs.FileMode
 }
 
-// Plan is the result of the bootstrap analysis pass: every file to write and
+// Plan is the result of the scaffold analysis pass: every file to write and
 // the disposition of every baseline var. Computing it is pure (reads only) so a
 // caller can print and confirm it before Apply mutates the tree.
 type Plan struct {
@@ -48,9 +48,9 @@ type Plan struct {
 	Vars  []VarChange
 }
 
-// Analyze validates the target directory and computes the bootstrap plan
+// Analyze validates the target directory and computes the scaffold plan
 // without writing anything. defaultVars is the baseline's default [ops.vars];
-// on a fresh repo they seed platform.toml, on a re-bootstrap they merge in
+// on a fresh repo they seed platform.toml, on a re-scaffold they merge in
 // (new keys appended, operator values preserved).
 func Analyze(dir string, info *Info, defaultVars map[string]any) (*Plan, error) {
 	dir, err := resolveWD(dir)
@@ -80,7 +80,7 @@ func Analyze(dir string, info *Info, defaultVars map[string]any) (*Plan, error) 
 
 // AddFile folds an externally-produced file into the plan (e.g. a baseline component routed
 // and templated by baseline.Render), resolving write-vs-overwrite against the plan's Dir so
-// Print and Apply treat it like any bootstrap file.
+// Print and Apply treat it like any scaffold file.
 func (p *Plan) AddFile(rel string, content []byte, mode fs.FileMode) {
 	p.Files = append(p.Files, fileChange(p.Dir, rel, content, mode))
 }
@@ -124,7 +124,7 @@ func (p *Plan) Overwrites() int {
 
 // Print renders the plan for operator review before applying.
 func (p *Plan) Print(w io.Writer) {
-	fmt.Fprintf(w, "bootstrap plan for %s:\n", p.Dir)
+	fmt.Fprintf(w, "scaffold plan for %s:\n", p.Dir)
 	for _, f := range p.Files {
 		fmt.Fprintf(w, "  %-9s %s\n", f.Action, f.Path)
 	}

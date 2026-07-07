@@ -21,7 +21,7 @@ Spine-first, not big-bang. Build backlog (now folded into those phases):
 
 - **Monorepo restructure** — `api/` `cli/` `ui/` `core/`, one Go module; SvelteKit-**JS**
   `ui/` via adapter-static `go:embed` 'd into `api`. Touches test.sh/tests.cue/testbeds,
-  Dockerfile, bootstrapper — migrate incrementally.
+  Dockerfile, scaffold — migrate incrementally.
 - **OpenTofu provider = the CLI binary** (multi-call; `terraform-provider-platform`
   symlink → gRPC provider; `platform tf install` writes `dev_overrides`).
 - **platform server (`api/`)** — fx + Postgres; Projects, identity (`users`/`identities`,
@@ -191,7 +191,7 @@ runner stage (go_basic, go_workspace, pnpm_basic, pnpm_workspace, pnpm_static).
 - `WithDefaultArgs` runs as the configured user; verify `/app` ownership.
 
 ### 4b. Drop unused capabilities at runtime
-Document in `bootstrapper/buildkite.pipeline.yaml.template` (and any K8s manifests
+Document in `scaffold/buildkite.pipeline.yaml.template` (and any K8s manifests
 downstream) the recommended pod `securityContext`:
 ```yaml
 securityContext:
@@ -217,7 +217,7 @@ Wolfi has `tini`. Adding `withRunnerPkgs(..., "tini")` and prepending `/usr/bin/
 **Plan:**
 1. Add `withNonRoot(runner, "/app")` helper in `builder/base.go`.
 2. Call it from each builder's runner stage (5 sites). Verify testbeds.
-3. Update `bootstrapper/buildkite.pipeline.yaml.template` (if it produces K8s manifests;
+3. Update `scaffold/buildkite.pipeline.yaml.template` (if it produces K8s manifests;
    if not, add docs to `README.md`).
 4. (Optional) tini integration as a follow-up commit.
 
@@ -246,7 +246,7 @@ it appears in v0.5+.
 **Surface:** `internal/plog/{plog,events}.go` exposes `Fatalln`, `Error`, `Event`,
 `Config`, `Git`, `GitInfo`, `File`, `Image`, `HTTPServing`, `HTTPRequest`,
 `OutputForDagger`, `SetVerbosity`, `Logger`. Roughly 40 call sites across `cmd/`,
-`builder/`, `releases/`, `bootstrapper/`, `gitctx/`, and `main.go`.
+`builder/`, `releases/`, `scaffold/`, `gitctx/`, and `main.go`.
 
 **Plan:**
 1. After the fx bump lands, inspect `fxlog` 's public API in the upgraded module cache.

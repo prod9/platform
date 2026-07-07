@@ -155,7 +155,7 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
   build+tag+push unit that `publish` drives now and a tag-watch server drives later
   (see the [delivery-verbs ADR](docs/decisions/2026-07-05-delivery-verbs-are-orthogonal.md)).
   Registry creds via fx env config: `REGISTRY`, `REGISTRY_USERNAME`, `REGISTRY_PASSWORD`.
-- `bootstrapper/` — Embeds the `platform.template`; discovers builders, writes
+- `scaffold/` — Embeds the `platform.template`; discovers builders, writes
   `platform.toml` and an executable `platform` script. `Analyze` validates the
   target wd (must exist, be a dir, live in a git repo — hard gate) and computes a `Plan`
   (files to write/overwrite, baseline vars appended/preserved) without mutating; `Plan.Apply`

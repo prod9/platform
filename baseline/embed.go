@@ -26,8 +26,8 @@ const (
 // DefaultVars is the baseline's shipped [ops.vars]: the version pins each baseline hook
 // consumes. Keys are env-style (SCREAMING_SNAKE) — the preferred platform.toml form; render
 // normalizes them to lowercase for both consumption routes, `\(cert_manager_version)` in
-// directives and `@tag(cert_manager_version)` in CUE apps. Bootstrap seeds these into a fresh
-// platform.toml and merges on re-bootstrap (new keys appended, operator values preserved).
+// directives and `@tag(cert_manager_version)` in CUE apps. Scaffold seeds these into a fresh
+// platform.toml and merges on re-scaffold (new keys appended, operator values preserved).
 // Pure interpolation inputs — component selection is not a var.
 var DefaultVars = map[string]any{
 	"CERT_MANAGER_VERSION":  "v1.20.2",
