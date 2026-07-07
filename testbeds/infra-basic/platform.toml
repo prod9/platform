@@ -1,0 +1,9 @@
+maintainer = "Smoke Test <smoke@prod9.co>"
+repository = "github.com/prod9/infra-basic"
+strategy = "latest"
+
+[modules.infra]
+builder = "platform/infra"
+
+[ops]
+image = "ghcr.io/prod9/infra-basic"

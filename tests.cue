@@ -75,5 +75,16 @@ let testbeds = [...{name: string, dir: string}] &
 				"./testbed.sh infra-basic render",
 			]
 		},
+		{
+			// Exercises the platform/infra builder end to end: render apps/ and pack the
+			// manifest tree into a FROM scratch image. A clean exit means the render fed a
+			// buildable image (scratch has no shell, so we can't ls inside it; the Render
+			// test above already snapshots the rendered contents).
+			name: "Infra Build"
+			checks: ["exitcode"]
+			commands: [
+				"./testbed.sh infra-basic -q build",
+			]
+		},
 	]
 }
