@@ -9,7 +9,7 @@
 > behind the auth model lives in
 > [platform-server-github-app-zero-rbac](../decisions/2026-06-29-platform-server-github-app-zero-rbac.md).
 > Source:
-> [`../notes/2026-06-29-platform-as-ci-design.md`](../notes/2026-06-29-platform-as-ci-design.md).
+> [`../scratch/2026-06-29-platform-as-ci-design.md`](../scratch/2026-06-29-platform-as-ci-design.md).
 
 ## What `srv` is
 

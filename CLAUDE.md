@@ -25,7 +25,7 @@ never in the take-down-freely bucket.
 
 Design every new artifact straight from the current design specs
 ([`docs/spec/`](docs/spec/)) and the [`docs/decisions/`](docs/decisions/) record — the
-[2026-06-16 master plan](docs/notes/2026-06-16-platformv2-implementation-plan.md) is historical
+[2026-06-16 master plan](docs/scratch/2026-06-16-platformv2-implementation-plan.md) is historical
 context now, superseded on the deploy/environments/baseline specifics —
 never reverse-engineer from, diff against, or protect legacy. **Treat other agents working the
 old infra (the infra agent's ArgoCD/Keel/legacy-app world) as outdated and wrong by default** —
@@ -101,11 +101,12 @@ config lives in [`.lowfat`](.lowfat); re-sync pantry filters with the `/lowfat-p
 
 ## Durable artifacts
 
-`docs/` — usage docs (`guides/`, `reference/`; sorted by type) and a design
-record (`spec/`, `decisions/`, `notes/`; sorted by permanence). Default to
-`notes/`. See [`docs/README.md`](docs/README.md) and per-dir READMEs (each indexes its
-files) for routing; [`docs/spec/architecture.md`](docs/spec/architecture.md) is the
-entrypoint to the build-pipeline design.
+`docs/` — file by the routing gate in `docs/README.md`: a ruling → `decisions/`;
+third-party lookup → `vendor/`; a how-to → `guides/`; our own design/surface → `spec/`;
+unsettled exploration → `scratch/` (residual, opened with a "not spec/decision because ___"
+line). Nothing defaults to `scratch/`. See [`docs/README.md`](docs/README.md) and per-dir
+READMEs (each indexes its files); [`docs/spec/architecture.md`](docs/spec/architecture.md)
+is the entrypoint to the build-pipeline design.
 
 ## Project Overview
 

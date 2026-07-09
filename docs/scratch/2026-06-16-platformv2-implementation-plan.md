@@ -35,7 +35,7 @@ establish decision-basis · explicit **Go**-gate, then no questions) + a new gat
 `ace/workflow-afk.md` (kue keep-going model: resolve-by-basis, record-don't-ask, `Earn the
 blocker`, thin-orchestrator slice loop). Personal-side edits applied directly; school-side
 (`ace-realign`, `ace-afk`, `workflow-afk.md`) **relayed to the school agent** — full content in
-[`docs/notes/2026-06-26-afk-realign-school-edits-handoff.md`](2026-06-26-afk-realign-school-edits-handoff.md)
+[`docs/scratch/2026-06-26-afk-realign-school-edits-handoff.md`](2026-06-26-afk-realign-school-edits-handoff.md)
 (delete once the school lands them). **Regular platformv2 work is untouched — resume at the queue
 below.**
 
@@ -165,7 +165,7 @@ all landed; the engine spine is fully render-verified.
   (in `core/baseline/files/apps/`, inert until E2 wires the embed) on `defs.#StatefulSet`: `replicas: 2`,
   privileged, `--addr tcp://…:1234`, inline `volumeClaimTemplates`→`/var/lib/dagger`, `parts.#PodSpread`,
   `platform` namespace, headless `#Service`. The one blocker — `#Service` `#headless` (closed spec) — is
-  handed to the **infra-defs agent** as a wishlist (`docs/notes/2026-06-21-defs-wishlist-dagger-engine.md`);
+  handed to the **infra-defs agent** as a wishlist (`docs/scratch/2026-06-21-defs-wishlist-dagger-engine.md`);
   it ships + pings, then platform pins the new `defs@vX` and finishes render-verify in `../infra`.
 - **E0 — fx bump** · *landed `4734846`.* `replace fx.prodigy9.co => ../fx` (`ea91e67`: prompts on x/term +
   `MultiSelect`); zero code changes — the 5 touchpoints stayed API-compatible; build + tests green. **Replace dropped + pinned

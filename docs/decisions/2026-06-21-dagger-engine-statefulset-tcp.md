@@ -20,7 +20,7 @@ of the CUE and platform auto-detects the new pod count from DNS. Cache lives on 
 PVC (`volumeClaimTemplates`, mounted at `/var/lib/dagger`). Traffic is **plaintext**; accepted
 because it never leaves the cluster, and no encryption scheme (mTLS, mesh) will be added solely
 for the engine link. This is the CUE-authored baseline bit deferred as decision #3 of the
-[D3b-4 design-prep note](../notes/2026-06-19-d3b4-baseline-design-prep.md).
+[D3b-4 design-prep note](../scratch/2026-06-19-d3b4-baseline-design-prep.md).
 
 ## Rationale
 
@@ -30,7 +30,7 @@ That model assumes the *client* is an arbitrary runner pinned to a node. Our cli
 platform itself — we own `dagger.Connect` (`builder/session.go`) and choose which engine a
 session talks to. A single engine already multiplexes many concurrent sessions (BuildKit
 per-client sessions, cross-session content-addressed cache dedup; see
-[`../reference/dagger-engine.md`](../reference/dagger-engine.md)), so a DaemonSet buys no
+[`../vendor/dagger-engine.md`](../vendor/dagger-engine.md)), so a DaemonSet buys no
 concurrency — only an engine per node whether used or not. We don't need that.
 
 **Why StatefulSet specifically.** It is the only built-in workload that binds a *stable

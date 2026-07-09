@@ -16,6 +16,6 @@ k8s namespacing: a shared template (e.g. `apps/template/`) instantiated once per
 Migrate:
 - Drop `environments = [...]` from `platform.toml`.
 - Model each environment as a CUE instance of a shared template, separated by namespace.
-- Deploy = commit the infra repo, then `ops publish` (with a platform server + Flux) **or**
-  `ops render` + `kubectl apply` (no server). The gate is the infra repo's GitHub push
+- Deploy = commit the infra repo, then `publish` (with a platform server + Flux) **or**
+  `render` + `kubectl apply` (no server). The gate is the infra repo's GitHub push
   permissions — whoever can push can deploy.

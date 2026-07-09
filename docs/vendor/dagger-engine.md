@@ -2,7 +2,7 @@
 
 Lookup facts for deploying and connecting to the Dagger Engine, gathered to inform the
 in-cluster engine topology (decision #3 in the
-[D3b-4 design-prep note](../notes/2026-06-19-d3b4-baseline-design-prep.md)). Verified
+[D3b-4 design-prep note](../scratch/2026-06-19-d3b4-baseline-design-prep.md)). Verified
 against live docs on 2026-06-21. The `_EXPERIMENTAL_*` env vars are explicitly marked
 unstable by upstream — re-verify on engine upgrades.
 

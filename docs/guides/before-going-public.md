@@ -19,10 +19,10 @@ real prod9 Linode resource, baked into the binary and echoed in docs and tests. 
 for an operator-supplied placeholder. Sweep docs and tests for the literal ID and update
 those too.
 
-## 3. Exclude docs/notes from the published tree
+## 3. Exclude docs/scratch from the published tree
 
-`docs/notes/*` carries internal planning not meant for outsiders — cluster topology, the
-stage9/prodigy9 setups, deployment state, the school-handoff note. Exclude `docs/notes/`
+`docs/scratch/*` carries internal planning not meant for outsiders — cluster topology, the
+stage9/prodigy9 setups, deployment state, the school-handoff note. Exclude `docs/scratch/`
 wholesale from the public repo rather than scrubbing note by note.
 
 ## 4. Scrub internal-strategy disclosures in docs

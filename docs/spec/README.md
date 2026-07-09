@@ -8,14 +8,14 @@ design, not history.
 
 If it's a ruling on a question, that's a decision — `../decisions/`. If it's
 enumerable lookup detail (every flag, every config key, a schema table), that's
-`../reference/`. If it's research, exploration, or a draft, `../notes/`.
+`../vendor/`. If it's research, exploration, or a draft, `../scratch/`.
 
 ## Format
 
 One file per subject: `<slug>.md` (no date prefix — describes a thing, not the
 moment it was written). Add a status header (`draft`, `accepted`, `implemented`)
 so readers can tell whether it still describes current design. A spec that gets
-superseded moves to `../notes/` — `spec/` holds current design only, never history.
+superseded moves to `../scratch/` — `spec/` holds current design only, never history.
 
 ## Index
 

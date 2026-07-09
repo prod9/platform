@@ -62,7 +62,7 @@ No credential reaches into the cluster — the cluster pulls everything.
   tokens (`TokenRequest`), the secret-pull endpoint, the commit-as-user git dance (gated by
   GitHub push perms). Serves the
   API the other clients use. Authorization is **GitHub-derived, zero platform RBAC** — see
-  [`../notes/2026-06-29-platform-as-ci-design.md`](../notes/2026-06-29-platform-as-ci-design.md).
+  [`../scratch/2026-06-29-platform-as-ci-design.md`](../scratch/2026-06-29-platform-as-ci-design.md).
 - **`platform` CLI** (the existing `cmd/`-based binary; + folded OpenTofu provider as a
   multi-call binary). `login` (GitHub OAuth → platform token), `build`/`preview` (local
   Dagger), `kubeconfig` (exec-credential), `tf install`. (No `deploy` command — a new version is

@@ -31,7 +31,7 @@ Two soft gaps, neither a secret, both requiring deliberate work before exposure:
   default.
 - **Internal-strategy disclosure.** The embedded assets carry a real prod9 Linode firewall
   ID, and the docs carry internal planning — the rework banner, fleet/customer names,
-  roadmap, and cluster topology in `docs/notes/`. None are credentials; all are internal
+  roadmap, and cluster topology in `docs/scratch/`. None are credentials; all are internal
   posture we don't hand out for free.
 
 Nothing here is a leak, so private carries no risk and buys time; public would first cost

@@ -4,8 +4,8 @@
 - **PR:** manual
 - **Status:** accepted
 - **Recorded:** 2026-07-07 — belatedly. This ruling was made 2026-07-05 and lived only in
-  rolling notes ([`../notes/2026-07-05-resume.md`](../notes/2026-07-05-resume.md) §Next-2,
-  [`../notes/2026-06-29-builders-reshape-design.md`](../notes/2026-06-29-builders-reshape-design.md)),
+  rolling notes ([`../scratch/2026-07-05-resume.md`](../scratch/2026-07-05-resume.md) §Next-2,
+  [`../scratch/2026-06-29-builders-reshape-design.md`](../scratch/2026-06-29-builders-reshape-design.md)),
   so it kept getting re-derived. Promoted to a decision to stop the re-litigation.
 
 ## Decision
