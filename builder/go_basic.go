@@ -17,15 +17,15 @@ func (GoBasic) Name() string   { return "go/basic" }
 func (GoBasic) Layout() Layout { return LayoutBasic }
 func (GoBasic) Class() Class   { return ClassNative }
 
-func (b GoBasic) Discover(wd string) (map[string]Interface, error) {
-	if detected, err := fileutil.DetectFile(wd, "go.mod"); err != nil {
-		return nil, err
-	} else if !detected {
-		return nil, ErrNoBuilder
-	}
+func (GoBasic) Discover(wd string) bool {
+	detected, _ := fileutil.DetectFile(wd, "go.mod")
+	return detected
+}
 
-	name := filepath.Base(wd)
-	return map[string]Interface{name: b}, nil
+func (GoBasic) Scaffold() ScaffoldSpec {
+	return ScaffoldSpec{
+		Vars: map[string]any{},
+	}
 }
 
 func (GoBasic) Build(ctx context.Context, client *dagger.Client, unit *BuildUnit) (container *dagger.Container, err error) {

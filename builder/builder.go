@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"strings"
 
 	"dagger.io/dagger"
@@ -18,12 +19,24 @@ type (
 	Layout string
 	Class  string
 
+	FileSpec struct {
+		Path    string
+		Content []byte
+		Mode    fs.FileMode
+	}
+
+	ScaffoldSpec struct {
+		Files []FileSpec
+		Vars  map[string]any
+	}
+
 	Interface interface {
 		Name() string
 		Layout() Layout
 		Class() Class
 
-		Discover(wd string) (map[string]Interface, error)
+		Discover(wd string) bool
+		Scaffold() ScaffoldSpec
 		Build(ctx context.Context, client *dagger.Client, unit *BuildUnit) (*dagger.Container, error)
 	}
 )
@@ -104,14 +117,10 @@ func FindBuilder(name string) (Interface, error) {
 	return nil, fmt.Errorf("%s: %w", name, ErrBadBuilder)
 }
 
-func Discover(wd string) (map[string]Interface, error) {
+func Discover(wd string) (Interface, error) {
 	for _, builder := range knownBuilders {
-		if mods, err := builder.Discover(wd); errors.Is(err, ErrNoBuilder) {
-			continue
-		} else if err != nil {
-			return nil, err
-		} else if len(mods) > 0 {
-			return mods, nil
+		if builder.Discover(wd) {
+			return builder, nil
 		}
 	}
 	return nil, ErrNoBuilder

@@ -33,11 +33,14 @@ func (Infra) Layout() Layout { return LayoutBasic }
 func (Infra) Class() Class   { return ClassCustom }
 
 // Discover matches by the infra-name glob (see IsInfra), not a file marker.
-func (i Infra) Discover(wd string) (map[string]Interface, error) {
-	if !IsInfra(wd) {
-		return nil, ErrNoBuilder
+func (Infra) Discover(wd string) bool {
+	return IsInfra(wd)
+}
+
+func (Infra) Scaffold() ScaffoldSpec {
+	return ScaffoldSpec{
+		Vars: map[string]any{},
 	}
-	return map[string]Interface{filepath.Base(wd): i}, nil
 }
 
 func (i Infra) Build(ctx context.Context, client *dagger.Client, unit *BuildUnit) (container *dagger.Container, err error) {

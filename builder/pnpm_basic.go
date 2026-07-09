@@ -2,7 +2,6 @@ package builder
 
 import (
 	"context"
-	"path/filepath"
 	"strings"
 
 	"dagger.io/dagger"
@@ -16,15 +15,15 @@ func (PNPMBasic) Name() string   { return "pnpm/basic" }
 func (PNPMBasic) Layout() Layout { return LayoutBasic }
 func (PNPMBasic) Class() Class   { return ClassInterpreted }
 
-func (b PNPMBasic) Discover(wd string) (map[string]Interface, error) {
-	if detected, err := fileutil.DetectFile(wd, "pnpm-lock.yaml"); err != nil {
-		return nil, err
-	} else if !detected {
-		return nil, ErrNoBuilder
-	}
+func (PNPMBasic) Discover(wd string) bool {
+	detected, _ := fileutil.DetectFile(wd, "pnpm-lock.yaml")
+	return detected
+}
 
-	name := filepath.Base(wd)
-	return map[string]Interface{name: b}, nil
+func (PNPMBasic) Scaffold() ScaffoldSpec {
+	return ScaffoldSpec{
+		Vars: map[string]any{},
+	}
 }
 
 func (PNPMBasic) Build(ctx context.Context, client *dagger.Client, unit *BuildUnit) (container *dagger.Container, err error) {

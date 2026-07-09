@@ -2,8 +2,6 @@ package builder
 
 import (
 	"context"
-	"errors"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -19,35 +17,14 @@ func (GoWorkspace) Name() string   { return "go/workspace" }
 func (GoWorkspace) Layout() Layout { return LayoutWorkspace }
 func (GoWorkspace) Class() Class   { return ClassNative }
 
-func (b GoWorkspace) Discover(wd string) (map[string]Interface, error) {
-	if detected, err := fileutil.DetectFile(wd, "go.work"); err != nil {
-		return nil, err
-	} else if !detected {
-		return nil, ErrNoBuilder
-	}
+func (GoWorkspace) Discover(wd string) bool {
+	detected, _ := fileutil.DetectFile(wd, "go.work")
+	return detected
+}
 
-	// scan for go/basic on subfolders, should switch to proper go.work parsers if/when it
-	// is available from go tooling directly
-	mods := map[string]Interface{}
-	err := fileutil.WalkSubdirs(wd, func(dir os.DirEntry) error {
-		submods, err := GoBasic{}.Discover(filepath.Join(wd, dir.Name()))
-		if errors.Is(err, ErrNoBuilder) {
-			return nil
-		}
-
-		// found a go/basic submodule, mark it as using go/workspace
-		for submod := range submods {
-			mods[submod] = b
-		}
-		return nil
-	})
-
-	if err != nil {
-		return nil, err
-	} else if len(mods) == 0 {
-		return nil, ErrNoBuilder
-	} else {
-		return mods, nil
+func (GoWorkspace) Scaffold() ScaffoldSpec {
+	return ScaffoldSpec{
+		Vars: map[string]any{},
 	}
 }
 

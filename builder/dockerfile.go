@@ -2,7 +2,6 @@ package builder
 
 import (
 	"context"
-	"path/filepath"
 	"strings"
 
 	"dagger.io/dagger"
@@ -19,15 +18,15 @@ func (d Dockerfile) Name() string   { return "dockerfile" }
 func (d Dockerfile) Layout() Layout { return LayoutBasic }
 func (d Dockerfile) Class() Class   { return ClassCustom }
 
-func (d Dockerfile) Discover(wd string) (map[string]Interface, error) {
-	if detected, err := fileutil.DetectFile(wd, "Dockerfile"); err != nil {
-		return nil, err
-	} else if !detected {
-		return nil, ErrNoBuilder
-	}
+func (Dockerfile) Discover(wd string) bool {
+	detected, _ := fileutil.DetectFile(wd, "Dockerfile")
+	return detected
+}
 
-	name := filepath.Base(wd)
-	return map[string]Interface{name: d}, nil
+func (Dockerfile) Scaffold() ScaffoldSpec {
+	return ScaffoldSpec{
+		Vars: map[string]any{},
+	}
 }
 
 func (d Dockerfile) Build(ctx context.Context, client *dagger.Client, unit *BuildUnit) (container *dagger.Container, err error) {

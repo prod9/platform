@@ -2,7 +2,6 @@ package builder
 
 import (
 	"context"
-	"path/filepath"
 	"strings"
 
 	"dagger.io/dagger"
@@ -16,16 +15,15 @@ func (PNPMStatic) Name() string   { return "pnpm/static" }
 func (PNPMStatic) Layout() Layout { return LayoutBasic }
 func (PNPMStatic) Class() Class   { return ClassStatic }
 
-func (b PNPMStatic) Discover(wd string) (map[string]Interface, error) {
-	// Assumes astro = static site, for now.
-	if detected, err := fileutil.DetectFile(wd, "astro.config.mjs"); err != nil {
-		return nil, err
-	} else if !detected {
-		return nil, ErrNoBuilder
-	}
+func (PNPMStatic) Discover(wd string) bool {
+	detected, _ := fileutil.DetectFile(wd, "astro.config.mjs")
+	return detected
+}
 
-	name := filepath.Base(wd)
-	return map[string]Interface{name: b}, nil
+func (PNPMStatic) Scaffold() ScaffoldSpec {
+	return ScaffoldSpec{
+		Vars: map[string]any{},
+	}
 }
 
 func (b PNPMStatic) Build(ctx context.Context, client *dagger.Client, unit *BuildUnit) (container *dagger.Container, err error) {

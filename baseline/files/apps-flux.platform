@@ -1,2 +1,6 @@
 download "https://github.com/fluxcd/flux2/releases/download/\(flux_version)/install.yaml"
+reset
+focus .[].kind "Namespace"
+focus .metadata.name "flux-system"
+remove-doc
 emit "flux.yaml"

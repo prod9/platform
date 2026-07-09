@@ -2,8 +2,6 @@ package builder
 
 import (
 	"context"
-	"errors"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -18,44 +16,17 @@ func (PNPMWorkspace) Name() string   { return "pnpm/workspace" }
 func (PNPMWorkspace) Layout() Layout { return LayoutWorkspace }
 func (PNPMWorkspace) Class() Class   { return ClassInterpreted }
 
-func (b PNPMWorkspace) Discover(wd string) (map[string]Interface, error) {
-	// PNPM decided to have a rename from pnpm-workspaces.yaml (with an s) to
-	// just pnpm-workspace.yaml (without the s) and it'll actually throw an error for this
-	// so we have to have this pointless detection to patch pnpm failure to backcompat
-	if detected, err := fileutil.DetectFile(wd, "pnpm-workspace.yaml"); err != nil {
-		return nil, err
-	} else if !detected {
-		if detected2, err := fileutil.DetectFile(wd, "pnpm-workspaces.yaml"); err != nil {
-			return nil, err
-		} else if !detected2 {
-			return nil, ErrNoBuilder
-		}
+func (PNPMWorkspace) Discover(wd string) bool {
+	detected, _ := fileutil.DetectFile(wd, "pnpm-workspace.yaml")
+	if !detected {
+		detected, _ = fileutil.DetectFile(wd, "pnpm-workspaces.yaml")
 	}
+	return detected
+}
 
-	// scan for pnpm/basic on subfolders
-	// TODO: Could just read the pnpm-workspace.yaml file and parse it as well, have not
-	//   spend time to investigate if that is good enough or not yet so duplicating the
-	//   logic from go/workspace for now
-	mods := map[string]Interface{}
-	err := fileutil.WalkSubdirs(wd, func(dir os.DirEntry) error {
-		submods, err := PNPMBasic{}.Discover(filepath.Join(wd, dir.Name()))
-		if errors.Is(err, ErrNoBuilder) {
-			return nil
-		}
-
-		// found a pnpm/basic submodule, mark it as using pnpm/workspace
-		for submod := range submods {
-			mods[submod] = b
-		}
-		return nil
-	})
-
-	if err != nil {
-		return nil, err
-	} else if len(mods) == 0 {
-		return nil, ErrNoBuilder
-	} else {
-		return mods, nil
+func (PNPMWorkspace) Scaffold() ScaffoldSpec {
+	return ScaffoldSpec{
+		Vars: map[string]any{},
 	}
 }
 

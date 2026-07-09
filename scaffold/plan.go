@@ -168,11 +168,13 @@ func generateProjectFile(dir string, info *Info, defaultVars map[string]any) ([]
 	proj.Repository = info.Repository
 	proj.Ops.Vars = defaultVars
 
-	mods, err := builder.Discover(dir)
+	bldr, err := builder.Discover(dir)
 	if err != nil && !errors.Is(err, builder.ErrNoBuilder) {
 		return nil, nil, err
 	}
-	for name, bldr := range mods {
+
+	if bldr != nil {
+		name := filepath.Base(dir)
 		mod := *project.ModuleDefaults
 		mod.Builder = bldr.Name()
 
@@ -182,10 +184,6 @@ func generateProjectFile(dir string, info *Info, defaultVars map[string]any) ([]
 		default: // LayoutBasic
 			mod.WorkDir = "."
 		}
-
-		// CommandName is left empty: it is an optional runtime-command override.
-		// Unset, the builder runs the module-named binary (Go) or the interpreter
-		// (pnpm) by default.
 
 		proj.Modules[name] = &mod
 
