@@ -83,7 +83,7 @@ func (GoWorkspace) Build(ctx context.Context, client *dagger.Client, unit *Build
 
 	builder := withBuildPkgs(base, "go").WithWorkdir(SrcDir)
 	builder = withGoCaches(client, builder, goversion)
-	builder, gobin := withGoVersion(builder, goversion)
+	builder = withGoVersion(builder, goversion)
 
 	builder = builder.
 		WithFile("go.work", host.File("go.work")).
@@ -100,9 +100,9 @@ func (GoWorkspace) Build(ctx context.Context, client *dagger.Client, unit *Build
 	// NOTE: Users should `go work sync` if mod doesn't match as build logs maybe invisible
 	// or hard to track down for the user.
 	builder = builder.
-		WithExec([]string{gobin, "mod", "download", "-x", "all"})
+		WithExec([]string{"go", "mod", "download", "-x", "all"})
 
-	testargs := []string{gobin, "test", "-v"}
+	testargs := []string{"go", "test", "-v"}
 	for _, mod := range workmods {
 		testargs = append(testargs, "./"+mod+"/...")
 	}
@@ -115,7 +115,7 @@ func (GoWorkspace) Build(ctx context.Context, client *dagger.Client, unit *Build
 	builder = builder.
 		WithDirectory(".", host).
 		WithExec(testargs).
-		WithExec([]string{gobin, "build", "-v", "-o", BinDir + "/" + outbin, pkg})
+		WithExec([]string{"go", "build", "-v", "-o", BinDir + "/" + outbin, pkg})
 
 	// run
 	runner := withRunnerPkgs(base)

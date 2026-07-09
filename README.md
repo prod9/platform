@@ -19,4 +19,7 @@ recent "go" binary installed on the developer's local machine.
 2. Edit `platform.toml` if needed.
 3. Run `go run platform.prodigy9.co build` to start building.
 
+The Go builder pins the toolchain named in `go.mod`/`go.work` via Go's native
+`GOTOOLCHAIN`, so Go projects must target **Go 1.21 or higher**.
+
 

@@ -52,17 +52,17 @@ func (GoBasic) Build(ctx context.Context, client *dagger.Client, unit *BuildUnit
 	base := BaseImageForUnit(client, unit)
 	builder := withBuildPkgs(base, "go").WithWorkdir(SrcDir)
 	builder = withGoCaches(client, builder, goversion)
-	builder, gobin := withGoVersion(builder, goversion)
+	builder = withGoVersion(builder, goversion)
 
 	builder = builder.
 		WithFile("go.mod", host.File("go.mod")).
 		WithFile("go.sum", host.File("go.sum")).
-		WithExec([]string{gobin, "mod", "download", "-x", "all"})
+		WithExec([]string{"go", "mod", "download", "-x", "all"})
 
 	builder = builder.
 		WithDirectory(".", host).
-		WithExec([]string{gobin, "test", "-v", "./..."}).
-		WithExec([]string{gobin, "build", "-v", "-o", BinDir + "/" + outbin, unit.PackageName})
+		WithExec([]string{"go", "test", "-v", "./..."}).
+		WithExec([]string{"go", "build", "-v", "-o", BinDir + "/" + outbin, unit.PackageName})
 
 	// run
 	runner := withRunnerPkgs(base)
