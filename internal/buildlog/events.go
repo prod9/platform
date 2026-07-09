@@ -13,7 +13,7 @@ func Config(key, value string) {
 	Logger().Warn("config", slog.String(key, value))
 }
 func Error(err error) {
-	Logger().Error(err.Error())
+	Logger().Error(err.Error(), slog.Any("err", enrichErr(err)))
 }
 func Fatalln(err error) {
 	Error(err)

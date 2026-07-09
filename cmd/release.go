@@ -68,9 +68,7 @@ func runReleaseCmd(cmd *cobra.Command, args []string) {
 		buildlog.Fatalln(err)
 	}
 
-	if err := rel.Render(); err != nil {
-		buildlog.Fatalln(err)
-	}
+	rel.Render()
 	sess := prompts.New(nil, nil)
 	if !sess.YesNo("create this release?") {
 		return

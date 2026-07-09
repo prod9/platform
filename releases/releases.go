@@ -6,8 +6,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/pterm/pterm"
-	"github.com/pterm/pterm/putils"
+	"platform.prodigy9.co/internal/buildinfo"
 	"platform.prodigy9.co/gitctx"
 	"platform.prodigy9.co/project"
 )
@@ -118,15 +117,11 @@ func Create(cfg *project.Project, git *gitctx.GitCtx, rel *Release) error {
 	return nil
 }
 
-func (r *Release) Render() error {
-	list := pterm.LeveledList{pterm.LeveledListItem{Level: 0, Text: r.Name}}
+func (r *Release) Render() {
+	buildinfo.Header(r.Name)
 	for _, c := range r.Commits {
-		list = append(list, pterm.LeveledListItem{Level: 1, Text: c.Hash + ": " + c.Subject})
+		buildinfo.Item(c.Hash + ": " + c.Subject)
 	}
-
-	return pterm.DefaultTree.
-		WithRoot(putils.TreeFromLeveledList(list)).
-		Render()
 }
 
 func checkGitStatus(cfg *project.Project, git *gitctx.GitCtx, opts *Options) error {
