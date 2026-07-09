@@ -1,0 +1,165 @@
+# Platform Server
+
+> **Intended/target design — not yet implemented.** This spec fixes the module boundary
+> and the auth model of the `srv/` layer *before* the server work starts; no `srv/` tree
+> exists yet. It is the **second driver** of the one-publish-engine model — the tag-watch
+> server that invokes the same build+push engine the local CLI drives today (see
+> [delivery-verbs-are-orthogonal](../decisions/2026-07-05-delivery-verbs-are-orthogonal.md)
+> and the one-engine-two-drivers model in [engine.md](engine.md)). The frozen ruling
+> behind the auth model lives in
+> [platform-server-github-app-zero-rbac](../decisions/2026-06-29-platform-server-github-app-zero-rbac.md).
+> Source:
+> [`../notes/2026-06-29-platform-as-ci-design.md`](../notes/2026-06-29-platform-as-ci-design.md).
+
+## What `srv` is
+
+`srv` is the API + webhook processor: on a push it clones the repo, builds the image,
+renders + publishes the infra artifact, and lets Flux pull it. It owns the GitHub App, the
+DB, and token minting. It is a layer above `core` (the stateless
+build/render/publish/release engine) and consumes it per request — the engine was already
+reshaped into an `sql.DB`-style, context-carried fleet handle (`engine.New(cfg)` once,
+`engine.Build(ctx, …)` per call) so a long-running server can reuse it.
+
+`srv` ships **in the same binary** as the CLI — `platform serve` starts the process. One
+Go module (`platform.prodigy9.co`); `core`/`cli`/`srv` are conceptual layers (packages at
+the repo root), not separate `go.mod`s. The dependency rule is one-directional and
+lint-enforced once `srv/` lands: **`core` is the leaf and must never import server
+concerns** — no `fx/data`/`sqlx`/migrations, no `net/http` server, no auth, no knowledge
+that `srv` exists.
+
+## Authorization: delegate to GitHub, zero platform RBAC
+
+Platform stores **no permission tables and configures no roles**. Authorization is
+whatever GitHub already says:
+
+- A user who can access the repo can trigger its builds.
+- Deploy permission is whether that user can write to the infra repo.
+
+This is mechanically clean because **a deploy *is* a commit to the infra repo** (the
+committed image-literal model — see
+[render-is-pure-function-of-committed-git](../decisions/2026-06-26-render-is-pure-function-of-committed-git.md)).
+GitHub's write bit on the infra repo *is* the deploy gate, with nothing to configure. The
+consequence for credentials: platform must act with the **triggering user's GitHub
+identity** where attribution/gating matters, never a single god credential that would
+force platform to decide who-can-do-what.
+
+## Auth mechanism: a GitHub App
+
+`platform` authenticates as a **GitHub App** — the GitHub-sanctioned integration model
+(the path GitHub Actions, Vercel, Jenkins, post-migration CircleCI, and Buildkite's
+control plane use). Chosen over an OAuth App because it removes the two failure modes an
+OAuth-token approach forces you to work around: a stored long-lived per-user secret, and a
+bus-factor on whoever connected the repo.
+
+### `srv` owns the App
+
+The server owns the App and creates it **once, at server setup**, via GitHub's **App
+Manifest flow**: `srv` generates a manifest (permissions `contents:rw`, `metadata:r`;
+webhook events incl. `push`; webhook + callback URLs), the operator clicks **Create GitHub
+App** on GitHub, and GitHub redirects back with a one-time code that `srv` exchanges
+(`POST /app-manifests/{code}/conversions`) to receive the **app id, private key, webhook
+secret, client secret** automatically. No manual "copy the private key into config." This
+is a *server-bootstrap* step — **not** `platform init`.
+
+### Two token types, chosen per operation
+
+| Token                  | Identity            | Scope                                        | Used for                                        |
+| ---------------------- | ------------------- | -------------------------------------------- | ----------------------------------------------- |
+| **Installation token** | `platform[bot]`     | installed repos ∩ granted permissions, ~1h   | webhook-driven / autonomous work (clone, build, publish) |
+| **User-to-server**     | the triggering user | (user's access) ∩ (app's granted perms)      | where attribution + per-user gating matter (a deploy) |
+
+- **Installation token** — minted from the app key (JWT → installation), app/bot identity,
+  short-lived. No bus-factor; commits attributed to `platform[bot]`.
+- **User-to-server token** — obtained via the App's user OAuth flow, acts as the user.
+  Used where the infra-repo commit must show as the user and be gated by *their* write
+  access. It restores implicit authz (the token can't exceed the user's reach), so the
+  explicit "does user X have access" API check is only needed on the installation-token
+  path.
+
+### Constraints to design around
+
+- **Install is required.** Either token only reaches a repo where the App is **installed**
+  (and, for the user token, where the user *also* has access). Unlike a raw OAuth token, a
+  GitHub App user token cannot reach every repo the user can — the install is the gate,
+  and is also what enables webhooks. Accepted trade.
+- **User-token expiry is configurable** — expiring (8h) + refresh, or non-expiring (an app
+  setting). Choose per the security/convenience balance.
+- **Secret footprint** — one app private key + webhook secret (server-side), encrypted at
+  rest; *not* a token per user. This is the first long-lived secret platform holds.
+- **Callback reachability** — the manifest/install/OAuth redirects need a URL the
+  operator's browser can hit that routes back to the platform process: the server's own
+  (tailnet/public) URL for `srv`; a temporary local listener for a pure-CLI flow (the `gh
+  auth login` pattern). The app private key is shown **once** — capture it immediately.
+
+### Onboarding: `platform init` installs, it does not create
+
+`platform init` is **client-side onboarding only**. It reads a marker identifying which
+platform server governs this repo (open detail: a `[server]` field in `platform.toml`, or
+CLI-global config → e.g. `platform.some-domain.com`), then drives **installation of that
+server's existing App** onto the current repo (opens
+`https://github.com/apps/<app-slug>/installations/new` scoped to the repo; GitHub
+redirects back with the `installation_id`, which the server records). It **creates
+nothing** — the App is the server's.
+
+### Ownership: live from GitHub, a product concept
+
+"Who owns this repo's pipeline" is **derived live from GitHub admin permission**, not a
+platform table. To claim ownership, a user proves they currently hold **admin** on the
+repo; platform verifies via the API and rebinds. Because the GitHub App already eliminates
+the stored-token bus-factor, ownership is no longer an *auth-recovery* mechanism — it
+survives as a **product** concept (responsible owner, who can change pipeline settings),
+still GitHub-derived, still zero-RBAC.
+
+## Repo preparation (CI clones)
+
+Cloning is **not** part of any builder's build phase. On a server run there is no local
+checkout, so a dedicated **repo-prep phase** (in `srv`, above `core`) produces a local
+working tree and hands its path to the *unchanged* builder machinery — already
+parameterized by working dir (`project.Configure(wd)`, `host.Directory(unit.WorkDir)`).
+Local and CI runs then take the identical builder path; a local run simply has no prep
+phase ("you're already in the dir").
+
+```
+local:  Configure(".")                      → AttemptFrom → engine.Build
+CI:     repo-prep: clone url@sha → <wd>      → Configure(wd) → AttemptFrom → engine.Build
+                                               └──────── identical from here ────────┘
+```
+
+Clones are plain `git` to local fs — no dagger needed for sourcing, so the in-process CUE
+render and `host.Directory` both work directly against the clone. repo-prep also returns
+the **resolved sha** so the committed-image-pin model has its anchor.
+
+### Cache layout (`/var/cache`), full clones
+
+Not ephemeral `/tmp` — a persistent cache for fast clones and build reuse:
+
+```
+/var/cache/platform/
+  git/<owner>/<repo>.git     ← bare mirror; `git fetch` under a per-repo lock
+  work/<build-id>/           ← `git worktree add` off the mirror; removed after the build
+```
+
+One **full** bare mirror per repo, updated by incremental `fetch` (cheap after the first);
+each build gets a near-instant `git worktree` that shares objects and is independently
+removable (concurrency-safe: lock only the mirror's fetch). **No shallow clones** —
+`--depth 1` truncates history and breaks `git subtree` (used widely across these repos);
+the mirror cache makes full clones cheap, so shallow buys nothing.
+
+## Sequencing
+
+Each layer consumes the one below *after* it works:
+
+1. **Prove the delivery path from the CLI** end-to-end — infra builder → render → publish
+   → Flux pulls → applies. All `core`, no server.
+2. **Wrap it in `srv`** — webhook ingest + GitHub App + token store + the API.
+   Orchestration around a proven path.
+3. **`webui`** on top of a proven API.
+
+The builders reshape + the infra builder are `core` work and proceed regardless of the
+server timeline — none of the server/auth design gates the next coding step.
+
+## Open details (not blockers)
+
+- Where the `init` server marker lives — `platform.toml` `[server]` field vs CLI-global
+  config.
+- User-token expiry policy (expiring + refresh vs non-expiring).

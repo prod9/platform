@@ -91,7 +91,8 @@ actions hanging off it. New code conforms; existing code migrates toward it.
 - `dsl/`, `baseline/`, `releases/`, `gitctx/`, `internal/` — unchanged in role.
 
 Command surface: `init  build  configure  exec  export  ls  preview  publish  release
-render  vanity`. `publish` is uniform (infra is just a builder module); `render` emits the
+render  clean  vanity`. `clean` prunes the local Dagger build cache (first-line cache
+diagnostics — see [`../guides/troubleshooting-build-cache.md`](../guides/troubleshooting-build-cache.md)). `publish` is uniform (infra is just a builder module); `render` emits the
 `k8s/` tree for the serverless `kubectl apply` path. No `ops` group; no `discover` or
 `bootstrap` — re-run `init` to see detected modules.
 

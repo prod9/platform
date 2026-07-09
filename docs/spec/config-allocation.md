@@ -39,7 +39,7 @@ Top (closest to the human) to bottom (closest to the metal). One owner each.
 - **`platform-init`** (embedded in the tool) — the cluster baseline: Flux, cert-manager,
   NGF, the Dagger engine, platform itself. **Embedded** in platform (not a separate repo)
   as a **flat list** of `.cue` apps + `.platform` directives, **destination-encoded by name**;
-  `ops init` installs each operator-chosen file to the destination its name encodes — the repo
+  `init` installs each operator-chosen file to the destination its name encodes — the repo
   root, `apps/` (render-able components), or the mandatory `defaults/` package (shared defs like
   `#Basics`, imported by `apps/`). Seeded once (manual), then Flux-reconciled (except Flux's own
   lifecycle — never self-managed). See the
@@ -72,7 +72,7 @@ Top (closest to the human) to bottom (closest to the metal). One owner each.
   the record). App image refs *inside* are committed literals, digest-pinned to dodge stale cache.
 - **`tf/`** — OpenTofu cloud/DNS provisioning (v2.1); manual local apply. Not a platform env list.
 - **`platform-init`** — cluster baseline, **embedded in the tool** as a flat, destination-encoded
-  file list; `ops init` installs each chosen file to the destination its name encodes (repo root,
+  file list; `init` installs each chosen file to the destination its name encodes (repo root,
   `apps/`, or the mandatory `defaults/` package); one manual seed, then Flux.
 
 ## Deploy flow (where the surfaces meet)

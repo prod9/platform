@@ -23,9 +23,8 @@ and replace freely. **Other setups (`naxon-infra`, `fi-infra`) DO run mission-cr
 workloads**: they migrate to the new platform eventually too, but deliberately and carefully —
 never in the take-down-freely bucket.
 
-Design every new artifact straight from the current plan
-([`docs/notes/2026-07-06-templated-init-plan.md`](docs/notes/2026-07-06-templated-init-plan.md))
-and the [`docs/decisions/`](docs/decisions/) record — the
+Design every new artifact straight from the current design specs
+([`docs/spec/`](docs/spec/)) and the [`docs/decisions/`](docs/decisions/) record — the
 [2026-06-16 master plan](docs/notes/2026-06-16-platformv2-implementation-plan.md) is historical
 context now, superseded on the deploy/environments/baseline specifics —
 never reverse-engineer from, diff against, or protect legacy. **Treat other agents working the
@@ -81,7 +80,7 @@ a moved tag). The record is the git commit, not the tag's immutability.
 
 platform self-delivers from a **standalone GitOps repo at `./infra`** (module `prodigy9.co`),
 not the abandoned `../infra`. Live on stage9 as `ghcr.io/prod9/platform:v0.8.3` (amd64,
-digest-pinned). See [`docs/notes/2026-06-27-resume.md`](docs/notes/2026-06-27-resume.md).
+digest-pinned).
 
 **Node/pnpm provisioning is deliberate — never "simplify" it to distro packages.** pnpm
 builders take Node from the official nodejs.org build via tj/n, and pnpm via Node's own
@@ -136,6 +135,7 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
 | render    | Render an infra repo's `apps/` (CUE + `.platform`) to a `k8s/` manifest tree. |
 | publish   | Build+publish a module's image (app: release tag; infra: moving `latest`). |
 | release   | Create new release tag (semver/timestamp/datestamp/latest); supports `-p/-m/--major`. |
+| clean     | Prune the local Dagger build cache (first-line cache diagnostics).|
 | vanity    | Hidden HTTP server: redirects `go get platform.prodigy9.co` to GitHub. |
 
 ### Packages
@@ -278,5 +278,3 @@ Default skill set for this project (consumed by `ace.toml`):
 - `go-coding` — Go is the implementation language
 - `prod9-fx` — `fx.prodigy9.co v0.4.0` is in `go.mod`
 - `cue-coding` — `tests.cue` drives the smoke harness
-- `shell` — `test.sh`, `testbed.sh`, embedded `platform` script template
-- `markdown-writing` — for editing this file

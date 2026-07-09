@@ -13,3 +13,11 @@ system fits together or why it's shaped that way is `../spec/`.
 One file per task: `<slug>.md` (no date prefix — a guide describes a task, not a
 moment). Keep each guide to one job; link to `../reference/` for exhaustive
 detail rather than inlining it. Update in place.
+
+## Index
+
+- [`troubleshooting-build-cache.md`](troubleshooting-build-cache.md) — `platform clean` as
+  first-line diagnosis for a "worked on a fresh checkout but not here" build failure; the
+  Dagger cache-poisoning mode; why pnpm→apk is never the fix.
+- [`before-going-public.md`](before-going-public.md) — the scrub checklist for when the repo
+  goes public: LICENSE, firewall-id placeholder, exclude `docs/notes/`.

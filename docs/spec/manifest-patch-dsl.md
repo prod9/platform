@@ -1,17 +1,13 @@
 # Manifest Patch DSL
 
-**Status:** accepted (rev. 2026-06-17) — verb set, grammar, lexer, and `\(var)`
-interpolation settled with chakrit. **Slices D1–D2 landed** (in-buffer verbs, lexer,
-path-walk, then `download`/`extract`/`emit` + interpolation) plus **D3a** (`Ops.Vars`
-config passthrough) and **D3b-1** (bootstrap write-path: wd-validation + `[ops.vars]`
-merge + plan/apply) and **D3b-2** (assembly layer: whole-file selection in `baseline`).
-D3b split into D3b-1..4; D3b-3 (`ops render` routes `.cue`/`.platform` by extension) has
-landed. Component **selection** was later simplified to a flat baseline + install-time picker
-— see the [flat-baseline ADR](../decisions/2026-06-22-flat-baseline-install-time-selection.md).
+**Status:** living spec. Verb set, grammar, lexer, path-walk, `download`/`extract`/`emit`,
+and `\(var)` interpolation are landed and in use; the embedded baseline authors its foreign
+components (cert-manager, NGF, …) as `.platform` files rendered by `render`. Component
+**selection** is a flat baseline + install-time picker — see the
+[flat-baseline ADR](../decisions/2026-06-22-flat-baseline-install-time-selection.md).
 **Decided in:**
 [renderer ADR](../decisions/2026-06-16-renderer-cue-export-not-timoni.md),
-[appliance ADR](../decisions/2026-06-17-opinionated-appliance-embedded-init.md). Build
-plan: [roadmap](../notes/2026-06-16-platformv2-implementation-plan.md) Phase A′.
+[appliance ADR](../decisions/2026-06-17-opinionated-appliance-embedded-init.md).
 
 A line-oriented directive language for adapting third-party Kubernetes manifests we don't
 own (cert-manager, NGINX Gateway Fabric, …) — fetch upstream, patch by name, write the
@@ -22,7 +18,7 @@ foreign ones. Folded from infra-cli's `pipelines`
 + `pipelines/yamleditor` (~676 LOC incl. tests; the verbs already exist as Go pipeline ops
 — only the directive parser and the field-select path form are new code). Its first
 consumer is the **embedded cluster baseline** (a flat list of `.platform` + `.cue` files,
-selected at `ops init`), dogfooded against the
+selected at `init`), dogfooded against the
 real `infra` repo (`apps/cert-manager.cue`, `k8s/nginx-gateway`, …).
 
 ## Why a closed vocabulary, not a script
@@ -66,9 +62,9 @@ before the next `download` overwrites the work area.
 **Branch-free by design:** no conditionals, no loops. Which components are installed is
 chosen at **install time**, at **whole-file** granularity — never per-line, so a directive
 file is always read straight through. The embedded baseline is one **flat list** of component
-files (`.platform` directives + `.cue` apps, clean names); `platform ops init` shows the list
+files (`.platform` directives + `.cue` apps, clean names); `platform init` shows the list
 with a hard-coded `Defaults` set pre-checked (`OptionalMultiSelect`) and writes the operator's
-chosen subset into the target repo's `apps/`. `ops render` then applies whatever is present,
+chosen subset into the target repo's `apps/`. `render` then applies whatever is present,
 routing by extension. There is **no** filename marker grammar (`@variant`, `+flag`), **no**
 render-time gating on `[ops.vars]`, and **no** assembly `Select` step — see the
 [flat-baseline ADR](../decisions/2026-06-22-flat-baseline-install-time-selection.md).
@@ -89,18 +85,18 @@ resolves to the var's **native** type (see **Value typing**); `[ops.vars]` carri
 pins, not selection toggles. `[ops].image`/`tag` stay typed (publish target, not a DSL var).
 `settings.toml` is eliminated.
 
-**Defaults + re-bootstrap merge.** The embed ships the baseline's *default* `[ops.vars]`
+**Defaults + re-init merge.** The embed ships the baseline's *default* `[ops.vars]`
 (the version pins platform was tested against) alongside the directive files. First
-`bootstrap` writes both into the infra repo. A later re-`bootstrap` after a platform upgrade
+`init` writes both into the infra repo. A later re-`init` after a platform upgrade
 **overwrites the directive files** (platform's opinion, re-shipped) but **merges
 `[ops.vars]`**: new keys are appended with their defaults, existing keys keep the operator's
 value untouched. So a security bump (edit a var) survives the upgrade, and a newly
 introduced baseline knob arrives pre-set instead of failing at render. Customization is via
-vars — operator edits to a directive *file* are not preserved across re-bootstrap. The merge
+vars — operator edits to a directive *file* are not preserved across re-init. The merge
 is a surgical append of new `key = "value"` lines under `[ops.vars]`, not a decode/re-encode
 (which would lose the operator's comments and ordering).
 
-**Plan, then apply.** Bootstrap runs an analysis pass and prints the plan it would execute
+**Plan, then apply.** `init` runs an analysis pass and prints the plan it would execute
 — each file written or overwritten, each var appended vs. preserved — then confirms
 interactively before touching the working tree. `--force` skips the prompt and applies the
 plan unprompted (CI / non-interactive). The plan-and-confirm *is* the guard against a
@@ -296,59 +292,22 @@ emit     "some-operator.yaml"
   access and create-if-absent; the field-select form, the directive parser, and the lexer
   are the only new code.
 
-## Build slices
+## Implementation
 
-The DSL lands across Phase A′ (see the
-[roadmap](../notes/2026-06-16-platformv2-implementation-plan.md)):
+The DSL lives in `dsl/` (path-walk, the in-buffer verbs, lexer, directive parser, and the
+I/O verbs `download`/`extract`/`emit` with `\(var)` interpolation). `[ops.vars]` reaches it
+verbatim as `Options.Vars` — `project.Ops.Vars` is a `map[string]any` stored with no
+defaults or per-software fields (see the
+[generic-ops-vars ADR](../decisions/2026-06-17-generic-ops-vars-single-config.md)). The
+checksum guard is deferred.
 
-- **D1 — DSL core (hermetic).** Path-walk, the in-buffer verbs (`focus`,
-  `reset`, `set`, `set-if-absent`, `append`, `append-if-absent`, `remove`, `remove-doc`),
-  the lexer, and the directive parser. No network. Unit-tested on inline multi-doc
-  fixtures. Born in `dsl`.
-- **D2 — I/O verbs.** ✅ **Landed.** `download` (behind an injectable fetcher), `extract`
-  (magic-byte gzip/zip/tar, two layers), `emit FILENAME` (truncate-write into a
-  runner-provided output dir, no `..` escape), and `\(var)` interpolation (resolved in one
-  left-to-right pass so `\\(` stays literal). Network verbs fixtured for tests, real fetch
-  at runtime. Checksum guard deferred. How the emitted files reach a registry/cluster is a
-  separate pipeline (`ops render`/`publish`), not part of the DSL.
-- **D3a — `Ops.Vars` config passthrough.** ✅ **Landed.** `project.Ops` gained `Vars
-  map[string]any` (`[ops.vars]`), stored verbatim — no defaults, no per-software fields, each
-  value keeping its TOML type. The source for `\(var)` values; the DSL already consumes it via
-  `Options.Vars`.
-- **D3b — baseline authoring + bootstrap-writes-DSL.** Split into four sub-slices, landing
-  the hermetic mechanics before the content:
-  - **D3b-1 — bootstrap write-path.** ✅ **Landed.** `scaffold.Analyze` computes a
-    `Plan` (files written/overwritten, vars appended/preserved) without mutating; `Plan.Apply`
-    writes it. wd-validation is a hard gate (target must exist, be a dir, live in a git repo);
-    re-`bootstrap` merges `[ops.vars]` surgically (`mergeOpsVars`: append new keys, preserve
-    operator values + comments/order, no decode/re-encode) instead of clobbering platform.toml.
-    `bootstrap` prints the plan and confirms via fx prompt; `--force` applies unprompted. See
-    **Defaults + re-bootstrap merge** and **Plan, then apply** above.
-  - **D3b-2 — assembly layer.** ⚠️ **Superseded** by the
-    [flat-baseline ADR](../decisions/2026-06-22-flat-baseline-install-time-selection.md). As
-    first built it did whole-file selection from a filename convention (`name@variant` /
-    `name+flag`) resolved at render time by `baseline.Select`/`ScanOptions`. That marker
-    grammar and render-time gating were **deleted**: the baseline is now a flat file list with
-    a hard-coded `Defaults`, selection happens once at install time (`ops init`'s picker), and
-    `ops render` applies whatever files are present. DSL stays branch-free either way.
-  - **D3b-3 — `ops render` routes by extension.** **3a (CUE file-map render+publish rework)
-    landed**, **3b (`.platform` route) landed**. `ops render` walks the infra repo's `apps/`
-    and dispatches per input type: `.cue` → file-map export via the **linked CUE engine**
-    (`exportCue`, no `cue` binary — see the
-    [linked-CUE-engine ADR](../decisions/2026-06-23-render-via-linked-cue-engine.md)),
-    `.platform` → `dsl.Apply` over every present directive file (download → patch → `emit`).
-    Both write named files into a `k8s/<component>/` render-output tree (`gitops` owns the
-    directive→dir mapping as `outputName`); the infra builder packs it into the published
-    image (`publish`, no bespoke pusher — see
-    [infra-publishes-as-plain-image-retire-oras](../decisions/2026-07-05-infra-publishes-as-plain-image-retire-oras.md)).
-    Render-time, nothing
-    rendered is committed (model I). Reworks Slice-1 render from the flat `-e objects` stream
-    to the file-map contract. See the
-    [render-routing ADR](../decisions/2026-06-18-render-routes-cue-and-platform-by-extension.md);
-    supersedes the interim "separate run-DSL command (model II)" framing. Component selection
-    moved to install-time (`ops init`), per the
-    [flat-baseline ADR](../decisions/2026-06-22-flat-baseline-install-time-selection.md).
-  - **D3b-4 — baseline authoring + migration.** The embedded baseline (Flux/cert-manager/NGF/
-    engine) as `.platform` directive files + `.cue` apps + default `[ops.vars]` version pins,
-    `go:embed`'d (`baseline.EmbeddedFiles`), written into the target's `apps/` by `ops init`'s
-    picker; fold `settings.toml` into `platform.toml` and delete it.
+Its consumers own the surrounding flow, specced elsewhere:
+
+- **`init`** writes the embedded baseline's `.platform` + `.cue` files and default
+  `[ops.vars]` into the infra repo, plan-then-apply with the surgical re-init var merge —
+  see [`scaffold-baseline.md`](scaffold-baseline.md).
+- **`render`** walks the infra repo's `apps/` and routes by extension: `.cue` → file-map
+  export via the linked CUE engine (no `cue` binary), `.platform` → `dsl.Apply` over every
+  present directive file. Both land named files in a `k8s/<component>/` tree that the infra
+  builder packs into the published image — see [`architecture.md`](architecture.md) and the
+  [render-routing ADR](../decisions/2026-06-18-render-routes-cue-and-platform-by-extension.md).

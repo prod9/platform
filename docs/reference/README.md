@@ -20,3 +20,6 @@ in place — reference always reflects the current surface.
 - [`dagger-engine.md`](dagger-engine.md) — Dagger engine capabilities & deployment: SDK pin,
   the connect call, the single-engine/many-sessions model, runtime requirements, deployment
   topologies, and the load-balancer pitfall.
+- [`nginx-gateway-fabric-install.md`](nginx-gateway-fabric-install.md) — the NGF / Gateway API
+  install recipe: upstream URLs, the firewall-annotation patch, the serverTokens workaround,
+  and the string-forcing constraint.

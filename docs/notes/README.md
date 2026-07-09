@@ -27,18 +27,22 @@ note still existing.
 
 Newest first. Notes are disposable, so this list may lag — the directory is the truth.
 
-- [2026-07-05 — Resume breadcrumb (builders reshape: slices 1–2b landed)](2026-07-05-resume.md)
-- [2026-06-29 — Resume breadcrumb (audit + builders design)](2026-06-29-resume.md)
+**Live** — work in flight or current entry point:
+
+- [2026-07-09 — Resume breadcrumb (latest)](2026-07-09-resume.md)
+- [2026-07-09 — fx handoff: slog LogValuer resolving sink](2026-07-09-fx-handoff-slog-logvaluer-sink.md)
+- [2026-07-08 — Project-centric builder refactor plan (pending)](2026-07-08-builder-refactor-plan.md)
+
+**Retained for provenance** — superseded content, but cited as the evidentiary record by a
+frozen decision or spec; kept so those links don't dangle:
+
+- [2026-07-05 — Resume breadcrumb](2026-07-05-resume.md) (oras-retirement ADR)
 - [2026-06-29 — Platform-as-CI architecture design](2026-06-29-platform-as-ci-design.md)
+  (source for `spec/platform-server.md`)
 - [2026-06-29 — Builders reshape design pass (#4)](2026-06-29-builders-reshape-design.md)
-- [2026-06-28 — Coding audit (general-coding + go-coding rubric + ledger)](2026-06-28-coding-audit.md)
-- [2026-06-27 — Resume breadcrumb](2026-06-27-resume.md)
-- [2026-06-26 — Pre-public audit](2026-06-26-pre-public-audit.md)
-- [2026-06-26 — Infra conversion migration plan](2026-06-26-infra-conversion-migration-plan.md)
-- [2026-06-26 — AFK realign / school edits handoff](2026-06-26-afk-realign-school-edits-handoff.md)
-- [2026-06-21 — defs wishlist: dagger engine](2026-06-21-defs-wishlist-dagger-engine.md)
+  (oras-retirement ADR)
 - [2026-06-19 — D3b4 baseline design prep](2026-06-19-d3b4-baseline-design-prep.md)
-- [2026-06-17 — Slice 1 open questions](2026-06-17-slice1-open-questions.md)
+  (dagger-engine ADR + reference)
+- [2026-06-17 — Slice 1 open questions](2026-06-17-slice1-open-questions.md) (appliance ADR)
 - [2026-06-16 — platformv2 implementation plan](2026-06-16-platformv2-implementation-plan.md)
-- [2026-06-13 — GitOps build plan (superseded brief)](2026-06-13-gitops-build-plan.md)
-- [2026-06-12 — platformv2 design](2026-06-12-platformv2-design.md)
+  (appliance + render-pure-function ADRs)
