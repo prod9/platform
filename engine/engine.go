@@ -37,18 +37,47 @@ func (e *Engine) Close() error { return e.clients.Close() }
 // a live client for it. Build/Publish use it per unit; commands that need ad-hoc Dagger
 // access (ls, preview) call it directly.
 func (e *Engine) Client(ctx context.Context) (*dagger.Client, error) {
-	hosts, err := e.runners.Hosts(ctx)
+	hosts, err := e.resolveHosts(ctx)
 	if err != nil {
 		return nil, err
-	}
-	if len(hosts) == 0 {
-		// no remote engines discovered — the empty host asks for the local one.
-		return e.clients.Get(ctx, "")
 	}
 
 	next := e.cursor.Add(1) - 1
 	host := hosts[int(next%uint64(len(hosts)))]
 	return e.clients.Get(ctx, host)
+}
+
+// Clean prunes the build cache of every engine in the fleet, forcing subsequent builds to
+// run cold. It sheds stale or poisoned cache entries a fresh checkout would not carry.
+func (e *Engine) Clean(ctx context.Context) error {
+	hosts, err := e.resolveHosts(ctx)
+	if err != nil {
+		return err
+	}
+
+	for _, host := range hosts {
+		client, err := e.clients.Get(ctx, host)
+		if err != nil {
+			return err
+		}
+		if err := client.Engine().LocalCache().Prune(ctx); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// resolveHosts returns the discovered engine endpoints, or a single empty host — meaning
+// the local engine — when none are discovered.
+func (e *Engine) resolveHosts(ctx context.Context) ([]string, error) {
+	hosts, err := e.runners.Hosts(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if len(hosts) == 0 {
+		return []string{""}, nil
+	}
+	return hosts, nil
 }
 
 type engineContextKey struct{}

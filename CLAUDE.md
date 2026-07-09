@@ -83,6 +83,17 @@ platform self-delivers from a **standalone GitOps repo at `./infra`** (module `p
 not the abandoned `../infra`. Live on stage9 as `ghcr.io/prod9/platform:v0.8.3` (amd64,
 digest-pinned). See [`docs/notes/2026-06-27-resume.md`](docs/notes/2026-06-27-resume.md).
 
+**Node/pnpm provisioning is deliberate — never "simplify" it to distro packages.** pnpm
+builders take Node from the official nodejs.org build via tj/n, and pnpm via Node's own
+corepack — **never** `apk add nodejs`/`corepack`. Node, corepack, pnpm, and the distro are
+four uncoordinated maintainer groups; sourcing Node from the distro adds a party whose
+repackaging borks the seams downstream (linux-wifi-driver style). Stay closest to the
+least-magic, most-reliable upstream — good taste in tech. pnpm over npm because npm is slow;
+corepack because it's Node-sanctioned and narrow-jobbed, not a version-juggler like nvm. A
+cache or build failure in this step is **never** a reason to switch to apk — shed the cache
+with `platform clean` (first-line diagnostics for any "worked on a fresh checkout but not
+here" failure) and fix the real cause.
+
 ## lowfat (token saver)
 
 Command output is compacted by [lowfat](https://github.com/zdk/lowfat) via a user-scope

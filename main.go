@@ -32,6 +32,7 @@ func init() {
 	rootCmd.AddCommand(
 		cmd.InitCmd,
 		cmd.BuildCmd,
+		cmd.CleanCmd,
 		cmd.ConfigureCmd,
 		cmd.ExecCmd,
 		cmd.ExportCmd,
