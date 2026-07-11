@@ -22,7 +22,8 @@ superseded moves to `../scratch/` — `spec/` holds current design only, never h
 - [`architecture.md`](architecture.md) — the build pipeline (parse → interpret → engine)
   and the object model: `BuildAttempt`/`BuildUnit`, package layout, data-vs-behavior rules.
 - [`frameworks.md`](frameworks.md) — the framework catalog and order-sensitive discovery,
-  the `Framework` interface (`Discover`/`Scaffold`/`Build`), layouts/classes, the Wolfi
+  the `Framework` interface (`Discover`/`Scaffold`/`Build`), layouts, runtime-shape
+  families, the Wolfi
   base, and the Go test-in-build gate.
 - [`engine.md`](engine.md) — the Dagger execution layer: the `Engine` client pool over
   discovered runners, `Multiplexer` fan-out, `Build`/`Publish`/`BuildAndPublish`, registry

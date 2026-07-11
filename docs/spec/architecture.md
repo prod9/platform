@@ -47,11 +47,10 @@ This yields three standing rules:
   If a build is ever written to a database, that db package owns a shim/record type that
   maps *from* `BuildUnit`; `framework`/`engine` never contort to be row-shaped.
 
-- **The consumer defines the engine interface.** A framework needs only `Client()` /
-  `Context()` off the engine, so `framework` declares a small `Session` interface and the
-  strategies consume *that*. `engine`'s concrete `Engine` satisfies it implicitly —
-  `framework` never imports `engine` to get it. **That** is the cycle-breaker (not any
-  stringly-typing): the graph is `engine → framework → project`, one direction.
+- **The consumer defines what it needs of the engine.** A framework needs only a Dagger
+  client to build, so `Build` takes the raw `*dagger.Client` as a parameter — `framework`
+  never imports `engine` at all. **That** is what keeps the import graph one-directional
+  (not any stringly-typing): `engine → framework → project`.
 
 ## Two models, both data
 

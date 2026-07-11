@@ -5,7 +5,7 @@ recognizes itself (`Discover`), scaffolds itself (`Scaffold`), and builds itself
 This spec owns the per-stack strategies, stack discovery, and the shared Wolfi base; it
 sits at the `interpret`/`strategies` stages of the pipeline. The
 [architecture spec](architecture.md) frames the pipeline and the two data models,
-[engine](../../engine) owns execution, and [scaffolding](scaffolding.md) owns the scaffold
+[engine](engine.md) owns execution, and [scaffolding](scaffolding.md) owns the scaffold
 mechanism and `cmd/init` orchestration — read [architecture.md](architecture.md) first.
 
 ## The `Framework` contract

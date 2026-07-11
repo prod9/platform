@@ -12,14 +12,14 @@ The application has the following primary goals:
 
 ### Usage
 
-The platform application is self-built and self-contained. It's only requirements is a
+The platform application is self-built and self-contained. Its only requirement is a
 recent "go" binary installed on the developer's local machine.
 
-1. Run `go run platform.prodigy9.co bootstrap` to setup the TOML config file.
+1. Run `go run platform.prodigy9.co init` to setup the TOML config file.
 2. Edit `platform.toml` if needed.
 3. Run `go run platform.prodigy9.co build` to start building.
 
-The Go builder pins the toolchain named in `go.mod`/`go.work` via Go's native
+The Go frameworks pin the toolchain named in `go.mod`/`go.work` via Go's native
 `GOTOOLCHAIN`, so Go projects must target **Go 1.21 or higher**.
 
 
