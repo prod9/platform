@@ -23,7 +23,7 @@ const (
 	// per-platform manifest at build time). Chainguard's :latest is a floating
 	// ref, so reproducibility wins over readability here. Refresh manually on a
 	// monthly cadence to absorb base-layer CVEs; userland is already refreshed
-	// every build via `apk update && apk upgrade` in [BaseImageForJob].
+	// every build via `apk update && apk upgrade` in [BaseImageForUnit].
 	//
 	// To refresh:
 	//   docker buildx imagetools inspect cgr.dev/chainguard/wolfi-base:latest

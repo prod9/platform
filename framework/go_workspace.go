@@ -22,8 +22,8 @@ func (GoWorkspace) Discover(wd string) bool {
 	return detected
 }
 
-func (b GoWorkspace) Scaffold(ctx context.Context, wd string) (scaffold.Spec, error) {
-	return scaffold.Spec{Module: defaultModule(b, wd)}, nil
+func (fw GoWorkspace) Scaffold(ctx context.Context, wd string) (scaffold.Spec, error) {
+	return scaffold.Spec{Module: defaultModule(fw, wd)}, nil
 }
 
 func (GoWorkspace) Build(ctx context.Context, client *dagger.Client, unit *BuildUnit) (container *dagger.Container, err error) {

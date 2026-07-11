@@ -40,7 +40,7 @@ type BuildUnit struct {
 }
 
 func unitFromModule(cfg *project.Project, name string, mod *project.Module, purpose Purpose) (*BuildUnit, error) {
-	b, err := FindFramework(mod.Framework)
+	fw, err := FindFramework(mod.Framework)
 	if err != nil {
 		return nil, err
 	}
@@ -51,7 +51,7 @@ func unitFromModule(cfg *project.Project, name string, mod *project.Module, purp
 	arch := resolveArch(archFor(cfg, purpose))
 
 	return &BuildUnit{
-		Framework: b,
+		Framework: fw,
 
 		Name:     name,
 		WorkDir:  modpath,

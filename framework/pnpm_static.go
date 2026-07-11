@@ -20,11 +20,11 @@ func (PNPMStatic) Discover(wd string) bool {
 	return detected
 }
 
-func (b PNPMStatic) Scaffold(ctx context.Context, wd string) (scaffold.Spec, error) {
-	return scaffold.Spec{Module: defaultModule(b, wd)}, nil
+func (fw PNPMStatic) Scaffold(ctx context.Context, wd string) (scaffold.Spec, error) {
+	return scaffold.Spec{Module: defaultModule(fw, wd)}, nil
 }
 
-func (b PNPMStatic) Build(ctx context.Context, client *dagger.Client, unit *BuildUnit) (container *dagger.Container, err error) {
+func (PNPMStatic) Build(ctx context.Context, client *dagger.Client, unit *BuildUnit) (container *dagger.Container, err error) {
 	defer errutil.Wrap("pnpm/static", &err)
 
 	host := client.Host().

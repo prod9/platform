@@ -15,19 +15,19 @@ type Dockerfile struct{}
 
 var _ Framework = Dockerfile{}
 
-func (d Dockerfile) Name() string   { return "dockerfile" }
-func (d Dockerfile) Layout() Layout { return LayoutBasic }
+func (Dockerfile) Name() string   { return "dockerfile" }
+func (Dockerfile) Layout() Layout { return LayoutBasic }
 
 func (Dockerfile) Discover(wd string) bool {
 	detected, _ := fileutil.DetectFile(wd, "Dockerfile")
 	return detected
 }
 
-func (b Dockerfile) Scaffold(ctx context.Context, wd string) (scaffold.Spec, error) {
-	return scaffold.Spec{Module: defaultModule(b, wd)}, nil
+func (fw Dockerfile) Scaffold(ctx context.Context, wd string) (scaffold.Spec, error) {
+	return scaffold.Spec{Module: defaultModule(fw, wd)}, nil
 }
 
-func (d Dockerfile) Build(ctx context.Context, client *dagger.Client, unit *BuildUnit) (container *dagger.Container, err error) {
+func (Dockerfile) Build(ctx context.Context, client *dagger.Client, unit *BuildUnit) (container *dagger.Container, err error) {
 	defer errutil.Wrap("dockerfile", &err)
 
 	buildlog.Logger().Warn("dockerfile framework bypasses the Wolfi base image and platform package conventions; prefer a language-specific framework (go/basic, go/workspace, pnpm/basic, pnpm/static, pnpm/workspace) when possible",
@@ -48,7 +48,7 @@ func (d Dockerfile) Build(ctx context.Context, client *dagger.Client, unit *Buil
 		args = append(args, unit.CommandArgs...)
 	}
 
-	// not using BaseImageForJob because, well, dockerfiles have their own bases
+	// not using BaseImageForUnit because, well, dockerfiles have their own bases
 	// this framework should be discouraged
 	opts := dagger.DirectoryDockerBuildOpts{
 		Platform: dagger.Platform(unit.Arch),

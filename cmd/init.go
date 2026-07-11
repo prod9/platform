@@ -75,6 +75,9 @@ func applyPlan(wd string, sess *prompts.Session, plan *Plan) {
 		buildlog.Fatalln(err)
 	}
 	for _, f := range plan.Files {
+		if f.Action == FileOverwrite && !replace {
+			continue // Apply kept the existing file — no action taken
+		}
 		buildlog.File(f.Action.String(), f.Path)
 	}
 

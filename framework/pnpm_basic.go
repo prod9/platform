@@ -20,8 +20,8 @@ func (PNPMBasic) Discover(wd string) bool {
 	return detected
 }
 
-func (b PNPMBasic) Scaffold(ctx context.Context, wd string) (scaffold.Spec, error) {
-	return scaffold.Spec{Module: defaultModule(b, wd)}, nil
+func (fw PNPMBasic) Scaffold(ctx context.Context, wd string) (scaffold.Spec, error) {
+	return scaffold.Spec{Module: defaultModule(fw, wd)}, nil
 }
 
 func (PNPMBasic) Build(ctx context.Context, client *dagger.Client, unit *BuildUnit) (container *dagger.Container, err error) {
