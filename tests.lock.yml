@@ -7,7 +7,7 @@
             - "0"
 - name: Platform \ Go Basic \ Init
   commands:
-    - command: ./testbed.sh gobasic init "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform" "ghcr.io/prod9/platform"
+    - command: ./testbed.sh gobasic init "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform"
       checks:
         - name: ./testbeds/gobasic/platform.toml
           data:
@@ -22,7 +22,7 @@
             - '  [modules.gobasic]'
             - '    workdir = "."'
             - '    timeout = "1m0s"'
-            - '    builder = "go/basic"'
+            - '    framework = "go/basic"'
             - '-----END platform.toml-----'
             - ""
         - name: ./testbeds/gobasic/platform
@@ -44,7 +44,7 @@
             - "0"
 - name: Platform \ Go Workspace \ Init
   commands:
-    - command: ./testbed.sh gowork init "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform" "ghcr.io/prod9/platform"
+    - command: ./testbed.sh gowork init "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform"
       checks:
         - name: ./testbeds/gowork/platform.toml
           data:
@@ -59,11 +59,11 @@
             - '  [modules.app]'
             - '    workdir = "./app"'
             - '    timeout = "1m0s"'
-            - '    builder = "go/workspace"'
+            - '    framework = "go/workspace"'
             - '  [modules.fx]'
             - '    workdir = "./fx"'
             - '    timeout = "1m0s"'
-            - '    builder = "go/workspace"'
+            - '    framework = "go/workspace"'
             - '-----END platform.toml-----'
             - ""
         - name: ./testbeds/gowork/platform
@@ -85,7 +85,7 @@
             - "0"
 - name: Platform \ PNPM Basic \ Init
   commands:
-    - command: ./testbed.sh pnpmbasic init "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform" "ghcr.io/prod9/platform"
+    - command: ./testbed.sh pnpmbasic init "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform"
       checks:
         - name: ./testbeds/pnpmbasic/platform.toml
           data:
@@ -100,7 +100,7 @@
             - '  [modules.pnpmbasic]'
             - '    workdir = "."'
             - '    timeout = "1m0s"'
-            - '    builder = "pnpm/basic"'
+            - '    framework = "pnpm/basic"'
             - '-----END platform.toml-----'
             - ""
         - name: ./testbeds/pnpmbasic/platform
@@ -122,7 +122,7 @@
             - "0"
 - name: Platform \ PNPM Workspace \ Init
   commands:
-    - command: ./testbed.sh pnpmwork init "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform" "ghcr.io/prod9/platform"
+    - command: ./testbed.sh pnpmwork init "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform"
       checks:
         - name: ./testbeds/pnpmwork/platform.toml
           data:
@@ -137,11 +137,11 @@
             - '  [modules.lib]'
             - '    workdir = "./lib"'
             - '    timeout = "1m0s"'
-            - '    builder = "pnpm/workspace"'
+            - '    framework = "pnpm/workspace"'
             - '  [modules.web]'
             - '    workdir = "./web"'
             - '    timeout = "1m0s"'
-            - '    builder = "pnpm/workspace"'
+            - '    framework = "pnpm/workspace"'
             - '-----END platform.toml-----'
             - ""
         - name: ./testbeds/pnpmwork/platform
@@ -163,7 +163,7 @@
             - "0"
 - name: Platform \ PNPM Static \ Init
   commands:
-    - command: ./testbed.sh pnpmstatic init "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform" "ghcr.io/prod9/platform"
+    - command: ./testbed.sh pnpmstatic init "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform"
       checks:
         - name: ./testbeds/pnpmstatic/platform.toml
           data:
@@ -178,7 +178,7 @@
             - '  [modules.pnpmstatic]'
             - '    workdir = "."'
             - '    timeout = "1m0s"'
-            - '    builder = "pnpm/static"'
+            - '    framework = "pnpm/static"'
             - '-----END platform.toml-----'
             - ""
         - name: ./testbeds/pnpmstatic/platform
@@ -200,7 +200,7 @@
             - "0"
 - name: Platform \ Dockerfile \ Init
   commands:
-    - command: ./testbed.sh dockerfile init "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform" "ghcr.io/prod9/platform"
+    - command: ./testbed.sh dockerfile init "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform"
       checks:
         - name: ./testbeds/dockerfile/platform.toml
           data:
@@ -215,7 +215,7 @@
             - '  [modules.dockerfile]'
             - '    workdir = "."'
             - '    timeout = "1m0s"'
-            - '    builder = "dockerfile"'
+            - '    framework = "dockerfile"'
             - '-----END platform.toml-----'
             - ""
         - name: ./testbeds/dockerfile/platform
