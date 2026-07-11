@@ -6,26 +6,26 @@ import (
 	"slices"
 	"strings"
 
-	"platform.prodigy9.co/internal/buildinfo"
 	"platform.prodigy9.co/gitctx"
+	"platform.prodigy9.co/internal/buildinfo"
 	"platform.prodigy9.co/project"
 )
 
 var (
-	ErrNoRelease           = errors.New("cannot find a valid release")
-	ErrBadStrategy         = errors.New("invalid strategy")
-	ErrBadVersion          = errors.New("invalid version")
-	ErrBadVersionComponent = errors.New("invalid version component")
-	ErrDirtyWorkdir        = errors.New("working directory has uncommitted changes")
+	ErrNoRelease      = errors.New("cannot find a valid release")
+	ErrBadStrategy    = errors.New("invalid strategy")
+	ErrBadVersion     = errors.New("invalid version")
+	ErrBadVersionBump = errors.New("invalid version bump")
+	ErrDirtyWorkdir   = errors.New("working directory has uncommitted changes")
 )
 
-type NameComponent string
+type Bump string
 
 const (
-	NameAny   NameComponent = "any"
-	NamePatch NameComponent = "patch"
-	NameMinor NameComponent = "minor"
-	NameMajor NameComponent = "major"
+	BumpAny   Bump = "any"
+	BumpPatch Bump = "patch"
+	BumpMinor Bump = "minor"
+	BumpMajor Bump = "major"
 )
 
 type (
@@ -39,14 +39,14 @@ type (
 		Commits []CommitRef `toml:"commits"`
 	}
 	Options struct {
-		Name      string
-		Force     bool
-		Component NameComponent
+		Name  string
+		Force bool
+		Bump  Bump
 	}
 
 	Strategy interface {
 		IsValid(name string) bool
-		NextName(prevName string, comp NameComponent) (string, error)
+		NextName(prevName string, bump Bump) (string, error)
 
 		// IsVersioned reports whether names carry a version. Versioned strategies derive
 		// the publish target from the latest git tag; a non-versioned one (Latest) has a
@@ -88,7 +88,7 @@ func Generate(cfg *project.Project, git *gitctx.GitCtx, opts *Options) (*Release
 		return nil, err
 	}
 
-	nextName, err := strat.NextName(prevName, opts.Component)
+	nextName, err := strat.NextName(prevName, opts.Bump)
 	if err != nil {
 		return nil, err
 	}
@@ -117,7 +117,7 @@ func Create(cfg *project.Project, git *gitctx.GitCtx, rel *Release) error {
 	return nil
 }
 
-func (r *Release) Render() {
+func (r *Release) Changelog() {
 	buildinfo.Header(r.Name)
 	for _, c := range r.Commits {
 		buildinfo.Item(c.Hash + ": " + c.Subject)

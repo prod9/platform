@@ -18,25 +18,25 @@ func (s Semver) IsValid(name string) bool {
 	return semver.IsValid(name)
 }
 
-func (s Semver) NextName(prevName string, comp NameComponent) (string, error) {
+func (s Semver) NextName(prevName string, bump Bump) (string, error) {
 	if prevName == "" {
 		return "v0.1.0", nil
 	}
-	if comp == "" || comp == NameAny {
-		comp = NamePatch
+	if bump == "" || bump == BumpAny {
+		bump = BumpPatch
 	}
 
 	v := semver.Canonical(prevName)
 	parts := strings.Split(v, ".")
-	switch comp {
-	case NamePatch:
+	switch bump {
+	case BumpPatch:
 		n, err := strconv.Atoi(parts[2])
 		if err != nil {
 			return "", fmt.Errorf("%w: bad patch part: %q: %w", ErrBadVersion, parts[2], err)
 		}
 		parts[2] = strconv.Itoa(n + 1)
 
-	case NameMinor:
+	case BumpMinor:
 		n, err := strconv.Atoi(parts[1])
 		if err != nil {
 			return "", fmt.Errorf("%w: bad minor part: %q: %w", ErrBadVersion, parts[1], err)
@@ -44,7 +44,7 @@ func (s Semver) NextName(prevName string, comp NameComponent) (string, error) {
 		parts[1] = strconv.Itoa(n + 1)
 		parts[2] = "0"
 
-	case NameMajor:
+	case BumpMajor:
 		n, err := strconv.Atoi(parts[0][1:])
 		if err != nil {
 			return "", fmt.Errorf("%w: bad major part: %q: %w", ErrBadVersion, parts[0], err)
@@ -54,7 +54,7 @@ func (s Semver) NextName(prevName string, comp NameComponent) (string, error) {
 		parts[2] = "0"
 
 	default:
-		return "", fmt.Errorf("%w: %q", ErrBadVersionComponent, comp)
+		return "", fmt.Errorf("%w: %q", ErrBadVersionBump, bump)
 	}
 
 	return strings.Join(parts, "."), nil

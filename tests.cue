@@ -43,7 +43,7 @@ let testbeds = [...{name: string, dir: string}] &
 				tests: [
 					{
 						// init on a non-"infra" testbed dir takes the app-scaffold path;
-						// the written platform.toml [modules] captures the discovered builder,
+						// the written platform.toml [modules] captures the discovered framework,
 						// so the dropped standalone `discover` command needs no separate test.
 						name: "Init"
 						checks: [
@@ -51,7 +51,7 @@ let testbeds = [...{name: string, dir: string}] &
 							"./testbeds/\(testbed.dir)/platform",
 						]
 						commands: [
-							"./testbed.sh \(testbed.dir) init \"Johnny Appleseed\" \"john@apple.com\" \"github.com/prod9/platform\" \"ghcr.io/prod9/platform\"",
+							"./testbed.sh \(testbed.dir) init \"Johnny Appleseed\" \"john@apple.com\" \"github.com/prod9/platform\"",
 						]
 					},
 					{
@@ -76,7 +76,7 @@ let testbeds = [...{name: string, dir: string}] &
 			]
 		},
 		{
-			// Exercises the platform/infra builder end to end: render apps/ and pack the
+			// Exercises the Infra framework end to end: render apps/ and pack the
 			// manifest tree into a FROM scratch image. A clean exit means the render fed a
 			// buildable image (scratch has no shell, so we can't ls inside it; the Render
 			// test above already snapshots the rendered contents).

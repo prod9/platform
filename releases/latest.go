@@ -13,7 +13,7 @@ const latestName = "latest"
 
 func (Latest) IsValid(name string) bool { return name == latestName }
 
-func (Latest) NextName(prevName string, comp NameComponent) (string, error) {
+func (Latest) NextName(prevName string, bump Bump) (string, error) {
 	return latestName, nil
 }
 

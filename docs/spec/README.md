@@ -21,15 +21,17 @@ superseded moves to `../scratch/` — `spec/` holds current design only, never h
 
 - [`architecture.md`](architecture.md) — the build pipeline (parse → interpret → engine)
   and the object model: `BuildAttempt`/`BuildUnit`, package layout, data-vs-behavior rules.
-- [`builders.md`](builders.md) — the builder catalog and order-sensitive discovery, the
-  `Builder` interface, layouts/classes, the Wolfi base, and the Go test-in-build gate.
+- [`frameworks.md`](frameworks.md) — the framework catalog and order-sensitive discovery,
+  the `Framework` interface (`Discover`/`Scaffold`/`Build`), layouts/classes, the Wolfi
+  base, and the Go test-in-build gate.
 - [`engine.md`](engine.md) — the Dagger execution layer: the `Engine` client pool over
   discovered runners, `Multiplexer` fan-out, `Build`/`Publish`/`BuildAndPublish`, registry
   creds, arch targets.
 - [`releases.md`](releases.md) — release strategies (semver/datestamp/timestamp/latest),
   `Generate` vs `Create`, tag-history recovery, and release⊥publish orthogonality.
-- [`scaffold-baseline.md`](scaffold-baseline.md) — `init`'s plan/apply flow and the flat
-  embedded baseline: destination-encoded files, install-time selection, `[ops.vars]` merge.
+- [`scaffolding.md`](scaffolding.md) — `platform init`: the `framework/scaffold` mechanism,
+  the `Infra` framework's unconditional baseline (destination-encoded files, `[ops.vars]`
+  merge), and `cmd/init` orchestration.
 - [`manifest-patch-dsl.md`](manifest-patch-dsl.md) — the line-oriented DSL for adapting
   foreign Kubernetes manifests: verbs, path grammar, `\(var)` interpolation.
 - [`config-allocation.md`](config-allocation.md) — one owner per config kind across

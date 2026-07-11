@@ -14,6 +14,6 @@ func (d Timestamp) IsValid(name string) bool {
 	return timeref.IsValid(name)
 }
 
-func (d Timestamp) NextName(prevName string, comp NameComponent) (string, error) {
+func (d Timestamp) NextName(prevName string, bump Bump) (string, error) {
 	return timeref.Now(), nil
 }

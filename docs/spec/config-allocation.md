@@ -21,15 +21,15 @@ below is chosen to preserve this.
 Top (closest to the human) to bottom (closest to the metal). One owner each.
 
 - **platform server** (in-cluster, pod SA, Postgres) — the control plane. Owns Project
-  entities, identity/RBAC/access, audit, secret *values*, deploy history. Three clients of
+  entities, identity/RBAC/access, audit, secret *values*, delivery history. Three clients of
   one API: **UI** (SvelteKit), **CLI**, **OpenTofu provider** — same backbone, no separate
   state.
 - **`platform.toml`** (in each source repo, git) — per-repo build/project metadata + the
   infra pointer + which Project it binds to. Changes with the code.
 - **`infra/` repo|path** (CUE, git) — the cluster's desired state: app image refs (committed
   literals the operator hand-edits — platform never rewrites this CUE), components, replicas, and
-  per-env instances separated by k8s namespace. The thing CI renders (via the linked CUE engine,
-  no `cue` binary). No committed rendered YAML.
+  per-env instances separated by k8s namespace. The thing CI renders (via the linked CUE
+  evaluator, no `cue` binary). No committed rendered YAML.
 - **`tf/` repo|path** (OpenTofu, git) — cloud/DNS provisioning (v2.1); not a platform env list.
   Applied **manually, locally**.
 - **OCI registry** — app images (digest-pinned to dodge stale cache) + the rendered config
@@ -39,12 +39,13 @@ Top (closest to the human) to bottom (closest to the metal). One owner each.
 - **`platform-init`** (embedded in the tool) — the cluster baseline: Flux, cert-manager,
   NGF, the Dagger engine, platform itself. **Embedded** in platform (not a separate repo)
   as a **flat list** of `.cue` apps + `.platform` directives, **destination-encoded by name**;
-  `init` installs each operator-chosen file to the destination its name encodes — the repo
-  root, `apps/` (render-able components), or the mandatory `defaults/` package (shared defs like
-  `#Basics`, imported by `apps/`). Seeded once (manual), then Flux-reconciled (except Flux's own
-  lifecycle — never self-managed). See the
-  [appliance ADR](../decisions/2026-06-17-opinionated-appliance-embedded-init.md) and the
-  [flat-baseline ADR](../decisions/2026-06-22-flat-baseline-install-time-selection.md).
+  the `Infra` framework installs the **full baseline unconditionally**, each file to the
+  destination its name encodes — the repo root, `apps/` (render-able components), or the
+  mandatory `defaults/` package (shared defs like `#Basics`, imported by `apps/`). Seeded once
+  (manual), then Flux-reconciled (except Flux's own lifecycle — never self-managed). See the
+  [appliance ADR](../decisions/2026-06-17-opinionated-appliance-embedded-init.md), the
+  [flat-baseline ADR](../decisions/2026-06-22-flat-baseline-install-time-selection.md), and
+  [baseline-dissolves-into-infra-framework](../decisions/2026-07-11-baseline-dissolves-into-infra-framework.md).
 
 ## Allocation table
 
@@ -56,32 +57,33 @@ Top (closest to the human) to bottom (closest to the metal). One owner each.
 | Identity, linked accounts, audit      | platform server  | Postgres (`users`/`identities`) |
 | Secret *values*                       | platform server  | Postgres, encrypted at rest     |
 | Secret *references*                   | `infra/`         | CUE (init-container pulls)      |
-| Desired state (image, replicas, env)  | `infra/`         | CUE (linked engine) → OCI       |
+| Desired state (image, replicas, env)  | `infra/`         | CUE (linked evaluator) → OCI    |
 | App image (the container)             | OCI registry     | digest-pinned tag               |
 | Config artifact (Flux source)         | OCI registry     | moving tag (git = record)       |
 | What's deployed where, drift          | Flux             | reconciles from OCI             |
-| Cluster baseline (Flux/CM/NGF/engine) | embedded         | files → `apps/`,`defaults/`,root |
+| Cluster baseline (Flux/CM/NGF/engine) | `Infra` framework | files → `apps/`,`defaults/`,root |
 | Cloud / DNS                           | `tf/` (**v2.1**) | OpenTofu                        |
 
 ## Repos & artifacts
 
 - **source repo** — app code + `platform.toml`. App CI (Dagger) builds the immutable
   image.
-- **`infra/`** — the desired-state CUE. CI (= platform) renders via the linked CUE engine → the
+- **`infra/`** — the desired-state CUE. CI (= platform) renders via the linked CUE evaluator → the
   `k8s/` manifest tree → pushed as the OCI config artifact under a **moving** tag (git history is
   the record). App image refs *inside* are committed literals, digest-pinned to dodge stale cache.
 - **`tf/`** — OpenTofu cloud/DNS provisioning (v2.1); manual local apply. Not a platform env list.
 - **`platform-init`** — cluster baseline, **embedded in the tool** as a flat, destination-encoded
-  file list; `init` installs each chosen file to the destination its name encodes (repo root,
-  `apps/`, or the mandatory `defaults/` package); one manual seed, then Flux.
+  file list owned by the `Infra` framework; `init` installs the full baseline unconditionally,
+  each file to the destination its name encodes (repo root, `apps/`, or the mandatory
+  `defaults/` package); one manual seed, then Flux.
 
-## Deploy flow (where the surfaces meet)
+## Delivery flow (where the surfaces meet)
 
 1. App CI builds + pushes the app image (digest-pinned).
 2. The operator **hand-edits** the app-image ref in `infra/` CUE and commits — platform never
    rewrites the CUE. The gate is GitHub push permissions on the infra repo (later, the server may
    author the commit as the user via the GitHub App).
-3. `publish` (infra is a builder) builds the manifest tree into a `FROM scratch` image and
+3. `publish` (infra is a framework) builds the manifest tree into a `FROM scratch` image and
    pushes it to the moving tag — the ordinary publish path, no bespoke OCI pusher. See
    [infra-publishes-as-plain-image-retire-oras](../decisions/2026-07-05-infra-publishes-as-plain-image-retire-oras.md).
 4. Flux's `OCIRepository` follows the tag, extracts the layer via `layerSelector` →

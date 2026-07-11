@@ -20,8 +20,8 @@ changelog of commits since the previous one.
 4. `prevName = collection.LatestName(strat)` — the newest existing name the strategy
    recognizes (empty on a first release).
 5. List commits in `prevName..HEAD` (all commits when there is no previous name).
-6. `strat.NextName(prevName, opts.Component)` — the name to cut.
-7. Return a `Release{Name, Message, Commits}`; `Render` prints it for the confirm prompt.
+6. `strat.NextName(prevName, opts.Bump)` — the name to cut.
+7. Return a `Release{Name, Message, Commits}`; `Changelog` prints it for the confirm prompt.
 
 `Create(cfg, git, rel)` performs the git mutation:
 
@@ -39,7 +39,7 @@ read, `Create` is the only writer.
 
 | Strategy    | Name format         | Example          | First release | Increment                              |
 | ----------- | ------------------- | ---------------- | ------------- | -------------------------------------- |
-| `semver`    | `vMAJOR.MINOR.PATCH`| `v1.4.2`         | `v0.1.0`      | bump the requested component           |
+| `semver`    | `vMAJOR.MINOR.PATCH`| `v1.4.2`         | `v0.1.0`      | bump the requested field               |
 | `datestamp` | `vYYYYMMDD[-N]`     | `v20260710-2`    | today's date  | same-day → `-N` counter, else new date |
 | `timestamp` | `vYYYYMMDDHHMM`     | `v202607101432`  | now (minute)  | always `Now()` at minute precision     |
 | `latest`    | `latest` (constant) | `latest`         | `latest`      | never — single fixed name              |
@@ -47,9 +47,9 @@ read, `Create` is the only writer.
 ### semver (`semver.go`)
 
 Backed by `golang.org/x/mod/semver`. `NextName` canonicalizes the previous name and bumps
-one component per `NameComponent`: `NamePatch` (`x.y.Z+1`), `NameMinor` (`x.Y+1.0`),
-`NameMajor` (`vX+1.0.0`). `NameAny` (and empty) defaults to a patch bump. The `release`
-flags map straight onto these — `-p`/`-m`/`--major`.
+one field per `Bump`: `BumpPatch` (`x.y.Z+1`), `BumpMinor` (`x.Y+1.0`), `BumpMajor`
+(`vX+1.0.0`). `BumpAny` (and empty) defaults to a patch bump. The `release` flags map
+straight onto these — `-p`/`-m`/`--major`.
 
 ### datestamp (`datestamp.go`, `dateref/`)
 

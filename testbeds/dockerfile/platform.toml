@@ -8,4 +8,4 @@ excludes = ["*.docker", "*.local", ".dockerignore", ".git", ".github", ".gitigno
   [modules.dockerfile]
     workdir = "."
     timeout = "1m0s"
-    builder = "dockerfile"
+    framework = "dockerfile"

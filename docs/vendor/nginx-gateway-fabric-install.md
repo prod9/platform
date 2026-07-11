@@ -3,15 +3,15 @@
 Lookup facts for the NGINX Gateway Fabric (NGF) + Gateway API baseline install: upstream
 URLs, the firewall-annotation patch, the `serverTokens` workaround, and the
 string-forcing constraint. Live baseline directives:
-[`apps-nginx-gateway.platform`](../../baseline/files/apps-nginx-gateway.platform) (stable)
+[`apps-nginx-gateway.platform`](../../framework/baseline/apps-nginx-gateway.platform) (stable)
 and
-[`apps-nginx-gateway-exp.platform`](../../baseline/files/apps-nginx-gateway-exp.platform)
+[`apps-nginx-gateway-exp.platform`](../../framework/baseline/apps-nginx-gateway-exp.platform)
 (experimental).
 
 **Provenance.** Recipe captured 2026-06-19 from `prod9/infra-cli`
 (`cmd/nginx_gateway_cmd.go`, the CLI platform replaces). Upstream ships plain
 pre-baked YAML — no Helm at render time. Versions below are the pinned defaults; they may
-have moved upstream. Version pins live in `baseline/embed.go` `DefaultVars`
+have moved upstream. Version pins live in `framework/baseline.go` `DefaultVars`
 (interpolated as `\(var)` into the `download` URLs); they are not selection knobs.
 
 ## Upstream sources
@@ -78,7 +78,9 @@ The recipe still matches what platform installs. Differences from the note's pro
   `[field=value]` selectors gone.
 - **Two baseline files, not one.** The note asserted experimental-only with no choice
   group; platform now ships both a stable (`standard-install.yaml`) and an experimental
-  (`experimental-install.yaml`) variant, selected at `init`.
+  (`experimental-install.yaml`) variant. `init` installs the experimental one (the
+  default working set); the stable file ships in the binary for an operator who swaps
+  it in by hand.
 - **String-forcing blocker resolved** via the quoted-literal rule above (no new verb).
 - `[ops.vars]` keys are now uppercase env-style (`NGINX_GATEWAY_FIREWALL_ID`),
   normalized to lowercase for both `\(var)` directives and CUE `@tag` holes.

@@ -2,9 +2,11 @@
 
 **Status:** living spec. Verb set, grammar, lexer, path-walk, `download`/`extract`/`emit`,
 and `\(var)` interpolation are landed and in use; the embedded baseline authors its foreign
-components (cert-manager, NGF, …) as `.platform` files rendered by `render`. Component
-**selection** is a flat baseline + install-time picker — see the
-[flat-baseline ADR](../decisions/2026-06-22-flat-baseline-install-time-selection.md).
+components (cert-manager, NGF, …) as `.platform` files rendered by `render`. The baseline is
+a flat list installed **unconditionally** (no picker); the `Infra` framework owns which
+`.platform` files ship — see the
+[flat-baseline ADR](../decisions/2026-06-22-flat-baseline-install-time-selection.md) and
+[baseline-dissolves-into-infra-framework](../decisions/2026-07-11-baseline-dissolves-into-infra-framework.md).
 **Decided in:**
 [renderer ADR](../decisions/2026-06-16-renderer-cue-export-not-timoni.md),
 [appliance ADR](../decisions/2026-06-17-opinionated-appliance-embedded-init.md).
@@ -17,8 +19,8 @@ that is entirely downstream and out of scope. CUE handles manifests we author; t
 foreign ones. Folded from infra-cli's `pipelines`
 + `pipelines/yamleditor` (~676 LOC incl. tests; the verbs already exist as Go pipeline ops
 — only the directive parser and the field-select path form are new code). Its first
-consumer is the **embedded cluster baseline** (a flat list of `.platform` + `.cue` files,
-selected at `init`), dogfooded against the
+consumer is the **embedded cluster baseline** (a flat list of `.platform` + `.cue` files
+the `Infra` framework installs unconditionally), dogfooded against the
 real `infra` repo (`apps/cert-manager.cue`, `k8s/nginx-gateway`, …).
 
 ## Why a closed vocabulary, not a script
@@ -59,15 +61,16 @@ several components, each `emit` to its own filename. `download`/`extract` replac
 working buffer is fine — the prior component was already captured to its file by `emit`
 before the next `download` overwrites the work area.
 
-**Branch-free by design:** no conditionals, no loops. Which components are installed is
-chosen at **install time**, at **whole-file** granularity — never per-line, so a directive
-file is always read straight through. The embedded baseline is one **flat list** of component
-files (`.platform` directives + `.cue` apps, clean names); `platform init` shows the list
-with a hard-coded `Defaults` set pre-checked (`OptionalMultiSelect`) and writes the operator's
-chosen subset into the target repo's `apps/`. `render` then applies whatever is present,
-routing by extension. There is **no** filename marker grammar (`@variant`, `+flag`), **no**
-render-time gating on `[ops.vars]`, and **no** assembly `Select` step — see the
-[flat-baseline ADR](../decisions/2026-06-22-flat-baseline-install-time-selection.md).
+**Branch-free by design:** no conditionals, no loops. Installation is at **whole-file**
+granularity — never per-line, so a directive file is always read straight through. The
+embedded baseline is one **flat list** of component files (`.platform` directives + `.cue`
+apps, clean names) that the `Infra` framework installs **unconditionally** at `init` — no
+picker, no `Defaults`/`Mandatory` split; an operator prunes what they don't want by editing
+the committed repo afterward. `render` then applies whatever is present, routing by
+extension. There is **no** filename marker grammar (`@variant`, `+flag`), **no** render-time
+gating on `[ops.vars]`, and **no** assembly `Select` step — see the
+[flat-baseline ADR](../decisions/2026-06-22-flat-baseline-install-time-selection.md) and
+[baseline-dissolves-into-infra-framework](../decisions/2026-07-11-baseline-dissolves-into-infra-framework.md).
 
 (Directive files carry the `.platform` extension.)
 
@@ -305,9 +308,9 @@ Its consumers own the surrounding flow, specced elsewhere:
 
 - **`init`** writes the embedded baseline's `.platform` + `.cue` files and default
   `[ops.vars]` into the infra repo, plan-then-apply with the surgical re-init var merge —
-  see [`scaffold-baseline.md`](scaffold-baseline.md).
+  see [`scaffolding.md`](scaffolding.md).
 - **`render`** walks the infra repo's `apps/` and routes by extension: `.cue` → file-map
-  export via the linked CUE engine (no `cue` binary), `.platform` → `dsl.Apply` over every
+  export via the linked CUE evaluator (no `cue` binary), `.platform` → `dsl.Apply` over every
   present directive file. Both land named files in a `k8s/<component>/` tree that the infra
-  builder packs into the published image — see [`architecture.md`](architecture.md) and the
+  framework packs into the published image — see [`architecture.md`](architecture.md) and the
   [render-routing ADR](../decisions/2026-06-18-render-routes-cue-and-platform-by-extension.md).

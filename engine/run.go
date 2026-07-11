@@ -6,7 +6,7 @@ import (
 
 	"dagger.io/dagger"
 	fxconfig "fx.prodigy9.co/config"
-	"platform.prodigy9.co/builder"
+	"platform.prodigy9.co/framework"
 	"platform.prodigy9.co/internal"
 	"platform.prodigy9.co/internal/buildlog"
 	"platform.prodigy9.co/project"
@@ -19,7 +19,7 @@ var ErrNoJobs = errors.New("engine: empty units list, nothing to do")
 // caller's engine instead of opening its own. The local `publish` command drives it now;
 // a tag-watch platform server drives the same unit later.
 func BuildAndPublish(ctx context.Context, cfg *project.Project, args []string, tag string) error {
-	attempt, err := builder.AttemptFrom(cfg, args, builder.PublishBuild)
+	attempt, err := framework.AttemptFrom(cfg, args, framework.PublishBuild)
 	if err != nil {
 		return err
 	}
@@ -55,7 +55,7 @@ var (
 
 type (
 	BuildResult struct {
-		Unit      *builder.BuildUnit
+		Unit      *framework.BuildUnit
 		Container *dagger.Container
 		Err       error
 
@@ -78,15 +78,15 @@ func (r BuildResult) Client() *dagger.Client { return r.client }
 
 // Build runs every unit in attempt on the engine carried by ctx, fanning out one unit per
 // goroutine and round-robining them across the discovered engine fleet.
-func Build(ctx context.Context, attempt *builder.BuildAttempt) ([]BuildResult, error) {
+func Build(ctx context.Context, attempt *framework.BuildAttempt) ([]BuildResult, error) {
 	if len(attempt.Units) == 0 {
 		return nil, ErrNoJobs
 	}
 	eng := FromContext(ctx)
 
-	m := &internal.Multiplexer[*builder.BuildUnit, BuildResult]{}
+	m := &internal.Multiplexer[*framework.BuildUnit, BuildResult]{}
 	m.Reset(attempt.Units)
-	return m.Start(func(idx int, unit *builder.BuildUnit) BuildResult {
+	return m.Start(func(idx int, unit *framework.BuildUnit) BuildResult {
 		client, err := eng.Client(ctx)
 		if err != nil {
 			return BuildResult{Unit: unit, Err: err}
@@ -95,7 +95,7 @@ func Build(ctx context.Context, attempt *builder.BuildAttempt) ([]BuildResult, e
 		unitCtx, cancel := context.WithTimeout(ctx, unit.Timeout)
 		defer cancel()
 
-		container, err := unit.Builder.Build(unitCtx, client, unit)
+		container, err := unit.Framework.Build(unitCtx, client, unit)
 		if err != nil {
 			return BuildResult{Unit: unit, Err: err, client: client}
 		}

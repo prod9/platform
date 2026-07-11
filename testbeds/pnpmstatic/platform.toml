@@ -8,4 +8,4 @@ excludes = ["*.docker", "*.local", ".dockerignore", ".git", ".github", ".gitigno
   [modules.pnpmstatic]
     workdir = "."
     timeout = "1m0s"
-    builder = "pnpm/static"
+    framework = "pnpm/static"

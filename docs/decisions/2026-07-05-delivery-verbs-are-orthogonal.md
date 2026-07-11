@@ -3,6 +3,11 @@
 Date: 2026-07-05
 Status: **accepted**
 
+> **Vocabulary note.** Written in `ops publish` / `ops render` terms; the `ops` prefix was
+> flattened the same day (see
+> [infra-publishes-as-plain-image-retire-oras](2026-07-05-infra-publishes-as-plain-image-retire-oras.md)) —
+> read them as `publish` / `render`. Every ruling stands.
+
 ## The ruling
 
 `release` and `publish` are **orthogonal** app-image verbs — neither implies the other. There

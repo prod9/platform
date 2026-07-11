@@ -83,7 +83,7 @@ not the abandoned `../infra`. Live on stage9 as `ghcr.io/prod9/platform:v0.8.3` 
 digest-pinned).
 
 **Node/pnpm provisioning is deliberate — never "simplify" it to distro packages.** pnpm
-builders take Node from the official nodejs.org build via tj/n, and pnpm via Node's own
+frameworks take Node from the official nodejs.org build via tj/n, and pnpm via Node's own
 corepack — **never** `apk add nodejs`/`corepack`. Node, corepack, pnpm, and the distro are
 four uncoordinated maintainer groups; sourcing Node from the distro adds a party whose
 repackaging borks the seams downstream (linux-wifi-driver style). Stay closest to the
@@ -126,7 +126,7 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
 
 | Cmd | Purpose |
 |-----------|------------------------------------------------------------------|
-| init      | Scaffold a repo — app (`platform.toml` + script) or, in an `infra`-named repo, the full GitOps baseline. Alias `scaffold`. |
+| init      | Scaffold a repo via the discovered framework's `Scaffold` (app: `platform.toml` + launcher; infra: + the full GitOps baseline). Alias `scaffold`. |
 | build     | Build container(s) for module(s) via Dagger.                     |
 | configure | Print effective parsed config.                                   |
 | exec      | Run a command in, or shell into, the built container; bare+piped prints a summary (debugging). |
@@ -141,23 +141,38 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
 
 ### Packages
 
-- `project/` — `platform.toml` parser. `Project` (maintainer, repository, strategy,
-  excludes, modules, `[ops]`) and `Module` (workdir, builder, env, port,
-  cmd, args, asset_dirs, build_dir, image, package). `[ops]` (`Ops.Image`/`Tag`) is the
+- `project/` — owns `platform.toml`: parse, generate, merge. `Project` (maintainer,
+  repository, strategy, excludes, modules, `[ops]`) and `Module` (workdir, framework —
+  legacy `builder` key read as a deprecated alias — env, port, cmd, args, asset_dirs,
+  build_dir, image, package). `[ops]` (`Ops.Image`/`Tag`) is the
   `publish` target — inferred from `repository` (`ghcr.io/x`) with `tag` defaulting to
   `latest`; `Ops.Ref(tag)` resolves the ref. `Ops.Vars` (`[ops.vars]`) is the verbatim DSL
   `\(var)` table — a generic `map[string]any` (values keep their TOML type), pure passthrough
   (no defaults/inference).
   `Configure(wd)` walks up to find file,
   applies defaults, env overrides (`PLATFORM`), and inferred values (e.g. `ghcr.io` image
-  name from `github.com` repository).
-- `builder/` — Dagger-based build pipeline.
-  - `Interface`: `Name/Layout/Class/Discover/Build`.
+  name from `github.com` repository). `Generate` writes a fresh `platform.toml`; re-init
+  folds default `[ops.vars]` in via the surgical line-by-line merge (append new keys,
+  preserve operator values + comments/order — never decode/re-encode).
+- `framework/` — a `Framework` is the **sole owner of a project
+  type**: it recognizes itself, scaffolds itself, builds itself. See
+  [spec/frameworks.md](docs/spec/frameworks.md) + [spec/scaffolding.md](docs/spec/scaffolding.md).
+  - Contract: `Name/Layout/Discover/Scaffold/Build`. Runtime shape is a descriptive
+    taxonomy in prose (native/bytecode/interpreted/static/custom), not a contract method.
   - Layouts: `basic` (single module) | `workspace` (multi-module).
-  - Classes (runtime shape): `native` (Go/Rust) | `bytecode` (JVM-likes) | `interpreted`
-    (Node/Ruby) | `static` (served bundles: Astro) | `custom` (Dockerfile).
-  - Known builders (order-sensitive for discovery): `GoWorkspace`, `PNPMWorkspace`,
-    `GoBasic`, `PNPMStatic`, `PNPMBasic`, `Dockerfile`.
+  - Known frameworks (order-sensitive for discovery, `Infra` first): `Infra`,
+    `GoWorkspace`, `PNPMWorkspace`, `GoBasic`, `PNPMStatic`, `PNPMBasic`, `Dockerfile`.
+    `FindFramework(name)` resolves the `[modules]` `framework` key at build time — the
+    build path never re-discovers.
+  - `framework/scaffold/` — the **one** files/templating mechanism (`scaffold.Spec`/
+    `scaffold.File`; `.tmpl` renders via `text/template` `missingkey=error`, everything
+    else passes verbatim). No standalone `scaffold/` or `baseline/` package.
+  - The `Infra` framework embeds the cluster baseline: files destination-encoded by name
+    (`apps-*` → `apps/`, `defaults-*` → `defaults/`, else repo root), `DefaultVars` =
+    version pins only. It installs **unconditionally** — no install-time picker; registry
+    creds ship as empty placeholders in committed CUE, never prompted. It seeds
+    `strategy = "latest"` and needs a fresh git repo — no `IsInfra` predicate anywhere,
+    the app/infra difference is pure `Scaffold` polymorphism.
   - `base.go` — Wolfi base image (`cgr.dev/chainguard/wolfi-base`), apk cache mount,
     `CacheBuster` const for global cache invalidation.
 - `engine/` — the Dagger execution layer. `New`/`NewContext` open an `Engine` (a client
@@ -166,21 +181,20 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
   build+tag+push unit that `publish` drives now and a tag-watch server drives later
   (see the [delivery-verbs ADR](docs/decisions/2026-07-05-delivery-verbs-are-orthogonal.md)).
   Registry creds via fx env config: `REGISTRY`, `REGISTRY_USERNAME`, `REGISTRY_PASSWORD`.
-- `scaffold/` — Embeds the `platform.template`; discovers builders, writes
-  `platform.toml` and an executable `platform` script. `Analyze` (app repo; existing-git
-  hard gate) and `AnalyzeInit` (infra repo; creates git, adds cue.mod) compute a `Plan`
-  (files to write/overwrite, baseline vars appended/preserved) without mutating; `Plan.Apply`
-  writes it. Re-init merges `[ops.vars]` surgically (`mergeOpsVars`: append new default
-  keys, preserve operator values + comments/order) rather than clobbering platform.toml. The
-  `init` cmd (dir named `infra` → infra path, else app) prints the plan and confirms (fx
-  prompt); `--force` applies unprompted. Collapsing the two Analyze paths is a deferred task.
-- `releases/` — Release strategies: `semver`, `timestamp`, `datestamp`. `Generate`
-  diffs commits since last tag, `Create` tags + pushes. `collection.go` recovers
-  history from git tags. `dateref`/`timeref` subpackages parse the datestamp/timestamp
-  ref formats.
+- `cmd/init` — the scaffold orchestration (plan-then-apply): gather operator inputs →
+  `framework.Discover(wd)` → `fw.Scaffold` → print plan → confirm → write (creating the
+  git repo first when the spec asks). `ALWAYS_YES=1` drives it non-interactively;
+  `--force` means **replace existing files** (write disposition), not prompt suppression.
+- `releases/` — Release strategies: `semver`, `timestamp`, `datestamp`, `latest`
+  (non-versioned: cuts **no git tag** — its moving marker is the registry image tag).
+  `Generate` diffs commits since last tag, `Changelog` formats them, `Create` tags +
+  pushes. Bump vocab: `BumpAny/Patch/Minor/Major` (flags `-p`/`-m`/`--major`).
+  `collection.go` recovers history from git tags. `dateref`/`timeref` subpackages parse
+  the datestamp/timestamp ref formats.
 - `gitctx/` — Wraps `gitcmd/` shell helpers; caches current branch and tracking
-  remote via `sync.OnceValues`. Distinguishes version tags (annotated, push) vs
-  environment tags (force-updated, force-pushed).
+  remote via `sync.OnceValues`. Version tags are annotated and pushed once,
+  non-forcefully — git holds only immutable version tags; the moving `latest` reference
+  is a registry concern, not a force-pushed tag.
 - `dsl/` — manifest patch DSL (Slices D1–D2): a hermetic, line-oriented directive
   language for adapting foreign Kubernetes manifests. `Apply(directives, Options)` runs
   directives against a two-state buffer (raw bytes after `download`/`extract`, decoded
@@ -194,33 +208,20 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
   (`download` via `Options.Fetch`, `extract` magic-byte gzip/zip/tar, `emit` truncate-write
   under `Options.OutDir`). Checksum guard deferred past D2. Spec:
   [`docs/spec/manifest-patch-dsl.md`](docs/spec/manifest-patch-dsl.md).
-- `baseline/` — the embedded cluster baseline: the built-in component files platform
-  installs into a fresh infra repo. **No marker grammar, no render-time gating** (simplified
-  2026-06-22 — see the [flat-baseline ADR](docs/decisions/2026-06-22-flat-baseline-install-time-selection.md)).
-  `EmbeddedFiles` is one flat list of `files/*` (both `.platform` directives and `.cue` apps),
-  **destination-encoded by name** (`apps-*`, `defaults-*`, root); `Defaults` is the hard-coded
-  working set pre-checked at init. `DefaultVars` is version pins only (interpolated into
-  `download` URLs — selection is **not** a var). Selection is **install-time**: `platform init`'s
-  picker (`OptionalMultiSelect`) installs each chosen file to the destination its name encodes —
-  the repo root, `apps/` (render-able components), or the mandatory `defaults/` package (shared
-  defs like `#Basics`, imported by `apps/`). `render` applies whatever is present under
-  `apps/`, routing by extension — `renderCue` (`.cue` → linked CUE engine, no `cue` binary) and
-  `renderDirectives` (`.platform` → `dsl.Apply`, emitting into `k8s/<stem>/`) — into one `k8s/`
-  tree (see the
-  [render-routing ADR](docs/decisions/2026-06-18-render-routes-cue-and-platform-by-extension.md)).
 - `gitops/` — infra manifest rendering (the publish half retired with oras). `Render` walks
   `apps/` and routes by extension into one `k8s/<component>/<file>` tree: `.cue` → file-map
-  export via the linked CUE engine (`exportCue`), `.platform` → `dsl.Apply`. `[ops.vars]` feed
+  export via the linked CUE evaluator (`exportCue`, in-process — no `cue` binary),
+  `.platform` → `dsl.Apply`. `[ops.vars]` feed
   both routes — CUE `@tag(name)` holes (only the names a `@tag` actually declares are injected;
   the rest are directive-only) and directive `\(var)`. The image ref is a **committed CUE
   literal**, never injected (see the
   [committed-image correction ADR](docs/decisions/2026-06-26-render-is-pure-function-of-committed-git.md)).
-  Wired as `platform render`; the `platform/infra` builder packs this tree into the published
+  Wired as `platform render`; the `Infra` framework packs this tree into the published
   image, pushed by the ordinary `publish` (oras retired — see the
   [plain-image ADR](docs/decisions/2026-07-05-infra-publishes-as-plain-image-retire-oras.md)).
 - `internal/` — `buildlog` (build/CLI structured logger), `multiplexer` (parallel job
   runner), `timeouts` (TOML duration).
-- `testbeds/` — Sample projects per builder type, exercised by smoke tests.
+- `testbeds/` — Sample projects per framework, exercised by smoke tests.
 
 ### Testing
 
@@ -235,7 +236,7 @@ skip-tests opt-out will be added (opinionated flow, not CI phases). See the
 Two suites, at different layers:
 
 - **`go test ./...`** — hermetic unit tests (no docker/network, fresh-clone runnable). Runs
-  inside **every image build** (the `Go*` builder gate) and locally on demand.
+  inside **every image build** (the `Go*` framework gate) and locally on demand.
 - **`./test.sh`** — blackbox smoke (`chakrit/smoke`): drives the built binary through Dagger
   against the testbeds; **needs docker**. Runs on the host, manually / pre-publish — the
   drift detector detailed below.

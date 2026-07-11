@@ -50,7 +50,7 @@ func runPublish(cmd *cobra.Command, args []string) {
 			buildlog.Fatalln(err)
 		}
 		name = rel.Name
-	} else if name, err = strat.NextName("", releases.NameAny); err != nil {
+	} else if name, err = strat.NextName("", releases.BumpAny); err != nil {
 		buildlog.Fatalln(err)
 	}
 

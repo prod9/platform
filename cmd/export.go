@@ -5,8 +5,8 @@ import (
 
 	fxconfig "fx.prodigy9.co/config"
 	"github.com/spf13/cobra"
-	"platform.prodigy9.co/builder"
 	"platform.prodigy9.co/engine"
+	"platform.prodigy9.co/framework"
 	"platform.prodigy9.co/internal/buildlog"
 	"platform.prodigy9.co/project"
 )
@@ -23,7 +23,7 @@ func runExport(cmd *cobra.Command, args []string) {
 		buildlog.Fatalln(err)
 	}
 
-	attempt, err := builder.AttemptFrom(cfg, args, builder.LocalBuild)
+	attempt, err := framework.AttemptFrom(cfg, args, framework.LocalBuild)
 	if err != nil {
 		buildlog.Fatalln(err)
 	}

@@ -1,8 +1,16 @@
 # Platform is an opinionated appliance; the baseline is embedded, shipped as an init DSL
 
-- **Status:** accepted
+- **Status:** accepted (rulings stand; mechanics partially superseded — see note)
 - **Date:** 2026-06-17
 - **From:** Slice 1 close-out discussion (chakrit)
+
+> **Partial supersession.** The rulings hold: platform is an opinionated appliance, the
+> baseline is embedded and version-locked, foreign installs are DSL directives, the files
+> are written into the infra repo (write-once-then-operator-owns). The mechanics are
+> historical: there is no `bootstrap` verb or `bootstrapper/` package — scaffolding is
+> `platform init` via the `Infra` framework + `framework/scaffold/`
+> ([2026-07-11](2026-07-11-baseline-dissolves-into-infra-framework.md)); `ops render` is
+> now `render`.
 
 ## Context
 

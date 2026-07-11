@@ -76,7 +76,7 @@ that spawns one goroutine per input, collects results index-aligned under a mute
 
 Each goroutine calls `Engine.Client(ctx)`, which round-robins the cursor over the
 currently-discovered hosts — so units spread across the fleet. `Build` wraps each unit in
-`context.WithTimeout(ctx, unit.Timeout)`, invokes `unit.Builder.Build`, then `Sync`s the
+`context.WithTimeout(ctx, unit.Timeout)`, invokes `unit.Framework.Build`, then `Sync`s the
 container to force the work eagerly. A per-unit failure is captured on that unit's
 `BuildResult.Err`, never aborting its siblings.
 
@@ -132,9 +132,9 @@ docker login to ghcr. The env creds are for a server driver with no local docker
 
 ## Arch targets
 
-The unit's `Platform` is resolved at interpret time from the attempt's `Purpose`
-([`builder/unit.go`](../../builder/unit.go)) — the engine reads the field, never a call
-argument:
+The unit's `Arch` is resolved at interpret time from the attempt's `Purpose`
+([`framework/unit.go`](../../framework/unit.go)) — the engine reads the field, never a
+call argument:
 
 | Purpose        | Arch source    | Default             |
 | -------------- | -------------- | ------------------- |

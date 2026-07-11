@@ -21,7 +21,7 @@ type (
 
 		// LocalArch is the arch for local builds (build/preview/export/ls) —
 		// "auto" tracks the host for fast native iteration. PublishArch is the arch
-		// for server-bound builds (publish/deploy) — defaults to amd64 so an arm
+		// for server-bound builds (publish) — defaults to amd64 so an arm
 		// laptop never ships an unrunnable image. Values are bare archs
 		// (auto|amd64|arm64); the OS is always linux. Platform is the deprecated
 		// single-target key (a full linux/arch string), kept for backward
@@ -38,9 +38,13 @@ type (
 	}
 
 	Module struct {
-		WorkDir string           `toml:"workdir,omitempty"` // the directory we'll be working in
-		Timeout timeouts.Timeout `toml:"timeout,omitempty"`
-		Builder string           `toml:"builder,omitempty"`
+		WorkDir   string           `toml:"workdir,omitempty"` // the directory we'll be working in
+		Timeout   timeouts.Timeout `toml:"timeout,omitempty"`
+		Framework string           `toml:"framework,omitempty"`
+
+		// Builder is the deprecated legacy key for Framework — read as an alias
+		// (assignDefaults folds it in and clears it), never written.
+		Builder string `toml:"builder,omitempty"`
 
 		// container settings
 		Env         map[string]string `toml:"env,omitempty"`
@@ -73,7 +77,6 @@ var (
 			".svelte-kit",
 			".vscode",
 			"build",
-			"deploy",
 			"dist",
 			"node_modules",
 			"platform.toml",
@@ -128,9 +131,20 @@ func (p *Project) assignDefaults() {
 		p.PublishArch = ProjectDefaults.PublishArch
 	}
 
-	for _, mod := range p.Modules {
+	for name, mod := range p.Modules {
 		if mod.Timeout <= 0 {
 			mod.Timeout = ModuleDefaults.Timeout
+		}
+
+		// Fold the deprecated `builder` key into `framework`; the canonical key wins
+		// when both appear. Cleared so a re-encode emits only `framework`. The
+		// deprecation note fires whenever the old key is read, folded or dropped.
+		if mod.Builder != "" {
+			buildlog.Config("modules."+name+".builder", "deprecated — rename the key to `framework`")
+			if mod.Framework == "" {
+				mod.Framework = mod.Builder
+			}
+			mod.Builder = ""
 		}
 	}
 }

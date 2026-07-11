@@ -65,8 +65,10 @@ the part that prevents re-litigation.
 
 Newest first.
 
+- [2026-07-11 — Terminology lexicon: one word, one concept](2026-07-11-terminology-lexicon.md)
+- [2026-07-11 — Baseline installs unconditionally; dissolves into the Infra framework](2026-07-11-baseline-dissolves-into-infra-framework.md)
 - [2026-07-05 — Infra publishes as a plain Dagger image; retire oras-go](2026-07-05-infra-publishes-as-plain-image-retire-oras.md)
-- [2026-07-05 — Delivery verbs are orthogonal; one publish engine, two drivers](2026-07-05-delivery-verbs-are-orthogonal.md)
+- [2026-07-05 — Delivery verbs are orthogonal; one publish engine, two drivers](2026-07-05-delivery-verbs-are-orthogonal.md) *(read `ops publish`/`ops render` as `publish`/`render`)*
 - [2026-07-05 — Test-in-build is a hard gate; blackbox-first testing](2026-07-05-test-in-build-is-a-hard-gate.md)
 - [2026-07-05 — Platform FHS container layout; cmd is the runtime command](2026-07-05-platform-fhs-container-layout.md)
 - [2026-06-29 — Platform server: GitHub App, zero platform RBAC](2026-06-29-platform-server-github-app-zero-rbac.md)
@@ -74,11 +76,11 @@ Newest first.
 - [2026-06-26 — Repo stays private for now](2026-06-26-repo-stays-private.md)
 - [2026-06-24 — Split build and server log channels](2026-06-24-split-build-and-server-log-channels.md)
 - [2026-06-23 — Render via the linked CUE engine](2026-06-23-render-via-linked-cue-engine.md)
-- [2026-06-22 — Flat baseline, install-time selection](2026-06-22-flat-baseline-install-time-selection.md)
+- [2026-06-22 — Flat baseline, install-time selection](2026-06-22-flat-baseline-install-time-selection.md) *(picker half superseded by 2026-07-11)*
 - [2026-06-21 — Dagger engine: StatefulSet + TCP](2026-06-21-dagger-engine-statefulset-tcp.md)
 - [2026-06-20 — DSL: focus scope, strict values](2026-06-20-dsl-focus-scope-strict-values.md)
-- [2026-06-18 — Render routes .cue and .platform by extension](2026-06-18-render-routes-cue-and-platform-by-extension.md)
-- [2026-06-17 — Opinionated appliance, embedded init](2026-06-17-opinionated-appliance-embedded-init.md)
+- [2026-06-18 — Render routes .cue and .platform by extension](2026-06-18-render-routes-cue-and-platform-by-extension.md) *(rulings stand; `baseline.Select`/marker-grammar mechanics superseded)*
+- [2026-06-17 — Opinionated appliance, embedded init](2026-06-17-opinionated-appliance-embedded-init.md) *(rulings stand; `bootstrap`/`bootstrapper` mechanics superseded)*
 - [2026-06-17 — Generic ops vars, single config](2026-06-17-generic-ops-vars-single-config.md)
 - [2026-06-16 — Renderer: cue export, not timoni](2026-06-16-renderer-cue-export-not-timoni.md)
 - [2026-06-14 — Secrets: platform-pull](2026-06-14-secrets-platform-pull.md)

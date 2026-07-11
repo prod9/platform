@@ -8,4 +8,4 @@ excludes = ["*.docker", "*.local", ".dockerignore", ".git", ".github", ".gitigno
   [modules.pnpmbasic]
     workdir = "."
     timeout = "1m0s"
-    builder = "pnpm/basic"
+    framework = "pnpm/basic"

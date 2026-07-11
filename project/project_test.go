@@ -93,3 +93,31 @@ func testProject(modCount int) *Project {
 	}
 	return proj
 }
+
+func TestModule_frameworkKeyAlias(t *testing.T) {
+	// The [modules] key is `framework`; the legacy `builder` key survives as a
+	// deprecated read-alias so existing platform.tomls keep working.
+	decode := func(body string) *Project {
+		proj := &Project{}
+		_, err := toml.Decode(body, proj)
+		r.NoError(t, err)
+		proj.assignDefaults()
+		return proj
+	}
+
+	proj := decode("[modules.app]\nframework = \"go/basic\"\n")
+	r.Equal(t, "go/basic", proj.Modules["app"].Framework)
+
+	proj = decode("[modules.app]\nbuilder = \"go/basic\"\n")
+	r.Equal(t, "go/basic", proj.Modules["app"].Framework, "legacy builder key must alias")
+
+	// When both appear the canonical key wins.
+	proj = decode("[modules.app]\nframework = \"go/basic\"\nbuilder = \"pnpm/basic\"\n")
+	r.Equal(t, "go/basic", proj.Modules["app"].Framework)
+
+	// Normalization clears the alias so a re-encode emits only `framework`.
+	var buf strings.Builder
+	r.NoError(t, toml.NewEncoder(&buf).Encode(proj))
+	r.Contains(t, buf.String(), "framework = ")
+	r.NotContains(t, buf.String(), "builder = ")
+}

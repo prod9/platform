@@ -47,13 +47,13 @@ func runReleaseCmd(cmd *cobra.Command, args []string) {
 	opts := &releases.Options{Force: forceRelease}
 	switch {
 	case bumpPatch:
-		opts.Component = releases.NamePatch
+		opts.Bump = releases.BumpPatch
 	case bumpMinor:
-		opts.Component = releases.NameMinor
+		opts.Bump = releases.BumpMinor
 	case bumpMajor:
-		opts.Component = releases.NameMajor
+		opts.Bump = releases.BumpMajor
 	default:
-		opts.Component = releases.NameAny
+		opts.Bump = releases.BumpAny
 	}
 
 	cfg, err := project.Configure(".")
@@ -68,7 +68,7 @@ func runReleaseCmd(cmd *cobra.Command, args []string) {
 		buildlog.Fatalln(err)
 	}
 
-	rel.Render()
+	rel.Changelog()
 	sess := prompts.New(nil, nil)
 	if !sess.YesNo("create this release?") {
 		return

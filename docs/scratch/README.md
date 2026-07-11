@@ -35,9 +35,13 @@ Newest first. Scratch is disposable, so this list may lag — the directory is t
 
 **Live** — work in flight or current entry point:
 
-- [2026-07-10 — Resume breadcrumb (latest)](2026-07-10-resume.md)
+- [2026-07-11 — Resume breadcrumb (latest)](2026-07-11-resume.md)
+- [2026-07-11 — Terminology pass + spec audit plan
+  (complete)](2026-07-11-terminology-docs-audit-plan.md)
+- [2026-07-10 — Resume breadcrumb (superseded)](2026-07-10-resume.md)
 - [2026-07-09 — fx handoff: slog LogValuer resolving sink](2026-07-09-fx-handoff-slog-logvaluer-sink.md)
-- [2026-07-08 — Project-centric builder refactor plan (pending)](2026-07-08-builder-refactor-plan.md)
+- [2026-07-08 — Project-centric framework refactor plan (pending; incl. terminology
+  addendum)](2026-07-08-builder-refactor-plan.md)
 - [2026-07-09 — Resume breadcrumb (superseded)](2026-07-09-resume.md)
 
 **Retained for provenance** — superseded content, but cited as the evidentiary record by a

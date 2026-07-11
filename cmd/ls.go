@@ -9,8 +9,8 @@ import (
 	"dagger.io/dagger"
 	fxconfig "fx.prodigy9.co/config"
 	"github.com/spf13/cobra"
-	"platform.prodigy9.co/builder"
 	"platform.prodigy9.co/engine"
+	"platform.prodigy9.co/framework"
 	"platform.prodigy9.co/internal/buildlog"
 	"platform.prodigy9.co/project"
 )
@@ -27,7 +27,7 @@ func runList(cmd *cobra.Command, args []string) {
 		buildlog.Fatalln(err)
 	}
 
-	attempt, err := builder.AttemptFrom(cfg, args, builder.LocalBuild)
+	attempt, err := framework.AttemptFrom(cfg, args, framework.LocalBuild)
 	if err != nil {
 		buildlog.Fatalln(err)
 	}
@@ -51,10 +51,10 @@ func runList(cmd *cobra.Command, args []string) {
 			Exclude: preview.Excludes,
 		})
 
-	stdout, err := builder.BaseImageForUnit(client, preview).
+	stdout, err := framework.BaseImageForUnit(client, preview).
 		WithExec([]string{"apk", "add", "--no-cache", "tree"}).
-		WithDirectory(builder.SrcDir, moddir).
-		WithExec([]string{"tree", "-L", "2", builder.SrcDir}).
+		WithDirectory(framework.SrcDir, moddir).
+		WithExec([]string{"tree", "-L", "2", framework.SrcDir}).
 		Stdout(ctx)
 	if err != nil {
 		buildlog.Fatalln(err)

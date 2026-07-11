@@ -30,12 +30,12 @@ End-to-end, verbs and artifacts:
    they can reach.
 3. **Build.** A code push builds the app image (Dagger) → an **immutable** tag in the
    registry. (CI reflex; also runnable via `platform build`.)
-4. **Deploy (gated).** An authorized user changes the app-image ref in the app's `infra/` CUE —
+4. **Commit the new ref (gated).** An authorized user changes the app-image ref in the app's `infra/` CUE —
    hand-edited and committed, or (later) the server authoring that commit **as the user** via the
    GitHub App. The gate is the user's GitHub push permission on the infra repo; the commit is the
    record. Platform never rewrites the operator's CUE. There is no `deploy` verb.
-5. **Render + publish.** Infra is a builder: it renders the `infra/` CUE via the **linked CUE
-   engine** (`cuelang.org/go`, in-process — no `cue` binary) over infra-defs, packs the
+5. **Render + publish.** Infra is a framework: it renders the `infra/` CUE via the **linked
+   CUE evaluator** (`cuelang.org/go`, in-process — no `cue` binary) over infra-defs, packs the
    **rendered manifests** into a `FROM scratch` image, and `publish` pushes it under a
    **moving** tag — the ordinary Dagger publish path, no bespoke OCI pusher (see
    [infra-publishes-as-plain-image-retire-oras](../decisions/2026-07-05-infra-publishes-as-plain-image-retire-oras.md)).
@@ -49,13 +49,13 @@ End-to-end, verbs and artifacts:
    short-lived SA token (exec-credential plugin), and see reconcile status in the UI (Flux CR
    status).
 9. **Bootstrap.** Cloud resources come from `tf/` (OpenTofu, manual local apply in v2);
-   multi-env is infra-repo CUE + namespacing, not a platform target list. Platform writes the
-   operator-chosen subset of its embedded baseline into the infra repo; a new cluster is seeded
+   multi-env is infra-repo CUE + namespacing, not a platform target list. The `Infra` framework
+   writes its full embedded baseline into the infra repo; a new cluster is seeded
    once (manual: Flux + that baseline), then Flux reconciles the rest.
 
 No credential reaches into the cluster — the cluster pulls everything.
 
-## Component contracts
+## Subsystem contracts
 
 - **`srv/` — platform server** (reached via `platform serve`; future). In-cluster, pod SA,
   Postgres. Owns Projects, identity, secret *values*, audit, delivery history. Brokers: kube
@@ -66,14 +66,15 @@ No credential reaches into the cluster — the cluster pulls everything.
 - **`platform` CLI** (the existing `cmd/`-based binary; + folded OpenTofu provider as a
   multi-call binary). `login` (GitHub OAuth → platform token), `build`/`preview` (local
   Dagger), `kubeconfig` (exec-credential), `tf install`. (No `deploy` command — a new version is
-  an infra-repo commit; delivery is `render` + `publish`, infra being a builder.)
+  an infra-repo commit; delivery is `render` + `publish`, infra being a framework.)
 - **`webui/` — SvelteKit (plain JS)**, adapter-static, `go:embed`'d into the `srv/` binary.
   v1: Login, Projects, Access, delivery history, reconcile status.
 - **Shared Go packages** — flat at the top level, no `core/` grab-bag (see
-  [`architecture.md`](architecture.md)): `builder` (Dagger strategies), `engine` (the Dagger
+  [`architecture.md`](architecture.md)): `framework` (frameworks — discover/scaffold/build
+  strategies) with `framework/scaffold` (the one templating mechanism), `engine` (the Dagger
   runtime + executor), `project` (`platform.toml`, incl. the `[ops]` delivery model),
-  `scaffold` (`init`), `releases`, `gitctx`, `gitops` (linked-CUE-engine render + OCI
-  publish), `dsl`, `baseline`; api-client + shared types land as the server grows.
+  `releases`, `gitctx`, `gitops` (linked-CUE-engine render), `dsl`; api-client + shared types
+  land as the server grows.
 - **Flux** — source-controller + kustomize-controller. Reconciles config artifacts;
   prunes; corrects drift. Its own lifecycle is *not* self-managed. No Argo, no Helm.
 - **Dagger engine** — in-cluster; builds run inside the engine pod (engine-opaque); the
@@ -83,12 +84,13 @@ No credential reaches into the cluster — the cluster pulls everything.
   audit).
 - **`platform-init`** — the baseline (Flux, cert-manager, NGF, engine, platform),
   **embedded in the tool** as a flat list of `.cue` apps + `.platform` directives,
-  **destination-encoded by name**; `init` installs each operator-chosen file to the
-  destination its name encodes — the repo root, `apps/` (render-able), or the mandatory
-  `defaults/` package (shared defs, imported by `apps/`) — seeded once then Flux-reconciled.
-  Not a separate repo — see the
-  [appliance ADR](../decisions/2026-06-17-opinionated-appliance-embedded-init.md) and the
-  [flat-baseline ADR](../decisions/2026-06-22-flat-baseline-install-time-selection.md).
+  **destination-encoded by name**; the `Infra` framework installs the **full baseline
+  unconditionally**, each file to the destination its name encodes — the repo root, `apps/`
+  (render-able), or the mandatory `defaults/` package (shared defs, imported by `apps/`) —
+  seeded once then Flux-reconciled. Not a separate repo — see the
+  [appliance ADR](../decisions/2026-06-17-opinionated-appliance-embedded-init.md), the
+  [flat-baseline ADR](../decisions/2026-06-22-flat-baseline-install-time-selection.md), and
+  [baseline-dissolves-into-infra-framework](../decisions/2026-07-11-baseline-dissolves-into-infra-framework.md).
 
 ## Server scope
 

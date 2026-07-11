@@ -15,15 +15,18 @@
 
 `srv` is the API + webhook processor: on a push it clones the repo, builds the image,
 renders + publishes the infra artifact, and lets Flux pull it. It owns the GitHub App, the
-DB, and token minting. It is a layer above `core` (the stateless
-build/render/publish/release engine) and consumes it per request — the engine was already
-reshaped into an `sql.DB`-style, context-carried fleet handle (`engine.New(cfg)` once,
-`engine.Build(ctx, …)` per call) so a long-running server can reuse it.
+DB, and token minting. It is a layer above the **shared packages** (the stateless
+build/render/publish/release machinery: `framework`, `engine`, `gitops`, `releases`, …)
+and consumes them per request — the engine is an `sql.DB`-style, context-carried fleet
+handle (`engine.New(cfg)` once, `engine.Build(ctx, …)` per call) so a long-running server
+can reuse it.
 
 `srv` ships **in the same binary** as the CLI — `platform serve` starts the process. One
-Go module (`platform.prodigy9.co`); `core`/`cli`/`srv` are conceptual layers (packages at
-the repo root), not separate `go.mod`s. The dependency rule is one-directional and
-lint-enforced once `srv/` lands: **`core` is the leaf and must never import server
+Go module (`platform.prodigy9.co`); the shared packages, `cmd`, and `srv` are conceptual
+layers (flat packages at the repo root — no `core/` grab-bag, see
+[architecture.md](architecture.md)), not separate `go.mod`s. The dependency rule is
+one-directional and lint-enforced once `srv/` lands: **the shared packages are the leaves
+and must never import server
 concerns** — no `fx/data`/`sqlx`/migrations, no `net/http` server, no auth, no knowledge
 that `srv` exists.
 
@@ -112,11 +115,11 @@ still GitHub-derived, still zero-RBAC.
 
 ## Repo preparation (CI clones)
 
-Cloning is **not** part of any builder's build phase. On a server run there is no local
-checkout, so a dedicated **repo-prep phase** (in `srv`, above `core`) produces a local
-working tree and hands its path to the *unchanged* builder machinery — already
+Cloning is **not** part of any framework's build phase. On a server run there is no local
+checkout, so a dedicated **repo-prep phase** (in `srv`, above the shared packages) produces a local
+working tree and hands its path to the *unchanged* build machinery — already
 parameterized by working dir (`project.Configure(wd)`, `host.Directory(unit.WorkDir)`).
-Local and CI runs then take the identical builder path; a local run simply has no prep
+Local and CI runs then take the identical build path; a local run simply has no prep
 phase ("you're already in the dir").
 
 ```
@@ -149,14 +152,14 @@ the mirror cache makes full clones cheap, so shallow buys nothing.
 
 Each layer consumes the one below *after* it works:
 
-1. **Prove the delivery path from the CLI** end-to-end — infra builder → render → publish
-   → Flux pulls → applies. All `core`, no server.
+1. **Prove the delivery path from the CLI** end-to-end — the `Infra` framework → render →
+   publish → Flux pulls → applies. All shared-package work, no server.
 2. **Wrap it in `srv`** — webhook ingest + GitHub App + token store + the API.
    Orchestration around a proven path.
 3. **`webui`** on top of a proven API.
 
-The builders reshape + the infra builder are `core` work and proceed regardless of the
-server timeline — none of the server/auth design gates the next coding step.
+The framework refactor + the `Infra` framework are shared-package work and proceed regardless of
+the server timeline — none of the server/auth design gates the next coding step.
 
 ## Open details (not blockers)
 

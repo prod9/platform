@@ -1,8 +1,18 @@
 # `ops render` routes CUE and `.platform` by extension; one render, no committed YAML
 
-- **Status:** accepted
+- **Status:** accepted (rulings stand; mechanics partially superseded — see note)
 - **Date:** 2026-06-18
 - **From:** D3b-3 design discussion (chakrit)
+
+> **Partial supersession.** The rulings hold: one render routed by extension, model I
+> (render-time, nothing rendered committed), the uniform filename→docs output contract, no
+> separate run-DSL command. The mechanics are historical: the `ops` prefix was flattened
+> (`ops render` → `render`), `baseline.Select` and the `@variant`/`+flag` marker grammar
+> were removed by
+> [2026-06-22 flat-baseline](2026-06-22-flat-baseline-install-time-selection.md), and the
+> baseline now lives in the `Infra` framework
+> ([2026-07-11](2026-07-11-baseline-dissolves-into-infra-framework.md)). The `<component>`
+> mapping is now simply the directive filename's stem.
 
 ## Context
 

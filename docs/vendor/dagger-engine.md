@@ -12,7 +12,7 @@ unstable by upstream — re-verify on engine upgrades.
 |---------------------------|-----------------------------------------------------------------|
 | SDK pinned (`go.mod`)     | `dagger.io/dagger v0.20.8`                                       |
 | Latest engine + CLI       | `v0.21.7` (engine and all SDKs share one version number)        |
-| Our connect call          | `builder/session.go:23` — bare `dagger.Connect(...)`            |
+| Our connect call          | `engine/clients.go:34` — bare `dagger.Connect(...)` |
 | Today's behavior          | Auto-provisions an ephemeral engine in a local container        |
 | Compat mode               | Newer engines can simulate older-engine behavior on upgrade     |
 

@@ -16,7 +16,7 @@ func (d Datestamp) IsValid(name string) bool {
 	return err == nil
 }
 
-func (d Datestamp) NextName(prevName string, comp NameComponent) (string, error) {
+func (d Datestamp) NextName(prevName string, bump Bump) (string, error) {
 	if prevName == "" {
 		return dateref.Now(0).String(), nil
 	}

@@ -221,10 +221,10 @@ func resolvePath(steps []pathSeg, vars Vars) (Path, error) {
 	return path, nil
 }
 
-// engine carries the directive interpreter's state. The buffer is two-state:
+// interpreter carries the directive interpreter's state. The buffer is two-state:
 // raw holds undecoded bytes after download/extract; docs holds the decoded
 // stream once an edit or emit forces a decode. decoded says which is live.
-type engine struct {
+type interpreter struct {
 	raw     []byte
 	docs    []Doc
 	decoded bool
@@ -245,7 +245,7 @@ func Apply(directives string, opts Options) ([]Doc, error) {
 		return nil, err
 	}
 
-	e := &engine{
+	e := &interpreter{
 		docs:    opts.Docs,
 		decoded: true,
 		vars:    opts.Vars,
@@ -269,7 +269,7 @@ func Apply(directives string, opts Options) ([]Doc, error) {
 	return e.docs, nil
 }
 
-func (e *engine) exec(d Directive) error {
+func (e *interpreter) exec(d Directive) error {
 	switch d.Verb {
 	case "download":
 		return e.execDownload(d.Args)
@@ -312,7 +312,7 @@ func (e *engine) exec(d Directive) error {
 }
 
 // download URL — fetch into the buffer, replacing it with raw bytes.
-func (e *engine) execDownload(args []Arg) error {
+func (e *interpreter) execDownload(args []Arg) error {
 	if len(args) != 1 {
 		return fmt.Errorf("download: want URL, got %d args", len(args))
 	}
@@ -330,7 +330,7 @@ func (e *engine) execDownload(args []Arg) error {
 
 // extract [PATH] — decompress/unarchive the raw buffer in place. PATH selects an
 // archive member; omit it for a bare compressed stream.
-func (e *engine) execExtract(args []Arg) error {
+func (e *interpreter) execExtract(args []Arg) error {
 	if len(args) > 1 {
 		return fmt.Errorf("extract: want [PATH], got %d args", len(args))
 	}
@@ -355,7 +355,7 @@ func (e *engine) execExtract(args []Arg) error {
 }
 
 // emit FILENAME — write the working buffer to a runner-relative file.
-func (e *engine) execEmit(args []Arg) error {
+func (e *interpreter) execEmit(args []Arg) error {
 	if len(args) != 1 {
 		return fmt.Errorf("emit: want FILENAME, got %d args", len(args))
 	}
@@ -374,7 +374,7 @@ func (e *engine) execEmit(args []Arg) error {
 // .key/[N] descend). With a VALUE it filters: the path's trailing .key is a
 // predicate, and the scope becomes the nodes whose that field equals VALUE.
 // focus chains — each one narrows within the previous; reset returns to the top.
-func (e *engine) execFocus(args []Arg) error {
+func (e *interpreter) execFocus(args []Arg) error {
 	if len(args) < 1 || len(args) > 2 {
 		return fmt.Errorf("focus: want PATH or PATH VALUE, got %d args", len(args))
 	}
@@ -447,7 +447,7 @@ func splitAtLastIter(segs []pathSeg) (nav, pred []pathSeg) {
 
 // walkFocus applies path segments across a node set, flattening: .key/[N] map
 // each node to a child, [] expands each list node into its elements.
-func (e *engine) walkFocus(scope []any, segs []pathSeg) ([]any, error) {
+func (e *interpreter) walkFocus(scope []any, segs []pathSeg) ([]any, error) {
 	cur := scope
 	for _, s := range segs {
 		var next []any
@@ -466,7 +466,7 @@ func (e *engine) walkFocus(scope []any, segs []pathSeg) ([]any, error) {
 // focusStep maps one node through one segment to the children it contributes:
 // .key/[N] yield the single addressed child if present, [] expands a list node
 // into its elements (and errors when applied to a non-list).
-func (e *engine) focusStep(node any, s pathSeg) ([]any, error) {
+func (e *interpreter) focusStep(node any, s pathSeg) ([]any, error) {
 	switch s.kind {
 	case segKey:
 		name, err := resolveStr(s.key, e.vars)
@@ -498,7 +498,7 @@ func (e *engine) focusStep(node any, s pathSeg) ([]any, error) {
 	return nil, nil
 }
 
-func (e *engine) execReset(args []Arg) error {
+func (e *interpreter) execReset(args []Arg) error {
 	if len(args) != 0 {
 		return fmt.Errorf("reset: takes no args, got %d", len(args))
 	}
@@ -511,7 +511,7 @@ func (e *engine) execReset(args []Arg) error {
 
 // remove-doc — drop every in-scope doc from the buffer, then reset scope to the
 // remaining stream.
-func (e *engine) execRemoveDoc(args []Arg) error {
+func (e *interpreter) execRemoveDoc(args []Arg) error {
 	if len(args) != 0 {
 		return fmt.Errorf("remove-doc: takes no args, got %d", len(args))
 	}
@@ -550,7 +550,7 @@ func docPtr(v any) (uintptr, bool) {
 
 // execValueEdit handles the PATH VALUE verbs: resolve the path and the value (a
 // bare var reference or a quoted string), then apply fn to every in-scope doc.
-func (e *engine) execValueEdit(args []Arg, fn func(Doc, Path, any) error) error {
+func (e *interpreter) execValueEdit(args []Arg, fn func(Doc, Path, any) error) error {
 	if len(args) != 2 {
 		return fmt.Errorf("want PATH VALUE, got %d args", len(args))
 	}
@@ -568,7 +568,7 @@ func (e *engine) execValueEdit(args []Arg, fn func(Doc, Path, any) error) error 
 }
 
 // execPathEdit handles the PATH-only verbs (remove).
-func (e *engine) execPathEdit(args []Arg, fn func(Doc, Path) error) error {
+func (e *interpreter) execPathEdit(args []Arg, fn func(Doc, Path) error) error {
 	if len(args) != 1 {
 		return fmt.Errorf("want PATH, got %d args", len(args))
 	}
@@ -581,7 +581,7 @@ func (e *engine) execPathEdit(args []Arg, fn func(Doc, Path) error) error {
 
 // applyOverScope runs fn on every focused node, with the edit path relative to
 // that node. A focused node that is not a map can't be edited.
-func (e *engine) applyOverScope(path Path, fn func(Doc, Path) error) error {
+func (e *interpreter) applyOverScope(path Path, fn func(Doc, Path) error) error {
 	if err := e.ensureDecoded(); err != nil {
 		return err
 	}
@@ -598,7 +598,7 @@ func (e *engine) applyOverScope(path Path, fn func(Doc, Path) error) error {
 }
 
 // argPath resolves a path argument; any other arg kind is a usage error.
-func (e *engine) argPath(a Arg) (Path, error) {
+func (e *interpreter) argPath(a Arg) (Path, error) {
 	if a.kind != argPath {
 		return nil, fmt.Errorf("expected a path (.a.b)")
 	}
@@ -607,7 +607,7 @@ func (e *engine) argPath(a Arg) (Path, error) {
 
 // argValue resolves a value argument: a bare token is a variable reference
 // (native type), a quoted token is a string.
-func (e *engine) argValue(a Arg) (any, error) {
+func (e *interpreter) argValue(a Arg) (any, error) {
 	switch a.kind {
 	case argStr:
 		return resolveStr(a.str, e.vars)
@@ -624,7 +624,7 @@ func (e *engine) argValue(a Arg) (any, error) {
 
 // argString resolves an argument expected to be text (URL, filename): a quoted
 // string, or a variable reference stringified.
-func (e *engine) argString(a Arg) (string, error) {
+func (e *interpreter) argString(a Arg) (string, error) {
 	v, err := e.argValue(a)
 	if err != nil {
 		return "", err
@@ -633,14 +633,14 @@ func (e *engine) argString(a Arg) (string, error) {
 }
 
 // setRaw parks raw bytes in the buffer, marking the decoded view stale.
-func (e *engine) setRaw(data []byte) {
+func (e *interpreter) setRaw(data []byte) {
 	e.raw = data
 	e.decoded = false
 }
 
 // ensureDecoded materializes the decoded document stream from raw bytes the
 // first time an edit or emit needs it, resetting scope to the fresh stream.
-func (e *engine) ensureDecoded() error {
+func (e *interpreter) ensureDecoded() error {
 	if e.decoded {
 		return nil
 	}
@@ -656,7 +656,7 @@ func (e *engine) ensureDecoded() error {
 
 // resetScope returns the scope to the whole document stream — a single node, the
 // list of all docs, which a leading .[] iterates into the individual documents.
-func (e *engine) resetScope() {
+func (e *interpreter) resetScope() {
 	docs := make([]any, len(e.docs))
 	for i := range e.docs {
 		docs[i] = e.docs[i]

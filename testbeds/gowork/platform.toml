@@ -8,8 +8,8 @@ excludes = ["*.docker", "*.local", ".dockerignore", ".git", ".github", ".gitigno
   [modules.app]
     workdir = "./app"
     timeout = "1m0s"
-    builder = "go/workspace"
+    framework = "go/workspace"
   [modules.fx]
     workdir = "./fx"
     timeout = "1m0s"
-    builder = "go/workspace"
+    framework = "go/workspace"

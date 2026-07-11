@@ -2,7 +2,8 @@
 
 A build fails here that succeeds on a fresh checkout of the same commit. Nothing in
 your tree changed the recipe, yet the container won't build. This is almost always a
-**poisoned Dagger build cache**, not a bug in the builder. Fix it operationally.
+**poisoned Dagger build cache**, not a bug in the framework's build code. Fix it
+operationally.
 
 ## First line: `platform clean`
 
@@ -43,13 +44,14 @@ checkout (fresh cache key) passes and your machine doesn't.
 
 ## Why there's no in-band fix
 
-You cannot assert your way out inside the builder. An integrity check appended to the
+You cannot assert your way out inside the framework's build code. An integrity check
+appended to the
 install exec (`… && test -x /usr/local/bin/corepack`) runs in the process's **live**
 view, where the files exist — it passes, the exec exits 0, and the truncation still
 happens afterward at snapshot commit. The check caches *alongside* the poison. A
 separate downstream check can only make the build fail **loud** instead of green, and it
 still needs a cache prune to recover. So the fix is operational (`platform clean`), not a
-builder change.
+framework change.
 
 This is an upstream Dagger bug. v0.21.7 is the latest release — there is nothing to
 upgrade to.

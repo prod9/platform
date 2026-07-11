@@ -2,9 +2,12 @@
 
 - **Date:** 2026-06-22
 - **PR:** manual
-- **Status:** accepted (supersedes the marker grammar + render-time gating from D3b-2;
-  naming + destinations amended 2026-07-06 for the three-destination root/`apps/`/`defaults/`
-  model)
+- **Status:** partly superseded (supersedes the marker grammar + render-time gating from
+  D3b-2; naming + destinations amended 2026-07-06 for the three-destination
+  root/`apps/`/`defaults/` model). The install-time **picker** half is superseded by
+  [2026-07-11 baseline-dissolves-into-infra-framework](2026-07-11-baseline-dissolves-into-infra-framework.md)
+  — the baseline now installs unconditionally and moves into the `Infra` framework. The
+  destination-encoding / no-marker-grammar / pins-only half below still stands.
 
 ## Decision
 

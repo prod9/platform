@@ -1,6 +1,5 @@
 maintainer = "Chakrit Wichian <chakrit@prodigy9.co>"
 
-environments = ["platform.prodigy9.co"]
 platform = "auto"
 repository = "https://github.com/prod9/platform"
 strategy = "semver"
@@ -24,7 +23,7 @@ excludes = [
 
 [modules.platform]
 args = ["vanity"]
-builder = "go/basic"
+framework = "go/basic"
 cmd = "platform"
 image = "ghcr.io/prod9/platform"
 package = "platform.prodigy9.co"
