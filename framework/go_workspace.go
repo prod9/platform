@@ -12,7 +12,7 @@ import (
 	"platform.prodigy9.co/framework/scaffold"
 )
 
-type GoWorkspace struct{}
+type GoWorkspace struct{ noScaffoldInputs }
 
 func (GoWorkspace) Name() string   { return "go/workspace" }
 func (GoWorkspace) Layout() Layout { return LayoutWorkspace }

@@ -19,13 +19,6 @@ type (
 		Maintainer string `toml:"maintainer"`
 		Repository string `toml:"repository"`
 
-		// ImportPrefix is the operator's CUE module namespace — the value of `module:`
-		// in cue.mod and the prefix of every `import "<prefix>/defaults"`. It is a
-		// separate concern from Repository (where the code is hosted on GitHub): the two
-		// diverge in practice (module `prodigy9.co` vs repo `github.com/prod9/infra`).
-		// Only the Infra framework seeds it; apps carry no CUE module, hence omitempty.
-		ImportPrefix string `toml:"import_prefix,omitempty"`
-
 		// LocalArch is the arch for local builds (build/preview/export/ls) —
 		// "auto" tracks the host for fast native iteration. PublishArch is the arch
 		// for server-bound builds (publish) — defaults to amd64 so an arm

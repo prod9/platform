@@ -37,7 +37,6 @@ func TestInfraScaffoldContributesBaseline(t *testing.T) {
 	spec, byPath := infraSpec(t, t.TempDir())
 
 	r.Equal(t, "rolling", spec.Strategy)
-	r.Equal(t, "example.com", spec.ImportPrefix)
 	r.NotNil(t, spec.Module)
 	r.Equal(t, "platform/infra", spec.Module.Framework)
 	r.Contains(t, spec.Vars, "CERT_MANAGER_VERSION")
@@ -79,6 +78,46 @@ func TestInfraScaffoldKeepsExistingCueModule(t *testing.T) {
 	_, byPath := infraSpec(t, dir)
 	r.NotContains(t, byPath, filepath.Join("cue.mod", "module.cue.tmpl"),
 		"existing cue.mod must not be re-scaffolded")
+}
+
+func TestInfraRequiredScaffoldInputs(t *testing.T) {
+	// Greenfield: the CUE module path is a required operator input.
+	r.Equal(t, []string{"CUE_MOD_PREFIX"}, Infra{}.RequiredScaffoldInputs(t.TempDir()))
+
+	// With an existing cue.mod, the path is read from it, never re-asked.
+	existing := t.TempDir()
+	writeModuleFile(t, existing, "kept.example/infra")
+	r.Nil(t, Infra{}.RequiredScaffoldInputs(existing))
+}
+
+func TestInfraScaffoldData(t *testing.T) {
+	// Greenfield: module path comes from the CUE_MOD_PREFIX input; env facts pass through.
+	green := t.TempDir()
+	data, err := Infra{}.ScaffoldData(green, "github.com/prod9/infra", "v0.21.7",
+		map[string]string{"CUE_MOD_PREFIX": "prodigy9.co"})
+	r.NoError(t, err)
+	r.Equal(t, "prodigy9.co", data.ModulePath)
+	r.Equal(t, "v0.21.7", data.DaggerVersion)
+
+	// An input CUE would reject as a module path (no dot in the first segment) fails fast —
+	// this is the exact case a bare GitHub org/repo produces.
+	_, err = Infra{}.ScaffoldData(green, "r", "v", map[string]string{"CUE_MOD_PREFIX": "prod9/infra-new"})
+	r.Error(t, err)
+
+	// An existing cue.mod wins over any input — operator truth.
+	existing := t.TempDir()
+	writeModuleFile(t, existing, "kept.example/infra")
+	data, err = Infra{}.ScaffoldData(existing, "r", "v", map[string]string{"CUE_MOD_PREFIX": "ignored.co"})
+	r.NoError(t, err)
+	r.Equal(t, "kept.example/infra", data.ModulePath)
+}
+
+func writeModuleFile(t *testing.T, dir, module string) {
+	t.Helper()
+	mod := filepath.Join(dir, "cue.mod", "module.cue")
+	r.NoError(t, os.MkdirAll(filepath.Dir(mod), 0o755))
+	r.NoError(t, os.WriteFile(mod,
+		[]byte("module: \""+module+"\"\nlanguage: version: \"v0.15.4\"\n"), 0o644))
 }
 
 // TestEmbeddedCertManager runs the embedded cert-manager directive through the DSL with a

@@ -11,7 +11,7 @@ import (
 	"platform.prodigy9.co/framework/scaffold"
 )
 
-type PNPMWorkspace struct{}
+type PNPMWorkspace struct{ noScaffoldInputs }
 
 func (PNPMWorkspace) Name() string   { return "pnpm/workspace" }
 func (PNPMWorkspace) Layout() Layout { return LayoutWorkspace }

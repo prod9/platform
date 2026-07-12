@@ -7,6 +7,7 @@ import (
 	"fx.prodigy9.co/cmd/prompts"
 	"github.com/BurntSushi/toml"
 	"github.com/spf13/cobra"
+	"platform.prodigy9.co/framework"
 	"platform.prodigy9.co/internal/buildlog"
 	"platform.prodigy9.co/project"
 )
@@ -41,11 +42,32 @@ func runInit(cmd *cobra.Command, args []string) {
 		Repository:      sess.Str("github repository address (without https:// prefix)"),
 	}
 
-	plan, err := Analyze(wd, info)
+	// The discovered framework declares any extra inputs it needs (e.g. Infra's CUE module
+	// path when greenfield); prompt each by name. The driver stays framework-agnostic — it
+	// never knows what an input means, only that the framework asked for it.
+	inputs := promptScaffoldInputs(sess, wd)
+
+	plan, err := Analyze(wd, info, inputs)
 	if err != nil {
 		buildlog.Fatalln(err)
 	}
 	applyPlan(wd, sess, plan)
+}
+
+// promptScaffoldInputs discovers the framework rooting wd and prompts for each input it
+// declares (fx prompts.Str shows the input name as the label, and consumes positional args
+// non-interactively). An unrecognized repo needs none.
+func promptScaffoldInputs(sess *prompts.Session, wd string) map[string]string {
+	fw, err := framework.Discover(wd)
+	if err != nil || fw == nil {
+		return nil
+	}
+
+	inputs := map[string]string{}
+	for _, name := range fw.RequiredScaffoldInputs(wd) {
+		inputs[name] = sess.Str(name)
+	}
+	return inputs
 }
 
 // applyPlan is the shared tail: show the plan, confirm, ensure a git repo, write the files,

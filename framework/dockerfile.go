@@ -11,7 +11,7 @@ import (
 	"platform.prodigy9.co/internal/buildlog"
 )
 
-type Dockerfile struct{}
+type Dockerfile struct{ noScaffoldInputs }
 
 var _ Framework = Dockerfile{}
 

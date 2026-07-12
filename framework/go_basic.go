@@ -12,7 +12,7 @@ import (
 	"platform.prodigy9.co/framework/scaffold"
 )
 
-type GoBasic struct{}
+type GoBasic struct{ noScaffoldInputs }
 
 func (GoBasic) Name() string   { return "go/basic" }
 func (GoBasic) Layout() Layout { return LayoutBasic }

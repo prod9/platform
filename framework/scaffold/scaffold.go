@@ -30,17 +30,16 @@ type File struct {
 // the pure output of Scaffold — the driver gathers operator inputs, generates
 // platform.toml, resolves the Files' holes via Resolve, and writes.
 type Spec struct {
-	Module       *project.Module
-	Vars         map[string]any
-	Files        []File
-	Strategy     string
-	ImportPrefix string
+	Module   *project.Module
+	Vars     map[string]any
+	Files    []File
+	Strategy string
 }
 
-// Data fills the placeholders in ".tmpl" files at init time — all discoverable, none
-// prompted: DaggerVersion comes from the linked SDK; ModulePath is the CUE module a
-// .tmpl hole resolves to, read from an existing cue.mod or seeded from the spec's
-// ImportPrefix; ImageBase is derived from the repository.
+// Data fills the placeholders in ".tmpl" files at init time: DaggerVersion comes from the
+// linked SDK; ModulePath is the CUE module a .tmpl hole resolves to, read from an existing
+// cue.mod or from the CUE_MOD_PREFIX scaffold input; ImageBase is derived from the
+// repository. A framework builds it from operator inputs via ScaffoldData.
 type Data struct {
 	DaggerVersion string
 	ModulePath    string

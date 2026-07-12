@@ -67,19 +67,23 @@ let testbeds = [...{name: string, dir: string}] &
 		},
 		{
 			// infra init generates the whole baseline into a fresh (git-ignored) dir. The
-			// snapshot proves the module path comes from `import_prefix` (example.com), not
-			// the bare, non-domain repository `prod9/infra-new` — the exact input that failed
-			// pre-fix. The follow-on render is the regression guard: it renders clean despite
-			// a repository CUE would reject as a module path.
+			// module path comes from the CUE_MOD_PREFIX scaffold input (example.com) — the 4th
+			// positional arg — NOT the bare, non-domain repository `prod9/infra-new`, which CUE
+			// would reject as a module path. The snapshot proves platform.toml carries no
+			// module-path key (it lives only in cue.mod); the follow-on render is the guard.
 			name: "Infra Init"
 			checks: [
 				"exitcode",
 				"./testbeds/infra-init/platform.toml",
 			]
 			commands: [
+				// Wipe any generated leftovers from a prior local run so init GENERATES fresh
+				// rather than surgically merging a stale platform.toml (which would preserve an
+				// old import_prefix line). The testbed commits only .gitignore.
+				"rm -rf testbeds/infra-init/apps testbeds/infra-init/defaults testbeds/infra-init/cue.mod testbeds/infra-init/platform.toml testbeds/infra-init/platform testbeds/infra-init/k8s",
 				// ALWAYS_YES=1 auto-confirms the apply prompt — this testbed carries no
 				// committed files to fall back on, so init must actually run to generate them.
-				"ALWAYS_YES=1 ./testbed.sh infra-init init \"Johnny Appleseed\" \"john@apple.com\" \"prod9/infra-new\"",
+				"ALWAYS_YES=1 ./testbed.sh infra-init init \"Johnny Appleseed\" \"john@apple.com\" \"prod9/infra-new\" \"example.com\"",
 			]
 		},
 		{

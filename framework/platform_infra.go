@@ -2,6 +2,7 @@ package framework
 
 import (
 	"context"
+	"fmt"
 	"maps"
 	"path/filepath"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	"platform.prodigy9.co/cuemod"
 	"platform.prodigy9.co/framework/scaffold"
 	"platform.prodigy9.co/gitops"
+	"platform.prodigy9.co/project"
 )
 
 // hasInfraName reports whether wd is an infra repo, matched by an "infra" glob on the
@@ -53,12 +55,56 @@ func (i Infra) Scaffold(ctx context.Context, wd string) (scaffold.Spec, error) {
 	}
 
 	return scaffold.Spec{
-		Module:       defaultModule(i, wd),
-		Vars:         maps.Clone(DefaultVars),
-		Files:        files,
-		Strategy:     "rolling",
-		ImportPrefix: "example.com",
+		Module:   defaultModule(i, wd),
+		Vars:     maps.Clone(DefaultVars),
+		Files:    files,
+		Strategy: "rolling",
 	}, nil
+}
+
+// cueModPrefixInput names the operator input carrying the CUE module path — the cue.mod
+// `module:` value and the prefix of every `import "<prefix>/defaults"`. Asked only greenfield.
+const cueModPrefixInput = "CUE_MOD_PREFIX"
+
+// RequiredScaffoldInputs asks for the CUE module path only on a greenfield repo; an existing
+// cue.mod is operator truth, read (never re-asked) in ScaffoldData.
+func (Infra) RequiredScaffoldInputs(wd string) []string {
+	if cuemod.Present(wd) {
+		return nil
+	}
+	return []string{cueModPrefixInput}
+}
+
+// ScaffoldData builds the baseline's template data: the CUE module path (from an existing
+// cue.mod or the greenfield CUE_MOD_PREFIX input), the linked dagger SDK version, and the
+// flux self-sync image base derived from the repository.
+func (i Infra) ScaffoldData(wd, repository, daggerVersion string, inputs map[string]string) (scaffold.Data, error) {
+	modulePath, err := i.modulePath(wd, inputs)
+	if err != nil {
+		return scaffold.Data{}, err
+	}
+
+	return scaffold.Data{
+		DaggerVersion: daggerVersion,
+		ModulePath:    modulePath,
+		ImageBase:     project.InferImageBase(repository),
+	}, nil
+}
+
+// modulePath resolves the CUE module path: an existing cue.mod wins (operator truth);
+// otherwise the greenfield CUE_MOD_PREFIX input, validated as a legal CUE module path (its
+// first segment must be a domain — contain a dot — which CUE requires).
+func (Infra) modulePath(wd string, inputs map[string]string) (string, error) {
+	if cuemod.Present(wd) {
+		return cuemod.Path(wd)
+	}
+
+	prefix := inputs[cueModPrefixInput]
+	first, _, _ := strings.Cut(prefix, "/")
+	if !strings.Contains(first, ".") {
+		return "", fmt.Errorf("%s %q is not a valid CUE module path: its first segment must be a domain (contain a dot)", cueModPrefixInput, prefix)
+	}
+	return prefix, nil
 }
 
 func (i Infra) Build(ctx context.Context, client *dagger.Client, unit *BuildUnit) (container *dagger.Container, err error) {

@@ -19,7 +19,7 @@ func testInfo() *Info {
 func TestAnalyze_freshRepoWritesEverything(t *testing.T) {
 	dir := gitRepo(t)
 
-	plan, err := Analyze(dir, testInfo())
+	plan, err := Analyze(dir, testInfo(), nil)
 	r.NoError(t, err)
 
 	// Every expected output is a fresh write, never an overwrite.
@@ -51,7 +51,8 @@ func TestAnalyze_infraGetsBaselineUniformly(t *testing.T) {
 	daggerVersion = func() string { return "v0.21.7" }
 	t.Cleanup(func() { daggerVersion = orig })
 
-	plan, err := Analyze(dir, testInfo())
+	// The CUE module path is a greenfield scaffold input, not a platform.toml key.
+	plan, err := Analyze(dir, testInfo(), map[string]string{"CUE_MOD_PREFIX": "example.com"})
 	r.NoError(t, err)
 
 	byPath := map[string]FileChange{}
@@ -63,20 +64,22 @@ func TestAnalyze_infraGetsBaselineUniformly(t *testing.T) {
 	r.Contains(t, byPath, filepath.Join("defaults", "basics.cue"))
 	r.Contains(t, byPath, filepath.Join("cue.mod", "module.cue"))
 
-	// The strategy and import_prefix seeds land in platform.toml.
+	// The strategy seed lands in platform.toml; the CUE module path does NOT (it is never
+	// persisted there — it lives only in cue.mod).
 	toml := string(byPath["platform.toml"].Content)
 	r.Contains(t, toml, `strategy = "rolling"`)
-	r.Contains(t, toml, `import_prefix = "example.com"`)
+	r.NotContains(t, toml, "import_prefix")
+	r.NotContains(t, toml, "CUE_MOD_PREFIX")
 
-	// The cue.mod module path resolves from import_prefix, NOT the GitHub repository —
-	// they are separate namespaces (see planSpecFiles).
+	// The cue.mod module path resolves from the CUE_MOD_PREFIX input, NOT the GitHub
+	// repository — they are separate namespaces.
 	cuemod := string(byPath[filepath.Join("cue.mod", "module.cue")].Content)
 	r.Contains(t, cuemod, `module: "example.com"`)
 	r.NotContains(t, cuemod, testInfo().Repository)
 }
 
 func TestAnalyze_rejectsNonGitDir(t *testing.T) {
-	_, err := Analyze(t.TempDir(), testInfo())
+	_, err := Analyze(t.TempDir(), testInfo(), nil)
 	r.ErrorIs(t, err, ErrWDNotGit)
 }
 
@@ -90,7 +93,7 @@ cert_manager_version = "v1.16.0"
 `
 	r.NoError(t, os.WriteFile(filepath.Join(dir, "platform.toml"), []byte(existing), 0644))
 
-	plan, err := Analyze(dir, testInfo())
+	plan, err := Analyze(dir, testInfo(), nil)
 	r.NoError(t, err)
 
 	// An existing platform.toml is rewritten via surgical merge, never regenerated — with no
@@ -112,7 +115,7 @@ func TestApply_keepsExistingWhenNotReplacing(t *testing.T) {
 	path := filepath.Join(dir, "platform.toml")
 	r.NoError(t, os.WriteFile(path, []byte(existing), 0644))
 
-	plan, err := Analyze(dir, testInfo())
+	plan, err := Analyze(dir, testInfo(), nil)
 	r.NoError(t, err)
 	r.Positive(t, plan.Overwrites())
 

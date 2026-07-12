@@ -10,7 +10,7 @@ import (
 	"platform.prodigy9.co/framework/scaffold"
 )
 
-type PNPMStatic struct{}
+type PNPMStatic struct{ noScaffoldInputs }
 
 func (PNPMStatic) Name() string   { return "pnpm/static" }
 func (PNPMStatic) Layout() Layout { return LayoutBasic }

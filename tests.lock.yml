@@ -237,7 +237,14 @@
             - "0"
 - name: Platform \ Infra Init
   commands:
-    - command: ALWAYS_YES=1 ./testbed.sh infra-init init "Johnny Appleseed" "john@apple.com" "prod9/infra-new"
+    - command: rm -rf testbeds/infra-init/apps testbeds/infra-init/defaults testbeds/infra-init/cue.mod testbeds/infra-init/platform.toml testbeds/infra-init/platform testbeds/infra-init/k8s
+      checks:
+        - name: exitcode
+          data:
+            - "0"
+        - name: ./testbeds/infra-init/platform.toml
+          data: []
+    - command: ALWAYS_YES=1 ./testbed.sh infra-init init "Johnny Appleseed" "john@apple.com" "prod9/infra-new" "example.com"
       checks:
         - name: exitcode
           data:
@@ -247,7 +254,6 @@
             - '-----BEGIN platform.toml-----'
             - maintainer = "Johnny Appleseed <john@apple.com>"
             - repository = "prod9/infra-new"
-            - import_prefix = "example.com"
             - local_arch = "auto"
             - publish_arch = "amd64"
             - strategy = "rolling"

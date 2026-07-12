@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"platform.prodigy9.co/cuemod"
 	"platform.prodigy9.co/framework"
 	fwscaffold "platform.prodigy9.co/framework/scaffold"
 	"platform.prodigy9.co/project"
@@ -54,7 +53,7 @@ type Plan struct {
 // contribution (platform.toml module + default [vars] + files, resolved), and writes
 // the version-pinned launcher. What a repo gets is entirely the framework's Scaffold
 // output — there is no app-vs-infra branch.
-func Analyze(dir string, info *Info) (*Plan, error) {
+func Analyze(dir string, info *Info, inputs map[string]string) (*Plan, error) {
 	dir, err := resolveWD(dir)
 	if err != nil {
 		return nil, err
@@ -63,7 +62,7 @@ func Analyze(dir string, info *Info) (*Plan, error) {
 	if err := validateDir(dir); err != nil {
 		return nil, err
 	}
-	spec, err := discoverSpec(dir)
+	fw, spec, err := discoverSpec(dir)
 	if err != nil {
 		return nil, err
 	}
@@ -72,7 +71,7 @@ func Analyze(dir string, info *Info) (*Plan, error) {
 	if err != nil {
 		return nil, err
 	}
-	specFiles, err := planSpecFiles(dir, info, spec)
+	specFiles, err := planSpecFiles(dir, info, fw, inputs, spec)
 	if err != nil {
 		return nil, err
 	}
@@ -88,15 +87,16 @@ func Analyze(dir string, info *Info) (*Plan, error) {
 // discoverSpec finds the framework rooting dir and returns its scaffold contribution. A
 // missing framework is not an error (an unrecognised repo still gets platform.toml +
 // launcher); the zero spec carries no module, vars, or files.
-func discoverSpec(dir string) (fwscaffold.Spec, error) {
+func discoverSpec(dir string) (framework.Framework, fwscaffold.Spec, error) {
 	fw, err := framework.Discover(dir)
 	if err != nil && !errors.Is(err, framework.ErrNoFramework) {
-		return fwscaffold.Spec{}, err
+		return nil, fwscaffold.Spec{}, err
 	}
 	if fw == nil {
-		return fwscaffold.Spec{}, nil
+		return nil, fwscaffold.Spec{}, nil
 	}
-	return fw.Scaffold(context.Background(), dir)
+	spec, err := fw.Scaffold(context.Background(), dir)
+	return fw, spec, err
 }
 
 // planProjectFile decides how platform.toml changes: a surgical [vars]
@@ -115,10 +115,9 @@ func planProjectFile(dir string, info *Info, spec fwscaffold.Spec) (FileChange, 
 	}
 
 	content, vars, err := project.Generate(project.GenerateInfo{
-		Maintainer:   fmt.Sprintf("%s <%s>", info.Maintainer, info.MaintainerEmail),
-		Repository:   info.Repository,
-		Strategy:     spec.Strategy,
-		ImportPrefix: spec.ImportPrefix,
+		Maintainer: fmt.Sprintf("%s <%s>", info.Maintainer, info.MaintainerEmail),
+		Repository: info.Repository,
+		Strategy:   spec.Strategy,
 	}, filepath.Base(dir), spec.Module, spec.Vars)
 	if err != nil {
 		return FileChange{}, nil, err
@@ -130,11 +129,11 @@ func planProjectFile(dir string, info *Info, spec fwscaffold.Spec) (FileChange, 
 // dependency versions in their build info — tests stub it; production reads the real SDK.
 var daggerVersion = framework.DaggerVersion
 
-// planSpecFiles resolves the framework's contributed files with the init-time data —
-// DaggerVersion from the linked SDK, ModulePath from an existing cue.mod (or the spec's
-// ImportPrefix on a greenfield one), ImageBase derived from the repository. ModulePath
-// is the operator's CUE namespace, deliberately separate from the GitHub repository.
-func planSpecFiles(dir string, info *Info, spec fwscaffold.Spec) ([]FileChange, error) {
+// planSpecFiles resolves the framework's contributed files. The framework builds its own
+// template data from the operator inputs (ScaffoldData) — which input fills which hole, and
+// reading an existing cue.mod, is framework knowledge, not the driver's. The driver supplies
+// only environment facts: the linked SDK version and the repository.
+func planSpecFiles(dir string, info *Info, fw framework.Framework, inputs map[string]string, spec fwscaffold.Spec) ([]FileChange, error) {
 	if len(spec.Files) == 0 {
 		return nil, nil
 	}
@@ -143,20 +142,13 @@ func planSpecFiles(dir string, info *Info, spec fwscaffold.Spec) ([]FileChange, 
 	if version == "" {
 		return nil, errors.New("scaffold: could not determine the linked dagger SDK version")
 	}
-	modulePath := spec.ImportPrefix
-	if cuemod.Present(dir) {
-		path, err := cuemod.Path(dir)
-		if err != nil {
-			return nil, err
-		}
-		modulePath = path
+
+	data, err := fw.ScaffoldData(dir, info.Repository, version, inputs)
+	if err != nil {
+		return nil, err
 	}
 
-	resolved, err := fwscaffold.Resolve(spec.Files, fwscaffold.Data{
-		DaggerVersion: version,
-		ModulePath:    modulePath,
-		ImageBase:     project.InferImageBase(info.Repository),
-	})
+	resolved, err := fwscaffold.Resolve(spec.Files, data)
 	if err != nil {
 		return nil, err
 	}
