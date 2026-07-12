@@ -276,6 +276,13 @@ green tests are a **baked-in, non-configurable** precondition of every build —
 skip-tests opt-out will be added (opinionated flow, not CI phases). See the
 [test-in-build ADR](docs/decisions/2026-07-05-test-in-build-is-a-hard-gate.md).
 
+🚨 **Running `./test.sh` and `go test` is required completion work — it NEVER gates on the
+operator.** Do not ask permission to run them and do not defer them to a go-ahead; a slice
+is not complete until smoke has verified it (and its golden reviewed/re-recorded). The
+global "heavy run needs a per-run go-ahead" rule is for genuinely resource-hogging batch
+jobs (model pulls, bulk embeddings) — the project's own test suite is **not** that, however
+long a cold-cache Dagger build takes. Just run it.
+
 Two suites, at different layers:
 
 - **`go test ./...`** — hermetic unit tests (no docker/network, fresh-clone runnable). Runs
