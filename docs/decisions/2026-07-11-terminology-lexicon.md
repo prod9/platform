@@ -74,4 +74,4 @@ re-litigated per file. Where a collision survived scrutiny (defaults, export, Ge
 renames, since those are exactly the words a future pass would "clean up" wrongly.
 
 Provenance: rulings collected 2-by-2 in-session; working plan at
-[`../scratch/2026-07-11-terminology-docs-audit-plan.md`](../scratch/2026-07-11-terminology-docs-audit-plan.md).
+[terminology + spec audit plan](../scratch/prior-art.md#terminology-pass--spec-audit-plan-2026-07-11).

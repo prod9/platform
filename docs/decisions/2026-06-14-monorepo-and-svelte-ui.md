@@ -8,7 +8,7 @@
 > single-module-spanning-`api/cli/core` layout are dropped. platform stays **one Go module
 > with flat top-level packages** (no `core/` grab-bag); the server ships in-binary as
 > `platform serve` (+ a future `srv/` package). See
-> [`../scratch/2026-06-29-platform-as-ci-design.md`](../scratch/2026-06-29-platform-as-ci-design.md).
+> [`spec/platform-server.md`](../spec/platform-server.md).
 > The **SvelteKit-in-plain-JS UI** and **multi-call OpenTofu-provider-in-the-CLI** decisions
 > still stand.
 

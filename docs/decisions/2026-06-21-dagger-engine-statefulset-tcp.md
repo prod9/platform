@@ -20,7 +20,7 @@ of the CUE and platform auto-detects the new pod count from DNS. Cache lives on 
 PVC (`volumeClaimTemplates`, mounted at `/var/lib/dagger`). Traffic is **plaintext**; accepted
 because it never leaves the cluster, and no encryption scheme (mTLS, mesh) will be added solely
 for the engine link. This is the CUE-authored baseline bit deferred as decision #3 of the
-[D3b-4 design-prep note](../scratch/2026-06-19-d3b4-baseline-design-prep.md).
+[D3b-4 design-prep note](../scratch/prior-art.md#d3b-4-baseline-design-prep-2026-06-19).
 
 ## Rationale
 

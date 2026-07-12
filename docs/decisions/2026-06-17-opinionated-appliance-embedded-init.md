@@ -55,7 +55,7 @@ repos. The cluster baseline is the same move, one layer down.
 
 - **The DSL is pulled forward.** It was Phase C; it becomes the next build, because the
   init package (3) and bootstrap (4) both depend on it. See the
-  [roadmap](../scratch/2026-06-16-platformv2-implementation-plan.md).
+  [roadmap](../scratch/prior-art.md#platformv2-implementation-plan-2026-06-16).
 - **The no-committed-rendered-YAML rule is unaffected.** That rule
   (`config-allocation.md`) governs the *downstream reconcile loop* — per-target desired
   state → OCI → Flux. The baseline/bootstrap is the cold start *outside* that loop; a
@@ -73,4 +73,4 @@ repos. The cluster baseline is the same move, one layer down.
   edits need no recompile. Bootstrap prints an analysis plan and confirms before writing;
   `--force` applies unprompted.
 - **Open:** `download` checksum-pinning and the CUE/DSL boundary for baseline components —
-  tracked in the [slice-1 open questions](../scratch/2026-06-17-slice1-open-questions.md).
+  tracked in the [slice-1 open questions](../scratch/prior-art.md#slice-1-open-questions-2026-06-17).

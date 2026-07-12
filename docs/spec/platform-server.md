@@ -9,7 +9,7 @@
 > behind the auth model lives in
 > [platform-server-github-app-zero-rbac](../decisions/2026-06-29-platform-server-github-app-zero-rbac.md).
 > Source:
-> [`../scratch/2026-06-29-platform-as-ci-design.md`](../scratch/2026-06-29-platform-as-ci-design.md).
+> [platform-as-CI design (prior-art)](../scratch/prior-art.md#platform-as-ci-architecture-design-2026-06-29).
 
 ## What `srv` is
 
@@ -29,6 +29,19 @@ one-directional and lint-enforced once `srv/` lands: **the shared packages are t
 and must never import server
 concerns** — no `fx/data`/`sqlx`/migrations, no `net/http` server, no auth, no knowledge
 that `srv` exists.
+
+### No `api/` contract layer (deliberate)
+
+A shared `api/` package of wire types + generated client is **rejected as over-engineering**
+at this stage: it earns its keep only with *independent*, *public/versioned*, or *polyglot*
+consumers — none true for an internal, single-consumer, Go-to-Go tool with no backward-compat
+obligation. When the CLI eventually calls `srv`, it carries its own small **hand-written
+client structs**, kept in step with the handlers by hand; the cost (a few duplicated structs,
+contract drift surfacing at runtime not compile time) is acceptable at this surface size. The
+hard rule: **`cli` must not import `srv`** — that would drag the server's DB and transitive
+deps into the CLI binary; `cli` stays shared-packages + stdlib `net/http` only. A
+contract/codegen layer returns to the table only when a real second consumer appears (a
+non-Go `webui`, or external API users), i.e. when versioning actually bites.
 
 ## Authorization: delegate to GitHub, zero platform RBAC
 

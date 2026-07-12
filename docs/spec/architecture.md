@@ -16,7 +16,7 @@ platform.toml ─parse─▶ config model ─interpret─▶ BuildAttempt ─▶
 | Stage        | Package      | Responsibility                                                    |
 | ------------ | ------------ | ----------------------------------------------------------------- |
 | parse        | `project/`   | read `platform.toml` → the **config model**                       |
-| config model | `project/`   | `Project` / `Module` / `Ops` — parsed, defaulted, inferred config |
+| config model | `project/`   | `Project` / `Module` — parsed, defaulted, inferred config |
 | interpret    | `framework/` | config → a **`BuildAttempt`** (one `BuildUnit` per module)        |
 | build model  | `framework/` | `BuildAttempt` has-many `BuildUnit` — the resolved build def      |
 | strategies   | `framework/` | the `Framework` implementations — per-stack build knowledge       |

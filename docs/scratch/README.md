@@ -33,27 +33,15 @@ the raw working material. Nothing else should depend on a scratch file continuin
 
 Newest first. Scratch is disposable, so this list may lag — the directory is the truth.
 
-**Live** — work in flight or current entry point:
+**Live** — current entry point / work in flight:
 
-- [2026-07-11 — Resume breadcrumb (latest)](2026-07-11-resume.md)
-- [2026-07-11 — Terminology pass + spec audit plan
-  (complete)](2026-07-11-terminology-docs-audit-plan.md)
-- [2026-07-10 — Resume breadcrumb (superseded)](2026-07-10-resume.md)
+- [2026-07-12 — Resume breadcrumb (latest)](2026-07-12-resume.md)
 - [2026-07-09 — fx handoff: slog LogValuer resolving sink](2026-07-09-fx-handoff-slog-logvaluer-sink.md)
-- [2026-07-08 — Project-centric framework refactor plan (pending; incl. terminology
-  addendum)](2026-07-08-builder-refactor-plan.md)
-- [2026-07-09 — Resume breadcrumb (superseded)](2026-07-09-resume.md)
 
-**Retained for provenance** — superseded content, but cited as the evidentiary record by a
-frozen decision or spec; kept so those links don't dangle:
+**Retained for provenance** — cited as the evidentiary record by a frozen decision or spec;
+kept so those links don't dangle:
 
+- [Prior-art digest](prior-art.md) — superseded design/plan scratch collapsed into one file
+  (2026-07-12); the appliance, render-pure-function, dagger-engine, oras-retirement,
+  terminology-lexicon, and monorepo decisions plus `spec/platform-server.md` cite its sections
 - [2026-07-05 — Resume breadcrumb](2026-07-05-resume.md) (oras-retirement ADR)
-- [2026-06-29 — Platform-as-CI architecture design](2026-06-29-platform-as-ci-design.md)
-  (source for `spec/platform-server.md`)
-- [2026-06-29 — Builders reshape design pass (#4)](2026-06-29-builders-reshape-design.md)
-  (oras-retirement ADR)
-- [2026-06-19 — D3b4 baseline design prep](2026-06-19-d3b4-baseline-design-prep.md)
-  (dagger-engine ADR + vendor)
-- [2026-06-17 — Slice 1 open questions](2026-06-17-slice1-open-questions.md) (appliance ADR)
-- [2026-06-16 — platformv2 implementation plan](2026-06-16-platformv2-implementation-plan.md)
-  (appliance + render-pure-function ADRs)

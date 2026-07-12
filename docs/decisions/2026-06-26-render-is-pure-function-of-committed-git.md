@@ -42,7 +42,7 @@ working.
 
 - **Supersedes** the image-injection prose in the
   [linked-CUE-engine ADR](2026-06-23-render-via-linked-cue-engine.md) and the Slice-1 / D3b-3
-  passages of the [implementation plan](../scratch/2026-06-16-platformv2-implementation-plan.md):
+  passages of the [implementation plan](../scratch/prior-art.md#platformv2-implementation-plan-2026-06-16):
   there is no `--inject image=` and no `RenderOptions.Image`.
 - Committing desired state is `git commit` + `ops publish` + Flux reconcile (or, no-server,
   `ops render` + `kubectl apply`) — never a render-time flag. There is no `deploy` verb.

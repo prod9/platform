@@ -100,7 +100,7 @@ changelog) and pushed once, non-forcefully, to the tracking remote (`gitctx.go`,
 force-pushed.
 
 The non-versioned `latest` strategy cuts **no git tag at all**. Its moving marker is the
-registry image tag (`Ops.Tag`), overwritten on each `publish` — an environment-style
+registry image tag, overwritten on each `publish` — an environment-style
 pointer that lives in the registry, not in git. So git holds only immutable version tags;
 the moving reference is a registry concern, not a force-pushed tag.
 
