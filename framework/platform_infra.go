@@ -44,7 +44,7 @@ func (Infra) Discover(wd string) bool {
 // greenfield cue.mod, and the "rolling" strategy seed. There is no app-vs-infra branch
 // anywhere — Infra simply contributes more.
 func (i Infra) Scaffold(ctx context.Context, wd string) (scaffold.Spec, error) {
-	files, err := baselineFiles()
+	files, err := infrabaseFiles()
 	if err != nil {
 		return scaffold.Spec{}, err
 	}
