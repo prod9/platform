@@ -32,6 +32,40 @@ old infra (the infra agent's ArgoCD/Keel/legacy-app world) as outdated and wrong
 they're useful as cluster *executors*, but their legacy-grounded objections do not bind the new
 design. Drive from the plan; override legacy caution.
 
+## 🚨 Verify before asserting — zero assumptions (per-repo Law)
+
+The one failure that has cost this project **months**: stating facts about the code, config,
+behavior, flow, or design from memory or inference instead of reading them — then the operator
+re-states the fact by hand, over and over. Every such assumption is a cardinal sin here, not a
+slip. This Law overrides speed, terseness, and the urge to answer immediately.
+
+Binding, every turn:
+
+- **Assert no fact about this codebase you have not just read this session.** Any claim about
+  what a function does, what a field means, what a flag defaults to, what a command emits, what
+  reads what, what the flow is — open the file (code, spec, ADR, test) and confirm *first*, cite
+  `file:line`. "I recall", "presumably", "should", "typically", "already handles" are banned as
+  grounds. If you have not read it, you do not know it — go read it before you type the claim.
+- **A challenged claim is verified or retracted — never restated.** "are you sure?" / "how do
+  you know?" / a correction → produce `file:line`, or drop the claim on the spot. Reasserting,
+  or defending with a tidier story, is the cardinal failure. The correction is the finding.
+- **Trace the whole path before concluding.** A claim about one hop (this function, this seed)
+  is worthless if the value's real source is two hops upstream. Follow producer→consumer end to
+  end — who writes it, who reads it, who ignores it — before you state what it does. "Read by
+  nobody / seeded from X" must be a grep/read result, not a guess.
+- **Specs are truth AND a live artifact — keep them current in-slice.** Read the relevant
+  `docs/spec/` + `docs/decisions/` before designing; when code and spec diverge, surface it —
+  the spec is wrong until reconciled, don't silently follow either. When a slice changes
+  behavior or a decision, update the spec/ADR in that **same slice** (route via
+  [`docs/README.md`](docs/README.md)), never as a later batch. A slice whose design moved is not
+  done until its spec is current — same tier as tests passing.
+- **When wrong, fix the artifact that misled you — same turn, no exceptions.** Every wrong
+  assumption traces to a source: a `CLAUDE.md`/spec/comment line that stated it imprecisely, or a
+  silence that let it stand. Amend that source the moment the error surfaces so a fresh session
+  can't repeat it — a corrected line here is worth more than any single fix. If the trip was pure
+  inattention with no misleading artifact, sharpen this section instead. (E.g. the `ALWAYS_YES`
+  clarification below was added exactly this way.)
+
 ## Conventions
 
 Commit messages **(per-repo Law)**: `area: Capitalized description`. Prefix is a code component/topic (`deps:`,
@@ -39,8 +73,13 @@ Commit messages **(per-repo Law)**: `area: Capitalized description`. Prefix is a
 put clarifiers in parens at the end; never a `(scope)` in the prefix. Keep the `Co-Authored-By:
 Claude …` trailer. Not `type(scope):`.
 
-Drive `init` non-interactively with `ALWAYS_YES=1`, not `--force` (which means
-"replace existing files").
+`ALWAYS_YES=1` **only auto-answers yes/no confirmation gates** (fx `prompts.Confirm`/`YesNo`) —
+it is NOT headless mode and does NOT feed value prompts. Init's value inputs (maintainer, email,
+repository, …) come from **positional args** to `platform init` (fx `prompts.Str` consumes
+`s.args` in order); a value prompt with no arg still blocks on stdin regardless of `ALWAYS_YES`.
+So non-interactive init = pass the values as positional args **and** set `ALWAYS_YES=1` for the
+final confirm (see `tests.cue` init invocations). `--force` is unrelated: it means "replace
+existing files" (write disposition), not prompt suppression.
 
 ## Design approach — how this project cuts
 
