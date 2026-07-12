@@ -94,6 +94,27 @@ func TestRenderFileMap(t *testing.T) {
 	}
 }
 
+// A CUE-route render addresses apps by their module-qualified path read from cue.mod, so
+// an apps package with no cue.mod fails clearly at the read rather than deep in the loader.
+func TestRenderMissingCueMod(t *testing.T) {
+	dir := t.TempDir()
+	apps := filepath.Join(dir, "apps", "sample.cue")
+	if err := os.MkdirAll(filepath.Dir(apps), 0o755); err != nil {
+		t.Fatalf("mkdir apps: %v", err)
+	}
+	if err := os.WriteFile(apps, []byte("package apps\n\ndemo: \"x.yaml\": {kind: \"X\"}\n"), 0o644); err != nil {
+		t.Fatalf("write sample.cue: %v", err)
+	}
+
+	_, err := gitops.Render(dir, gitops.RenderOptions{})
+	if err == nil {
+		t.Fatal("Render succeeded with no cue.mod, want fail-fast error")
+	}
+	if !strings.Contains(err.Error(), "cue.mod") {
+		t.Errorf("error does not mention cue.mod: %v", err)
+	}
+}
+
 func TestTreeWriteDir(t *testing.T) {
 	src := t.TempDir()
 	writeModule(t, src, sampleApps)

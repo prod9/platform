@@ -17,6 +17,7 @@ import (
 	cueyaml "cuelang.org/go/encoding/yaml"
 	"cuelang.org/go/mod/modconfig"
 	"gopkg.in/yaml.v3"
+	"platform.prodigy9.co/cuemod"
 	"platform.prodigy9.co/dsl"
 	"platform.prodigy9.co/project"
 )
@@ -88,25 +89,35 @@ func renderCue(srcDir string, vars map[string]any) (Tree, error) {
 // `cue export --out yaml` produced. The normalized [vars] feed the apps' `@tag(name)`
 // holes as load tags — the committed-config source for every CUE tag.
 func exportCue(srcDir string, vars map[string]any) ([]byte, error) {
-	dir, err := filepath.Abs(filepath.Join(srcDir, appsPackage))
+	root, err := filepath.Abs(srcDir)
 	if err != nil {
 		return nil, err
 	}
+
+	// Address the apps by their module-qualified import path (`<module>/apps`) read from
+	// cue.mod — the operator's truth for the module namespace — rather than by directory.
+	// cue.mod is where the module path lives (seeded at init, never from platform.toml); a
+	// missing or unparseable cue.mod fails render here, fast and clearly.
+	module, err := cuemod.Path(srcDir)
+	if err != nil {
+		return nil, fmt.Errorf("render: read cue.mod: %w", err)
+	}
+	appsPkg := module + "/" + appsPackage
 
 	registry, err := modconfig.NewRegistry(&modconfig.Config{CUERegistry: cueRegistry()})
 	if err != nil {
 		return nil, err
 	}
 
-	cfg := &load.Config{Dir: dir, Registry: registry}
+	cfg := &load.Config{Dir: root, Registry: registry}
 
 	// First pass, no tags: discover which `@tag` holes the apps actually declare. [vars]
 	// feeds both render routes, so it carries vars meant only for `.platform` directives; those
 	// have no CUE `@tag`, and CUE rejects an injected tag that nothing declares ("no tag for X").
 	// Inject only the declared subset.
-	probe := load.Instances([]string{"."}, cfg)
+	probe := load.Instances([]string{appsPkg}, cfg)
 	if len(probe) == 0 {
-		return nil, fmt.Errorf("render: no CUE instance under %s", dir)
+		return nil, fmt.Errorf("render: no CUE instance for %s", appsPkg)
 	}
 	if err := probe[0].Err; err != nil {
 		return nil, err
@@ -117,9 +128,9 @@ func exportCue(srcDir string, vars map[string]any) ([]byte, error) {
 		cfg.Tags = tags
 	}
 
-	insts := load.Instances([]string{"."}, cfg)
+	insts := load.Instances([]string{appsPkg}, cfg)
 	if len(insts) == 0 {
-		return nil, fmt.Errorf("render: no CUE instance under %s", dir)
+		return nil, fmt.Errorf("render: no CUE instance for %s", appsPkg)
 	}
 	if err := insts[0].Err; err != nil {
 		return nil, err
