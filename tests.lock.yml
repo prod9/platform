@@ -235,6 +235,46 @@
         - name: exitcode
           data:
             - "0"
+- name: Platform \ Infra Init
+  commands:
+    - command: ALWAYS_YES=1 ./testbed.sh infra-init init "Johnny Appleseed" "john@apple.com" "prod9/infra-new"
+      checks:
+        - name: exitcode
+          data:
+            - "0"
+        - name: ./testbeds/infra-init/platform.toml
+          data:
+            - '-----BEGIN platform.toml-----'
+            - maintainer = "Johnny Appleseed <john@apple.com>"
+            - repository = "prod9/infra-new"
+            - import_prefix = "example.com"
+            - local_arch = "auto"
+            - publish_arch = "amd64"
+            - strategy = "rolling"
+            - excludes = ["*.docker", "*.local", ".dockerignore", ".git", ".github", ".gitignore", ".idea", ".svelte-kit", ".vscode", "build", "dist", "node_modules", "platform.toml", "target"]
+            - ""
+            - '[modules]'
+            - '  [modules.infra-init]'
+            - '    workdir = "."'
+            - '    timeout = "1m0s"'
+            - '    framework = "platform/infra"'
+            - '    port = 0'
+            - ""
+            - '[vars]'
+            - '  CERT_MANAGER_VERSION = "v1.20.2"'
+            - '  FLUX_VERSION = "v2.8.8"'
+            - '  GATEWAY_API_VERSION = "v1.5.1"'
+            - '  NGINX_GATEWAY_FIREWALL_ID = "11222746"'
+            - '  NGINX_GATEWAY_VERSION = "v2.6.0"'
+            - '-----END platform.toml-----'
+            - ""
+- name: Platform \ Infra Init Render
+  commands:
+    - command: ./testbed.sh infra-init render
+      checks:
+        - name: exitcode
+          data:
+            - "0"
 - name: Platform \ Render
   commands:
     - command: ./testbed.sh infra-basic render

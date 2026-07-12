@@ -66,6 +66,30 @@ let testbeds = [...{name: string, dir: string}] &
 			}
 		},
 		{
+			// infra init generates the whole baseline into a fresh (git-ignored) dir. The
+			// snapshot proves the module path comes from `import_prefix` (example.com), not
+			// the bare, non-domain repository `prod9/infra-new` — the exact input that failed
+			// pre-fix. The follow-on render is the regression guard: it renders clean despite
+			// a repository CUE would reject as a module path.
+			name: "Infra Init"
+			checks: [
+				"exitcode",
+				"./testbeds/infra-init/platform.toml",
+			]
+			commands: [
+				// ALWAYS_YES=1 auto-confirms the apply prompt — this testbed carries no
+				// committed files to fall back on, so init must actually run to generate them.
+				"ALWAYS_YES=1 ./testbed.sh infra-init init \"Johnny Appleseed\" \"john@apple.com\" \"prod9/infra-new\"",
+			]
+		},
+		{
+			name: "Infra Init Render"
+			checks: ["exitcode"]
+			commands: [
+				"./testbed.sh infra-init render",
+			]
+		},
+		{
 			name: "Render"
 			checks: [
 				"exitcode",

@@ -1,0 +1,5 @@
+# infra init generates the whole baseline fresh here (and a nested .git, since the Infra
+# framework needs its own repo). Track nothing but this file — smoke snapshots the generated
+# platform.toml into tests.lock.yml, so the files need not be committed.
+*
+!.gitignore
