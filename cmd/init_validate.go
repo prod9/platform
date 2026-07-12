@@ -8,12 +8,14 @@ import (
 
 var (
 	ErrWDNotDir = errors.New("scaffold: target path is not a directory")
-	ErrWDNotGit = errors.New("scaffold: target directory is not inside a git repository")
+	ErrWDNotGit = errors.New("scaffold: target directory is not a git repository (run `git init` first)")
 )
 
-// validateDir checks the directory scaffold is about to write into exists and is a
-// directory. It runs before framework discovery; the git gate is framework-set (a
-// scaffold that creates its own repo needs none) and is checked afterward in Analyze.
+// validateDir checks the directory scaffold is about to write into: it exists, is a
+// directory, and is its own git repo root. Platform never creates the repo — the operator
+// runs `git init` (or clones) first, for every framework alike (delivery is git-based end
+// to end, so a non-repo target is always a mistake). Runs before framework discovery; the
+// git precondition is uniform, not framework-set.
 func validateDir(dir string) error {
 	info, err := os.Stat(dir)
 	if err != nil {
@@ -22,32 +24,15 @@ func validateDir(dir string) error {
 	if !info.IsDir() {
 		return ErrWDNotDir
 	}
+	if !IsGitRoot(dir) {
+		return ErrWDNotGit
+	}
 	return nil
 }
 
-// IsGitRepo reports whether dir is inside a git work tree, walking up toward the
-// filesystem root looking for a .git entry (a directory in a normal clone, a
-// file in a worktree/submodule — os.Stat accepts both).
-func IsGitRepo(dir string) bool {
-	for {
-		if _, err := os.Stat(filepath.Join(dir, ".git")); err == nil {
-			return true
-		}
-
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			return false
-		}
-		dir = parent
-	}
-}
-
-// IsGitRoot reports whether dir is itself a git repo root — a .git entry directly
-// in dir, without walking up. `init` uses this so it creates a standalone repo
-// at the target even when that target is nested inside another git work tree (e.g. a
-// framework whose scaffold creates its own repo, developed in-place under another
-// checkout). IsGitRepo's walk-up
-// would see the parent and wrongly skip `git init`.
+// IsGitRoot reports whether dir is itself a git repo root — a .git entry directly in dir,
+// without walking up. A nested standalone repo (an infra repo developed in-place under
+// another checkout) must have its own .git; the parent's does not count.
 func IsGitRoot(dir string) bool {
 	_, err := os.Stat(filepath.Join(dir, ".git"))
 	return err == nil

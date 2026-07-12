@@ -39,11 +39,12 @@ func TestAnalyze_freshRepoWritesEverything(t *testing.T) {
 }
 
 func TestAnalyze_infraGetsBaselineUniformly(t *testing.T) {
-	// A dir the Infra framework discovers (name glob) needs no pre-existing git repo; the
-	// plan carries the framework's fresh-repo need and its full baseline contribution —
-	// same driver path as every other framework, no infra branch.
+	// A dir the Infra framework discovers (name glob) gets its full baseline contribution
+	// through the same driver path as every other framework — no infra branch. Like every
+	// target, it must already be a git repo root (platform never runs `git init`).
 	dir := filepath.Join(t.TempDir(), "test-infra")
 	r.NoError(t, os.Mkdir(dir, 0o755))
+	r.NoError(t, os.Mkdir(filepath.Join(dir, ".git"), 0o755))
 
 	// Test binaries carry no dep versions in build info; stub the linked-SDK lookup.
 	orig := daggerVersion
@@ -52,7 +53,6 @@ func TestAnalyze_infraGetsBaselineUniformly(t *testing.T) {
 
 	plan, err := Analyze(dir, testInfo())
 	r.NoError(t, err)
-	r.True(t, plan.NeedsGitRepo)
 
 	byPath := map[string]FileChange{}
 	for _, f := range plan.Files {

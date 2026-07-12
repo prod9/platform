@@ -26,17 +26,15 @@ type File struct {
 
 // Spec is a framework's full declarative contribution to a freshly scaffolded repo:
 // the platform.toml module it adds, the default [vars] it seeds, the files it
-// ships (holes unresolved), the strategy value a fresh platform.toml gets, and whether
-// the target must become its own fresh git repository. It is the pure output of
-// Scaffold — the driver gathers operator inputs, generates platform.toml, resolves the
-// Files' holes via Resolve, and writes.
+// ships (holes unresolved), and the strategy value a fresh platform.toml gets. It is
+// the pure output of Scaffold — the driver gathers operator inputs, generates
+// platform.toml, resolves the Files' holes via Resolve, and writes.
 type Spec struct {
 	Module       *project.Module
 	Vars         map[string]any
 	Files        []File
 	Strategy     string
 	ImportPrefix string
-	NeedsGitRepo bool
 }
 
 // Data fills the placeholders in ".tmpl" files at init time — all discoverable, none

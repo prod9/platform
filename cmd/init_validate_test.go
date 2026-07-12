@@ -19,19 +19,12 @@ func TestValidateDir(t *testing.T) {
 	r.NoError(t, os.WriteFile(file, []byte("x"), 0644))
 	r.ErrorIs(t, validateDir(file), ErrWDNotDir)
 
-	// A plain directory passes — the git gate is framework-set and lives in Analyze.
-	r.NoError(t, validateDir(t.TempDir()))
-}
+	// A plain directory that is not a git root is rejected — platform never runs
+	// `git init`, the operator must have done it first.
+	r.ErrorIs(t, validateDir(t.TempDir()), ErrWDNotGit)
 
-func TestIsGitRepo_walksUp(t *testing.T) {
-	// A subdirectory of a git repo is inside it — detection walks up, matching
-	// git's own notion of "inside a work tree".
-	repo := gitRepo(t)
-	sub := filepath.Join(repo, "deep", "nested")
-	r.NoError(t, os.MkdirAll(sub, 0755))
-	r.True(t, IsGitRepo(sub))
-
-	r.False(t, IsGitRepo(t.TempDir()))
+	// A git repo root passes.
+	r.NoError(t, validateDir(gitRepo(t)))
 }
 
 func TestIsGitRoot(t *testing.T) {
@@ -40,20 +33,18 @@ func TestIsGitRoot(t *testing.T) {
 	// The repo root itself is a root.
 	r.True(t, IsGitRoot(repo))
 
-	// A nested subdir is INSIDE the repo (IsGitRepo walks up and says yes) but is
-	// NOT its own root — so `ops init` there must still create a standalone repo.
+	// A nested subdir sits under the repo but is NOT its own root — a standalone repo
+	// there needs its own `git init`.
 	sub := filepath.Join(repo, "infra")
 	r.NoError(t, os.MkdirAll(sub, 0755))
-	r.True(t, IsGitRepo(sub))
 	r.False(t, IsGitRoot(sub))
 
-	// A bare dir is neither.
-	bare := t.TempDir()
-	r.False(t, IsGitRoot(bare))
+	// A bare dir is not a root.
+	r.False(t, IsGitRoot(t.TempDir()))
 }
 
-// gitRepo returns a fresh temp dir marked as a git repo. The git gate only needs
-// a .git entry to exist, so no real `git init` is required — keeps it hermetic.
+// gitRepo returns a fresh temp dir marked as a git repo root. IsGitRoot only needs a
+// .git entry to exist, so no real `git init` is required — keeps it hermetic.
 func gitRepo(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()

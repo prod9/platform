@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"os/exec"
 
 	"fx.prodigy9.co/cmd/prompts"
 	"github.com/BurntSushi/toml"
@@ -62,11 +61,6 @@ func applyPlan(wd string, sess *prompts.Session, plan *Plan) {
 		replace = sess.YesNo(fmt.Sprintf("replace %d existing file(s)?", n))
 	}
 
-	if plan.NeedsGitRepo {
-		if err := ensureGitRepo(wd); err != nil {
-			buildlog.Fatalln(err)
-		}
-	}
 	apply := plan.Apply
 	if replace {
 		apply = plan.ApplyOverwrite
@@ -90,16 +84,4 @@ func applyPlan(wd string, sess *prompts.Session, plan *Plan) {
 	if err := toml.NewEncoder(os.Stdout).Encode(cfg); err != nil {
 		buildlog.Fatalln(err)
 	}
-}
-
-// ensureGitRepo runs `git init` when dir is not already its own git repo root — a framework
-// whose ScaffoldSpec needs a fresh repo gets a standalone one (GitOps delivery needs it),
-// even nested inside another checkout.
-func ensureGitRepo(dir string) error {
-	if IsGitRoot(dir) {
-		return nil
-	}
-	gitInit := exec.Command("git", "init", dir)
-	gitInit.Stdout, gitInit.Stderr = os.Stdout, os.Stderr
-	return gitInit.Run()
 }

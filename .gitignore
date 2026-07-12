@@ -11,6 +11,10 @@ bin
 # Render output (model I: rendered manifests are never committed).
 testbeds/*/k8s
 
+# Per-testbed git roots the smoke harness creates (platform requires a repo root; it
+# never runs `git init` itself).
+testbeds/*/.git
+
 # ACE-managed — do not edit this block.
 # Managed by ACE. See https://github.com/ace-rs/ace
 .agents/agents

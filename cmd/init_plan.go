@@ -42,14 +42,11 @@ type FileChange struct {
 
 // Plan is the result of the scaffold analysis pass: every file to write and
 // the disposition of every default var. Computing it is pure (reads only) so a
-// caller can print and confirm it before Apply mutates the tree. NeedsGitRepo
-// carries the framework's git need up to the driver, which creates the repo
-// before writing.
+// caller can print and confirm it before Apply mutates the tree.
 type Plan struct {
-	Dir          string
-	Files        []FileChange
-	Vars         []project.VarChange
-	NeedsGitRepo bool
+	Dir   string
+	Files []FileChange
+	Vars  []project.VarChange
 }
 
 // Analyze computes the scaffold plan for a repo without writing anything — one uniform
@@ -70,12 +67,6 @@ func Analyze(dir string, info *Info) (*Plan, error) {
 	if err != nil {
 		return nil, err
 	}
-	// The git gate is framework-set: a scaffold that creates its own repo needs none;
-	// everything else hard-gates on an existing repo (the appliance baseline is delivered
-	// through GitOps, so a non-repo target is virtually always a mistake).
-	if !spec.NeedsGitRepo && !IsGitRepo(dir) {
-		return nil, ErrWDNotGit
-	}
 
 	projFile, vars, err := planProjectFile(dir, info, spec)
 	if err != nil {
@@ -91,7 +82,7 @@ func Analyze(dir string, info *Info) (*Plan, error) {
 		fileChange(dir, "platform", []byte(platformTemplate), 0744),
 	}
 	files = append(files, specFiles...)
-	return &Plan{Dir: dir, Files: files, Vars: vars, NeedsGitRepo: spec.NeedsGitRepo}, nil
+	return &Plan{Dir: dir, Files: files, Vars: vars}, nil
 }
 
 // discoverSpec finds the framework rooting dir and returns its scaffold contribution. A
