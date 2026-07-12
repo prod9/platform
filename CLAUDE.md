@@ -262,7 +262,9 @@ run (`CHANGED`, exit 1) means output moved off the golden — a prompt to
 **review the diff and decide**, not a failed assertion. Intended drift → re-record with
 `./test.sh --commit`; unintended → a regression to fix at the source. Never `--commit` a
 CHANGED lock unread, and never massage code just to force output back to the old golden —
-both blind the detector.
+both blind the detector. A slice that moves smoke output isn't done until its golden is
+re-recorded and the diff reviewed, in that same slice — same tier as `go test` passing,
+never a session-end batch; the docker/runtime cost is mechanism, not a deferral.
 
 The 1m per-test timeout in `tests.cue` is deliberately tight — it keeps builds honest.
 Never raise it to make a slow build pass: fix the slowness (cache reuse, unnecessary
