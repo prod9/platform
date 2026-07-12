@@ -2,6 +2,7 @@ package framework
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"path/filepath"
@@ -41,11 +42,11 @@ func (Infra) Discover(wd string) bool {
 	return hasInfraName(wd)
 }
 
-// Scaffold contributes the whole cluster baseline: the infra module, the baseline's
-// default [vars] pins, the embedded component files (routed, holes unresolved), a
-// greenfield cue.mod, and the "rolling" strategy seed. There is no app-vs-infra branch
-// anywhere — Infra simply contributes more.
-func (i Infra) Scaffold(ctx context.Context, wd string) (scaffold.Spec, error) {
+// Scaffold contributes the whole cluster baseline: the infra module, the baseline's default
+// [vars] pins, the embedded component files (routed and resolved), a greenfield cue.mod, and
+// the "rolling" strategy seed. There is no app-vs-infra branch anywhere — Infra simply
+// contributes more, and owns resolving its own template holes.
+func (i Infra) Scaffold(ctx context.Context, wd, repository, daggerVersion string, inputs map[string]string) (scaffold.Spec, error) {
 	files, err := infrabaseFiles()
 	if err != nil {
 		return scaffold.Spec{}, err
@@ -54,10 +55,19 @@ func (i Infra) Scaffold(ctx context.Context, wd string) (scaffold.Spec, error) {
 		files = append(files, cueModFile())
 	}
 
+	data, err := i.scaffoldData(wd, repository, daggerVersion, inputs)
+	if err != nil {
+		return scaffold.Spec{}, err
+	}
+	resolved, err := scaffold.Resolve(files, data)
+	if err != nil {
+		return scaffold.Spec{}, err
+	}
+
 	return scaffold.Spec{
 		Module:   defaultModule(i, wd),
 		Vars:     maps.Clone(DefaultVars),
-		Files:    files,
+		Files:    resolved,
 		Strategy: "rolling",
 	}, nil
 }
@@ -75,10 +85,15 @@ func (Infra) RequiredScaffoldInputs(wd string) []string {
 	return []string{cueModPrefixInput}
 }
 
-// ScaffoldData builds the baseline's template data: the CUE module path (from an existing
+// scaffoldData builds the baseline's template data: the CUE module path (from an existing
 // cue.mod or the greenfield CUE_MOD_PREFIX input), the linked dagger SDK version, and the
-// flux self-sync image base derived from the repository.
-func (i Infra) ScaffoldData(wd, repository, daggerVersion string, inputs map[string]string) (scaffold.Data, error) {
+// flux self-sync image base derived from the repository. Infra needs the SDK version for the
+// engine image ref, so an empty one is a hard error here rather than a tagless ref downstream.
+func (i Infra) scaffoldData(wd, repository, daggerVersion string, inputs map[string]string) (scaffold.Data, error) {
+	if daggerVersion == "" {
+		return scaffold.Data{}, errors.New("infra scaffold: the linked dagger SDK version is unknown")
+	}
+
 	modulePath, err := i.modulePath(wd, inputs)
 	if err != nil {
 		return scaffold.Data{}, err

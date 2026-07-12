@@ -20,7 +20,7 @@ func (PNPMStatic) Discover(wd string) bool {
 	return detected
 }
 
-func (fw PNPMStatic) Scaffold(ctx context.Context, wd string) (scaffold.Spec, error) {
+func (fw PNPMStatic) Scaffold(ctx context.Context, wd, _, _ string, _ map[string]string) (scaffold.Spec, error) {
 	return scaffold.Spec{Module: defaultModule(fw, wd)}, nil
 }
 

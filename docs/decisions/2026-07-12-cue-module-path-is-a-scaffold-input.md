@@ -38,9 +38,10 @@ edit that silently does nothing. So there is no `platform.toml` module-path key.
   init. Infra returns `["CUE_MOD_PREFIX"]` only when greenfield (`!cuemod.Present`); an existing
   `cue.mod` is read, never re-asked. The driver prompts each by name and stays framework-agnostic
   — no app-vs-infra branch.
-- **`Infra.ScaffoldData`** resolves the module path (the `CUE_MOD_PREFIX` input greenfield, the
-  existing `cue.mod` otherwise — it wins) and validates it as a legal CUE module path (a domain
-  in the first segment), failing clearly rather than deferring to CUE's cryptic error.
+- **`Infra.Scaffold`** owns resolving its own files: it resolves the module path (the
+  `CUE_MOD_PREFIX` input greenfield, the existing `cue.mod` otherwise — it wins) and validates it
+  as a legal CUE module path (a domain in the first segment), failing clearly rather than
+  deferring to CUE's cryptic error. The driver writes finished bytes and never sees a template hole.
 - The operator **never hand-edits `cue.mod`**: the value is asked once, at init, and flows to
   `cue.mod` + the app imports together.
 

@@ -62,7 +62,11 @@ func Analyze(dir string, info *Info, inputs map[string]string) (*Plan, error) {
 	if err := validateDir(dir); err != nil {
 		return nil, err
 	}
-	fw, spec, err := discoverSpec(dir)
+	fw, err := discover(dir)
+	if err != nil {
+		return nil, err
+	}
+	spec, err := scaffoldSpec(fw, dir, info, inputs)
 	if err != nil {
 		return nil, err
 	}
@@ -71,32 +75,34 @@ func Analyze(dir string, info *Info, inputs map[string]string) (*Plan, error) {
 	if err != nil {
 		return nil, err
 	}
-	specFiles, err := planSpecFiles(dir, info, fw, inputs, spec)
-	if err != nil {
-		return nil, err
-	}
 
 	files := []FileChange{
 		projFile,
 		fileChange(dir, "platform", []byte(platformTemplate), 0744),
 	}
-	files = append(files, specFiles...)
+	files = append(files, specFileChanges(dir, spec)...)
 	return &Plan{Dir: dir, Files: files, Vars: vars}, nil
 }
 
 // discoverSpec finds the framework rooting dir and returns its scaffold contribution. A
 // missing framework is not an error (an unrecognised repo still gets platform.toml +
 // launcher); the zero spec carries no module, vars, or files.
-func discoverSpec(dir string) (framework.Framework, fwscaffold.Spec, error) {
+func discover(dir string) (framework.Framework, error) {
 	fw, err := framework.Discover(dir)
 	if err != nil && !errors.Is(err, framework.ErrNoFramework) {
-		return nil, fwscaffold.Spec{}, err
+		return nil, err
 	}
+	return fw, nil
+}
+
+// scaffoldSpec runs the framework's Scaffold with the operator inputs and the environment facts
+// it may need (repository, the linked SDK version). The framework returns its complete, resolved
+// contribution; an unrecognized repo (nil framework) contributes nothing.
+func scaffoldSpec(fw framework.Framework, dir string, info *Info, inputs map[string]string) (fwscaffold.Spec, error) {
 	if fw == nil {
-		return nil, fwscaffold.Spec{}, nil
+		return fwscaffold.Spec{}, nil
 	}
-	spec, err := fw.Scaffold(context.Background(), dir)
-	return fw, spec, err
+	return fw.Scaffold(context.Background(), dir, info.Repository, daggerVersion(), inputs)
 }
 
 // planProjectFile decides how platform.toml changes: a surgical [vars]
@@ -129,35 +135,15 @@ func planProjectFile(dir string, info *Info, spec fwscaffold.Spec) (FileChange, 
 // dependency versions in their build info — tests stub it; production reads the real SDK.
 var daggerVersion = framework.DaggerVersion
 
-// planSpecFiles resolves the framework's contributed files. The framework builds its own
-// template data from the operator inputs (ScaffoldData) — which input fills which hole, and
-// reading an existing cue.mod, is framework knowledge, not the driver's. The driver supplies
-// only environment facts: the linked SDK version and the repository.
-func planSpecFiles(dir string, info *Info, fw framework.Framework, inputs map[string]string, spec fwscaffold.Spec) ([]FileChange, error) {
-	if len(spec.Files) == 0 {
-		return nil, nil
-	}
-
-	version := daggerVersion()
-	if version == "" {
-		return nil, errors.New("scaffold: could not determine the linked dagger SDK version")
-	}
-
-	data, err := fw.ScaffoldData(dir, info.Repository, version, inputs)
-	if err != nil {
-		return nil, err
-	}
-
-	resolved, err := fwscaffold.Resolve(spec.Files, data)
-	if err != nil {
-		return nil, err
-	}
-
-	files := make([]FileChange, 0, len(resolved))
-	for _, f := range resolved {
+// specFileChanges turns the framework's already-resolved files into planned writes. Resolution
+// (which input fills which hole, reading an existing cue.mod) happened inside Scaffold — the
+// driver never sees a template hole, only finished bytes.
+func specFileChanges(dir string, spec fwscaffold.Spec) []FileChange {
+	files := make([]FileChange, 0, len(spec.Files))
+	for _, f := range spec.Files {
 		files = append(files, fileChange(dir, f.Path, f.Content, f.Mode))
 	}
-	return files, nil
+	return files
 }
 
 // Apply writes the plan's files, skipping any that would overwrite an existing file.

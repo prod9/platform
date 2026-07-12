@@ -24,11 +24,10 @@ type File struct {
 	Mode    fs.FileMode
 }
 
-// Spec is a framework's full declarative contribution to a freshly scaffolded repo:
-// the platform.toml module it adds, the default [vars] it seeds, the files it
-// ships (holes unresolved), and the strategy value a fresh platform.toml gets. It is
-// the pure output of Scaffold — the driver gathers operator inputs, generates
-// platform.toml, resolves the Files' holes via Resolve, and writes.
+// Spec is a framework's full contribution to a freshly scaffolded repo: the platform.toml
+// module it adds, the default [vars] it seeds, the files it ships (already **resolved** — the
+// framework fills its own holes via Resolve), and the strategy value a fresh platform.toml
+// gets. The driver generates platform.toml and writes the files as-is.
 type Spec struct {
 	Module   *project.Module
 	Vars     map[string]any
@@ -39,7 +38,8 @@ type Spec struct {
 // Data fills the placeholders in ".tmpl" files at init time: DaggerVersion comes from the
 // linked SDK; ModulePath is the CUE module a .tmpl hole resolves to, read from an existing
 // cue.mod or from the CUE_MOD_PREFIX scaffold input; ImageBase is derived from the
-// repository. A framework builds it from operator inputs via ScaffoldData.
+// repository. A framework builds it from operator inputs and passes it to Resolve inside its
+// own Scaffold.
 type Data struct {
 	DaggerVersion string
 	ModulePath    string

@@ -35,17 +35,14 @@ type (
 		// none (nil); Infra needs the CUE module path only when greenfield.
 		RequiredScaffoldInputs(wd string) []string
 
-		// Scaffold returns the framework's full declarative contribution to a fresh
-		// repo: its platform.toml module, default [vars], the files it ships (holes
-		// unresolved), and the strategy value it seeds. Pure — the driver resolves and writes.
-		Scaffold(ctx context.Context, wd string) (scaffold.Spec, error)
-
-		// ScaffoldData builds the values that fill the Scaffold files' template holes from
-		// the operator inputs — the framework owns which input maps to which hole (e.g.
-		// CUE_MOD_PREFIX -> the CUE module path) and how to read existing state (an existing
-		// cue.mod wins over the input). repository and daggerVersion are environment facts
-		// the driver supplies. Frameworks that ship no template files return the zero Data.
-		ScaffoldData(wd, repository, daggerVersion string, inputs map[string]string) (scaffold.Data, error)
+		// Scaffold returns the framework's full, ready-to-write contribution to a fresh repo:
+		// its platform.toml module, default [vars], the strategy it seeds, and the files it
+		// ships with every template hole already resolved. The framework owns resolution — it
+		// knows which operator input fills which hole (e.g. CUE_MOD_PREFIX -> the CUE module
+		// path) and how to read existing state (an existing cue.mod wins over the input).
+		// repository and daggerVersion are environment facts the driver supplies; inputs are
+		// the operator's answers to RequiredScaffoldInputs. The driver just writes what it gets.
+		Scaffold(ctx context.Context, wd, repository, daggerVersion string, inputs map[string]string) (scaffold.Spec, error)
 
 		Build(ctx context.Context, client *dagger.Client, unit *BuildUnit) (*dagger.Container, error)
 	}
@@ -53,14 +50,10 @@ type (
 
 // noScaffoldInputs is the default for frameworks that onboard an existing repo: they read
 // their own module file (go.mod, package.json) rather than scaffolding one, so they need no
-// operator inputs and contribute no template data. Embed it to satisfy the contract.
+// operator inputs. Embed it to satisfy RequiredScaffoldInputs.
 type noScaffoldInputs struct{}
 
 func (noScaffoldInputs) RequiredScaffoldInputs(string) []string { return nil }
-
-func (noScaffoldInputs) ScaffoldData(_, _, _ string, _ map[string]string) (scaffold.Data, error) {
-	return scaffold.Data{}, nil
-}
 
 const (
 	LayoutBasic     Layout = "basic"

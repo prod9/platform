@@ -202,12 +202,13 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
 - `framework/` — a `Framework` is the **sole owner of a project
   type**: it recognizes itself, scaffolds itself, builds itself. See
   [spec/frameworks.md](docs/spec/frameworks.md) + [spec/scaffolding.md](docs/spec/scaffolding.md).
-  - Contract: `Name/Layout/Discover/RequiredScaffoldInputs/Scaffold/ScaffoldData/Build`.
+  - Contract: `Name/Layout/Discover/RequiredScaffoldInputs/Scaffold/Build`.
     `RequiredScaffoldInputs(wd)` declares the operator inputs the framework needs at init (by
     name, the prompt label — most onboard an existing repo and need none; embed `noScaffoldInputs`);
-    `ScaffoldData(wd, repository, daggerVersion, inputs)` builds the values that fill the Scaffold
-    files' template holes, so the driver never knows which input means what. Runtime shape is a
-    descriptive taxonomy in prose (native/bytecode/interpreted/static/custom), not a contract method.
+    `Scaffold(wd, repository, daggerVersion, inputs)` returns the framework's complete, **resolved**
+    contribution — it owns filling its own template holes (which input maps to which hole, reading
+    an existing cue.mod), so the driver just writes finished bytes and never sees a hole. Runtime
+    shape is a descriptive taxonomy in prose (native/bytecode/interpreted/static/custom), not a method.
   - Layouts: `basic` (single module) | `workspace` (multi-module).
   - Known frameworks (order-sensitive for discovery, `Infra` first): `Infra`,
     `GoWorkspace`, `PNPMWorkspace`, `GoBasic`, `PNPMStatic`, `PNPMBasic`, `Dockerfile`.

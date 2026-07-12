@@ -16,11 +16,13 @@ import (
 	"platform.prodigy9.co/project"
 )
 
-// infraSpec runs Infra.Scaffold against a temp dir and indexes its files by path.
+// infraSpec runs Infra.Scaffold against a temp dir (greenfield: CUE_MOD_PREFIX supplied) and
+// indexes its resolved files by path.
 func infraSpec(t *testing.T, wd string) (scaffold.Spec, map[string]scaffold.File) {
 	t.Helper()
 
-	spec, err := Infra{}.Scaffold(context.Background(), wd)
+	spec, err := Infra{}.Scaffold(context.Background(), wd, "github.com/prod9/infra", "v0.21.7",
+		map[string]string{"CUE_MOD_PREFIX": "example.com"})
 	r.NoError(t, err)
 
 	byPath := map[string]scaffold.File{}
@@ -41,28 +43,23 @@ func TestInfraScaffoldContributesBaseline(t *testing.T) {
 	r.Equal(t, "platform/infra", spec.Module.Framework)
 	r.Contains(t, spec.Vars, "CERT_MANAGER_VERSION")
 
-	// Destination-encoded routing applied; .tmpl holes left unresolved for the driver.
+	// Destination-encoded routing applied; .tmpl holes resolved by Scaffold (suffix stripped).
 	r.Contains(t, byPath, filepath.Join("apps", "cert-manager.platform"))
-	r.Contains(t, byPath, filepath.Join("apps", "platform.cue.tmpl"))
+	r.Contains(t, byPath, filepath.Join("apps", "platform.cue"))
 	r.Contains(t, byPath, filepath.Join("defaults", "basics.cue"))
-	r.Contains(t, byPath, filepath.Join("cue.mod", "module.cue.tmpl"))
+	r.Contains(t, byPath, filepath.Join("cue.mod", "module.cue"))
 }
 
-// TestInfraScaffoldCueModule resolves the greenfield cue.mod contribution and checks the
-// shape `platform render` loads: module path hole resolved, the linked evaluator's
-// language version, the defs dep pinned. An existing cue.mod suppresses the contribution.
+// TestInfraScaffoldCueModule checks the greenfield cue.mod Scaffold resolves: the module path
+// hole filled from the CUE_MOD_PREFIX input, the linked evaluator's language version, the defs
+// dep pinned. An existing cue.mod suppresses the contribution (TestInfraScaffoldKeepsExisting…).
 func TestInfraScaffoldCueModule(t *testing.T) {
 	_, byPath := infraSpec(t, t.TempDir())
 
-	files, err := scaffold.Resolve(
-		[]scaffold.File{byPath[filepath.Join("cue.mod", "module.cue.tmpl")]},
-		scaffold.Data{ModulePath: "test.example/infra"})
+	mod := byPath[filepath.Join("cue.mod", "module.cue")]
+	mf, err := modfile.Parse(mod.Content, mod.Path)
 	r.NoError(t, err)
-	r.Equal(t, filepath.Join("cue.mod", "module.cue"), files[0].Path)
-
-	mf, err := modfile.Parse(files[0].Content, files[0].Path)
-	r.NoError(t, err)
-	r.Equal(t, "test.example/infra", mf.Module)
+	r.Equal(t, "example.com", mf.Module)
 	r.Equal(t, cue.LanguageVersion(), mf.Language.Version)
 	r.Contains(t, mf.Deps, DefsModule)
 	r.Equal(t, DefsVersion, mf.Deps[DefsModule].Version)
@@ -93,21 +90,26 @@ func TestInfraRequiredScaffoldInputs(t *testing.T) {
 func TestInfraScaffoldData(t *testing.T) {
 	// Greenfield: module path comes from the CUE_MOD_PREFIX input; env facts pass through.
 	green := t.TempDir()
-	data, err := Infra{}.ScaffoldData(green, "github.com/prod9/infra", "v0.21.7",
+	data, err := Infra{}.scaffoldData(green, "github.com/prod9/infra", "v0.21.7",
 		map[string]string{"CUE_MOD_PREFIX": "prodigy9.co"})
 	r.NoError(t, err)
 	r.Equal(t, "prodigy9.co", data.ModulePath)
 	r.Equal(t, "v0.21.7", data.DaggerVersion)
 
+	// Infra needs the linked SDK version for the engine image ref — an empty one is a hard
+	// error here, not a tagless ref downstream.
+	_, err = Infra{}.scaffoldData(green, "r", "", map[string]string{"CUE_MOD_PREFIX": "x.co"})
+	r.Error(t, err)
+
 	// An input CUE would reject as a module path (no dot in the first segment) fails fast —
 	// this is the exact case a bare GitHub org/repo produces.
-	_, err = Infra{}.ScaffoldData(green, "r", "v", map[string]string{"CUE_MOD_PREFIX": "prod9/infra-new"})
+	_, err = Infra{}.scaffoldData(green, "r", "v", map[string]string{"CUE_MOD_PREFIX": "prod9/infra-new"})
 	r.Error(t, err)
 
 	// An existing cue.mod wins over any input — operator truth.
 	existing := t.TempDir()
 	writeModuleFile(t, existing, "kept.example/infra")
-	data, err = Infra{}.ScaffoldData(existing, "r", "v", map[string]string{"CUE_MOD_PREFIX": "ignored.co"})
+	data, err = Infra{}.scaffoldData(existing, "r", "v", map[string]string{"CUE_MOD_PREFIX": "ignored.co"})
 	r.NoError(t, err)
 	r.Equal(t, "kept.example/infra", data.ModulePath)
 }
