@@ -123,9 +123,11 @@ func planProjectFile(dir string, info *Info, spec fwscaffold.Spec) (FileChange, 
 	}
 
 	content, vars, err := project.Generate(project.GenerateInfo{
-		Maintainer: fmt.Sprintf("%s <%s>", info.Maintainer, info.MaintainerEmail),
-		Repository: info.Repository,
-	}, filepath.Base(dir), spec.Module, spec.Vars, spec.Strategy)
+		Maintainer:   fmt.Sprintf("%s <%s>", info.Maintainer, info.MaintainerEmail),
+		Repository:   info.Repository,
+		Strategy:     spec.Strategy,
+		ImportPrefix: spec.ImportPrefix,
+	}, filepath.Base(dir), spec.Module, spec.Vars)
 	if err != nil {
 		return FileChange{}, nil, err
 	}
@@ -137,8 +139,9 @@ func planProjectFile(dir string, info *Info, spec fwscaffold.Spec) (FileChange, 
 var daggerVersion = framework.DaggerVersion
 
 // planSpecFiles resolves the framework's contributed files with the init-time data —
-// DaggerVersion from the linked SDK, ModulePath from an existing cue.mod (or the
-// repository on a greenfield one), ImageBase derived from the repository.
+// DaggerVersion from the linked SDK, ModulePath from an existing cue.mod (or the spec's
+// ImportPrefix on a greenfield one), ImageBase derived from the repository. ModulePath
+// is the operator's CUE namespace, deliberately separate from the GitHub repository.
 func planSpecFiles(dir string, info *Info, spec fwscaffold.Spec) ([]FileChange, error) {
 	if len(spec.Files) == 0 {
 		return nil, nil
@@ -148,7 +151,7 @@ func planSpecFiles(dir string, info *Info, spec fwscaffold.Spec) ([]FileChange, 
 	if version == "" {
 		return nil, errors.New("scaffold: could not determine the linked dagger SDK version")
 	}
-	modulePath := info.Repository
+	modulePath := spec.ImportPrefix
 	if framework.HasCueModule(dir) {
 		path, err := framework.CueModulePath(dir)
 		if err != nil {

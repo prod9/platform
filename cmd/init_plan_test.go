@@ -63,10 +63,16 @@ func TestAnalyze_infraGetsBaselineUniformly(t *testing.T) {
 	r.Contains(t, byPath, filepath.Join("defaults", "basics.cue"))
 	r.Contains(t, byPath, filepath.Join("cue.mod", "module.cue"))
 
-	// The strategy seed and the template holes resolve from the operator info.
-	r.Contains(t, string(byPath["platform.toml"].Content), `strategy = "rolling"`)
-	r.Contains(t, string(byPath[filepath.Join("cue.mod", "module.cue")].Content),
-		testInfo().Repository)
+	// The strategy and import_prefix seeds land in platform.toml.
+	toml := string(byPath["platform.toml"].Content)
+	r.Contains(t, toml, `strategy = "rolling"`)
+	r.Contains(t, toml, `import_prefix = "example.com"`)
+
+	// The cue.mod module path resolves from import_prefix, NOT the GitHub repository —
+	// they are separate namespaces (see planSpecFiles).
+	cuemod := string(byPath[filepath.Join("cue.mod", "module.cue")].Content)
+	r.Contains(t, cuemod, `module: "example.com"`)
+	r.NotContains(t, cuemod, testInfo().Repository)
 }
 
 func TestAnalyze_rejectsNonGitDir(t *testing.T) {

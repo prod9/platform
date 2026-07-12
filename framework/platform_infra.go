@@ -56,6 +56,7 @@ func (i Infra) Scaffold(ctx context.Context, wd string) (scaffold.Spec, error) {
 		Vars:         maps.Clone(DefaultVars),
 		Files:        files,
 		Strategy:     "rolling",
+		ImportPrefix: "example.com",
 		NeedsGitRepo: true,
 	}, nil
 }

@@ -35,13 +35,14 @@ type Spec struct {
 	Vars         map[string]any
 	Files        []File
 	Strategy     string
+	ImportPrefix string
 	NeedsGitRepo bool
 }
 
 // Data fills the placeholders in ".tmpl" files at init time — all discoverable, none
 // prompted: DaggerVersion comes from the linked SDK; ModulePath is the CUE module a
-// .tmpl hole resolves to, read from an existing cue.mod or defaulted to the repository;
-// ImageBase is derived from the repository.
+// .tmpl hole resolves to, read from an existing cue.mod or seeded from the spec's
+// ImportPrefix; ImageBase is derived from the repository.
 type Data struct {
 	DaggerVersion string
 	ModulePath    string

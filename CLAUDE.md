@@ -142,12 +142,15 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
 ### Packages
 
 - `project/` — owns `platform.toml`: parse, generate, merge. `Project` (maintainer,
-  repository, strategy, excludes, modules, `[vars]`) and `Module` (workdir, framework —
+  repository, strategy, `import_prefix`, excludes, modules, `[vars]`) and `Module` (workdir, framework —
   legacy `builder` key read as a deprecated alias — env, port, cmd, args, asset_dirs,
   build_dir, image, package). The publish target is not a stored section: a module's image
   is inferred per-module from `repository` (`ghcr.io/x`, `InferImageBase`) with `[modules.x.image]`
   the explicit override, and the tag derives from the release strategy (`rolling` → `latest`;
-  versioned → the release version). `[vars]` (top-level) is the verbatim DSL `\(var)` table —
+  versioned → the release version). `import_prefix` is the operator's CUE module namespace
+  (the `module:` in cue.mod, seeded into apps' imports at init) — a **separate** concern from
+  `repository` (GitHub host), Infra-only, seeded to the `example.com` placeholder (see the
+  [import-prefix ADR](docs/decisions/2026-07-12-cue-module-path-via-import-prefix.md)). `[vars]` (top-level) is the verbatim DSL `\(var)` table —
   a generic `map[string]any` (values keep their TOML type), pure passthrough
   (no defaults/inference), consumed project-wide by `render`.
   `Configure(wd)` walks up to find file,

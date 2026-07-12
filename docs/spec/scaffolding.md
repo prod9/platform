@@ -39,7 +39,8 @@ shapes a framework returns and nothing stack-specific:
 **Templating rules.** `.tmpl` files resolve through `text/template` with `missingkey=error`;
 non-template files pass through **verbatim** — their CUE braces must never meet the template
 engine. Placeholders are filled at init time: `DaggerVersion` (from the linked SDK, below),
-`ModulePath`, and `OpsImage` (the flux self-sync OCI base). Registry creds are **not**
+`ModulePath` (seeded from the `import_prefix` setting — the operator's CUE namespace, separate
+from `repository`), and `ImageBase` (the flux self-sync OCI base). Registry creds are **not**
 templated — they ship as empty placeholders in committed CUE (below). Output order is
 deterministic.
 
@@ -103,7 +104,8 @@ ref.
 ### `cue.mod` scaffold
 
 The `Infra` framework contributes `cue.mod/module.cue` on a **greenfield** infra repo (no
-existing module, `ModulePath` set). It pins the operator's module path, the linked CUE
+existing module, `ModulePath` seeded from `import_prefix`). It pins the operator's module path
+(their CUE namespace, deliberately distinct from the GitHub `repository`), the linked CUE
 evaluator's language version (so render never demands a newer language than it links), and the
 `DefsModule`/`DefsVersion` infra-defs dependency the baseline apps import. An existing
 module is the operator's truth — read its path (`ModulePath`, `@vN` suffix stripped), never
@@ -150,7 +152,8 @@ Drive `init` non-interactively with **`ALWAYS_YES=1`**, not `--force`. They are 
 - **Absent** → a fresh file is generated from `project.ProjectDefaults`, the operator `Info`
   (maintainer, repository), the framework's `scaffold.Spec` module (its `[modules]` entry and
   the `strategy` value it seeds — `Infra` seeds `strategy = "rolling"` since infra has no
-  versions to cut), and the seeded default `[vars]`.
+  versions to cut, plus `import_prefix = "example.com"` seeding the CUE module namespace), and
+  the seeded default `[vars]`.
 - **Present** → the surgical `[vars]` merge (below) folds the baseline defaults in
   **textually**; every other table, comment, and byte is preserved.
 

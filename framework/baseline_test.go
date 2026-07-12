@@ -37,6 +37,7 @@ func TestInfraScaffoldContributesBaseline(t *testing.T) {
 	spec, byPath := infraSpec(t, t.TempDir())
 
 	r.Equal(t, "rolling", spec.Strategy)
+	r.Equal(t, "example.com", spec.ImportPrefix)
 	r.True(t, spec.NeedsGitRepo)
 	r.NotNil(t, spec.Module)
 	r.Equal(t, "platform/infra", spec.Module.Framework)
