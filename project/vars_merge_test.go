@@ -6,11 +6,11 @@ import (
 	r "github.com/stretchr/testify/require"
 )
 
-func TestMergeOpsVars_appendsMissingPreservesExisting(t *testing.T) {
+func TestMergeVars_appendsMissingPreservesExisting(t *testing.T) {
 	existing := `maintainer = "a <a@b.co>"
 repository = "github.com/prod9/infra"
 
-[ops.vars]
+[vars]
 # operator bumped this for a CVE
 cert_manager_version = "v1.16.0"
 `
@@ -20,7 +20,7 @@ cert_manager_version = "v1.16.0"
 		"nginx_experimental":   "true",    // new key, appended
 	}
 
-	merged, changes := MergeOpsVars([]byte(existing), defaults)
+	merged, changes := MergeVars([]byte(existing), defaults)
 	got := string(merged)
 
 	// Operator's value and their comment survive untouched.
@@ -42,14 +42,14 @@ cert_manager_version = "v1.16.0"
 	r.True(t, byKey["nginx_experimental"].Appended)
 }
 
-func TestMergeOpsVars_encodesByType(t *testing.T) {
+func TestMergeVars_encodesByType(t *testing.T) {
 	defaults := map[string]any{
 		"firewall_id": "11222746", // string → quoted, even though it looks numeric
 		"replicas":    int64(3),   // int → bare
 		"debug":       true,       // bool → bare
 	}
 
-	merged, _ := MergeOpsVars([]byte("[ops.vars]\n"), defaults)
+	merged, _ := MergeVars([]byte("[vars]\n"), defaults)
 	got := string(merged)
 
 	r.Contains(t, got, `firewall_id = "11222746"`)
@@ -58,39 +58,39 @@ func TestMergeOpsVars_encodesByType(t *testing.T) {
 	r.NotContains(t, got, `replicas = "3"`)
 }
 
-func TestMergeOpsVars_createsSectionWhenAbsent(t *testing.T) {
+func TestMergeVars_createsSectionWhenAbsent(t *testing.T) {
 	existing := `repository = "github.com/prod9/infra"
 `
 	defaults := map[string]any{"flux_version": "v2.3.0"}
 
-	merged, changes := MergeOpsVars([]byte(existing), defaults)
+	merged, changes := MergeVars([]byte(existing), defaults)
 	got := string(merged)
 
-	r.Contains(t, got, "[ops.vars]")
+	r.Contains(t, got, "[vars]")
 	r.Contains(t, got, `flux_version = "v2.3.0"`)
 	r.Len(t, changes, 1)
 	r.True(t, changes[0].Appended)
 }
 
-func TestMergeOpsVars_emptyDefaultsIsNoop(t *testing.T) {
+func TestMergeVars_emptyDefaultsIsNoop(t *testing.T) {
 	existing := `repository = "github.com/prod9/infra"
 
-[ops.vars]
+[vars]
 flux_version = "v2.3.0"
 `
-	merged, changes := MergeOpsVars([]byte(existing), nil)
+	merged, changes := MergeVars([]byte(existing), nil)
 	r.Equal(t, existing, string(merged))
 	r.Empty(t, changes)
 }
 
-func TestMergeOpsVars_idempotent(t *testing.T) {
-	existing := `[ops.vars]
+func TestMergeVars_idempotent(t *testing.T) {
+	existing := `[vars]
 flux_version = "v2.3.0"
 `
 	defaults := map[string]any{"flux_version": "v2.3.0", "cert_manager_version": "v1.16.0"}
 
-	once, _ := MergeOpsVars([]byte(existing), defaults)
-	twice, changes := MergeOpsVars(once, defaults)
+	once, _ := MergeVars([]byte(existing), defaults)
+	twice, changes := MergeVars(once, defaults)
 	r.Equal(t, string(once), string(twice))
 	// Second pass appends nothing — both keys already present.
 	for _, c := range changes {

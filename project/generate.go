@@ -15,17 +15,17 @@ type GenerateInfo struct {
 
 // Generate builds a fresh platform.toml from the project defaults, the operator
 // info, a framework's contributed module (keyed by name — nil for an
-// unrecognized repo), and its default [ops.vars]. Returns the encoded bytes and
+// unrecognized repo), and its default [vars]. Returns the encoded bytes and
 // the per-var disposition report (every default is appended on a fresh file). A
 // non-empty strategy overrides the project default — a framework seeds it via
-// its ScaffoldSpec ("latest" for infra, which cuts no versions and follows the
-// moving tag).
+// its ScaffoldSpec (the Infra framework seeds "latest", which cuts no versions and
+// follows the moving tag).
 func Generate(info GenerateInfo, name string, mod *Module, vars map[string]any, strategy string) ([]byte, []VarChange, error) {
 	proj := *ProjectDefaults
 	proj.Modules = map[string]*Module{} // don't mutate the shared default map
 	proj.Maintainer = info.Maintainer
 	proj.Repository = info.Repository
-	proj.Ops.Vars = vars
+	proj.Vars = vars
 	if strategy != "" {
 		proj.Strategy = strategy
 	}

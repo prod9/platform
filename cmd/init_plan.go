@@ -53,7 +53,7 @@ type Plan struct {
 
 // Analyze computes the scaffold plan for a repo without writing anything — one uniform
 // path for every framework. It discovers the framework, folds in its scaffold
-// contribution (platform.toml module + default [ops.vars] + files, resolved), and writes
+// contribution (platform.toml module + default [vars] + files, resolved), and writes
 // the version-pinned launcher. What a repo gets is entirely the framework's Scaffold
 // output — there is no app-vs-infra branch.
 func Analyze(dir string, info *Info) (*Plan, error) {
@@ -107,7 +107,7 @@ func discoverSpec(dir string) (fwscaffold.Spec, error) {
 	return fw.Scaffold(context.Background(), dir)
 }
 
-// planProjectFile decides how platform.toml changes: a surgical [ops.vars]
+// planProjectFile decides how platform.toml changes: a surgical [vars]
 // merge when it already exists (preserving operator edits), or a freshly
 // generated file otherwise, seeded with the framework's strategy value.
 func planProjectFile(dir string, info *Info, spec fwscaffold.Spec) (FileChange, []project.VarChange, error) {
@@ -115,7 +115,7 @@ func planProjectFile(dir string, info *Info, spec fwscaffold.Spec) (FileChange, 
 
 	existing, err := os.ReadFile(path)
 	if err == nil {
-		merged, vars := project.MergeOpsVars(existing, spec.Vars)
+		merged, vars := project.MergeVars(existing, spec.Vars)
 		return fileChange(dir, "platform.toml", merged, 0644), vars, nil
 	}
 	if !errors.Is(err, fs.ErrNotExist) {
@@ -138,7 +138,7 @@ var daggerVersion = framework.DaggerVersion
 
 // planSpecFiles resolves the framework's contributed files with the init-time data —
 // DaggerVersion from the linked SDK, ModulePath from an existing cue.mod (or the
-// repository on a greenfield one), OpsImage derived from the repository.
+// repository on a greenfield one), ImageBase derived from the repository.
 func planSpecFiles(dir string, info *Info, spec fwscaffold.Spec) ([]FileChange, error) {
 	if len(spec.Files) == 0 {
 		return nil, nil
@@ -160,7 +160,7 @@ func planSpecFiles(dir string, info *Info, spec fwscaffold.Spec) ([]FileChange, 
 	resolved, err := fwscaffold.Resolve(spec.Files, fwscaffold.Data{
 		DaggerVersion: version,
 		ModulePath:    modulePath,
-		OpsImage:      project.InferOpsImage(info.Repository),
+		ImageBase:     project.InferImageBase(info.Repository),
 	})
 	if err != nil {
 		return nil, err
@@ -218,9 +218,9 @@ func (p *Plan) Print(w io.Writer) {
 	}
 	for _, v := range p.Vars {
 		if v.Appended {
-			fmt.Fprintf(w, "  append    [ops.vars] %s = %v\n", v.Key, v.Value)
+			fmt.Fprintf(w, "  append    [vars] %s = %v\n", v.Key, v.Value)
 		} else {
-			fmt.Fprintf(w, "  keep      [ops.vars] %s (operator value)\n", v.Key)
+			fmt.Fprintf(w, "  keep      [vars] %s (operator value)\n", v.Key)
 		}
 	}
 }

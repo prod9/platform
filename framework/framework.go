@@ -30,7 +30,7 @@ type (
 		Discover(wd string) bool
 
 		// Scaffold returns the framework's full declarative contribution to a fresh
-		// repo: its platform.toml module, default [ops.vars], the files it ships (holes
+		// repo: its platform.toml module, default [vars], the files it ships (holes
 		// unresolved), the strategy value it seeds, and whether it needs a
 		// freshly-created git repo. Pure — the driver resolves and writes.
 		Scaffold(ctx context.Context, wd string) (scaffold.Spec, error)

@@ -34,7 +34,7 @@ const (
 	platformExt = ".platform"
 )
 
-// RenderOptions carries the render context: the [ops.vars] table feeding both routes —
+// RenderOptions carries the render context: the [vars] table feeding both routes —
 // CUE `@tag(name)` holes and directive `\(var)` interpolation — and an optional Fetch
 // override for `download` (nil uses a plain HTTP GET; tests inject fixtures).
 type RenderOptions struct {
@@ -85,7 +85,7 @@ func renderCue(srcDir string, vars map[string]any) (Tree, error) {
 
 // exportCue evaluates the apps CUE package via the linked CUE engine and encodes it to
 // YAML — the app->files->docs structure with faithful scalar types, same shape the old
-// `cue export --out yaml` produced. The normalized [ops.vars] feed the apps' `@tag(name)`
+// `cue export --out yaml` produced. The normalized [vars] feed the apps' `@tag(name)`
 // holes as load tags — the committed-config source for every CUE tag.
 func exportCue(srcDir string, vars map[string]any) ([]byte, error) {
 	dir, err := filepath.Abs(filepath.Join(srcDir, appsPackage))
@@ -100,7 +100,7 @@ func exportCue(srcDir string, vars map[string]any) ([]byte, error) {
 
 	cfg := &load.Config{Dir: dir, Registry: registry}
 
-	// First pass, no tags: discover which `@tag` holes the apps actually declare. [ops.vars]
+	// First pass, no tags: discover which `@tag` holes the apps actually declare. [vars]
 	// feeds both render routes, so it carries vars meant only for `.platform` directives; those
 	// have no CUE `@tag`, and CUE rejects an injected tag that nothing declares ("no tag for X").
 	// Inject only the declared subset.
@@ -132,7 +132,7 @@ func exportCue(srcDir string, vars map[string]any) ([]byte, error) {
 	return cueyaml.Encode(value)
 }
 
-// varsToTags renders the normalized [ops.vars] table into cue load tags ("name=value") — the
+// varsToTags renders the normalized [vars] table into cue load tags ("name=value") — the
 // committed-config source for every `@tag(name)` in the apps CUE. Only vars a `@tag` actually
 // declares are injected (declared); the rest are directive-only and CUE would reject them.
 // Values stringify verbatim; the consuming field's `@tag(name,type=...)` annotation drives any
@@ -148,7 +148,7 @@ func varsToTags(vars map[string]any, declared map[string]bool) []string {
 }
 
 // declaredTags walks the loaded apps' syntax for `@tag(name)` attributes and returns the set of
-// declared tag names — the holes the CUE package is willing to receive from [ops.vars].
+// declared tag names — the holes the CUE package is willing to receive from [vars].
 func declaredTags(inst *build.Instance) map[string]bool {
 	declared := map[string]bool{}
 	for _, f := range inst.Files {

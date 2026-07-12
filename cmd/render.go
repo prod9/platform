@@ -36,7 +36,7 @@ func runRender(cmd *cobra.Command, args []string) {
 	}
 
 	tree, err := gitops.Render(dir, gitops.RenderOptions{
-		Vars: cfg.Ops.Vars,
+		Vars: cfg.Vars,
 	})
 	if err != nil {
 		buildlog.Fatalln(err)

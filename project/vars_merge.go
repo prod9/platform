@@ -16,16 +16,16 @@ type VarChange struct {
 	Appended bool
 }
 
-const opsVarsHeader = "[ops.vars]"
+const varsHeader = "[vars]"
 
 var varKeyPattern = regexp.MustCompile(`^([A-Za-z0-9_-]+)\s*=`)
 
-// MergeOpsVars folds the baseline's default [ops.vars] into an existing
+// MergeVars folds the baseline's default [vars] into an existing
 // platform.toml *textually* — new keys are appended under the section, existing
 // keys keep the operator's value, and everything else (comments, ordering,
 // other tables) is left byte-for-byte. A decode/re-encode would lose the
 // operator's formatting, so the merge is a surgical line insert instead.
-func MergeOpsVars(existing []byte, defaults map[string]any) ([]byte, []VarChange) {
+func MergeVars(existing []byte, defaults map[string]any) ([]byte, []VarChange) {
 	if len(defaults) == 0 {
 		return existing, nil
 	}
@@ -50,7 +50,7 @@ func MergeOpsVars(existing []byte, defaults map[string]any) ([]byte, []VarChange
 
 	if headerIdx < 0 {
 		merged := strings.TrimRight(string(existing), "\n") +
-			"\n\n" + opsVarsHeader + "\n" + strings.Join(newLines, "\n") + "\n"
+			"\n\n" + varsHeader + "\n" + strings.Join(newLines, "\n") + "\n"
 		return []byte(merged), changes
 	}
 
@@ -87,17 +87,17 @@ func appendedLines(changes []VarChange) []string {
 	return lines
 }
 
-// indexOfHeader returns the line index of the [ops.vars] table header, or -1.
+// indexOfHeader returns the line index of the [vars] table header, or -1.
 func indexOfHeader(lines []string) int {
 	for i, line := range lines {
-		if strings.TrimSpace(line) == opsVarsHeader {
+		if strings.TrimSpace(line) == varsHeader {
 			return i
 		}
 	}
 	return -1
 }
 
-// sectionEnd returns the line index where the [ops.vars] section ends — the
+// sectionEnd returns the line index where the [vars] section ends — the
 // next table header, or the end of the file.
 func sectionEnd(lines []string, headerIdx int) int {
 	for i := headerIdx + 1; i < len(lines); i++ {

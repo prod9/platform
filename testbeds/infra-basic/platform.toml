@@ -4,6 +4,3 @@ strategy = "latest"
 
 [modules.infra]
 framework = "platform/infra"
-
-[ops]
-image = "ghcr.io/prod9/infra-basic"

@@ -79,7 +79,7 @@ func TestAnalyze_rescaffoldPreservesExisting(t *testing.T) {
 	existing := `maintainer = "operator <op@b.co>"
 repository = "github.com/prod9/app"
 
-[ops.vars]
+[vars]
 cert_manager_version = "v1.16.0"
 `
 	r.NoError(t, os.WriteFile(filepath.Join(dir, "platform.toml"), []byte(existing), 0644))

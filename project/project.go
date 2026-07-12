@@ -34,7 +34,12 @@ type (
 
 		Excludes []string           `toml:"excludes"`
 		Modules  map[string]*Module `toml:"modules,omitempty"`
-		Ops      Ops                `toml:"ops"`
+
+		// Vars is the verbatim DSL \(var) table (top-level [vars]) — a generic open
+		// map whose values keep their TOML type (string/int/bool). Pure passthrough:
+		// render feeds it project-wide across apps/ (CUE @tag holes and directive
+		// \(var) interpolation); no defaults or inference beyond the baseline seed.
+		Vars map[string]any `toml:"vars,omitempty"`
 	}
 
 	Module struct {
@@ -157,10 +162,11 @@ func (p *Project) assignEnvOverrides() {
 	}
 }
 
-// InferOpsImage derives the OCI image base from a repository address: a github.com path maps
+// InferImageBase derives the OCI image base from a repository address: a github.com path maps
 // to its ghcr.io mirror (github.com/org/repo → ghcr.io/org/repo). Empty for anything else —
-// callers that require an image (e.g. the flux self-sync URL) treat empty as unset.
-func InferOpsImage(repository string) string {
+// callers that require an image (per-module ImageName, the flux self-sync ref) treat empty
+// as unset.
+func InferImageBase(repository string) string {
 	if strings.HasPrefix(repository, "github.com") {
 		return "ghcr.io" + repository[10:]
 	}
@@ -168,7 +174,7 @@ func InferOpsImage(repository string) string {
 }
 
 func (p *Project) inferValues() {
-	base := InferOpsImage(p.Repository)
+	base := InferImageBase(p.Repository)
 
 	singleModule := len(p.Modules) == 1
 	for name, mod := range p.Modules {
@@ -183,16 +189,9 @@ func (p *Project) inferValues() {
 			}
 		}
 	}
-
-	if p.Ops.Image == "" {
-		p.Ops.Image = base
-	}
-	if p.Ops.Tag == "" {
-		p.Ops.Tag = "latest"
-	}
 }
 
-// NormalizeVars lowercases every [ops.vars] key to the canonical consumption form. platform.toml
+// NormalizeVars lowercases every [vars] key to the canonical consumption form. platform.toml
 // prefers env-style keys (NGINX_GATEWAY_VERSION); both render routes consume the lowercase
 // derivation — `\(nginx_gateway_version)` in directives, `@tag(nginx_gateway_version)` in CUE.
 // Pure name normalization; values and their types are untouched.

@@ -38,7 +38,7 @@ language: version: "v0.15.4"
 
 // sampleApps exercises every facet of the file-map contract: a single-doc file,
 // a multi-doc list file, an int scalar (fidelity), a committed image literal, an
-// `@tag(var)` hole fed from the normalized [ops.vars], and a hidden #out that must
+// `@tag(var)` hole fed from the normalized [vars], and a hidden #out that must
 // not surface as an app.
 const sampleApps = `package apps
 
@@ -90,7 +90,7 @@ func TestRenderFileMap(t *testing.T) {
 		t.Errorf("committed image literal missing (want `image: demo:v1`):\n%s", deploy)
 	}
 	if !strings.Contains(deploy, "version: 9.9.9") {
-		t.Errorf("[ops.vars] not injected via @tag (env key APP_VERSION → @tag(app_version), want `version: 9.9.9`):\n%s", deploy)
+		t.Errorf("[vars] not injected via @tag (env key APP_VERSION → @tag(app_version), want `version: 9.9.9`):\n%s", deploy)
 	}
 }
 

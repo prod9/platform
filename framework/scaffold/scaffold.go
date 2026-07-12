@@ -25,7 +25,7 @@ type File struct {
 }
 
 // Spec is a framework's full declarative contribution to a freshly scaffolded repo:
-// the platform.toml module it adds, the default [ops.vars] it seeds, the files it
+// the platform.toml module it adds, the default [vars] it seeds, the files it
 // ships (holes unresolved), the strategy value a fresh platform.toml gets, and whether
 // the target must become its own fresh git repository. It is the pure output of
 // Scaffold — the driver gathers operator inputs, generates platform.toml, resolves the
@@ -39,13 +39,13 @@ type Spec struct {
 }
 
 // Data fills the placeholders in ".tmpl" files at init time — all discoverable, none
-// prompted: DaggerVersion comes from the linked SDK; ModulePath is the infra repo's
-// CUE module, read from an existing cue.mod or defaulted to the repository; OpsImage
-// is derived from the repository.
+// prompted: DaggerVersion comes from the linked SDK; ModulePath is the CUE module a
+// .tmpl hole resolves to, read from an existing cue.mod or defaulted to the repository;
+// ImageBase is derived from the repository.
 type Data struct {
 	DaggerVersion string
 	ModulePath    string
-	OpsImage      string // OCI artifact base for the flux self-sync (oci://<OpsImage>)
+	ImageBase     string // OCI artifact base for the flux self-sync (oci://<ImageBase>)
 }
 
 // Resolve resolves a framework's files for installation: ".tmpl" files pass through

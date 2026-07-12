@@ -16,7 +16,7 @@ import "{{ .ModulePath }}/defaults"
 		metadata: {name: "infra", namespace: "flux-system"}
 		spec: {
 			interval: "1m"
-			url:      "oci://{{ .OpsImage }}"
+			url:      "oci://{{ .ImageBase }}"
 			ref: tag: "latest"
 			secretRef: name: nsp.#out.pull_secret_name
 		}

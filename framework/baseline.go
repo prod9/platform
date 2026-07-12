@@ -29,7 +29,7 @@ const (
 	DefsVersion = "v0.4.0"
 )
 
-// DefaultVars is the baseline's shipped [ops.vars]: the version pins each baseline hook
+// DefaultVars is the baseline's shipped [vars]: the version pins each baseline hook
 // consumes. Keys are env-style (SCREAMING_SNAKE) — the preferred platform.toml form; render
 // normalizes them to lowercase for both consumption routes, `\(cert_manager_version)` in
 // directives and `@tag(cert_manager_version)` in CUE apps. Scaffold seeds these into a fresh

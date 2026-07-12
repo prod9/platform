@@ -39,7 +39,7 @@ func (Infra) Discover(wd string) bool {
 }
 
 // Scaffold contributes the whole cluster baseline: the infra module, the baseline's
-// default [ops.vars] pins, the embedded component files (routed, holes unresolved), a
+// default [vars] pins, the embedded component files (routed, holes unresolved), a
 // greenfield cue.mod, the moving "latest" strategy seed, and the need for a fresh git
 // repo. There is no app-vs-infra branch anywhere — Infra simply contributes more.
 func (i Infra) Scaffold(ctx context.Context, wd string) (scaffold.Spec, error) {

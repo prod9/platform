@@ -10,7 +10,7 @@ import (
 type Doc = map[string]any
 
 // Vars is the \(var) interpolation table, sourced from platform.toml's
-// [ops.vars]. Values keep their TOML type (string/int/bool): interpolation into
+// [vars]. Values keep their TOML type (string/int/bool): interpolation into
 // a quoted string stringifies them, while a bare \(x) value preserves the type.
 type Vars = map[string]any
 

@@ -34,8 +34,9 @@ type BuildUnit struct {
 	PackageName string
 	Repository  string
 
-	// Vars is the [ops.vars] table, carried for the Infra framework to feed its render
-	// (CUE @tag / directive \(var) interpolation). Empty for ordinary app frameworks.
+	// Vars is the resolved [vars] table, carried on every unit. A framework that
+	// interpolates (CUE @tag / directive \(var)) consumes it; one that doesn't ignores
+	// it — a per-framework capability, not a per-project mode.
 	Vars map[string]any
 }
 
@@ -70,7 +71,7 @@ func unitFromModule(cfg *project.Project, name string, mod *project.Module, purp
 		PackageName: mod.PackageName,
 		Repository:  cfg.Repository,
 
-		Vars: cfg.Ops.Vars,
+		Vars: cfg.Vars,
 	}, nil
 }
 
