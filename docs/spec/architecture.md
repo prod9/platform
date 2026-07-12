@@ -76,8 +76,9 @@ data model, and the `init` command's human orchestration. The packages form an a
 graph `project ← framework/scaffold ← framework ← cmd`:
 
 - `project/` — the `platform.toml` model, both directions: `Generate` and the surgical
-  `[ops.vars]` merge. The `Ops` delivery model (`[ops]` image/tag/vars) lives here as a
-  sub-model; there is no separate `ops/` package.
+  `[vars]` merge. The publish target is not a stored section: a module's image is inferred
+  per-module (`InferImageBase`) and the tag derives from the release strategy; only the
+  top-level `[vars]` table is carried, fed to `render`.
 - `framework/scaffold/` — **the one** files/templating mechanism: render templates with
   data, write files. Generic — no discover, no orchestration, no per-type data or "spec".
 - `framework/` — the `Framework` interface (`Discover`, `Scaffold`, `Build`), the concrete

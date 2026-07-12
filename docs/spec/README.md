@@ -31,7 +31,7 @@ superseded moves to `../scratch/` — `spec/` holds current design only, never h
 - [`releases.md`](releases.md) — release strategies (semver/datestamp/timestamp/latest),
   `Generate` vs `Create`, tag-history recovery, and release⊥publish orthogonality.
 - [`scaffolding.md`](scaffolding.md) — `platform init`: the `framework/scaffold` mechanism,
-  the `Infra` framework's unconditional baseline (destination-encoded files, `[ops.vars]`
+  the `Infra` framework's unconditional baseline (destination-encoded files, `[vars]`
   merge), and `cmd/init` orchestration.
 - [`manifest-patch-dsl.md`](manifest-patch-dsl.md) — the line-oriented DSL for adapting
   foreign Kubernetes manifests: verbs, path grammar, `\(var)` interpolation.

@@ -126,15 +126,15 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
 
 | Cmd | Purpose |
 |-----------|------------------------------------------------------------------|
-| init      | Scaffold a repo via the discovered framework's `Scaffold` (app: `platform.toml` + launcher; infra: + the full GitOps baseline). Alias `scaffold`. |
+| init      | Scaffold a repo via the discovered framework's `Scaffold` — its full contribution to a fresh repo (`Infra.Scaffold` simply contributes more: the whole GitOps baseline). Alias `scaffold`. |
 | build     | Build container(s) for module(s) via Dagger.                     |
 | configure | Print effective parsed config.                                   |
 | exec      | Run a command in, or shell into, the built container; bare+piped prints a summary (debugging). |
 | export    | Build and export container as `.docker` tarball.                 |
 | ls        | Tree the source files going into the container (debugging).      |
 | preview   | Build and serve container locally via Dagger tunnel.             |
-| render    | Render an infra repo's `apps/` (CUE + `.platform`) to a `k8s/` manifest tree. |
-| publish   | Build+publish a module's image (app: release tag; infra: moving `latest`). |
+| render    | Render an `apps/` tree (CUE + `.platform`) to a `k8s/` manifest tree. |
+| publish   | Build+publish a module's image under its strategy's tag (versioned → the release tag; `latest` → the moving tag). |
 | release   | Create new release tag (semver/timestamp/datestamp/latest); supports `-p/-m/--major`. |
 | clean     | Prune the local Dagger build cache (first-line cache diagnostics).|
 | vanity    | Hidden HTTP server: redirects `go get platform.prodigy9.co` to GitHub. |
@@ -142,17 +142,18 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
 ### Packages
 
 - `project/` — owns `platform.toml`: parse, generate, merge. `Project` (maintainer,
-  repository, strategy, excludes, modules, `[ops]`) and `Module` (workdir, framework —
+  repository, strategy, excludes, modules, `[vars]`) and `Module` (workdir, framework —
   legacy `builder` key read as a deprecated alias — env, port, cmd, args, asset_dirs,
-  build_dir, image, package). `[ops]` (`Ops.Image`/`Tag`) is the
-  `publish` target — inferred from `repository` (`ghcr.io/x`) with `tag` defaulting to
-  `latest`; `Ops.Ref(tag)` resolves the ref. `Ops.Vars` (`[ops.vars]`) is the verbatim DSL
-  `\(var)` table — a generic `map[string]any` (values keep their TOML type), pure passthrough
-  (no defaults/inference).
+  build_dir, image, package). The publish target is not a stored section: a module's image
+  is inferred per-module from `repository` (`ghcr.io/x`, `InferImageBase`) with `[modules.x.image]`
+  the explicit override, and the tag derives from the release strategy (`latest` → `latest`;
+  versioned → the release version). `[vars]` (top-level) is the verbatim DSL `\(var)` table —
+  a generic `map[string]any` (values keep their TOML type), pure passthrough
+  (no defaults/inference), consumed project-wide by `render`.
   `Configure(wd)` walks up to find file,
   applies defaults, env overrides (`PLATFORM`), and inferred values (e.g. `ghcr.io` image
   name from `github.com` repository). `Generate` writes a fresh `platform.toml`; re-init
-  folds default `[ops.vars]` in via the surgical line-by-line merge (append new keys,
+  folds default `[vars]` in via the surgical line-by-line merge (append new keys,
   preserve operator values + comments/order — never decode/re-encode).
 - `framework/` — a `Framework` is the **sole owner of a project
   type**: it recognizes itself, scaffolds itself, builds itself. See
@@ -211,7 +212,7 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
 - `gitops/` — infra manifest rendering (the publish half retired with oras). `Render` walks
   `apps/` and routes by extension into one `k8s/<component>/<file>` tree: `.cue` → file-map
   export via the linked CUE evaluator (`exportCue`, in-process — no `cue` binary),
-  `.platform` → `dsl.Apply`. `[ops.vars]` feed
+  `.platform` → `dsl.Apply`. `[vars]` feed
   both routes — CUE `@tag(name)` holes (only the names a `@tag` actually declares are injected;
   the rest are directive-only) and directive `\(var)`. The image ref is a **committed CUE
   literal**, never injected (see the

@@ -30,7 +30,7 @@ only a client. `Discover` and `Scaffold` are scaffold-time: the build path reads
 
 `Scaffold` is **rich, per-framework** — not an empty seam. It returns the framework's full
 declarative contribution to a fresh repo (`scaffold.Spec`): its `platform.toml` module, the
-default `[ops.vars]` it seeds, the files it ships (resolved via `framework/scaffold`), the
+default `[vars]` it seeds, the files it ships (resolved via `framework/scaffold`), the
 default `strategy` value it seeds, and whether it needs a freshly-created git repo. `cmd/init`
 gathers operator inputs, generates `platform.toml`, resolves the files' holes, and writes
 the result. There is **no `IsInfra` / app-vs-infra predicate**: `Infra.Scaffold` simply
@@ -64,12 +64,12 @@ describes what a framework's runner stage lays down.
 | `bytecode`    | Non-native binary                   | A VM/runtime                   | Java, Erlang, Elixir |
 | `interpreted` | Bundled/packaged sources (no build artifact) | Same toolchain as buildtime | Node, Rails       |
 | `static`      | Static asset bundle                 | A webserver only, no runtime   | Astro, Hugo, HTML |
-| `custom`      | Anything; escapes the taxonomy      | Whatever the build defines     | Dockerfile, infra |
+| `custom`      | Anything; escapes the taxonomy      | Whatever the build defines     | Dockerfile, Infra |
 
 `native` copies just the compiled binary into a lean runner. `interpreted` carries build
 output plus `node_modules`. `static` drops in a Caddy file-server and the built bundle
 with no language runtime. `custom` owns its own base and runtime entirely (Dockerfile uses
-the user's `FROM`; infra packs a `FROM scratch` manifest image).
+the user's `FROM`; `Infra` packs a `FROM scratch` manifest image).
 
 ## Discovery — first match wins
 

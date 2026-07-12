@@ -17,7 +17,7 @@ have moved upstream. Version pins live in `framework/baseline.go` `DefaultVars`
 ## Upstream sources
 
 Three `download`→`emit` steps land in `k8s/nginx-gateway/`. `\(gateway_api_version)` and
-`\(nginx_gateway_version)` interpolate from `[ops.vars]`.
+`\(nginx_gateway_version)` interpolate from `[vars]`.
 
 | Step             | URL                                                                                                                    | emit                      |
 |------------------|----------------------------------------------------------------------------------------------------------------------|---------------------------|
@@ -82,6 +82,6 @@ The recipe still matches what platform installs. Differences from the note's pro
   default working set); the stable file ships in the binary for an operator who swaps
   it in by hand.
 - **String-forcing blocker resolved** via the quoted-literal rule above (no new verb).
-- `[ops.vars]` keys are now uppercase env-style (`NGINX_GATEWAY_FIREWALL_ID`),
+- `[vars]` keys are now uppercase env-style (`NGINX_GATEWAY_FIREWALL_ID`),
   normalized to lowercase for both `\(var)` directives and CUE `@tag` holes.
 - `flux_version` is pinned (`v2.8.8`); unrelated to NGF but was `?` in the note.

@@ -69,8 +69,10 @@ is just `timeref.Now()`. `timeref` is name-only: no parsed struct, just `Now` / 
 ### latest (`latest.go`)
 
 The **non-versioned** strategy: one constant name, `latest`, that never increments. It
-exists for delivery with no versions to cut — an infra repo whose image is a moving
-`latest` tag Flux follows, where publishing *is* the deploy. `IsVersioned` reports
+exists for delivery with no versions to cut — its moving marker is the registry image
+tag, not a git tag, so publishing *is* the deploy. (The `Infra` framework seeds it, since
+a rendered-manifest image has no versions to cut, and Flux follows the moving tag.)
+`IsVersioned` reports
 `false`; a versioned strategy derives its publish target from the newest git tag, whereas
 `latest` resolves its name from the strategy directly and cuts no git tag.
 

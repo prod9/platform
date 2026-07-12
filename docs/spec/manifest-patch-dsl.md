@@ -68,35 +68,36 @@ apps, clean names) that the `Infra` framework installs **unconditionally** at `i
 picker, no `Defaults`/`Mandatory` split; an operator prunes what they don't want by editing
 the committed repo afterward. `render` then applies whatever is present, routing by
 extension. There is **no** filename marker grammar (`@variant`, `+flag`), **no** render-time
-gating on `[ops.vars]`, and **no** assembly `Select` step — see the
+gating on `[vars]`, and **no** assembly `Select` step — see the
 [flat-baseline ADR](../decisions/2026-06-22-flat-baseline-install-time-selection.md) and
 [baseline-dissolves-into-infra-framework](../decisions/2026-07-11-baseline-dissolves-into-infra-framework.md).
 
 (Directive files carry the `.platform` extension.)
 
 `\(var)` interpolation supplies values *within* an applied file — version pins from
-`[ops.vars]`, interpolation only, no expressions (see **Variable interpolation**). Selection
+`[vars]`, interpolation only, no expressions (see **Variable interpolation**). Selection
 is **not** a var.
 
 **Where `\(var)` values come from
 ([generic-ops-vars ADR](../decisions/2026-06-17-generic-ops-vars-single-config.md)):**
-`platform.toml`'s `[ops.vars]` — a **generic open `map[string]any`**, stored verbatim by
+`platform.toml`'s `[vars]` — a **generic open `map[string]any`**, stored verbatim by
 the config processor (no per-software fields), each value keeping its TOML type
 (string/int/bool). The DSL owns its own variable vocabulary; adding/removing a `\(var)` edits
-the directive file and `[ops.vars]`, never the Go DTO. A bare token in a value position
-resolves to the var's **native** type (see **Value typing**); `[ops.vars]` carries version
-pins, not selection toggles. `[ops].image`/`tag` stay typed (publish target, not a DSL var).
+the directive file and `[vars]`, never the Go DTO. A bare token in a value position
+resolves to the var's **native** type (see **Value typing**); `[vars]` carries version
+pins, not selection toggles. The image ref and tag are not DSL vars — the image is inferred
+per-module and the tag derives from the release strategy, never part of `[vars]`.
 `settings.toml` is eliminated.
 
-**Defaults + re-init merge.** The embed ships the baseline's *default* `[ops.vars]`
+**Defaults + re-init merge.** The embed ships the baseline's *default* `[vars]`
 (the version pins platform was tested against) alongside the directive files. First
 `init` writes both into the infra repo. A later re-`init` after a platform upgrade
 **overwrites the directive files** (platform's opinion, re-shipped) but **merges
-`[ops.vars]`**: new keys are appended with their defaults, existing keys keep the operator's
+`[vars]`**: new keys are appended with their defaults, existing keys keep the operator's
 value untouched. So a security bump (edit a var) survives the upgrade, and a newly
 introduced baseline knob arrives pre-set instead of failing at render. Customization is via
 vars — operator edits to a directive *file* are not preserved across re-init. The merge
-is a surgical append of new `key = "value"` lines under `[ops.vars]`, not a decode/re-encode
+is a surgical append of new `key = "value"` lines under `[vars]`, not a decode/re-encode
 (which would lose the operator's comments and ordering).
 
 **Plan, then apply.** `init` runs an analysis pass and prints the plan it would execute
@@ -145,7 +146,7 @@ set      .metadata.name "\(prefix)-controller"               # mid-string
 download "https://github.com/.../\(version)/install.yaml"    # URL must be quoted to interpolate
 ```
 
-**Value typing — bare is a reference, quoted is a string.** `[ops.vars]` is `map[string]any`,
+**Value typing — bare is a reference, quoted is a string.** `[vars]` is `map[string]any`,
 so a var keeps its TOML type. The **value** position (the right side of `set`/`append`, the
 match side of `focus`) reads like CUE:
 
@@ -298,7 +299,7 @@ emit     "some-operator.yaml"
 ## Implementation
 
 The DSL lives in `dsl/` (path-walk, the in-buffer verbs, lexer, directive parser, and the
-I/O verbs `download`/`extract`/`emit` with `\(var)` interpolation). `[ops.vars]` reaches it
+I/O verbs `download`/`extract`/`emit` with `\(var)` interpolation). `[vars]` reaches it
 verbatim as `Options.Vars` — `project.Ops.Vars` is a `map[string]any` stored with no
 defaults or per-software fields (see the
 [generic-ops-vars ADR](../decisions/2026-06-17-generic-ops-vars-single-config.md)). The
@@ -307,7 +308,7 @@ checksum guard is deferred.
 Its consumers own the surrounding flow, specced elsewhere:
 
 - **`init`** writes the embedded baseline's `.platform` + `.cue` files and default
-  `[ops.vars]` into the infra repo, plan-then-apply with the surgical re-init var merge —
+  `[vars]` into the infra repo, plan-then-apply with the surgical re-init var merge —
   see [`scaffolding.md`](scaffolding.md).
 - **`render`** walks the infra repo's `apps/` and routes by extension: `.cue` → file-map
   export via the linked CUE evaluator (no `cue` binary), `.platform` → `dsl.Apply` over every

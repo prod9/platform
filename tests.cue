@@ -42,9 +42,10 @@ let testbeds = [...{name: string, dir: string}] &
 				name: testbed.name
 				tests: [
 					{
-						// init on a non-"infra" testbed dir takes the app-scaffold path;
-						// the written platform.toml [modules] captures the discovered framework,
-						// so the dropped standalone `discover` command needs no separate test.
+						// init discovers the owning framework for the testbed dir and runs that
+						// framework's Scaffold; the written platform.toml [modules] captures the
+						// discovered framework, so the dropped standalone `discover` command needs
+						// no separate test.
 						name: "Init"
 						checks: [
 							"./testbeds/\(testbed.dir)/platform.toml",

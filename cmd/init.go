@@ -17,7 +17,7 @@ var initForce bool
 var InitCmd = &cobra.Command{
 	Use:     "init",
 	Aliases: []string{"scaffold"},
-	Short:   "Scaffold a repo — an app repo (platform.toml + build script) or an infra repo (full GitOps baseline)",
+	Short:   "Scaffold a repo from its discovered framework (platform.toml + launcher + the framework's own files)",
 	Run:     runInit,
 }
 

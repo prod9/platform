@@ -28,7 +28,7 @@ and scaffold-time stack discovery live in [frameworks](frameworks.md) (the build
 shapes a framework returns and nothing stack-specific:
 
 - **`scaffold.Spec`** — a framework's full declarative contribution to a fresh repo: the
-  `platform.toml` module it adds, the default `[ops.vars]` it seeds, the files it ships
+  `platform.toml` module it adds, the default `[vars]` it seeds, the files it ships
   (`[]scaffold.File`), the default `strategy` value it seeds, and whether it needs a
   freshly-created git repo.
 - **`scaffold.File`** — one file beyond the universal `platform.toml` + launcher: `Path`
@@ -79,7 +79,7 @@ operator choice at init time.
 
 ### `DefaultVars`: version pins only
 
-The baseline's default `[ops.vars]` is **version pins only** (`CERT_MANAGER_VERSION`,
+The baseline's default `[vars]` is **version pins only** (`CERT_MANAGER_VERSION`,
 `FLUX_VERSION`, …). Keys are SCREAMING_SNAKE (the preferred `platform.toml` form; render
 lowercases for both consumption routes). They are pure interpolation inputs — `\(var)` in
 directive `download` URLs and `@tag(var)` in CUE apps. **Selection is not a var** — the full
@@ -150,19 +150,19 @@ Drive `init` non-interactively with **`ALWAYS_YES=1`**, not `--force`. They are 
 - **Absent** → a fresh file is generated from `project.ProjectDefaults`, the operator `Info`
   (maintainer, repository), the framework's `scaffold.Spec` module (its `[modules]` entry and
   the `strategy` value it seeds — `Infra` seeds `strategy = "latest"` since infra has no
-  versions to cut), and the seeded default `[ops.vars]`.
-- **Present** → the surgical `[ops.vars]` merge (below) folds the baseline defaults in
+  versions to cut), and the seeded default `[vars]`.
+- **Present** → the surgical `[vars]` merge (below) folds the baseline defaults in
   **textually**; every other table, comment, and byte is preserved.
 
-### Re-init: surgical `[ops.vars]` merge
+### Re-init: surgical `[vars]` merge
 
 Re-running `init` must not clobber an operator's `platform.toml`. The merge (owned by
-`project/`, alongside `Generate`) folds the baseline default `[ops.vars]` in **line-by-line,
+`project/`, alongside `Generate`) folds the baseline default `[vars]` in **line-by-line,
 not by decode/re-encode** — a round-trip through the TOML encoder would lose the operator's
 comments, ordering, and formatting. The merge:
 
 - **Appends** default keys the file lacks, inserted after the last non-blank line of the
-  existing `[ops.vars]` body (or a fresh section appended to EOF when absent).
+  existing `[vars]` body (or a fresh section appended to EOF when absent).
 - **Preserves** keys already present — the operator's value stands untouched.
 - Leaves comments, key order, and all other tables byte-for-byte.
 
