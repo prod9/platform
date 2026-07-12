@@ -8,6 +8,7 @@ import (
 
 	"dagger.io/dagger"
 	"fx.prodigy9.co/errutil"
+	"platform.prodigy9.co/cuemod"
 	"platform.prodigy9.co/framework/scaffold"
 	"platform.prodigy9.co/gitops"
 )
@@ -47,7 +48,7 @@ func (i Infra) Scaffold(ctx context.Context, wd string) (scaffold.Spec, error) {
 	if err != nil {
 		return scaffold.Spec{}, err
 	}
-	if !HasCueModule(wd) {
+	if !cuemod.Present(wd) {
 		files = append(files, cueModFile())
 	}
 

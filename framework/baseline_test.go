@@ -70,20 +70,6 @@ func TestInfraScaffoldCueModule(t *testing.T) {
 	r.Equal(t, DefsVersion, mf.Deps[DefsModule].Version)
 }
 
-func TestCueModulePathStripsMajorSuffix(t *testing.T) {
-	// Callers form import paths like `<module>/defaults`, so the `@vN` major-version
-	// suffix of an existing module must be stripped.
-	dir := t.TempDir()
-	mod := filepath.Join(dir, "cue.mod", "module.cue")
-	r.NoError(t, os.MkdirAll(filepath.Dir(mod), 0o755))
-	r.NoError(t, os.WriteFile(mod,
-		[]byte("module: \"kept.example/infra@v0\"\nlanguage: version: \"v0.15.4\"\n"), 0o644))
-
-	path, err := CueModulePath(dir)
-	r.NoError(t, err)
-	r.Equal(t, "kept.example/infra", path)
-}
-
 func TestInfraScaffoldKeepsExistingCueModule(t *testing.T) {
 	dir := t.TempDir()
 	mod := filepath.Join(dir, "cue.mod", "module.cue")

@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"platform.prodigy9.co/cuemod"
 	"platform.prodigy9.co/framework"
 	fwscaffold "platform.prodigy9.co/framework/scaffold"
 	"platform.prodigy9.co/project"
@@ -152,8 +153,8 @@ func planSpecFiles(dir string, info *Info, spec fwscaffold.Spec) ([]FileChange, 
 		return nil, errors.New("scaffold: could not determine the linked dagger SDK version")
 	}
 	modulePath := spec.ImportPrefix
-	if framework.HasCueModule(dir) {
-		path, err := framework.CueModulePath(dir)
+	if cuemod.Present(dir) {
+		path, err := cuemod.Path(dir)
 		if err != nil {
 			return nil, err
 		}
