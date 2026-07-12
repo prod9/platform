@@ -33,7 +33,7 @@ func runPublish(cmd *cobra.Command, args []string) {
 	}
 
 	// Versioned strategies publish the latest git-tagged release; a non-versioned one
-	// (such as Latest) has a single constant name and no tag to look up — publishing is
+	// (such as Rolling) has a single constant name and no tag to look up — publishing is
 	// the deploy.
 	name := ""
 	if strat.IsVersioned() {

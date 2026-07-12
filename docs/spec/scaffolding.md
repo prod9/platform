@@ -149,7 +149,7 @@ Drive `init` non-interactively with **`ALWAYS_YES=1`**, not `--force`. They are 
 
 - **Absent** → a fresh file is generated from `project.ProjectDefaults`, the operator `Info`
   (maintainer, repository), the framework's `scaffold.Spec` module (its `[modules]` entry and
-  the `strategy` value it seeds — `Infra` seeds `strategy = "latest"` since infra has no
+  the `strategy` value it seeds — `Infra` seeds `strategy = "rolling"` since infra has no
   versions to cut), and the seeded default `[vars]`.
 - **Present** → the surgical `[vars]` merge (below) folds the baseline defaults in
   **textually**; every other table, comment, and byte is preserved.

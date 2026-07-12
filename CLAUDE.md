@@ -134,8 +134,8 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
 | ls        | Tree the source files going into the container (debugging).      |
 | preview   | Build and serve container locally via Dagger tunnel.             |
 | render    | Render an `apps/` tree (CUE + `.platform`) to a `k8s/` manifest tree. |
-| publish   | Build+publish a module's image under its strategy's tag (versioned → the release tag; `latest` → the moving tag). |
-| release   | Create new release tag (semver/timestamp/datestamp/latest); supports `-p/-m/--major`. |
+| publish   | Build+publish a module's image under its strategy's tag (versioned → the release tag; `rolling` → the moving `latest` tag). |
+| release   | Create new release tag (semver/timestamp/datestamp/rolling); supports `-p/-m/--major`. |
 | clean     | Prune the local Dagger build cache (first-line cache diagnostics).|
 | vanity    | Hidden HTTP server: redirects `go get platform.prodigy9.co` to GitHub. |
 
@@ -146,7 +146,7 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
   legacy `builder` key read as a deprecated alias — env, port, cmd, args, asset_dirs,
   build_dir, image, package). The publish target is not a stored section: a module's image
   is inferred per-module from `repository` (`ghcr.io/x`, `InferImageBase`) with `[modules.x.image]`
-  the explicit override, and the tag derives from the release strategy (`latest` → `latest`;
+  the explicit override, and the tag derives from the release strategy (`rolling` → `latest`;
   versioned → the release version). `[vars]` (top-level) is the verbatim DSL `\(var)` table —
   a generic `map[string]any` (values keep their TOML type), pure passthrough
   (no defaults/inference), consumed project-wide by `render`.
@@ -172,7 +172,7 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
     (`apps-*` → `apps/`, `defaults-*` → `defaults/`, else repo root), `DefaultVars` =
     version pins only. It installs **unconditionally** — no install-time picker; registry
     creds ship as empty placeholders in committed CUE, never prompted. It seeds
-    `strategy = "latest"` and needs a fresh git repo — no `IsInfra` predicate anywhere,
+    `strategy = "rolling"` and needs a fresh git repo — no `IsInfra` predicate anywhere,
     the app/infra difference is pure `Scaffold` polymorphism.
   - `base.go` — Wolfi base image (`cgr.dev/chainguard/wolfi-base`), apk cache mount,
     `CacheBuster` const for global cache invalidation.
@@ -186,8 +186,8 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
   `framework.Discover(wd)` → `fw.Scaffold` → print plan → confirm → write (creating the
   git repo first when the spec asks). `ALWAYS_YES=1` drives it non-interactively;
   `--force` means **replace existing files** (write disposition), not prompt suppression.
-- `releases/` — Release strategies: `semver`, `timestamp`, `datestamp`, `latest`
-  (non-versioned: cuts **no git tag** — its moving marker is the registry image tag).
+- `releases/` — Release strategies: `semver`, `timestamp`, `datestamp`, `rolling`
+  (non-versioned: cuts **no git tag** — emits the moving `latest` tag, its marker in the registry).
   `Generate` diffs commits since last tag, `Changelog` formats them, `Create` tags +
   pushes. Bump vocab: `BumpAny/Patch/Minor/Major` (flags `-p`/`-m`/`--major`).
   `collection.go` recovers history from git tags. `dateref`/`timeref` subpackages parse

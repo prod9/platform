@@ -34,7 +34,7 @@ default `[vars]` it seeds, the files it ships (resolved via `framework/scaffold`
 default `strategy` value it seeds, and whether it needs a freshly-created git repo. `cmd/init`
 gathers operator inputs, generates `platform.toml`, resolves the files' holes, and writes
 the result. There is **no `IsInfra` / app-vs-infra predicate**: `Infra.Scaffold` simply
-*does more* (it contributes the whole cluster baseline, a `strategy="latest"` seed, and a
+*does more* (it contributes the whole cluster baseline, a `strategy="rolling"` seed, and a
 create-repo need), so the app/infra distinction is pure `Scaffold` polymorphism. The
 `scaffold.Spec`/`scaffold.File` shapes and the resolve mechanism live in
 [scaffolding](scaffolding.md).

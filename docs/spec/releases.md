@@ -42,7 +42,7 @@ read, `Create` is the only writer.
 | `semver`    | `vMAJOR.MINOR.PATCH`| `v1.4.2`         | `v0.1.0`      | bump the requested field               |
 | `datestamp` | `vYYYYMMDD[-N]`     | `v20260710-2`    | today's date  | same-day → `-N` counter, else new date |
 | `timestamp` | `vYYYYMMDDHHMM`     | `v202607101432`  | now (minute)  | always `Now()` at minute precision     |
-| `latest`    | `latest` (constant) | `latest`         | `latest`      | never — single fixed name              |
+| `rolling`   | `latest` (constant) | `latest`         | `latest`      | never — single fixed name              |
 
 ### semver (`semver.go`)
 
@@ -66,15 +66,15 @@ Minute-precision instant, `v` + `YYYYMMDDHHMM` (`timeref.go`, format `v200601021
 grammar `^v([0-9]{12})$`). `NextName` ignores the previous name entirely — every release
 is just `timeref.Now()`. `timeref` is name-only: no parsed struct, just `Now` / `IsValid`.
 
-### latest (`latest.go`)
+### rolling (`rolling.go`)
 
-The **non-versioned** strategy: one constant name, `latest`, that never increments. It
-exists for delivery with no versions to cut — its moving marker is the registry image
-tag, not a git tag, so publishing *is* the deploy. (The `Infra` framework seeds it, since
-a rendered-manifest image has no versions to cut, and Flux follows the moving tag.)
-`IsVersioned` reports
-`false`; a versioned strategy derives its publish target from the newest git tag, whereas
-`latest` resolves its name from the strategy directly and cuts no git tag.
+The **non-versioned** strategy: it never increments a version, and its one emitted name is
+the conventional Docker moving tag `latest`. It exists for delivery with no versions to cut
+— its moving marker is the registry image tag, not a git tag, so publishing *is* the
+deploy. (The `Infra` framework seeds it, since a rendered-manifest image has no versions to
+cut, and Flux follows the moving tag.) `IsVersioned` reports `false`; a versioned strategy
+derives its publish target from the newest git tag, whereas `rolling` resolves its name
+from the strategy directly and cuts no git tag.
 
 ## Collection — recovering history from tags
 
@@ -99,7 +99,7 @@ changelog) and pushed once, non-forcefully, to the tracking remote (`gitctx.go`,
 `gitcmd.go`). A version tag is an immutable marker in history — it is never moved or
 force-pushed.
 
-The non-versioned `latest` strategy cuts **no git tag at all**. Its moving marker is the
+The non-versioned `rolling` strategy cuts **no git tag at all**. Its moving marker is the
 registry image tag, overwritten on each `publish` — an environment-style
 pointer that lives in the registry, not in git. So git holds only immutable version tags;
 the moving reference is a registry concern, not a force-pushed tag.

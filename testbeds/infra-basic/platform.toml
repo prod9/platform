@@ -1,6 +1,6 @@
 maintainer = "Smoke Test <smoke@prod9.co>"
 repository = "github.com/prod9/infra-basic"
-strategy = "latest"
+strategy = "rolling"
 
 [modules.infra]
 framework = "platform/infra"

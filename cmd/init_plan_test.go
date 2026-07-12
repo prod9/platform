@@ -64,7 +64,7 @@ func TestAnalyze_infraGetsBaselineUniformly(t *testing.T) {
 	r.Contains(t, byPath, filepath.Join("cue.mod", "module.cue"))
 
 	// The strategy seed and the template holes resolve from the operator info.
-	r.Contains(t, string(byPath["platform.toml"].Content), `strategy = "latest"`)
+	r.Contains(t, string(byPath["platform.toml"].Content), `strategy = "rolling"`)
 	r.Contains(t, string(byPath[filepath.Join("cue.mod", "module.cue")].Content),
 		testInfo().Repository)
 }

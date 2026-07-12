@@ -18,7 +18,7 @@ type GenerateInfo struct {
 // unrecognized repo), and its default [vars]. Returns the encoded bytes and
 // the per-var disposition report (every default is appended on a fresh file). A
 // non-empty strategy overrides the project default — a framework seeds it via
-// its ScaffoldSpec (the Infra framework seeds "latest", which cuts no versions and
+// its ScaffoldSpec (the Infra framework seeds "rolling", which cuts no versions and
 // follows the moving tag).
 func Generate(info GenerateInfo, name string, mod *Module, vars map[string]any, strategy string) ([]byte, []VarChange, error) {
 	proj := *ProjectDefaults

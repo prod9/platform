@@ -31,12 +31,12 @@ func infraSpec(t *testing.T, wd string) (scaffold.Spec, map[string]scaffold.File
 }
 
 // TestInfraScaffoldContributesBaseline asserts the rich Scaffold output: the whole
-// baseline routed by destination, the version-pin vars, the "latest" strategy seed, and
+// baseline routed by destination, the version-pin vars, the "rolling" strategy seed, and
 // the fresh-repo need — with no app-vs-infra predicate anywhere.
 func TestInfraScaffoldContributesBaseline(t *testing.T) {
 	spec, byPath := infraSpec(t, t.TempDir())
 
-	r.Equal(t, "latest", spec.Strategy)
+	r.Equal(t, "rolling", spec.Strategy)
 	r.True(t, spec.NeedsGitRepo)
 	r.NotNil(t, spec.Module)
 	r.Equal(t, "platform/infra", spec.Module.Framework)
