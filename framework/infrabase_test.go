@@ -219,7 +219,7 @@ func TestEmbeddedFluxReceiver(t *testing.T) {
 		`"github"`,            // GitHub webhook type
 		`"registry_package"`,  // GHCR publish event (X-GitHub-Event header)
 		"flux-webhook-token",  // HMAC secret the Receiver validates against
-		`"HTTPRoute"`,         // external exposure of the webhook-receiver service
+		"defs.#HTTPRoute",     // external exposure of the webhook-receiver service
 		"@tag(flux_hostname)", // receiver route host — a render-time var
 	} {
 		r.Contains(t, body, want, "flux-sync baseline lost its webhook delivery wiring")
