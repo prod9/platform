@@ -75,16 +75,17 @@ markers. Each maps to its repo-relative destination (dropping any `.tmpl` suffix
 | _(other)_     | repo root     | root files (e.g. `platform.toml`)                        |
 
 The default working set is what a functioning cluster needs out of the box (cert-manager,
-flux, flux-sync, the platform app, a gateway). It installs whole — selection is not an
-operator choice at init time.
+flux, flux-sync — including the push-driven webhook `Receiver` + its route, the platform app,
+a gateway). It installs whole — selection is not an operator choice at init time.
 
-### `DefaultVars`: version pins only
+### `DefaultVars`: interpolation inputs, not selection
 
-The baseline's default `[vars]` is **version pins only** (`CERT_MANAGER_VERSION`,
-`FLUX_VERSION`, …). Keys are SCREAMING_SNAKE (the preferred `platform.toml` form; render
-lowercases for both consumption routes). They are pure interpolation inputs — `\(var)` in
-directive `download` URLs and `@tag(var)` in CUE apps. **Selection is not a var** — the full
-baseline installs unconditionally.
+The baseline's default `[vars]` are **pure interpolation inputs**: version pins
+(`CERT_MANAGER_VERSION`, `FLUX_VERSION`, …) and the per-deployment ingress hosts the CUE apps
+route on (`PLATFORM_HOSTNAME` for the platform app, `FLUX_HOSTNAME` for the Flux webhook
+route). Keys are SCREAMING_SNAKE (the preferred `platform.toml` form; render lowercases for
+both consumption routes) — `\(var)` in directive `download` URLs and `@tag(var)` in CUE apps.
+**Selection is not a var** — the full baseline installs unconditionally.
 
 ### Registry creds are defaulted, not prompted
 

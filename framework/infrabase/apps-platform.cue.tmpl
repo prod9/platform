@@ -60,7 +60,7 @@ platform: {
 		#pull_secret:  nsp.#out.pull_secret_name
 		#port:         server_port
 		#replicas:     2
-		#host:         "platform.prodigy9.co"
+		#host:         string @tag(platform_hostname)
 		#gateway_name: "nginx"
 		#gateway_ns:   "gateway"
 		#command: ["./platform", "vanity"]

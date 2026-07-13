@@ -203,3 +203,25 @@ func TestEmbeddedNginxGateway(t *testing.T) {
 	r.Contains(t, got, `linode-loadbalancer-firewall-id: "11222746"`)
 	r.Contains(t, got, "type: StrategicMerge")
 }
+
+// TestEmbeddedFluxReceiver locks push-driven delivery into the baseline: the scaffolded
+// flux-sync app must ship a github-type Flux Receiver (the near-instant reconcile trigger
+// the OCIRepository interval only backstops) and the HTTPRoute exposing it. A relapse to
+// poll-only delivery trips here. Content-level, not a render assertion — the app imports
+// the defs module, which a hermetic unit test cannot resolve.
+func TestEmbeddedFluxReceiver(t *testing.T) {
+	_, byPath := infraSpec(t, t.TempDir())
+	body := string(byPath[filepath.Join("apps", "flux-sync.cue")].Content)
+	r.NotEmpty(t, body)
+
+	for _, want := range []string{
+		`"Receiver"`,          // notification-controller CR kind
+		`"github"`,            // GitHub webhook type
+		`"registry_package"`,  // GHCR publish event (X-GitHub-Event header)
+		"flux-webhook-token",  // HMAC secret the Receiver validates against
+		`"HTTPRoute"`,         // external exposure of the webhook-receiver service
+		"@tag(flux_hostname)", // receiver route host — a render-time var
+	} {
+		r.Contains(t, body, want, "flux-sync baseline lost its webhook delivery wiring")
+	}
+}

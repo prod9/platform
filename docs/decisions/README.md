@@ -65,6 +65,7 @@ the part that prevents re-litigation.
 
 Newest first.
 
+- [2026-07-13 — Flux webhook delivery: push-driven reconcile, poll as fallback](2026-07-13-flux-webhook-delivery.md)
 - [2026-07-12 — CUE module path is a scaffold input read from cue.mod, not the repository](2026-07-12-cue-module-path-is-a-scaffold-input.md)
 - [2026-07-11 — Terminology lexicon: one word, one concept](2026-07-11-terminology-lexicon.md)
 - [2026-07-11 — Baseline installs unconditionally; dissolves into the Infra framework](2026-07-11-baseline-dissolves-into-infra-framework.md)

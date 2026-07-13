@@ -268,10 +268,12 @@
             - ""
             - '[vars]'
             - '  CERT_MANAGER_VERSION = "v1.20.2"'
+            - '  FLUX_HOSTNAME = "flux.prodigy9.co"'
             - '  FLUX_VERSION = "v2.8.8"'
             - '  GATEWAY_API_VERSION = "v1.5.1"'
             - '  NGINX_GATEWAY_FIREWALL_ID = "11222746"'
             - '  NGINX_GATEWAY_VERSION = "v2.6.0"'
+            - '  PLATFORM_HOSTNAME = "platform.prodigy9.co"'
             - '-----END platform.toml-----'
             - ""
 - name: Platform \ Infra Init Render

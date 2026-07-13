@@ -42,6 +42,11 @@ var DefaultVars = map[string]any{
 	"GATEWAY_API_VERSION":   "v1.5.1",
 
 	"NGINX_GATEWAY_FIREWALL_ID": "11222746", // Linode LB firewall; string, not int
+
+	// Per-deployment ingress hosts (render-time @tag holes): the platform server's own vanity
+	// host and the Flux webhook-receiver route. prod9 self-host defaults; operators edit.
+	"PLATFORM_HOSTNAME": "platform.prodigy9.co",
+	"FLUX_HOSTNAME":     "flux.prodigy9.co",
 }
 
 // infrabaseComponents is the fixed working set every fresh infra repo installs — the
