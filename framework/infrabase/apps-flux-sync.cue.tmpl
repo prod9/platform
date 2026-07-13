@@ -117,7 +117,11 @@ import (
 		#gateway_name: "nginx"
 		#gateway_ns:   "gateway"
 		#host:         _flux_host
-		#rules: [{#service_name: "webhook-receiver", #service_port: 80, #path: "/hook/"}]
+		#rules: [{
+			#service_name: "webhook-receiver",
+			#service_port: 80,
+			#path: "/hook/"
+		}]
 	}
 
 	"namespace.yaml":   nsp
