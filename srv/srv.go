@@ -59,7 +59,7 @@ func Router(cfg *config.Source) (chi.Router, error) {
 	router.Use(middlewares.Configure(cfg))
 	router.Use(middlewares.LogRequests(cfg))
 
-	ctrs := []controllers.Interface{API{}, UI{}}
+	ctrs := []controllers.Interface{API{}, Setup{}, UI{}}
 	for _, ctr := range ctrs {
 		if err := ctr.Mount(cfg, router); err != nil {
 			return nil, err

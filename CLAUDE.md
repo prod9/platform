@@ -309,7 +309,10 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
   then wrap the router in fx's data-context middleware; `Router` stays DB-free so its
   tests run without postgres (DB tests skip when DATABASE_URL is unset). Logs via
   `fxlog`, never `buildlog`. Only `cmd` may import `srv` — the shared packages stay
-  srv-free.
+  srv-free. GitHub App bootstrap: `/setup/github` serves the App Manifest form,
+  `/setup/github/callback` exchanges GitHub's one-time code and stores the credentials
+  in the single-row `github_app` table (secrets encrypted via fx `secret`, SECRET var;
+  SERVER_URL / GITHUB_URL / GITHUB_API_URL config in `srv/setup.go`).
 - `webui/` — the built web UI assets (`Assets`, `//go:embed all:build`); the SvelteKit
   source lands alongside later, its adapter-static output in `build/` (a committed
   placeholder `index.html` for now).
