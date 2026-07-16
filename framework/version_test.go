@@ -16,6 +16,7 @@ func TestPlatformVersionFromModule(t *testing.T) {
 	}{
 		{"v0.9.1", "v0.9.1"},
 		{"v1.2.3", "v1.2.3"},
+		{"v0.9.3+dirty", "v0.9.3"}, // dirty tree at an exact tag
 		{"v0.9.2-0.20260716150944-7957812567d8", "v0.9.1"},
 		{"v0.9.2-0.20260716150944-7957812567d8+dirty", "v0.9.1"},
 		{"v1.0.0-0.20260716150944-7957812567d8", ""}, // patch underflow: no predecessor release

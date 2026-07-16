@@ -4,6 +4,7 @@ import (
 	"regexp"
 	"runtime/debug"
 	"strconv"
+	"strings"
 )
 
 // PlatformVersion reports the release version scaffolded launchers pin, resolved to the
@@ -19,13 +20,15 @@ func PlatformVersion() string {
 
 // exactRelease matches the only tag shape the semver strategy cuts; pseudoVersion matches
 // what the toolchain stamps on a between-releases build: the next patch plus a timestamp
-// and hash (optionally +dirty), from which the predecessor release is recovered.
+// and hash, from which the predecessor release is recovered. A dirty tree appends +dirty
+// to either shape — stripped before matching.
 var (
 	exactRelease  = regexp.MustCompile(`^v\d+\.\d+\.\d+$`)
-	pseudoVersion = regexp.MustCompile(`^(v\d+\.\d+\.)(\d+)-0\.\d{14}-[0-9a-f]{12}(\+dirty)?$`)
+	pseudoVersion = regexp.MustCompile(`^(v\d+\.\d+\.)(\d+)-0\.\d{14}-[0-9a-f]{12}$`)
 )
 
 func platformVersionFromModule(version string) string {
+	version = strings.TrimSuffix(version, "+dirty")
 	if exactRelease.MatchString(version) {
 		return version
 	}
