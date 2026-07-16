@@ -1,3 +1,7 @@
+// Package dsl implements the manifest-patch DSL: a hermetic, line-oriented directive
+// language for adapting foreign Kubernetes manifests during render. Apply runs a
+// directive file against a two-state buffer — raw bytes after download/extract, decoded
+// docs once an edit or emit needs them — with \(var) interpolation from Options.Vars.
 package dsl
 
 import (

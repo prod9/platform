@@ -1,4 +1,6 @@
-// Package framework produces container images for projects discovered by platform.
+// Package framework defines the sole owners of project types: a Framework recognizes
+// its stack (Discover), scaffolds it (Scaffold), and builds its container image (Build).
+// BuildAttempt/BuildUnit are the resolved work definitions the engine executes.
 //
 // # Base image policy
 //

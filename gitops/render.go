@@ -1,5 +1,8 @@
-// Package gitops renders an infra CUE module's apps to Kubernetes manifests and
-// publishes them as OCI artifacts for pull-based GitOps delivery.
+// Package gitops renders an infra CUE module's apps/ tree to one k8s/ manifest tree —
+// a pure function of committed git: .cue apps export through the linked CUE evaluator,
+// .platform directives run through the dsl subpackage, both fed by the [vars] table.
+// The Infra framework packs the result into a plain image published by the ordinary
+// publish path.
 package gitops
 
 import (

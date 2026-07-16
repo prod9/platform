@@ -1,3 +1,6 @@
+// Package git is platform's one git-exec boundary. Package-level funcs answer
+// repo-shape questions (IsRoot); Context runs git against a project's repository,
+// caching the per-process constants.
 package git
 
 import (

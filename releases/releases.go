@@ -1,3 +1,7 @@
+// Package releases cuts and recovers releases through git version tags, under pluggable
+// naming strategies (semver, timestamp, datestamp — and rolling, which is non-versioned
+// and cuts no tag at all). Generate proposes the next release with a changelog diffed
+// since the last tag; Create tags and pushes it.
 package releases
 
 import (

@@ -1,3 +1,6 @@
+// Package cmd wires the platform CLI: the root Cobra command, its persistent flags, and
+// every subcommand. Single-file subcommands live in the package itself; a subcommand
+// with its own file cluster gets a subpackage (cmd/init).
 package cmd
 
 import (

@@ -1,3 +1,7 @@
+// Package conf models platform.toml — the per-repo build/delivery config. Load walks up
+// to the file and resolves it (defaults, PLATFORM env overrides, inferred values);
+// Generate writes a fresh file and MergeVars folds default [vars] in surgically,
+// preserving operator edits.
 package conf
 
 import (

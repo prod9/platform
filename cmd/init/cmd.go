@@ -1,3 +1,7 @@
+// Package initcmd implements `platform init`, the plan-then-apply scaffold
+// orchestration: gather operator inputs, discover the framework, fold in its resolved
+// Scaffold contribution, print the plan, confirm, write. One uniform path — no
+// app-vs-infra branch anywhere.
 package initcmd
 
 import (
