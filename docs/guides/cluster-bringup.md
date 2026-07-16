@@ -38,6 +38,11 @@ This writes the full baseline: `platform.toml` (strategy `rolling`, default `[va
 version pins), `apps/` (cert-manager, flux, flux-sync, nginx-gateway-exp, platform),
 `defaults/basics.cue`, `cue.mod`, and the `platform` launcher.
 
+Re-running init later with `--force` replaces framework-owned files **including any
+secrets you wired into them** (the flux-sync HMAC token, the basics registry creds) —
+that's what "replace existing files" means. Commit before a `--force` re-scaffold and
+restore the wired values from git after. Only `platform.toml` merges surgically.
+
 ## 2. Wire values (edit before first render)
 
 | File                   | What to set                                                            |
