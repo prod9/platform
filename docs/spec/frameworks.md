@@ -20,7 +20,7 @@ state. Six methods:
 | `Layout() Layout`                                 | shape     | `basic` \| `workspace` — module topology                  |
 | `Discover(wd string) bool`                        | detect    | True if this stack owns `wd` (scaffold-time only)         |
 | `RequiredScaffoldInputs(wd) []string`             | inputs    | Operator inputs to prompt at init, by name (usually nil)  |
-| `Scaffold(ctx, wd, repo, dagger, inputs) Spec`    | seed      | The framework's full, **resolved** contribution (below)   |
+| `Scaffold(ctx, wd, env, inputs) Spec`             | seed      | The framework's full, **resolved** contribution (below)   |
 | `Build(ctx, client, *BuildUnit)`                  | container | Build the module → a synced `*dagger.Container`           |
 
 `Build` reads a fully-resolved `BuildUnit` (workdir, arch, env, command, asset dirs,

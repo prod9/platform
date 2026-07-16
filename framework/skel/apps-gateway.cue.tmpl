@@ -1,0 +1,37 @@
+package apps
+
+import (
+	"{{ .ModulePath }}/defaults"
+	"prodigy9.co/defs/packs"
+	"prodigy9.co/defs/parts"
+)
+
+// Operator gateway — host-agnostic by design: components own their hostnames via
+// ListenerSets (platform, flux-sync); this app only stands up the shared Gateway they
+// attach to.
+gateway: {
+	let nsp = defaults.#Basics & {
+		#name: "gateway"
+
+		[...]
+	}
+
+	// GatewayClass "nginx" is baseline-owned (nginx-gateway-exp ships it);
+	// referenced by name, never re-declared here.
+	let gw = packs.#Gateway & parts.#UseCertManager & parts.#AllowListenerSets & {
+		#name:          "nginx"
+		#ns:            nsp.#name
+		#gateway_class: "nginx"
+		#gateway_hosts: {}
+
+		[...]
+	}
+
+	"namespace.yaml": nsp
+	"gateway.yaml":   gw
+
+	#out: {
+		name: gw.#name
+		ns:   gw.#ns
+	}
+}

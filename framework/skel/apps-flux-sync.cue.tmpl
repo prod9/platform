@@ -108,15 +108,24 @@ import (
 		}]
 	}
 
-	// Exposes notification-controller's webhook-receiver service so GitHub can reach it.
-	// backendRef is same-namespace (flux-system) → no ReferenceGrant; the gateway's own
-	// allowedRoutes must admit this namespace (operator's gateway config).
-	let webhookRoute = defs.#HTTPRoute & {
-		#name:         "flux-webhook"
+	// flux-sync owns its hostname (distributed-hosts shape): the ListenerSet
+	// attaches to the operator gateway and cert-manager issues the host cert
+	// from the #UseCertManager annotation.
+	let listeners = defs.#ListenerSet & parts.#UseCertManager & {
+		#name:         "flux-listeners"
 		#ns:           nsp.#name
 		#gateway_name: "nginx"
 		#gateway_ns:   "gateway"
-		#host:         _flux_host
+		#hosts: [_flux_host]
+	}
+
+	// Exposes notification-controller's webhook-receiver service so GitHub can
+	// reach it. backendRef is same-namespace (flux-system) → no ReferenceGrant.
+	let webhookRoute = defs.#HTTPRoute & {
+		#name:             "flux-webhook"
+		#ns:               nsp.#name
+		#listenerset_name: listeners.#name
+		#host:             _flux_host
 		#rules: [{
 			#service_name: "webhook-receiver",
 			#service_port: 80,
@@ -126,5 +135,5 @@ import (
 
 	"namespace.yaml":   nsp
 	"flux-config.yaml": [source, kustomize]
-	"webhook.yaml":     [webhookToken, receiver, webhookRoute]
+	"webhook.yaml":     [webhookToken, receiver, listeners, webhookRoute]
 }

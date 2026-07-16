@@ -1,0 +1,19 @@
+package apps
+
+import (
+	"prodigy9.co/defs"
+)
+
+// ACME issuer for every HTTPS host on the cluster. Solves HTTP-01 through the operator
+// gateway; ListenerSets opt in via the cert-manager.io/cluster-issuer annotation
+// (parts.#UseCertManager).
+"cluster-issuer": {
+	let issuer = defs.#ClusterIssuer & {
+		#name:         "cluster-issuer-main"
+		#email:        "{{ .MaintainerEmail }}"
+		#gateway_name: gateway.#out.name
+		#gateway_ns:   gateway.#out.ns
+	}
+
+	"cluster-issuer.yaml": [issuer]
+}

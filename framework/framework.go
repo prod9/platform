@@ -42,7 +42,7 @@ type (
 		// path) and how to read existing state (an existing cue.mod wins over the input).
 		// repository and daggerVersion are environment facts the driver supplies; inputs are
 		// the operator's answers to RequiredScaffoldInputs. The driver just writes what it gets.
-		Scaffold(ctx context.Context, wd, repository, daggerVersion string, inputs map[string]string) (scaffold.Spec, error)
+		Scaffold(ctx context.Context, wd string, env scaffold.Env, inputs map[string]string) (scaffold.Spec, error)
 
 		Build(ctx context.Context, client *dagger.Client, unit *BuildUnit) (*dagger.Container, error)
 	}

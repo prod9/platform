@@ -47,7 +47,7 @@ restore the wired values from git after. Only `platform.toml` merges surgically.
 
 | File                   | What to set                                                            |
 |------------------------|------------------------------------------------------------------------|
-| `platform.toml` `[vars]` | `PLATFORM_HOSTNAME` / `FLUX_HOSTNAME` — this cluster's ingress hosts. `NGINX_GATEWAY_FIREWALL_ID` — this cluster's Linode firewall id. `NGINX_GATEWAY_RESERVED_IPV4` — the cluster's reserved LB IPv4; **must be set before anything from `k8s/nginx-gateway-exp/` first applies** — the Linode CCM honors the annotation only at Service creation, retrofitting does nothing, the fix is delete/recreate. No reserved IP → delete the reserved-ipv4 directive from `apps/nginx-gateway-exp.platform` instead (empty-value API behavior is unverified). Leave version pins alone. |
+| `platform.toml` `[vars]` | `PLATFORM_HOSTNAME` / `FLUX_HOSTNAME` — this cluster's ingress hosts. `NGINX_GATEWAY_RESERVED_IPV4` — the cluster's reserved LB IPv4; **must be set before anything from `k8s/nginx-gateway-exp/` first applies** — the Linode CCM honors the annotation only at Service creation, retrofitting does nothing, the fix is delete/recreate — and an **empty value 400s the CCM**, so never apply with it unset (no reserved IP → delete the directive from `apps/nginx-gateway-exp.platform`). Firewalls attach NB-side via terraform — there is no firewall-id var (the CCM annotation path is dead; add the directive yourself if your CCM supports it). Leave version pins alone. |
 | `defaults/basics.cue`  | `#registry_username` / `#registry_password` — the ghcr **pull** creds (committed placeholders are empty). |
 | `apps/flux-sync.cue`   | `webhookToken` `#data: token:` — a fresh random HMAC secret (plaintext; `#Secret` base64-encodes). Generate with `openssl rand -hex 32`. |
 
@@ -69,22 +69,27 @@ steps:
 2. `k8s/cert-manager/` — wait for the webhook deployment to be Ready
 3. `k8s/nginx-gateway-exp/nginx-gateway.yaml`
 4. `k8s/flux/` — wait for Flux CRDs (`ocirepositories`, `kustomizations`, `receivers`)
-5. `k8s/flux-sync/` — the OCIRepository + Kustomization + webhook Receiver/Secret/Route
+5. `k8s/flux-sync/` — the OCIRepository + Kustomization + webhook Receiver/Secret/Route.
+   **Before this step**, verify `ghcr.io/<org>/<repo>` holds no leftover package from a
+   previous repo generation — Flux adopts whatever `latest` resolves to, and a stale tree
+   will silently overwrite live config (observed: a pre-reserved-IP NginxProxy clobbered
+   the gateway). Delete stale package versions first, or publish fresh before applying.
 6. `k8s/platform/`
 
 A second idempotent `kubectl apply` pass over the whole tree is an acceptable
 convergence check; anything still failing is a real error, not ordering.
 
-## 4. Gateway + TLS (operator config — NOT shipped by the baseline)
+## 4. DNS
 
-The baseline's routes reference a Gateway named **`nginx` in namespace `gateway`** that
-the scaffold does **not** create. Create it (and its namespace) with:
+The gateway and TLS are baseline components since the prod9-main bring-up: the scaffold
+ships a **host-agnostic** `Gateway` app (`apps/gateway.cue` — components attach their own
+hostnames via `ListenerSet`s, never edit the gateway for a host) and the ACME
+cluster-issuer (`apps/cluster-issuer.cue`, contact = the maintainer email given at init).
+The GatewayClass `nginx` is owned by `nginx-gateway-exp` — the gateway app references it
+by name, never re-declares it.
 
-- listeners covering `PLATFORM_HOSTNAME` and `FLUX_HOSTNAME`;
-- `allowedRoutes` admitting the `flux-system` and `platform` namespaces;
-- TLS via cert-manager (issuer is likewise operator config today).
-
-Point DNS for both hostnames at the gateway's LoadBalancer IP.
+What remains manual: point DNS for `PLATFORM_HOSTNAME` and `FLUX_HOSTNAME` at the
+gateway's LoadBalancer IP (the reserved IPv4 from step 2).
 
 ## 5. First publish — light the pull loop
 
@@ -123,8 +128,5 @@ Baseline is live when all three hold.
 
 ## Known gaps / decision points
 
-- **Gateway + issuer in the baseline?** Today both are operator config (step 4). If every
-  bring-up repeats them verbatim, propose promoting them into the scaffold baseline —
-  that's a platform-repo decision, raise it there.
 - **GitHub webhook auto-config** — deferred to the platform server (`srv`); hand-wired
   until then.

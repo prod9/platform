@@ -1,3 +1,4 @@
+# vim: ft=platform-dsl
 download "https://github.com/fluxcd/flux2/releases/download/\(flux_version)/install.yaml"
 reset
 focus .[].kind "Namespace"

@@ -1,2 +1,10 @@
+# vim: ft=platform-dsl
 download "https://github.com/cert-manager/cert-manager/releases/download/\(cert_manager_version)/cert-manager.yaml"
+
+# The gateway-shim ignores ListenerSets without this gate — no per-host cert would ever
+# issue for the distributed-hosts baseline (upstream ships the listenersets RBAC already).
+focus .[].kind "Deployment"
+focus .metadata.name "cert-manager"
+append .spec.template.spec.containers[0].args "--feature-gates=ListenerSets=true"
+reset
 emit "cert-manager.yaml"

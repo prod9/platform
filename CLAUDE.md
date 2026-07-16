@@ -208,7 +208,8 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
   - Contract: `Name/Layout/Discover/RequiredScaffoldInputs/Scaffold/Build`.
     `RequiredScaffoldInputs(wd)` declares the operator inputs the framework needs at init (by
     name, the prompt label — most onboard an existing repo and need none; embed `noScaffoldInputs`);
-    `Scaffold(wd, repository, daggerVersion, inputs)` returns the framework's complete, **resolved**
+    `Scaffold(wd, env, inputs)` (`env` = `scaffold.Env`: repository, maintainer email,
+    dagger SDK version) returns the framework's complete, **resolved**
     contribution — it owns filling its own template holes (which input maps to which hole, reading
     an existing cue.mod), so the driver just writes finished bytes and never sees a hole. Runtime
     shape is a descriptive taxonomy in prose (native/bytecode/interpreted/static/custom), not a method.
@@ -228,7 +229,10 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
     only — ownership lives with the readers.
   - The `Infra` framework installs the cluster baseline: files destination-encoded by name
     (`apps-*` → `apps/`, `defaults-*` → `defaults/`, else repo root), `DefaultVars` =
-    version pins only. It installs **unconditionally** — no install-time picker; registry
+    version pins + per-deployment values (ingress hostnames, reserved LB IPv4 — set before
+    the gateway ever applies; empty 400s the CCM). Components own their hostnames via
+    `ListenerSet`s; the baseline ships a host-agnostic `Gateway` app + ACME cluster-issuer
+    (`MaintainerEmail` hole). It installs **unconditionally** — no install-time picker; registry
     creds ship as empty placeholders in committed CUE, never prompted. It seeds
     `strategy = "rolling"` and needs a fresh git repo — no `IsInfra` predicate anywhere,
     the app/infra difference is pure `Scaffold` polymorphism.

@@ -1,3 +1,4 @@
+# vim: ft=platform-dsl
 # Gateway API CRDs — experimental channel (required for TCPRoute).
 download "https://github.com/kubernetes-sigs/gateway-api/releases/download/\(gateway_api_version)/experimental-install.yaml"
 emit "gateway-api-crds.yaml"
@@ -7,10 +8,11 @@ download "https://raw.githubusercontent.com/nginx/nginx-gateway-fabric/\(nginx_g
 emit "nginx-gateway-crds.yaml"
 
 # NGINX Gateway Fabric controller + NginxProxy config.
+# No firewall-id annotation: the CCM 400s on an empty value and current clusters attach
+# the firewall NB-side (terraform). Operators with a working CCM path add the directive.
 download "https://raw.githubusercontent.com/nginx/nginx-gateway-fabric/\(nginx_gateway_version)/deploy/default/deploy.yaml"
 focus .[].kind "NginxProxy"
 set .spec.serverTokens "off"
 set .spec.kubernetes.service.patches[0].type "StrategicMerge"
-set .spec.kubernetes.service.patches[0].value.metadata.annotations."service.beta.kubernetes.io/linode-loadbalancer-firewall-id" "\(nginx_gateway_firewall_id)"
 set .spec.kubernetes.service.patches[0].value.metadata.annotations."service.beta.kubernetes.io/linode-loadbalancer-reserved-ipv4" "\(nginx_gateway_reserved_ipv4)"
 emit "nginx-gateway.yaml"

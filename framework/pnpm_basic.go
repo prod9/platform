@@ -19,7 +19,7 @@ func (PNPMBasic) Discover(wd string) bool {
 	return detected
 }
 
-func (fw PNPMBasic) Scaffold(ctx context.Context, wd, _, _ string, _ map[string]string) (scaffold.Spec, error) {
+func (fw PNPMBasic) Scaffold(ctx context.Context, wd string, _ scaffold.Env, _ map[string]string) (scaffold.Spec, error) {
 	return scaffold.Spec{Module: defaultModule(fw, wd)}, nil
 }
 

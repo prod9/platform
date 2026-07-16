@@ -21,7 +21,8 @@ import (
 func infraSpec(t *testing.T, wd string) (scaffold.Spec, map[string]scaffold.File) {
 	t.Helper()
 
-	spec, err := Infra{}.Scaffold(context.Background(), wd, "github.com/prod9/infra", "v0.21.7",
+	spec, err := Infra{}.Scaffold(context.Background(), wd,
+		scaffold.Env{Repository: "github.com/prod9/infra", MaintainerEmail: "john@apple.com", DaggerVersion: "v0.21.7"},
 		map[string]string{"CUE_MOD_PREFIX": "example.com"})
 	r.NoError(t, err)
 
@@ -48,6 +49,20 @@ func TestInfraScaffoldContributesBaseline(t *testing.T) {
 	r.Contains(t, byPath, filepath.Join("apps", "platform.cue"))
 	r.Contains(t, byPath, filepath.Join("defaults", "basics.cue"))
 	r.Contains(t, byPath, filepath.Join("cue.mod", "module.cue"))
+
+	// The gateway + issuer are baseline components (fold-back from the prod9-main
+	// bring-up): the gateway is host-agnostic — components own their hostnames via
+	// ListenerSets — and the issuer's ACME contact is the maintainer email env fact.
+	gw := string(byPath[filepath.Join("apps", "gateway.cue")].Content)
+	r.Contains(t, gw, "parts.#AllowListenerSets")
+	r.Contains(t, gw, "#gateway_hosts: {}")
+
+	issuer := string(byPath[filepath.Join("apps", "cluster-issuer.cue")].Content)
+	r.Contains(t, issuer, `"john@apple.com"`, "issuer ACME contact must resolve from the maintainer email")
+
+	fluxSync := string(byPath[filepath.Join("apps", "flux-sync.cue")].Content)
+	r.Contains(t, fluxSync, "defs.#ListenerSet", "flux-sync must own its hostname (distributed-hosts shape)")
+	r.Contains(t, fluxSync, "#listenerset_name: listeners.#name")
 }
 
 // TestInfraScaffoldCueModule checks the greenfield cue.mod Scaffold resolves: the module path
@@ -90,26 +105,30 @@ func TestInfraRequiredScaffoldInputs(t *testing.T) {
 func TestInfraScaffoldData(t *testing.T) {
 	// Greenfield: module path comes from the CUE_MOD_PREFIX input; env facts pass through.
 	green := t.TempDir()
-	data, err := Infra{}.scaffoldData(green, "github.com/prod9/infra", "v0.21.7",
+	data, err := Infra{}.scaffoldData(green,
+		scaffold.Env{Repository: "github.com/prod9/infra", MaintainerEmail: "a@b.co", DaggerVersion: "v0.21.7"},
 		map[string]string{"CUE_MOD_PREFIX": "prodigy9.co"})
 	r.NoError(t, err)
 	r.Equal(t, "prodigy9.co", data.ModulePath)
 	r.Equal(t, "v0.21.7", data.DaggerVersion)
+	r.Equal(t, "a@b.co", data.MaintainerEmail)
 
 	// Infra needs the linked SDK version for the engine image ref — an empty one is a hard
 	// error here, not a tagless ref downstream.
-	_, err = Infra{}.scaffoldData(green, "r", "", map[string]string{"CUE_MOD_PREFIX": "x.co"})
+	_, err = Infra{}.scaffoldData(green, scaffold.Env{Repository: "r"}, map[string]string{"CUE_MOD_PREFIX": "x.co"})
 	r.Error(t, err)
 
 	// An input CUE would reject as a module path (no dot in the first segment) fails fast —
 	// this is the exact case a bare GitHub org/repo produces.
-	_, err = Infra{}.scaffoldData(green, "r", "v", map[string]string{"CUE_MOD_PREFIX": "prod9/infra-new"})
+	_, err = Infra{}.scaffoldData(green, scaffold.Env{Repository: "r", DaggerVersion: "v"},
+		map[string]string{"CUE_MOD_PREFIX": "prod9/infra-new"})
 	r.Error(t, err)
 
 	// An existing cue.mod wins over any input — operator truth.
 	existing := t.TempDir()
 	writeModuleFile(t, existing, "kept.example/infra")
-	data, err = Infra{}.scaffoldData(existing, "r", "v", map[string]string{"CUE_MOD_PREFIX": "ignored.co"})
+	data, err = Infra{}.scaffoldData(existing, scaffold.Env{Repository: "r", DaggerVersion: "v"},
+		map[string]string{"CUE_MOD_PREFIX": "ignored.co"})
 	r.NoError(t, err)
 	r.Equal(t, "kept.example/infra", data.ModulePath)
 }
@@ -136,7 +155,35 @@ func TestEmbeddedCertManager(t *testing.T) {
 	var gotURL string
 	fetch := func(url string) ([]byte, error) {
 		gotURL = url
-		return []byte("apiVersion: v1\nkind: Namespace\nmetadata:\n  name: cert-manager\n"), nil
+		return []byte(`apiVersion: v1
+kind: Namespace
+metadata:
+  name: cert-manager
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cert-manager-webhook
+spec:
+  template:
+    spec:
+      containers:
+        - name: cert-manager-webhook
+          args:
+            - --secure-port=10250
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cert-manager
+spec:
+  template:
+    spec:
+      containers:
+        - name: cert-manager-controller
+          args:
+            - --v=2
+`), nil
 	}
 
 	out := t.TempDir()
@@ -151,7 +198,15 @@ func TestEmbeddedCertManager(t *testing.T) {
 
 	emitted, err := os.ReadFile(filepath.Join(out, "cert-manager.yaml"))
 	r.NoError(t, err)
-	r.Contains(t, string(emitted), "kind: Namespace")
+	got := string(emitted)
+	r.Contains(t, got, "kind: Namespace")
+
+	// The controller must run with the ListenerSets gate or cert-manager's gateway-shim
+	// ignores every ListenerSet and HTTPS is dead for the whole distributed-hosts shape.
+	// The webhook deployment must NOT pick up the controller's flag.
+	r.Contains(t, got, "--feature-gates=ListenerSets=true")
+	r.Equal(t, 1, strings.Count(got, "--feature-gates=ListenerSets=true"),
+		"the gate belongs to the controller deployment only")
 }
 
 // TestEmbeddedNginxGateway runs the embedded NGF directive end to end with a fixture
@@ -199,8 +254,10 @@ func TestEmbeddedNginxGateway(t *testing.T) {
 	got := string(ngf)
 
 	r.Contains(t, got, `serverTokens: "off"`)
-	// The firewall id must stay a string — yaml quotes it; a bare int would be invalid.
-	r.Contains(t, got, `linode-loadbalancer-firewall-id: "11222746"`)
+	// The firewall-id annotation is excised: it 400s the CCM when empty, never took on
+	// dev-main, and prod9-main attaches the firewall NB-side via terraform. Operators
+	// with a working CCM path add the directive themselves.
+	r.NotContains(t, got, "linode-loadbalancer-firewall-id")
 	// The reserved-IP slot must reach the generated LB Service at creation — the CCM reads
 	// it only then (not retrofittable; fix = delete/recreate the Gateway). Empty default:
 	// operators set it (or delete the directive) before the Gateway first applies.

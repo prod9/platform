@@ -35,14 +35,25 @@ type Spec struct {
 	Strategy string
 }
 
+// Env carries the environment facts the driver hands every framework's Scaffold: the
+// operator identity and repository from init's universal prompts, and the dagger SDK
+// version the binary links. Frameworks pull what they need; most need none of it.
+type Env struct {
+	Repository      string
+	MaintainerEmail string
+	DaggerVersion   string
+}
+
 // Data fills the placeholders in ".tmpl" files at init time: DaggerVersion comes from the
-// linked SDK; ModulePath is the CUE module a .tmpl hole resolves to, read from an existing
+// linked SDK; MaintainerEmail from init's universal prompt (the cluster-issuer ACME
+// contact); ModulePath is the CUE module a .tmpl hole resolves to, read from an existing
 // cue.mod or from the CUE_MOD_PREFIX scaffold input; ImageBase is derived from the
 // repository. A framework builds it from operator inputs and passes it to Resolve inside its
 // own Scaffold.
 type Data struct {
 	DaggerVersion   string
 	PlatformVersion string // release the scaffolded launcher pins; the driver fills it
+	MaintainerEmail string
 	ModulePath      string
 	ImageBase       string // OCI artifact base for the flux self-sync (oci://<ImageBase>)
 }

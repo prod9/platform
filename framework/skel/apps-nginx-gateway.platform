@@ -1,3 +1,4 @@
+# vim: ft=platform-dsl
 # Gateway API CRDs — standard channel (stable; no TCPRoute).
 download "https://github.com/kubernetes-sigs/gateway-api/releases/download/\(gateway_api_version)/standard-install.yaml"
 emit "gateway-api-crds.yaml"

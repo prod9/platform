@@ -48,6 +48,7 @@ shapes a framework returns and nothing stack-specific:
 **Templating rules.** `.tmpl` files resolve through `text/template` with `missingkey=error`;
 non-template files pass through **verbatim** — their CUE braces must never meet the template
 engine. Placeholders are filled at init time: `DaggerVersion` (from the linked SDK, below),
+`MaintainerEmail` (init's universal prompt; the cluster-issuer's ACME contact),
 `ModulePath` (the operator's CUE module path — from the `CUE_MOD_PREFIX` scaffold input or an
 existing `cue.mod`, separate from `repository`), and `ImageBase` (the flux self-sync OCI base). Registry creds are **not**
 templated — they ship as empty placeholders in committed CUE (below). Output order is
@@ -84,9 +85,12 @@ markers. Each maps to its repo-relative destination (dropping any `.tmpl` suffix
 | `defaults-*`  | `defaults/`   | shared CUE definitions imported by `apps/` (`#Basics`)   |
 | _(other)_     | repo root     | root files (e.g. `platform.toml`)                        |
 
-The default working set is what a functioning cluster needs out of the box (cert-manager,
-flux, flux-sync — including the push-driven webhook `Receiver` + its route, the platform app,
-a gateway). It installs whole — selection is not an operator choice at init time.
+The default working set is what a functioning cluster needs out of the box: cert-manager
+(with the `ListenerSets` feature gate), flux, flux-sync (the push-driven webhook `Receiver`
++ its own `ListenerSet` and route), the platform app, the NGF gateway stack, the
+host-agnostic operator `Gateway` app, and the ACME cluster-issuer. Components own their
+hostnames via `ListenerSet`s (distributed-hosts shape) — the gateway app carries none. It
+installs whole — selection is not an operator choice at init time.
 
 ### `DefaultVars`: interpolation inputs, not selection
 
@@ -133,7 +137,8 @@ touching the tree.
    inside another checkout counts only with its own `.git`).
 2. `framework.Discover(wd)` resolves the owning framework, and `init` prompts for the
    inputs its `RequiredScaffoldInputs(wd)` declares.
-3. `fw.Scaffold(ctx, wd, repository, daggerVersion, inputs)` returns the `scaffold.Spec` —
+3. `fw.Scaffold(ctx, wd, env, inputs)` — `env` is `scaffold.Env` (repository, maintainer
+   email, dagger SDK version) — returns the `scaffold.Spec` —
    module, vars, files (resolved), the seeded `strategy` value. `init` computes the
    `platform.toml` disposition (below) and builds a plan.
 4. It prints the plan, confirms, then writes finished bytes.

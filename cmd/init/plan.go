@@ -119,13 +119,18 @@ func discover(dir string) (framework.Framework, error) {
 }
 
 // scaffoldSpec runs the framework's Scaffold with the operator inputs and the environment facts
-// it may need (repository, the linked SDK version). The framework returns its complete, resolved
-// contribution; an unrecognized repo (nil framework) contributes nothing.
+// it may need (repository, maintainer email, the linked SDK version). The framework returns its
+// complete, resolved contribution; an unrecognized repo (nil framework) contributes nothing.
 func scaffoldSpec(fw framework.Framework, dir string, info *Info, inputs map[string]string) (fwscaffold.Spec, error) {
 	if fw == nil {
 		return fwscaffold.Spec{}, nil
 	}
-	return fw.Scaffold(context.Background(), dir, info.Repository, daggerVersion(), inputs)
+	env := fwscaffold.Env{
+		Repository:      info.Repository,
+		MaintainerEmail: info.MaintainerEmail,
+		DaggerVersion:   daggerVersion(),
+	}
+	return fw.Scaffold(context.Background(), dir, env, inputs)
 }
 
 // planProjectFile decides how platform.toml changes: a surgical [vars]
