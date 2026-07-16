@@ -11,15 +11,16 @@ import (
 // attach to.
 gateway: {
 	let nsp = defaults.#Basics & {
-		#name: "gateway"
+		#name: defaults.#gateway.ns
 
 		[...]
 	}
 
 	// GatewayClass "nginx" is baseline-owned (nginx-gateway-exp ships it);
-	// referenced by name, never re-declared here.
+	// referenced by name, never re-declared here. Coordinates come from
+	// defaults.#gateway — the one place they are written.
 	let gw = packs.#Gateway & parts.#UseCertManager & parts.#AllowListenerSets & {
-		#name:          "nginx"
+		#name:          defaults.#gateway.name
 		#ns:            nsp.#name
 		#gateway_class: "nginx"
 		#gateway_hosts: {}

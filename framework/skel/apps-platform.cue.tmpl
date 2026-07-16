@@ -3,7 +3,6 @@ package apps
 import (
 	"{{ .ModulePath }}/defaults"
 	"prodigy9.co/defs"
-	"prodigy9.co/defs/packs"
 	"prodigy9.co/defs/parts"
 )
 
@@ -53,11 +52,7 @@ platform: {
 		}
 	}
 
-	let server = packs.#WebApp & {
-		// The pack's ListenerSet references <host>-tls secrets; the issuer annotation is
-		// what makes cert-manager materialize them.
-		parts.#UseCertManager
-
+	let server = defaults.#WebApp & {
 		#name:         "platform"
 		#ns:           nsp.#name
 		#image:        "ghcr.io/prod9/platform:latest"
@@ -65,8 +60,6 @@ platform: {
 		#port:         server_port
 		#replicas:     2
 		#host:         string @tag(platform_hostname)
-		#gateway_name: "nginx"
-		#gateway_ns:   "gateway"
 		#command: ["./platform", "vanity"]
 		#env: {}
 

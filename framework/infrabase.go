@@ -58,6 +58,7 @@ var infrabaseComponents = []string{
 	"apps-platform.cue.tmpl",
 	"apps-nginx-gateway-exp.platform",
 	"defaults-basics.cue",
+	"defaults-webapp.cue",
 }
 
 // infrabaseFiles returns the baseline as routed, unresolved scaffold files: each component
