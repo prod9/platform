@@ -9,7 +9,7 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/spf13/cobra"
 	"platform.prodigy9.co/engine"
-	"platform.prodigy9.co/gitctx"
+	"platform.prodigy9.co/git"
 	"platform.prodigy9.co/internal/buildlog"
 	"platform.prodigy9.co/project"
 	"platform.prodigy9.co/releases"
@@ -37,12 +37,12 @@ func runPublish(cmd *cobra.Command, args []string) {
 	// the deploy.
 	name := ""
 	if strat.IsVersioned() {
-		git := gitctx.New(cfg)
-		collection, err := releases.Recover(cfg, git)
+		g := git.New(cfg)
+		collection, err := releases.Recover(cfg, g)
 		if err != nil {
 			buildlog.Fatalln(err)
 		}
-		rel, err := collection.GetLatest(git, strat)
+		rel, err := collection.GetLatest(g, strat)
 		if err != nil {
 			buildlog.Fatalln(err)
 		}

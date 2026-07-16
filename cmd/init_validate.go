@@ -3,7 +3,8 @@ package cmd
 import (
 	"errors"
 	"os"
-	"path/filepath"
+
+	"platform.prodigy9.co/git"
 )
 
 var (
@@ -24,16 +25,8 @@ func validateDir(dir string) error {
 	if !info.IsDir() {
 		return ErrWDNotDir
 	}
-	if !IsGitRoot(dir) {
+	if !git.IsRoot(dir) {
 		return ErrWDNotGit
 	}
 	return nil
-}
-
-// IsGitRoot reports whether dir is itself a git repo root — a .git entry directly in dir,
-// without walking up. A nested standalone repo (an infra repo developed in-place under
-// another checkout) must have its own .git; the parent's does not count.
-func IsGitRoot(dir string) bool {
-	_, err := os.Stat(filepath.Join(dir, ".git"))
-	return err == nil
 }

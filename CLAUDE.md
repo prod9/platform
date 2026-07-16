@@ -241,8 +241,9 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
   pushes. Bump vocab: `BumpAny/Patch/Minor/Major` (flags `-p`/`-m`/`--major`).
   `collection.go` recovers history from git tags. `dateref`/`timeref` subpackages parse
   the datestamp/timestamp ref formats.
-- `gitctx/` — Wraps `gitcmd/` shell helpers; caches current branch and tracking
-  remote via `sync.OnceValues`. Version tags are annotated and pushed once,
+- `git/` — the repo's one git-exec boundary: `git.Context` runs git for a project,
+  caching current branch and tracking remote via `sync.OnceValues`; `git.IsRoot` is the
+  repo-root probe init's validation uses. Version tags are annotated and pushed once,
   non-forcefully — git holds only immutable version tags; the moving `latest` reference
   is a registry concern, not a force-pushed tag.
 - `dsl/` — manifest patch DSL (Slices D1–D2): a hermetic, line-oriented directive

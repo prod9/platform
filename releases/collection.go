@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"platform.prodigy9.co/gitctx"
+	"platform.prodigy9.co/git"
 	"platform.prodigy9.co/project"
 )
 
@@ -18,13 +18,13 @@ type Collection struct {
 	names []string
 }
 
-func Recover(cfg *project.Project, git *gitctx.GitCtx) (*Collection, error) {
+func Recover(cfg *project.Project, g *git.Context) (*Collection, error) {
 	// ensure the local wd has all the up-to-date tags
-	if err := git.UpdateAllTags(); err != nil {
+	if err := g.UpdateAllTags(); err != nil {
 		return nil, err
 	}
 
-	lines, err := git.ListTags("v*")
+	lines, err := g.ListTags("v*")
 	if err != nil {
 		return nil, err
 	}
@@ -55,12 +55,12 @@ func (c *Collection) LatestName(strat Strategy) string {
 	return ""
 }
 
-func (c *Collection) Get(git *gitctx.GitCtx, name string) (*Release, error) {
+func (c *Collection) Get(g *git.Context, name string) (*Release, error) {
 	if name == "" {
 		return nil, ErrNoRelease
 	}
 
-	msg, err := git.GetTagMessage(name)
+	msg, err := g.GetTagMessage(name)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrNoRelease, err)
 	}
@@ -71,20 +71,20 @@ func (c *Collection) Get(git *gitctx.GitCtx, name string) (*Release, error) {
 	}, nil
 }
 
-func (c *Collection) GetLatest(git *gitctx.GitCtx, strat Strategy) (*Release, error) {
+func (c *Collection) GetLatest(g *git.Context, strat Strategy) (*Release, error) {
 	name := c.LatestName(strat)
 	if name == "" {
 		return nil, ErrNoRelease
 	}
 
-	return c.Get(git, name)
+	return c.Get(g, name)
 }
 
-func (c *Collection) PendingChanges(git *gitctx.GitCtx) ([]CommitRef, error) {
+func (c *Collection) PendingChanges(g *git.Context) ([]CommitRef, error) {
 	last := c.LatestName(nil)
 	if last == "" {
 		return nil, nil
 	}
 
-	return listCommits(git, last+"..HEAD")
+	return listCommits(g, last+"..HEAD")
 }

@@ -27,23 +27,7 @@ func TestValidateDir(t *testing.T) {
 	r.NoError(t, validateDir(gitRepo(t)))
 }
 
-func TestIsGitRoot(t *testing.T) {
-	repo := gitRepo(t)
-
-	// The repo root itself is a root.
-	r.True(t, IsGitRoot(repo))
-
-	// A nested subdir sits under the repo but is NOT its own root — a standalone repo
-	// there needs its own `git init`.
-	sub := filepath.Join(repo, "infra")
-	r.NoError(t, os.MkdirAll(sub, 0755))
-	r.False(t, IsGitRoot(sub))
-
-	// A bare dir is not a root.
-	r.False(t, IsGitRoot(t.TempDir()))
-}
-
-// gitRepo returns a fresh temp dir marked as a git repo root. IsGitRoot only needs a
+// gitRepo returns a fresh temp dir marked as a git repo root. git.IsRoot only needs a
 // .git entry to exist, so no real `git init` is required — keeps it hermetic.
 func gitRepo(t *testing.T) string {
 	t.Helper()

@@ -6,7 +6,7 @@ import (
 	"slices"
 	"strings"
 
-	"platform.prodigy9.co/gitctx"
+	"platform.prodigy9.co/git"
 	"platform.prodigy9.co/internal/buildinfo"
 	"platform.prodigy9.co/project"
 )
@@ -62,12 +62,12 @@ var knownStrategies = map[string]Strategy{
 	"rolling":   Rolling{},
 }
 
-func Generate(cfg *project.Project, git *gitctx.GitCtx, opts *Options) (*Release, error) {
-	if err := checkGitStatus(cfg, git, opts); err != nil {
+func Generate(cfg *project.Project, g *git.Context, opts *Options) (*Release, error) {
+	if err := checkGitStatus(cfg, g, opts); err != nil {
 		return nil, err
 	}
 
-	collection, err := Recover(cfg, git)
+	collection, err := Recover(cfg, g)
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +83,7 @@ func Generate(cfg *project.Project, git *gitctx.GitCtx, opts *Options) (*Release
 		commits = prevName + "..HEAD"
 	}
 
-	refs, err := listCommits(git, commits)
+	refs, err := listCommits(g, commits)
 	if err != nil {
 		return nil, err
 	}
@@ -100,17 +100,17 @@ func Generate(cfg *project.Project, git *gitctx.GitCtx, opts *Options) (*Release
 	}, nil
 }
 
-func Create(cfg *project.Project, git *gitctx.GitCtx, rel *Release) error {
+func Create(cfg *project.Project, g *git.Context, rel *Release) error {
 	// always fetch remote tags before making changes because someone else might have
 	// pushed a tag since we last fetched (or you yourself might have pushed a tag from
 	// another machine and forgot)
-	if err := git.UpdateAllTags(); err != nil {
+	if err := g.UpdateAllTags(); err != nil {
 		return err
 	}
-	if _, err := git.SetVersionTag(rel.Name, rel.Message); err != nil {
+	if _, err := g.SetVersionTag(rel.Name, rel.Message); err != nil {
 		return err
 	}
-	if err := git.PushVersionTag(rel.Name); err != nil {
+	if err := g.PushVersionTag(rel.Name); err != nil {
 		return err
 	}
 
@@ -124,10 +124,10 @@ func (r *Release) Changelog() {
 	}
 }
 
-func checkGitStatus(cfg *project.Project, git *gitctx.GitCtx, opts *Options) error {
+func checkGitStatus(cfg *project.Project, g *git.Context, opts *Options) error {
 	if !opts.Force {
-		if err := git.IsClean(); err != nil {
-			if err == gitctx.ErrDirtyWorkdir {
+		if err := g.IsClean(); err != nil {
+			if err == git.ErrDirtyWorkdir {
 				return ErrDirtyWorkdir
 			}
 			return err
@@ -166,12 +166,12 @@ func generateMessage(cfg *project.Project, title string, refs []CommitRef) strin
 	return sb.String()
 }
 
-func listCommits(git *gitctx.GitCtx, range_ string) (refs []CommitRef, err error) {
+func listCommits(g *git.Context, range_ string) (refs []CommitRef, err error) {
 	var raw string
 	if range_ == "" {
-		raw, err = git.RecentCommits()
+		raw, err = g.RecentCommits()
 	} else {
-		raw, err = git.CommitsSinceTag(strings.Split(range_, "..")[0])
+		raw, err = g.CommitsSinceTag(strings.Split(range_, "..")[0])
 	}
 	if err != nil {
 		return nil, err
