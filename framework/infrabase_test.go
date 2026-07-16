@@ -234,9 +234,9 @@ spec:
 // STRING (the value-typing fix — a bare int there would be invalid).
 func TestEmbeddedNginxGateway(t *testing.T) {
 	_, byPath := infraSpec(t, t.TempDir())
-	// The installed channel is STANDARD — it carries every CRD the baseline renders
-	// (ListenerSet is served v1 there); experimental adds only TCPRoute/UDPRoute, which
-	// nothing uses. The exp component stays embedded for repos that opt in by hand.
+	// The gateway-api channel is STANDARD-only — it carries every CRD the baseline
+	// renders (ListenerSet is served v1 there); the experimental channel's extras
+	// (TCPRoute/UDPRoute) have no consumer and the exp variant is gone entirely.
 	body := byPath[filepath.Join("apps", "nginx-gateway.platform")].Content
 	r.NotEmpty(t, body)
 

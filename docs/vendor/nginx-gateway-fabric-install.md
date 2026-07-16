@@ -2,11 +2,11 @@
 
 Lookup facts for the NGINX Gateway Fabric (NGF) + Gateway API baseline install: upstream
 URLs, the firewall-annotation patch, the `serverTokens` workaround, and the
-string-forcing constraint. Live baseline directives:
-[`apps-nginx-gateway.platform`](../../framework/baseline/apps-nginx-gateway.platform) (stable)
-and
-[`apps-nginx-gateway-exp.platform`](../../framework/baseline/apps-nginx-gateway-exp.platform)
-(experimental).
+string-forcing constraint. Live baseline directive:
+[`apps-nginx-gateway.platform`](../../framework/skel/apps-nginx-gateway.platform)
+(standard channel — the experimental variant was dropped 2026-07-17: its extras,
+TCPRoute/UDPRoute, had no working consumer; a repo needing them edits its committed
+component).
 
 **Provenance.** Recipe captured 2026-06-19 from `prod9/infra-cli`
 (`cmd/nginx_gateway_cmd.go`, the CLI platform replaces). Upstream ships plain
@@ -25,11 +25,10 @@ Three `download`→`emit` steps land in `k8s/nginx-gateway/`. `\(gateway_api_ver
 | NGF CRDs         | `raw.githubusercontent.com/nginx/nginx-gateway-fabric/\(nginx_gateway_version)/deploy/crds.yaml`                       | `nginx-gateway-crds.yaml` |
 | NGF controller   | `raw.githubusercontent.com/nginx/nginx-gateway-fabric/\(nginx_gateway_version)/deploy/default/deploy.yaml`             | `nginx-gateway.yaml`      |
 
-- **Gateway API channel** is the only difference between the two baseline files:
-  - `apps-nginx-gateway.platform` → `standard-install.yaml` (stable; no TCPRoute).
-  - `apps-nginx-gateway-exp.platform` → `experimental-install.yaml` (required for
-    TCPRoute).
-- NGF CRDs + controller URLs are identical across both.
+- **Gateway API channel**: the baseline installs `standard-install.yaml` only.
+  `experimental-install.yaml` adds TCPRoute/UDPRoute (both experimental in NGF 2.6.x) —
+  swap the URL in your repo's committed component if you need them; note stage9 observed
+  NGF 2.6.0 never programming a Gateway-attached TCPRoute (unresolved as of 2.6.7).
 
 ## Pinned versions (`DefaultVars`, as of 2026-06-19 capture)
 

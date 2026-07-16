@@ -16,7 +16,7 @@ gateway: {
 		[...]
 	}
 
-	// GatewayClass "nginx" is baseline-owned (nginx-gateway-exp ships it);
+	// GatewayClass "nginx" is baseline-owned (nginx-gateway ships it);
 	// referenced by name, never re-declared here. Coordinates come from
 	// defaults.#gateway — the one place they are written.
 	let gw = packs.#Gateway & parts.#UseCertManager & parts.#AllowListenerSets & {
