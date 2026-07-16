@@ -11,9 +11,9 @@ import (
 	"cuelang.org/go/cue"
 	"cuelang.org/go/mod/modfile"
 	r "github.com/stretchr/testify/require"
-	"platform.prodigy9.co/gitops/dsl"
+	"platform.prodigy9.co/conf"
 	"platform.prodigy9.co/framework/scaffold"
-	"platform.prodigy9.co/project"
+	"platform.prodigy9.co/gitops/dsl"
 )
 
 // infraSpec runs Infra.Scaffold against a temp dir (greenfield: CUE_MOD_PREFIX supplied) and
@@ -141,7 +141,7 @@ func TestEmbeddedCertManager(t *testing.T) {
 
 	out := t.TempDir()
 	_, err := dsl.Apply(string(body), dsl.Options{
-		Vars:   project.NormalizeVars(DefaultVars),
+		Vars:   conf.NormalizeVars(DefaultVars),
 		OutDir: out,
 		Fetch:  fetch,
 	})
@@ -180,7 +180,7 @@ func TestEmbeddedNginxGateway(t *testing.T) {
 
 	out := t.TempDir()
 	_, err := dsl.Apply(string(body), dsl.Options{
-		Vars:   project.NormalizeVars(DefaultVars),
+		Vars:   conf.NormalizeVars(DefaultVars),
 		OutDir: out,
 		Fetch:  fetch,
 	})

@@ -10,10 +10,10 @@ import (
 
 	"dagger.io/dagger"
 	"fx.prodigy9.co/errutil"
+	"platform.prodigy9.co/conf"
 	"platform.prodigy9.co/cuemod"
 	"platform.prodigy9.co/framework/scaffold"
 	"platform.prodigy9.co/gitops"
-	"platform.prodigy9.co/project"
 )
 
 // hasInfraName reports whether wd is an infra repo, matched by an "infra" glob on the
@@ -102,7 +102,7 @@ func (i Infra) scaffoldData(wd, repository, daggerVersion string, inputs map[str
 	return scaffold.Data{
 		DaggerVersion: daggerVersion,
 		ModulePath:    modulePath,
-		ImageBase:     project.InferImageBase(repository),
+		ImageBase:     conf.InferImageBase(repository),
 	}, nil
 }
 

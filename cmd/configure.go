@@ -5,8 +5,8 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"github.com/spf13/cobra"
+	"platform.prodigy9.co/conf"
 	"platform.prodigy9.co/internal/buildlog"
-	"platform.prodigy9.co/project"
 )
 
 var ConfigureCmd = &cobra.Command{
@@ -16,7 +16,7 @@ var ConfigureCmd = &cobra.Command{
 }
 
 func runConfigureCmd(cmd *cobra.Command, args []string) {
-	cfg, err := project.Configure(".")
+	cfg, err := conf.Load(".")
 	if err != nil {
 		buildlog.Fatalln(err)
 	}

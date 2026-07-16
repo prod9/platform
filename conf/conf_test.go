@@ -1,4 +1,4 @@
-package project
+package conf
 
 import (
 	"strings"
@@ -34,21 +34,21 @@ repository = "github.com/prod9/platform"
 cert_manager_version = "v1.16.0"
 nginx_experimental   = "true"
 `
-	proj := &Project{}
+	proj := &Model{}
 	_, err := toml.Decode(config, proj)
 	r.NoError(t, err)
 	r.Equal(t, "v1.16.0", proj.Vars["cert_manager_version"])
 	r.Equal(t, "true", proj.Vars["nginx_experimental"])
 
 	// No [vars] → nil map, not an empty allocation: true passthrough.
-	proj = &Project{}
+	proj = &Model{}
 	_, err = toml.Decode(`repository = "github.com/prod9/platform"`, proj)
 	r.NoError(t, err)
 	r.Nil(t, proj.Vars)
 }
 
-func testProject(modCount int) *Project {
-	proj := &Project{
+func testProject(modCount int) *Model {
+	proj := &Model{
 		Repository: "github.com/prod9/platform",
 		Modules:    map[string]*Module{},
 	}
@@ -67,8 +67,8 @@ func testProject(modCount int) *Project {
 func TestModule_frameworkKeyAlias(t *testing.T) {
 	// The [modules] key is `framework`; the legacy `builder` key survives as a
 	// deprecated read-alias so existing platform.tomls keep working.
-	decode := func(body string) *Project {
-		proj := &Project{}
+	decode := func(body string) *Model {
+		proj := &Model{}
 		_, err := toml.Decode(body, proj)
 		r.NoError(t, err)
 		proj.assignDefaults()

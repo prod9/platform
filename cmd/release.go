@@ -5,9 +5,9 @@ import (
 
 	"fx.prodigy9.co/cmd/prompts"
 	"github.com/spf13/cobra"
+	"platform.prodigy9.co/conf"
 	"platform.prodigy9.co/git"
 	"platform.prodigy9.co/internal/buildlog"
-	"platform.prodigy9.co/project"
 	"platform.prodigy9.co/releases"
 )
 
@@ -56,7 +56,7 @@ func runReleaseCmd(cmd *cobra.Command, args []string) {
 		opts.Bump = releases.BumpAny
 	}
 
-	cfg, err := project.Configure(".")
+	cfg, err := conf.Load(".")
 	if err != nil {
 		buildlog.Fatalln(err)
 	}

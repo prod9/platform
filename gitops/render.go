@@ -17,9 +17,9 @@ import (
 	cueyaml "cuelang.org/go/encoding/yaml"
 	"cuelang.org/go/mod/modconfig"
 	"gopkg.in/yaml.v3"
+	"platform.prodigy9.co/conf"
 	"platform.prodigy9.co/cuemod"
 	"platform.prodigy9.co/gitops/dsl"
-	"platform.prodigy9.co/project"
 )
 
 // DefaultRegistry maps the infra-defs module prefix to its OCI host for
@@ -48,7 +48,7 @@ type RenderOptions struct {
 // dsl.Apply). Each route is skipped when it contributes nothing. Both write
 // <component>/<filename> entries.
 func Render(srcDir string, opts RenderOptions) (Tree, error) {
-	vars := project.NormalizeVars(opts.Vars)
+	vars := conf.NormalizeVars(opts.Vars)
 
 	tree, err := renderCue(srcDir, vars)
 	if err != nil {

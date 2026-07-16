@@ -6,9 +6,9 @@ import (
 
 	"dagger.io/dagger"
 	fxconfig "fx.prodigy9.co/config"
+	"platform.prodigy9.co/conf"
 	"platform.prodigy9.co/framework"
 	"platform.prodigy9.co/internal/buildlog"
-	"platform.prodigy9.co/project"
 )
 
 var ErrNoJobs = errors.New("engine: empty units list, nothing to do")
@@ -17,7 +17,7 @@ var ErrNoJobs = errors.New("engine: empty units list, nothing to do")
 // every module matched by args, tags each image with tag, and publishes it — reusing the
 // caller's engine instead of opening its own. The local `publish` command drives it now;
 // a tag-watch platform server drives the same unit later.
-func BuildAndPublish(ctx context.Context, cfg *project.Project, args []string, tag string) error {
+func BuildAndPublish(ctx context.Context, cfg *conf.Model, args []string, tag string) error {
 	attempt, err := framework.AttemptFrom(cfg, args, framework.PublishBuild)
 	if err != nil {
 		return err

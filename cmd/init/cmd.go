@@ -7,9 +7,9 @@ import (
 	"fx.prodigy9.co/cmd/prompts"
 	"github.com/BurntSushi/toml"
 	"github.com/spf13/cobra"
+	"platform.prodigy9.co/conf"
 	"platform.prodigy9.co/framework"
 	"platform.prodigy9.co/internal/buildlog"
-	"platform.prodigy9.co/project"
 )
 
 var initForce bool
@@ -99,7 +99,7 @@ func applyPlan(wd string, sess *prompts.Session, plan *Plan) {
 
 	// Close with the effective parsed config (same view as `configure`) so the operator sees
 	// the resolved result of the freshly written platform.toml.
-	cfg, err := project.Configure(wd)
+	cfg, err := conf.Load(wd)
 	if err != nil {
 		buildlog.Fatalln(err)
 	}

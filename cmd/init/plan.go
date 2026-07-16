@@ -9,9 +9,9 @@ import (
 	"os"
 	"path/filepath"
 
+	"platform.prodigy9.co/conf"
 	"platform.prodigy9.co/framework"
 	fwscaffold "platform.prodigy9.co/framework/scaffold"
-	"platform.prodigy9.co/project"
 )
 
 // FileAction distinguishes a fresh write from replacing an existing file, so
@@ -45,7 +45,7 @@ type FileChange struct {
 type Plan struct {
 	Dir   string
 	Files []FileChange
-	Vars  []project.VarChange
+	Vars  []conf.VarChange
 }
 
 // Analyze computes the scaffold plan for a repo without writing anything — one uniform
@@ -108,19 +108,19 @@ func scaffoldSpec(fw framework.Framework, dir string, info *Info, inputs map[str
 // planProjectFile decides how platform.toml changes: a surgical [vars]
 // merge when it already exists (preserving operator edits), or a freshly
 // generated file otherwise, seeded with the framework's strategy value.
-func planProjectFile(dir string, info *Info, spec fwscaffold.Spec) (FileChange, []project.VarChange, error) {
+func planProjectFile(dir string, info *Info, spec fwscaffold.Spec) (FileChange, []conf.VarChange, error) {
 	path := filepath.Join(dir, "platform.toml")
 
 	existing, err := os.ReadFile(path)
 	if err == nil {
-		merged, vars := project.MergeVars(existing, spec.Vars)
+		merged, vars := conf.MergeVars(existing, spec.Vars)
 		return fileChange(dir, "platform.toml", merged, 0644), vars, nil
 	}
 	if !errors.Is(err, fs.ErrNotExist) {
 		return FileChange{}, nil, err
 	}
 
-	content, vars, err := project.Generate(project.GenerateInfo{
+	content, vars, err := conf.Generate(conf.GenerateInfo{
 		Maintainer: fmt.Sprintf("%s <%s>", info.Maintainer, info.MaintainerEmail),
 		Repository: info.Repository,
 		Strategy:   spec.Strategy,

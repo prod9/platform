@@ -3,7 +3,7 @@ package framework
 import (
 	"fmt"
 
-	"platform.prodigy9.co/project"
+	"platform.prodigy9.co/conf"
 )
 
 // Purpose says what a build is for, which selects the target arch: local builds
@@ -35,7 +35,7 @@ func Attempt(purpose Purpose, units ...*BuildUnit) *BuildAttempt {
 // empty). The command declares the Purpose; unitFromModule resolves it into each
 // unit's arch target, so the build stage reads a complete definition rather than
 // being told the platform through arguments.
-func AttemptFrom(cfg *project.Project, args []string, purpose Purpose) (*BuildAttempt, error) {
+func AttemptFrom(cfg *conf.Model, args []string, purpose Purpose) (*BuildAttempt, error) {
 	var units []*BuildUnit
 	if len(args) == 0 {
 		for modname, mod := range cfg.Modules {

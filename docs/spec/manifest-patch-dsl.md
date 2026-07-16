@@ -300,7 +300,7 @@ emit     "some-operator.yaml"
 
 The DSL lives in `gitops/dsl/` (path-walk, the in-buffer verbs, lexer, directive parser, and the
 I/O verbs `download`/`extract`/`emit` with `\(var)` interpolation). `[vars]` reaches it
-verbatim as `Options.Vars` — `project.Vars` is a `map[string]any` stored with no
+verbatim as `Options.Vars` — `Model.Vars` is a `map[string]any` stored with no
 defaults or per-software fields (see the
 [generic-ops-vars ADR](../decisions/2026-06-17-generic-ops-vars-single-config.md)). The
 checksum guard is deferred.

@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 
 	"github.com/spf13/cobra"
+	"platform.prodigy9.co/conf"
 	"platform.prodigy9.co/gitops"
 	"platform.prodigy9.co/internal/buildlog"
-	"platform.prodigy9.co/project"
 )
 
 var renderOut string
@@ -30,7 +30,7 @@ func runRender(cmd *cobra.Command, args []string) {
 		dir = args[0]
 	}
 
-	cfg, err := project.Configure(dir)
+	cfg, err := conf.Load(dir)
 	if err != nil {
 		buildlog.Fatalln(err)
 	}

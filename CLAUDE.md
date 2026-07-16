@@ -183,7 +183,7 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
 
 ### Packages
 
-- `project/` — owns `platform.toml`: parse, generate, merge. `Project` (maintainer,
+- `conf/` — the config model, owns `platform.toml`: parse, generate, merge. `Model` (maintainer,
   repository, strategy, excludes, modules, `[vars]`) and `Module` (workdir, framework —
   legacy `builder` key read as a deprecated alias — env, port, cmd, args, asset_dirs,
   build_dir, image, package). The publish target is not a stored section: a module's image
@@ -197,7 +197,7 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
   `[vars]` (top-level) is the verbatim DSL `\(var)` table —
   a generic `map[string]any` (values keep their TOML type), pure passthrough
   (no defaults/inference), consumed project-wide by `render`.
-  `Configure(wd)` walks up to find file,
+  `Load(wd)` walks up to find file,
   applies defaults, env overrides (`PLATFORM`), and inferred values (e.g. `ghcr.io` image
   name from `github.com` repository). `Generate` writes a fresh `platform.toml`; re-init
   folds default `[vars]` in via the surgical line-by-line merge (append new keys,

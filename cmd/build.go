@@ -6,10 +6,10 @@ import (
 
 	fxconfig "fx.prodigy9.co/config"
 	"github.com/spf13/cobra"
+	"platform.prodigy9.co/conf"
 	"platform.prodigy9.co/engine"
 	"platform.prodigy9.co/framework"
 	"platform.prodigy9.co/internal/buildlog"
-	"platform.prodigy9.co/project"
 )
 
 var BuildCmd = &cobra.Command{
@@ -19,7 +19,7 @@ var BuildCmd = &cobra.Command{
 }
 
 func runBuild(cmd *cobra.Command, args []string) {
-	cfg, err := project.Configure(".")
+	cfg, err := conf.Load(".")
 	if err != nil {
 		buildlog.Fatalln(err)
 	}

@@ -7,18 +7,18 @@ import (
 	"sort"
 	"strings"
 
+	"platform.prodigy9.co/conf"
 	"platform.prodigy9.co/git"
-	"platform.prodigy9.co/project"
 )
 
 // Collection is a collection of names of release irrespective of which naming strategy is
 // used. It encodes git operations required to list, create, and recover releases.
 type Collection struct {
-	cfg   *project.Project
+	cfg   *conf.Model
 	names []string
 }
 
-func Recover(cfg *project.Project, g *git.Context) (*Collection, error) {
+func Recover(cfg *conf.Model, g *git.Context) (*Collection, error) {
 	// ensure the local wd has all the up-to-date tags
 	if err := g.UpdateAllTags(); err != nil {
 		return nil, err

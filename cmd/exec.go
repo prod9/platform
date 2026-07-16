@@ -10,10 +10,10 @@ import (
 	"dagger.io/dagger"
 	fxconfig "fx.prodigy9.co/config"
 	"github.com/spf13/cobra"
+	"platform.prodigy9.co/conf"
 	"platform.prodigy9.co/engine"
 	"platform.prodigy9.co/framework"
 	"platform.prodigy9.co/internal/buildlog"
-	"platform.prodigy9.co/project"
 )
 
 var ExecCmd = &cobra.Command{
@@ -25,7 +25,7 @@ var ExecCmd = &cobra.Command{
 func runExec(cmd *cobra.Command, args []string) {
 	selectors, command := splitAtDash(cmd, args)
 
-	cfg, err := project.Configure(".")
+	cfg, err := conf.Load(".")
 	if err != nil {
 		buildlog.Fatalln(err)
 	}
@@ -74,7 +74,7 @@ func splitAtDash(cmd *cobra.Command, args []string) (selectors, command []string
 // selectUnit resolves the one module to operate on. Absent a selector it builds the sole
 // module; a multi-module project must name one — this command targets a single container, so
 // ambiguity is an error rather than an interactive prompt (keeps it usable from scripts).
-func selectUnit(cfg *project.Project, selectors []string) (*framework.BuildUnit, error) {
+func selectUnit(cfg *conf.Model, selectors []string) (*framework.BuildUnit, error) {
 	attempt, err := framework.AttemptFrom(cfg, selectors, framework.LocalBuild)
 	if err != nil {
 		return nil, err

@@ -4,8 +4,8 @@ import (
 	fxcmd "fx.prodigy9.co/cmd"
 	"github.com/spf13/cobra"
 	initcmd "platform.prodigy9.co/cmd/init"
+	"platform.prodigy9.co/conf"
 	"platform.prodigy9.co/internal/buildlog"
-	"platform.prodigy9.co/project"
 )
 
 var rootCmd = &cobra.Command{
@@ -26,8 +26,8 @@ func init() {
 		buildlog.SetVerbosity(verbosity - quietness)
 	}
 
-	rootCmd.PersistentFlags().StringVarP(&project.PlatformFilename, "file", "f",
-		project.PlatformFilename, "specify a different platform.toml to load")
+	rootCmd.PersistentFlags().StringVarP(&conf.PlatformFilename, "file", "f",
+		conf.PlatformFilename, "specify a different platform.toml to load")
 
 	rootCmd.AddCommand(
 		initcmd.Cmd,

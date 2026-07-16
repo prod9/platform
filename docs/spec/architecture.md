@@ -15,8 +15,8 @@ platform.toml ─parse─▶ config model ─interpret─▶ BuildAttempt ─▶
 
 | Stage        | Package      | Responsibility                                                    |
 | ------------ | ------------ | ----------------------------------------------------------------- |
-| parse        | `project/`   | read `platform.toml` → the **config model**                       |
-| config model | `project/`   | `Project` / `Module` — parsed, defaulted, inferred config |
+| parse        | `conf/`   | read `platform.toml` → the **config model**                       |
+| config model | `conf/`   | `Model` / `Module` — parsed, defaulted, inferred config |
 | interpret    | `framework/` | config → a **`BuildAttempt`** (one `BuildUnit` per module)        |
 | build model  | `framework/` | `BuildAttempt` has-many `BuildUnit` — the resolved build def      |
 | strategies   | `framework/` | the `Framework` implementations — per-stack build knowledge       |
@@ -54,11 +54,11 @@ This yields three standing rules:
 
 ## Two models, both data
 
-`Project`/`Module` (config) and `BuildAttempt`/`BuildUnit` (resolved) are *both* data —
+`Model`/`Module` (config) and `BuildAttempt`/`BuildUnit` (resolved) are *both* data —
 the input config and the lower, interpreted model derived from it (source vs IR). The
 *behavior* lives elsewhere: the `Framework` strategies (per-stack knowledge) and `engine`
 (the runtime that runs them). Keep the two data models distinct — a `BuildUnit` does not
-reach back into the `Project` it came from; it carries denormalized copies of what it
+reach back into the `Model` it came from; it carries denormalized copies of what it
 needs (`Excludes`, `Repository`), so the build stage stays self-contained.
 
 ## No grab-bag packages
@@ -75,7 +75,7 @@ itself, and builds itself. Only two things sit outside a framework: the `platfor
 data model, and the `init` command's human orchestration. The packages form an acyclic
 graph `project ← framework/scaffold ← framework ← cmd`:
 
-- `project/` — the `platform.toml` model, both directions: `Generate` and the surgical
+- `conf/` — the `platform.toml` model, both directions: `Generate` and the surgical
   `[vars]` merge. The publish target is not a stored section: a module's image is inferred
   per-module (`InferImageBase`) and the tag derives from the release strategy; only the
   top-level `[vars]` table is carried, fed to `render`.

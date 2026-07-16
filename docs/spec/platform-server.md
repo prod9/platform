@@ -131,13 +131,13 @@ still GitHub-derived, still zero-RBAC.
 Cloning is **not** part of any framework's build phase. On a server run there is no local
 checkout, so a dedicated **repo-prep phase** (in `srv`, above the shared packages) produces a local
 working tree and hands its path to the *unchanged* build machinery — already
-parameterized by working dir (`project.Configure(wd)`, `host.Directory(unit.WorkDir)`).
+parameterized by working dir (`conf.Load(wd)`, `host.Directory(unit.WorkDir)`).
 Local and CI runs then take the identical build path; a local run simply has no prep
 phase ("you're already in the dir").
 
 ```
-local:  Configure(".")                      → AttemptFrom → engine.Build
-CI:     repo-prep: clone url@sha → <wd>      → Configure(wd) → AttemptFrom → engine.Build
+local:  Load(".")                      → AttemptFrom → engine.Build
+CI:     repo-prep: clone url@sha → <wd>      → Load(wd) → AttemptFrom → engine.Build
                                                └──────── identical from here ────────┘
 ```
 

@@ -1,4 +1,4 @@
-package project
+package conf
 
 import (
 	"bytes"
@@ -23,7 +23,7 @@ type GenerateInfo struct {
 // non-empty Strategy overrides the project default (the Infra framework seeds
 // "rolling", which cuts no versions and follows the moving tag).
 func Generate(info GenerateInfo, name string, mod *Module, vars map[string]any) ([]byte, []VarChange, error) {
-	proj := *ProjectDefaults
+	proj := *ModelDefaults
 	proj.Modules = map[string]*Module{} // don't mutate the shared default map
 	proj.Maintainer = info.Maintainer
 	proj.Repository = info.Repository

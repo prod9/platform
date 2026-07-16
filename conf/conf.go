@@ -1,4 +1,4 @@
-package project
+package conf
 
 import (
 	"os"
@@ -12,7 +12,7 @@ import (
 )
 
 type (
-	Project struct {
+	Model struct {
 		ConfigPath string `toml:"-"`
 		ConfigDir  string `toml:"-"`
 
@@ -67,7 +67,7 @@ type (
 )
 
 var (
-	ProjectDefaults = &Project{
+	ModelDefaults = &Model{
 		Strategy:    "datestamp",
 		LocalArch:   "auto",
 		PublishArch: "amd64",
@@ -95,7 +95,7 @@ var (
 	}
 )
 
-func Configure(wd string) (*Project, error) {
+func Load(wd string) (*Model, error) {
 	if wd == "" || wd == "." {
 		wd_, err := os.Getwd()
 		if err != nil {
@@ -109,7 +109,7 @@ func Configure(wd string) (*Project, error) {
 		return nil, err
 	}
 
-	proj := &Project{}
+	proj := &Model{}
 	if _, err = toml.DecodeFile(path, proj); err != nil {
 		return nil, err
 	}
@@ -123,17 +123,17 @@ func Configure(wd string) (*Project, error) {
 	return proj, nil
 }
 
-func (p *Project) assignDefaults() {
+func (p *Model) assignDefaults() {
 	// Backward compatibility: the deprecated single-target `platform` key (a full
 	// linux/arch string) seeds the local arch when no explicit `local_arch` is given.
 	if p.Platform != "" && p.LocalArch == "" {
 		p.LocalArch = p.Platform
 	}
 	if p.LocalArch == "" {
-		p.LocalArch = ProjectDefaults.LocalArch
+		p.LocalArch = ModelDefaults.LocalArch
 	}
 	if p.PublishArch == "" {
-		p.PublishArch = ProjectDefaults.PublishArch
+		p.PublishArch = ModelDefaults.PublishArch
 	}
 
 	for name, mod := range p.Modules {
@@ -154,7 +154,7 @@ func (p *Project) assignDefaults() {
 	}
 }
 
-func (p *Project) assignEnvOverrides() {
+func (p *Model) assignEnvOverrides() {
 	if platform, ok := os.LookupEnv("PLATFORM"); ok {
 		buildlog.Config("platform", platform)
 		p.LocalArch = platform
@@ -173,7 +173,7 @@ func InferImageBase(repository string) string {
 	return ""
 }
 
-func (p *Project) inferValues() {
+func (p *Model) inferValues() {
 	base := InferImageBase(p.Repository)
 
 	singleModule := len(p.Modules) == 1

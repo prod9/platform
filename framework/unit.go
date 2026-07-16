@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"platform.prodigy9.co/project"
+	"platform.prodigy9.co/conf"
 )
 
 var (
@@ -40,7 +40,7 @@ type BuildUnit struct {
 	Vars map[string]any
 }
 
-func unitFromModule(cfg *project.Project, name string, mod *project.Module, purpose Purpose) (*BuildUnit, error) {
+func unitFromModule(cfg *conf.Model, name string, mod *conf.Module, purpose Purpose) (*BuildUnit, error) {
 	fw, err := FindFramework(mod.Framework)
 	if err != nil {
 		return nil, err
@@ -76,7 +76,7 @@ func unitFromModule(cfg *project.Project, name string, mod *project.Module, purp
 }
 
 // archFor picks the configured arch for a build's purpose.
-func archFor(cfg *project.Project, purpose Purpose) string {
+func archFor(cfg *conf.Model, purpose Purpose) string {
 	if purpose == PublishBuild {
 		return cfg.PublishArch
 	}

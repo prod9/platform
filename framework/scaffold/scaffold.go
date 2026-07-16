@@ -11,7 +11,7 @@ import (
 	"strings"
 	"text/template"
 
-	"platform.prodigy9.co/project"
+	"platform.prodigy9.co/conf"
 )
 
 // File is one file a framework's Scaffold contributes, beyond the universal
@@ -29,7 +29,7 @@ type File struct {
 // framework fills its own holes via Resolve), and the strategy value a fresh platform.toml
 // gets. The driver generates platform.toml and writes the files as-is.
 type Spec struct {
-	Module   *project.Module
+	Module   *conf.Module
 	Vars     map[string]any
 	Files    []File
 	Strategy string

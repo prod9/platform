@@ -136,7 +136,7 @@ The plan carries `Files []FileChange` and `Vars []VarChange`. Each `FileChange` 
 `FileWrite` vs `FileOverwrite` (decided by an existence stat at plan time) so `Print` can
 warn before an overwrite. `Apply` writes, **skipping overwrites**; `ApplyOverwrite` replaces
 in place. `Overwrites()` counts replacements so `init` prompts only when some exist. `init`
-closes by encoding the effective parsed config (`project.Configure`, same view as
+closes by encoding the effective parsed config (`conf.Load`, same view as
 `configure`) so the operator sees the resolved result of the freshly written `platform.toml`.
 
 ### Non-interactive drive
@@ -150,7 +150,7 @@ Drive `init` non-interactively with **`ALWAYS_YES=1`**, not `--force`. They are 
 
 ### `platform.toml` disposition
 
-- **Absent** → a fresh file is generated from `project.ProjectDefaults`, the operator `Info`
+- **Absent** → a fresh file is generated from `conf.ModelDefaults`, the operator `Info`
   (maintainer, repository), the framework's `scaffold.Spec` module (its `[modules]` entry and
   the `strategy` value it seeds — `Infra` seeds `strategy = "rolling"` since infra has no
   versions to cut; the CUE module path is a scaffold input (`CUE_MOD_PREFIX`), never a
@@ -161,7 +161,7 @@ Drive `init` non-interactively with **`ALWAYS_YES=1`**, not `--force`. They are 
 ### Re-init: surgical `[vars]` merge
 
 Re-running `init` must not clobber an operator's `platform.toml`. The merge (owned by
-`project/`, alongside `Generate`) folds the baseline default `[vars]` in **line-by-line,
+`conf/`, alongside `Generate`) folds the baseline default `[vars]` in **line-by-line,
 not by decode/re-encode** — a round-trip through the TOML encoder would lose the operator's
 comments, ordering, and formatting. The merge:
 

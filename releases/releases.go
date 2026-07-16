@@ -6,9 +6,9 @@ import (
 	"slices"
 	"strings"
 
+	"platform.prodigy9.co/conf"
 	"platform.prodigy9.co/git"
 	"platform.prodigy9.co/internal/buildinfo"
-	"platform.prodigy9.co/project"
 )
 
 var (
@@ -62,7 +62,7 @@ var knownStrategies = map[string]Strategy{
 	"rolling":   Rolling{},
 }
 
-func Generate(cfg *project.Project, g *git.Context, opts *Options) (*Release, error) {
+func Generate(cfg *conf.Model, g *git.Context, opts *Options) (*Release, error) {
 	if err := checkGitStatus(cfg, g, opts); err != nil {
 		return nil, err
 	}
@@ -100,7 +100,7 @@ func Generate(cfg *project.Project, g *git.Context, opts *Options) (*Release, er
 	}, nil
 }
 
-func Create(cfg *project.Project, g *git.Context, rel *Release) error {
+func Create(cfg *conf.Model, g *git.Context, rel *Release) error {
 	// always fetch remote tags before making changes because someone else might have
 	// pushed a tag since we last fetched (or you yourself might have pushed a tag from
 	// another machine and forgot)
@@ -124,7 +124,7 @@ func (r *Release) Changelog() {
 	}
 }
 
-func checkGitStatus(cfg *project.Project, g *git.Context, opts *Options) error {
+func checkGitStatus(cfg *conf.Model, g *git.Context, opts *Options) error {
 	if !opts.Force {
 		if err := g.IsClean(); err != nil {
 			if err == git.ErrDirtyWorkdir {
@@ -145,7 +145,7 @@ func FindStrategy(name string) (Strategy, error) {
 	}
 }
 
-func generateMessage(cfg *project.Project, title string, refs []CommitRef) string {
+func generateMessage(cfg *conf.Model, title string, refs []CommitRef) string {
 	//* [f3e0f9][https://github.com/prod9/platform/commit/f3e0f9] Sample message
 	sb := &strings.Builder{}
 	sb.WriteString(title)

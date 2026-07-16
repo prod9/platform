@@ -8,8 +8,8 @@ import (
 	"strings"
 	"sync"
 
+	"platform.prodigy9.co/conf"
 	"platform.prodigy9.co/internal/buildlog"
-	"platform.prodigy9.co/project"
 )
 
 var ErrDirtyWorkdir = errors.New("git: working directory is dirty")
@@ -17,13 +17,13 @@ var ErrDirtyWorkdir = errors.New("git: working directory is dirty")
 // Context runs git against a project's repository, caching the per-process constants
 // (current branch, tracking remote) so repeated reads cost one subprocess each.
 type Context struct {
-	proj *project.Project
+	proj *conf.Model
 
 	currentBranch func() (string, error)
 	mainRemote    func() (string, error)
 }
 
-func New(proj *project.Project) *Context {
+func New(proj *conf.Model) *Context {
 	ctx := &Context{proj: proj}
 
 	ctx.currentBranch = sync.OnceValues(func() (string, error) {
