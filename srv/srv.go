@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"time"
 
 	"fx.prodigy9.co/config"
 	"fx.prodigy9.co/ctrlc"
@@ -16,7 +15,6 @@ import (
 	"fx.prodigy9.co/httpserver"
 	"fx.prodigy9.co/httpserver/controllers"
 	"fx.prodigy9.co/httpserver/middlewares"
-	"fx.prodigy9.co/httpserver/render"
 	"github.com/go-chi/chi/v5"
 	"platform.prodigy9.co/engine"
 )
@@ -71,27 +69,11 @@ func Router(cfg *config.Source) (chi.Router, error) {
 	router.Use(middlewares.Configure(cfg))
 	router.Use(middlewares.LogRequests(cfg))
 
-	ctrs := []controllers.Interface{API{}, Webhooks{}, Setup{}, UI{}}
+	ctrs := []controllers.Interface{API{}, Auth{}, Webhooks{}, Setup{}, UI{}}
 	for _, ctr := range ctrs {
 		if err := ctr.Mount(cfg, router); err != nil {
 			return nil, err
 		}
 	}
 	return router, nil
-}
-
-// API serves the platform API under /api/.
-type API struct{}
-
-var _ controllers.Interface = API{}
-
-func (API) Mount(cfg *config.Source, router chi.Router) error {
-	router.Get("/api/health", health)
-	return nil
-}
-
-func health(resp http.ResponseWriter, req *http.Request) {
-	render.JSON(resp, req, struct {
-		Time time.Time `json:"time"`
-	}{time.Now()})
 }

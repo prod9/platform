@@ -18,9 +18,18 @@
 > claim loop consumes queued builds — `ClaimBuild` (`FOR UPDATE SKIP LOCKED`, oldest
 > first) → repo-prep → `conf.Load` → `engine.BuildAndPublish` under the build's tag →
 > `FinishBuild`/`FailBuild` records the outcome (2s poll tick when the queue is empty).
-> No token minting yet; that lands in a later slice per this spec. It is the **second
-> driver** of the one-publish-engine model — the tag-watch server invoking the same
-> build+push engine the local CLI drives (see
+> GitHub login is implemented (`srv/auth.go`): `/api/auth/github` +
+> `/api/auth/github/callback` run the App's user-OAuth flow, find-or-create
+> user+identity per the [identity ADR](../decisions/2026-06-14-identity-and-linked-accounts.md)
+> (user token encrypted into identity metadata; no refresh handling and no
+> verified-email auto-link yet), and mint a platform session — a random token whose
+> SHA-256 lands in the `sessions` table, carried by a 30-day `platform_session`
+> cookie, revoked by `POST /api/auth/logout`. The web-UI API is implemented
+> (`srv/api.go`): `GET /api/me` and `GET /api/builds` authenticate against that
+> session (hand-written wire structs — see §No `api/` contract layer).
+> No installation-token minting yet; that lands in a later slice per this spec. It is
+> the **second driver** of the one-publish-engine model — the tag-watch server
+> invoking the same build+push engine the local CLI drives (see
 > [delivery-verbs-are-orthogonal](../decisions/2026-07-05-delivery-verbs-are-orthogonal.md)
 > and the one-engine-two-drivers model in [engine.md](engine.md)). The frozen ruling
 > behind the auth model lives in
@@ -195,4 +204,6 @@ the server timeline — none of the server/auth design gates the next coding ste
 
 - Where the `init` server marker lives — `platform.toml` `[server]` field vs CLI-global
   config.
-- User-token expiry policy (expiring + refresh vs non-expiring).
+- User-token expiry policy — current default: the user token is stored as received
+  with no refresh handling (pair it with the App's non-expiring setting); the platform
+  session lasts 30 days. Expiring tokens + refresh return here if the balance shifts.

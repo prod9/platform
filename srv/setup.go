@@ -112,6 +112,7 @@ type githubManifest struct {
 	URL                string            `json:"url"`
 	HookAttributes     hookAttributes    `json:"hook_attributes"`
 	RedirectURL        string            `json:"redirect_url"`
+	CallbackURLs       []string          `json:"callback_urls"`
 	Public             bool              `json:"public"`
 	DefaultPermissions map[string]string `json:"default_permissions"`
 	DefaultEvents      []string          `json:"default_events"`
@@ -127,6 +128,7 @@ func githubAppManifest(serverURL string) githubManifest {
 		URL:                serverURL,
 		HookAttributes:     hookAttributes{URL: serverURL + "/api/webhooks/github"},
 		RedirectURL:        serverURL + "/setup/github/callback",
+		CallbackURLs:       []string{serverURL + "/api/auth/github/callback"},
 		Public:             false,
 		DefaultPermissions: map[string]string{"contents": "write", "metadata": "read"},
 		DefaultEvents:      []string{"push", "registry_package"},

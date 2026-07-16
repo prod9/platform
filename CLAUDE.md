@@ -325,7 +325,15 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
   `engine.BuildAndPublish` → `FinishBuild`/`FailBuild` (newline-joined images/digests;
   2s poll tick, immediate re-claim after a run) — the server driver of the
   one-publish-engine model; the engine-facing half is seamed as `publishBuild` for
-  dagger-free loop tests.
+  dagger-free loop tests. GitHub login (`srv/auth.go`): `/api/auth/github` +
+  `/api/auth/github/callback` run the App's user-OAuth flow (state cookie, code
+  exchange, `GET /user`), find-or-create user+identity by `(github, provider_id)`
+  (`UpsertGitHubUser`; user token `secret.Hide`'d into identity metadata — no refresh,
+  no email auto-link yet), then mint a platform session (`sessions` table stores the
+  SHA-256 of a random token; 30d `platform_session` cookie; `POST /api/auth/logout`
+  deletes it). UI API (`srv/api.go`): `currentUser` resolves the session cookie
+  (missing/expired → `ErrNoSession` → 401); `GET /api/me` and `GET /api/builds` (last
+  50, newest-first) with hand-written wire structs — no shared `api/` package.
 - `webui/` — the built web UI assets (`Assets`, `//go:embed all:build`); the SvelteKit
   source lands alongside later, its adapter-static output in `build/` (a committed
   placeholder `index.html` for now).

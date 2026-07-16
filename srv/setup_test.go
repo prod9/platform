@@ -36,6 +36,8 @@ func TestSetupGitHubRendersManifestForm(t *testing.T) {
 	require.Contains(t, body, "https://github.com/settings/apps/new")
 	require.Contains(t, body, testServerURL+"/api/webhooks/github")
 	require.Contains(t, body, testServerURL+"/setup/github/callback")
+	require.Contains(t, body, "callback_urls")
+	require.Contains(t, body, testServerURL+"/api/auth/github/callback")
 	require.Contains(t, body, "registry_package")
 }
 
