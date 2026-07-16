@@ -16,6 +16,14 @@ the `application/vnd.oci.image.layer.v1.tar+gzip` layer; kustomize-controller ap
 extracted docs. **Retire `oras-go` and the hand-built Flux-media-type path** in
 `gitops.Publish` (and `gitops/registry.go`).
 
+> **Correction (2026-07-17, learned destructively on prod9-main):** the image must carry
+> the whole tree in **exactly one layer**. Flux's source-controller extracts a *single*
+> layer per artifact (`layerSelector` selects, never merges) — a multi-layer image
+> silently delivers one file's worth of manifests, and kustomize-controller's `prune`
+> then orphan-deletes everything else in its inventory, Flux included. `Infra.Build`
+> therefore stages the tree as one `dagger.Directory` mounted by a single
+> `WithDirectory` (per-file `WithNewFile` on a Container emits one layer per call).
+
 Consequences that follow directly:
 
 - **Infra becomes a real builder module** (a `platform/infra` builder). Its output image

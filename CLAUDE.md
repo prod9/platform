@@ -125,9 +125,15 @@ arch). `publish` authenticates to ghcr via the **local docker credentials** (osx
 CUE); pin that ref by `tag@sha256` digest to dodge stale node cache (`IfNotPresent` won't re-pull
 a moved tag). The record is the git commit, not the tag's immutability.
 
-platform self-delivers from a **standalone GitOps repo at `./infra`** (module `prodigy9.co`),
-not the abandoned `../infra`. Live on stage9 as `ghcr.io/prod9/platform:v0.8.3` (amd64,
-digest-pinned).
+The infra delivery image must carry the rendered tree in **one OCI layer**: Flux's
+source-controller extracts a single layer per artifact — a multi-layer image delivers one
+file and `prune` then wipes the rest of the cluster (bit prod9-main once). `Infra.Build`
+enforces this (one `WithDirectory`); never revert to per-file `WithNewFile` on the
+container.
+
+platform self-delivers from the **`prod9/infra` GitOps repo** (working copy
+`~/Documents/prod9/infra/infra-v2`; module `prodigy9.co`) onto the prod9-main cluster —
+`./infra` in this repo and the old stage9 deployment are dead legacy.
 
 **Node/pnpm provisioning is deliberate — never "simplify" it to distro packages.** pnpm
 frameworks take Node from the official nodejs.org build via tj/n, and pnpm via Node's own

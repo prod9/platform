@@ -26,10 +26,11 @@ func hasInfraName(wd string) bool {
 
 // Infra builds an infra repo's delivery image: it renders the repo's apps/ (CUE +
 // .platform directives) to a manifest tree in-process, then packs that tree into a plain
-// `FROM scratch` image. Publishing pushes it under the moving `latest` tag; Flux's
-// OCIRepository extracts the layer via layerSelector and kustomize-controller applies the
-// YAML — no bespoke OCI pusher (see the infra-publishes-as-plain-image decision). It is a
-// real framework module so infra delivery is the ordinary `publish` verb.
+// `FROM scratch` image as ONE layer — Flux's source-controller extracts a single layer
+// from an OCI artifact, so a multi-layer image silently delivers one file and prune
+// orphans the rest of the cluster. kustomize-controller applies the extracted YAML — no
+// bespoke OCI pusher (see the infra-publishes-as-plain-image decision). It is a real
+// framework module so infra delivery is the ordinary `publish` verb.
 type Infra struct{}
 
 var _ Framework = Infra{}
@@ -132,13 +133,17 @@ func (i Infra) Build(ctx context.Context, client *dagger.Client, unit *BuildUnit
 		return nil, err
 	}
 
-	// client.Container() with no From is an empty (scratch) image; add each rendered file
-	// at its <component>/<filename> path. The published layer is a tar+gzip of exactly
-	// these files, which is what Flux's layerSelector extracts.
-	c := client.Container(dagger.ContainerOpts{Platform: dagger.Platform(unit.Arch)}).
-		WithLabel("org.opencontainers.image.source", unit.Repository)
+	// client.Container() with no From is an empty (scratch) image. The whole rendered
+	// tree is staged as one Directory and mounted in a single WithDirectory, so the
+	// pushed manifest carries exactly one tar+gzip layer holding every
+	// <component>/<filename> — per-file WithNewFile calls would emit one layer each,
+	// and Flux extracts only the first.
+	dir := client.Directory()
 	for _, path := range tree.Paths() {
-		c = c.WithNewFile("/"+path, string(tree[path]))
+		dir = dir.WithNewFile(path, string(tree[path]))
 	}
+	c := client.Container(dagger.ContainerOpts{Platform: dagger.Platform(unit.Arch)}).
+		WithLabel("org.opencontainers.image.source", unit.Repository).
+		WithDirectory("/", dir)
 	return c.Sync(ctx)
 }
