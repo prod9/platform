@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"iter"
 	"slices"
-	"sort"
 	"strings"
 
+	"golang.org/x/mod/semver"
 	"platform.prodigy9.co/conf"
 	"platform.prodigy9.co/git"
 )
@@ -30,11 +30,23 @@ func Recover(cfg *conf.Model, g *git.Context) (*Collection, error) {
 	}
 
 	names := strings.Split(lines, "\n")
-	sort.Sort(sort.Reverse(sort.StringSlice(names)))
+	sortReleaseNames(names)
 	return &Collection{
 		cfg:   cfg,
 		names: names,
 	}, nil
+}
+
+// sortReleaseNames orders names newest-first, comparing semver tags numerically — a
+// string sort puts v0.9.9 above v0.9.10, making LatestName wrong at any double-digit
+// segment. Non-semver names (timestamp/datestamp refs) keep byte order among themselves.
+func sortReleaseNames(names []string) {
+	slices.SortFunc(names, func(a, b string) int {
+		if semver.IsValid(a) && semver.IsValid(b) {
+			return semver.Compare(b, a)
+		}
+		return strings.Compare(b, a)
+	})
 }
 
 func (c *Collection) Len() int                      { return len(c.names) }
