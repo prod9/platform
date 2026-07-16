@@ -6,7 +6,6 @@ import (
 
 	"dagger.io/dagger"
 	"fx.prodigy9.co/errutil"
-	"platform.prodigy9.co/framework/fileutil"
 	"platform.prodigy9.co/framework/scaffold"
 )
 
@@ -16,7 +15,7 @@ func (PNPMBasic) Name() string   { return "pnpm/basic" }
 func (PNPMBasic) Layout() Layout { return LayoutBasic }
 
 func (PNPMBasic) Discover(wd string) bool {
-	detected, _ := fileutil.DetectFile(wd, "pnpm-lock.yaml")
+	detected, _ := detectFile(wd, "pnpm-lock.yaml")
 	return detected
 }
 

@@ -7,7 +7,6 @@ import (
 
 	"dagger.io/dagger"
 	"fx.prodigy9.co/errutil"
-	"platform.prodigy9.co/framework/fileutil"
 	"platform.prodigy9.co/framework/scaffold"
 )
 
@@ -17,9 +16,9 @@ func (PNPMWorkspace) Name() string   { return "pnpm/workspace" }
 func (PNPMWorkspace) Layout() Layout { return LayoutWorkspace }
 
 func (PNPMWorkspace) Discover(wd string) bool {
-	detected, _ := fileutil.DetectFile(wd, "pnpm-workspace.yaml")
+	detected, _ := detectFile(wd, "pnpm-workspace.yaml")
 	if !detected {
-		detected, _ = fileutil.DetectFile(wd, "pnpm-workspaces.yaml")
+		detected, _ = detectFile(wd, "pnpm-workspaces.yaml")
 	}
 	return detected
 }

@@ -7,7 +7,6 @@ import (
 
 	"dagger.io/dagger"
 	"fx.prodigy9.co/errutil"
-	"platform.prodigy9.co/framework/fileutil"
 	"platform.prodigy9.co/framework/gowork"
 	"platform.prodigy9.co/framework/scaffold"
 )
@@ -18,7 +17,7 @@ func (GoWorkspace) Name() string   { return "go/workspace" }
 func (GoWorkspace) Layout() Layout { return LayoutWorkspace }
 
 func (GoWorkspace) Discover(wd string) bool {
-	detected, _ := fileutil.DetectFile(wd, "go.work")
+	detected, _ := detectFile(wd, "go.work")
 	return detected
 }
 

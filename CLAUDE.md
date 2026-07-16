@@ -227,7 +227,7 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
     `CacheBuster` const for global cache invalidation.
 - `engine/` — the Dagger execution layer. `New`/`NewContext` open an `Engine` (a client
   pool over the discovered runners); `Build` runs an attempt's units and `Publish`
-  pushes them, both fanning out via `internal.Multiplexer`. `BuildAndPublish` is the reusable
+  pushes them, both fanning out via an in-package multiplexer. `BuildAndPublish` is the reusable
   build+tag+push unit that `publish` drives now and a tag-watch server drives later
   (see the [delivery-verbs ADR](docs/decisions/2026-07-05-delivery-verbs-are-orthogonal.md)).
   Registry creds via fx env config: `REGISTRY`, `REGISTRY_USERNAME`, `REGISTRY_PASSWORD`.
@@ -270,8 +270,8 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
   Wired as `platform render`; the `Infra` framework packs this tree into the published
   image, pushed by the ordinary `publish` (oras retired — see the
   [plain-image ADR](docs/decisions/2026-07-05-infra-publishes-as-plain-image-retire-oras.md)).
-- `internal/` — `buildlog` (build/CLI structured logger), `multiplexer` (parallel job
-  runner), `timeouts` (TOML duration).
+- `internal/` — `buildlog` (build/CLI structured logger), `buildinfo` (binary build
+  info), `timeouts` (TOML duration).
 - `testbeds/` — Sample projects per framework, exercised by smoke tests.
 
 ### Testing

@@ -1,19 +1,19 @@
-package internal
+package engine
 
 import (
 	"sync"
 )
 
-// Multiplexer is for embedding into another struct to provide a simple way to multiplex
+// multiplexer is for embedding into another struct to provide a simple way to multiplex
 // work process and collect results.
-type Multiplexer[TIn any, TOut any] struct {
+type multiplexer[TIn any, TOut any] struct {
 	sync.Mutex // prevent simultaneous write to results
 
 	inputs  []TIn
 	outputs []TOut
 }
 
-func (m *Multiplexer[TIn, TOut]) Reset(inputs []TIn) {
+func (m *multiplexer[TIn, TOut]) Reset(inputs []TIn) {
 	m.Lock()
 	defer m.Unlock()
 
@@ -21,7 +21,7 @@ func (m *Multiplexer[TIn, TOut]) Reset(inputs []TIn) {
 	m.outputs = nil
 }
 
-func (m *Multiplexer[TIn, TOut]) Start(work func(idx int, input TIn) TOut) []TOut {
+func (m *multiplexer[TIn, TOut]) Start(work func(idx int, input TIn) TOut) []TOut {
 	wg := sync.WaitGroup{}
 	for idx, job := range m.inputs {
 		wg.Add(1)
@@ -36,12 +36,12 @@ func (m *Multiplexer[TIn, TOut]) Start(work func(idx int, input TIn) TOut) []TOu
 	return m.outputs
 }
 
-func (m *Multiplexer[TIn, TOut]) setOutput(idx int, result TOut) {
+func (m *multiplexer[TIn, TOut]) setOutput(idx int, result TOut) {
 	m.Lock()
 	defer m.Unlock()
 
 	if m.outputs == nil {
-		m.outputs = make([]TOut, len(m.inputs), len(m.inputs))
+		m.outputs = make([]TOut, len(m.inputs))
 	}
 
 	m.outputs[idx] = result

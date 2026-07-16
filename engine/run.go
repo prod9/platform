@@ -7,7 +7,6 @@ import (
 	"dagger.io/dagger"
 	fxconfig "fx.prodigy9.co/config"
 	"platform.prodigy9.co/framework"
-	"platform.prodigy9.co/internal"
 	"platform.prodigy9.co/internal/buildlog"
 	"platform.prodigy9.co/project"
 )
@@ -84,7 +83,7 @@ func Build(ctx context.Context, attempt *framework.BuildAttempt) ([]BuildResult,
 	}
 	eng := FromContext(ctx)
 
-	m := &internal.Multiplexer[*framework.BuildUnit, BuildResult]{}
+	m := &multiplexer[*framework.BuildUnit, BuildResult]{}
 	m.Reset(attempt.Units)
 	return m.Start(func(idx int, unit *framework.BuildUnit) BuildResult {
 		client, err := eng.Client(ctx)
@@ -119,7 +118,7 @@ func Publish(ctx context.Context, builds ...BuildResult) ([]PublishResult, error
 	username := fxconfig.Get(eng.cfg, RegistryUsernameConfig)
 	password := fxconfig.Get(eng.cfg, RegistryPasswordConfig)
 
-	m := &internal.Multiplexer[BuildResult, PublishResult]{}
+	m := &multiplexer[BuildResult, PublishResult]{}
 	m.Reset(builds)
 	return m.Start(func(idx int, build BuildResult) PublishResult {
 		if build.Err != nil {

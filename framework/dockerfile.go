@@ -6,7 +6,6 @@ import (
 
 	"dagger.io/dagger"
 	"fx.prodigy9.co/errutil"
-	"platform.prodigy9.co/framework/fileutil"
 	"platform.prodigy9.co/framework/scaffold"
 	"platform.prodigy9.co/internal/buildlog"
 )
@@ -19,7 +18,7 @@ func (Dockerfile) Name() string   { return "dockerfile" }
 func (Dockerfile) Layout() Layout { return LayoutBasic }
 
 func (Dockerfile) Discover(wd string) bool {
-	detected, _ := fileutil.DetectFile(wd, "Dockerfile")
+	detected, _ := detectFile(wd, "Dockerfile")
 	return detected
 }
 

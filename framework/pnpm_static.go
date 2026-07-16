@@ -6,7 +6,6 @@ import (
 
 	"dagger.io/dagger"
 	"fx.prodigy9.co/errutil"
-	"platform.prodigy9.co/framework/fileutil"
 	"platform.prodigy9.co/framework/scaffold"
 )
 
@@ -16,7 +15,7 @@ func (PNPMStatic) Name() string   { return "pnpm/static" }
 func (PNPMStatic) Layout() Layout { return LayoutBasic }
 
 func (PNPMStatic) Discover(wd string) bool {
-	detected, _ := fileutil.DetectFile(wd, "astro.config.mjs")
+	detected, _ := detectFile(wd, "astro.config.mjs")
 	return detected
 }
 

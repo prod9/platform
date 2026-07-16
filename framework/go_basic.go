@@ -7,7 +7,6 @@ import (
 
 	"dagger.io/dagger"
 	"fx.prodigy9.co/errutil"
-	"platform.prodigy9.co/framework/fileutil"
 	"platform.prodigy9.co/framework/gowork"
 	"platform.prodigy9.co/framework/scaffold"
 )
@@ -18,7 +17,7 @@ func (GoBasic) Name() string   { return "go/basic" }
 func (GoBasic) Layout() Layout { return LayoutBasic }
 
 func (GoBasic) Discover(wd string) bool {
-	detected, _ := fileutil.DetectFile(wd, "go.mod")
+	detected, _ := detectFile(wd, "go.mod")
 	return detected
 }
 
