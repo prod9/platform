@@ -63,7 +63,7 @@ func runPublish(cmd *cobra.Command, args []string) {
 	defer eng.Close()
 	ctx := engine.NewContext(context.Background(), eng)
 
-	if err := engine.BuildAndPublish(ctx, cfg, p.Args(), name); err != nil {
+	if _, err := engine.BuildAndPublish(ctx, cfg, p.Args(), name); err != nil {
 		buildlog.Fatalln(err)
 	}
 }

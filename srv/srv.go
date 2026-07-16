@@ -11,12 +11,14 @@ import (
 
 	"fx.prodigy9.co/config"
 	"fx.prodigy9.co/ctrlc"
+	"fx.prodigy9.co/data"
 	"fx.prodigy9.co/fxlog"
 	"fx.prodigy9.co/httpserver"
 	"fx.prodigy9.co/httpserver/controllers"
 	"fx.prodigy9.co/httpserver/middlewares"
 	"fx.prodigy9.co/httpserver/render"
 	"github.com/go-chi/chi/v5"
+	"platform.prodigy9.co/engine"
 )
 
 // Serve configures and runs the platform server until interrupted, listening on
@@ -32,17 +34,27 @@ func Serve() error {
 	if err != nil {
 		return err
 	}
+	defer db.Close() // boot pool doubles as the runner's; AddDataContext owns HTTP's own
 	if err := migrate(context.Background(), db); err != nil {
-		return err
-	}
-	if err := db.Close(); err != nil { // boot pool done; AddDataContext owns the serving pool
 		return err
 	}
 	handler := middlewares.AddDataContext(cfg)(router)
 
+	eng := engine.New(cfg)
+	defer eng.Close()
+
+	runnerCtx, stopRunner := context.WithCancel(
+		engine.NewContext(data.NewContext(context.Background(), db), eng))
+	runnerDone := make(chan struct{})
+	go func() {
+		defer close(runnerDone)
+		runQueuedBuilds(runnerCtx, cfg)
+	}()
+	defer func() { stopRunner(); <-runnerDone }() // before the db/engine Close defers
+
 	listenAddr := config.Get(cfg, httpserver.ListenAddrConfig)
 	server := &http.Server{Addr: listenAddr, Handler: handler}
-	ctrlc.Do(func() { server.Close() })
+	ctrlc.Do(func() { stopRunner(); server.Close() })
 
 	fxlog.Log("listening", fxlog.String("addr", listenAddr))
 	if err := server.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {

@@ -15,12 +15,13 @@ var ErrNoJobs = errors.New("engine: empty units list, nothing to do")
 
 // BuildAndPublish composes Build and Publish over the engine carried by ctx: it builds
 // every module matched by args, tags each image with tag, and publishes it — reusing the
-// caller's engine instead of opening its own. The local `publish` command drives it now;
-// a tag-watch platform server drives the same unit later.
-func BuildAndPublish(ctx context.Context, cfg *conf.Model, args []string, tag string) error {
+// caller's engine instead of opening its own. It returns every publish result so a
+// driver can record what shipped; both the local `publish` command and the platform
+// server's build runner drive it.
+func BuildAndPublish(ctx context.Context, cfg *conf.Model, args []string, tag string) ([]PublishResult, error) {
 	attempt, err := framework.AttemptFrom(cfg, args, framework.PublishBuild)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	for _, unit := range attempt.Units {
@@ -29,11 +30,11 @@ func BuildAndPublish(ctx context.Context, cfg *conf.Model, args []string, tag st
 
 	builds, err := Build(ctx, attempt)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	results, err := Publish(ctx, builds...)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var errs []error
@@ -42,7 +43,7 @@ func BuildAndPublish(ctx context.Context, cfg *conf.Model, args []string, tag st
 			errs = append(errs, result.Err)
 		}
 	}
-	return errors.Join(errs...)
+	return results, errors.Join(errs...)
 }
 
 // Registry credentials for publishing built images, supplied via fx env config.

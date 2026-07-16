@@ -97,18 +97,20 @@ Three entrypoints, all reading the engine off the context:
   `ImageName` + `ImageHash`), logging each via `buildlog.Image`.
 - **`BuildAndPublish(ctx, cfg, args, tag)`** — the composed unit: `AttemptFrom(cfg, args,
   PublishBuild)`, suffix each unit's `ImageName` with `:tag`, `Build`, then `Publish`,
-  joining any per-result errors. Reuses the caller's engine rather than opening its own.
+  returning the `[]PublishResult` (so a driver can record what shipped) plus any
+  per-result errors joined. Reuses the caller's engine rather than opening its own.
 
 ### One publish engine, two drivers
 
 `BuildAndPublish` is the reusable build+tag+push unit — deliberately in `engine`, not
 trapped in a `cmd/` file — so two front-ends embed the *same* logic:
 
-- **local CLI `publish`** (now) — [`cmd/publish.go`](../../cmd/publish.go) resolves the
+- **local CLI `publish`** — [`cmd/publish.go`](../../cmd/publish.go) resolves the
   release name, opens an engine, and calls `BuildAndPublish`. You stand in for the CI
   server.
-- **tag-watch platform server** (future) — watches version tags and invokes the same unit
-  on a new tag. The trigger lives only in the server; the CLI never watches.
+- **tag-watch platform server** — [`srv/runner.go`](../../srv/runner.go)'s claim loop
+  invokes the same unit on each queued tag build and records the returned
+  `[]PublishResult`. The trigger lives only in the server; the CLI never watches.
 
 `release` (cut a tag) and `publish` (build + push) are orthogonal — neither implies the
 other, and there is no `deploy` verb. See

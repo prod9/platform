@@ -24,8 +24,8 @@ const maxWebhookBody = 1 << 20
 var errBadWebhookSignature = errors.New("srv: invalid webhook signature")
 
 // Webhooks ingests GitHub webhook deliveries: it verifies the App webhook signature
-// and records a queued build for each pushed version tag. Recording only — repo-prep
-// and the engine wiring that consume queued rows land in later slices.
+// and records a queued build for each pushed version tag; runQueuedBuilds consumes the
+// queue.
 type Webhooks struct{}
 
 var _ controllers.Interface = Webhooks{}

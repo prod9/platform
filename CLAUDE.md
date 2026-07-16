@@ -319,7 +319,13 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
   `<CACHE_DIR>/git/<owner>/<repo>.git` (clone --mirror once, then fetch under a flock —
   never shallow), resolves the input sha to a full commit sha, and adds a per-build
   worktree at `<CACHE_DIR>/work/<build-id>/`; `RemoveWorkTree` cleans it up post-build
-  (`CACHE_DIR` config, default `/var/cache/platform`).
+  (`CACHE_DIR` config, default `/var/cache/platform`). Build runner (`srv/builds.go` +
+  `srv/runner.go`): `Serve` opens one `engine.New` per process and runs a claim loop —
+  `ClaimBuild` (`FOR UPDATE SKIP LOCKED`) → repo-prep → `conf.Load(workDir)` →
+  `engine.BuildAndPublish` → `FinishBuild`/`FailBuild` (newline-joined images/digests;
+  2s poll tick, immediate re-claim after a run) — the server driver of the
+  one-publish-engine model; the engine-facing half is seamed as `publishBuild` for
+  dagger-free loop tests.
 - `webui/` — the built web UI assets (`Assets`, `//go:embed all:build`); the SvelteKit
   source lands alongside later, its adapter-static output in `build/` (a committed
   placeholder `index.html` for now).
