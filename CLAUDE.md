@@ -220,10 +220,12 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
   - `framework/scaffold/` — the **one** files/templating mechanism (`scaffold.Spec`/
     `scaffold.File`; `.tmpl` renders via `text/template` `missingkey=error`, everything
     else passes verbatim). No standalone `scaffold/` or `baseline/` package.
-  - `framework/skel/` — the shipped file assets (one `//go:embed`): the verbatim
-    `platform` launcher (`skel.Launcher`, written by the init driver into every repo)
-    and the cluster-baseline components the `Infra` framework picks via `skel.Read`.
-    Storage only — ownership lives with the readers.
+  - `framework/skel/` — the shipped file assets (one `//go:embed`): the `platform`
+    launcher template (`skel.Launcher`; the init driver resolves its version hole with
+    `framework.PlatformVersion()` — the nearest release this binary descends from, exact
+    tag or pseudo-version predecessor — and writes it into every repo) and the
+    cluster-baseline components the `Infra` framework picks via `skel.Read`. Storage
+    only — ownership lives with the readers.
   - The `Infra` framework installs the cluster baseline: files destination-encoded by name
     (`apps-*` → `apps/`, `defaults-*` → `defaults/`, else repo root), `DefaultVars` =
     version pins only. It installs **unconditionally** — no install-time picker; registry
@@ -277,8 +279,10 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
   Wired as `platform render`; the `Infra` framework packs this tree into the published
   image, pushed by the ordinary `publish` (oras retired — see the
   [plain-image ADR](docs/decisions/2026-07-05-infra-publishes-as-plain-image-retire-oras.md)).
-- `internal/` — `buildlog` (build/CLI structured logger), `buildinfo` (binary build
-  info), `timeouts` (TOML duration).
+- `internal/` — `buildlog` (build/CLI structured logger), `buildinfo` (program *output*
+  rendering to stdout — results/summaries, NOT binary build info; that's
+  `debug.ReadBuildInfo` at its readers, e.g. `framework.DaggerVersion`/`PlatformVersion`),
+  `timeouts` (TOML duration).
 - `testbeds/` — Sample projects per framework, exercised by smoke tests.
 
 ### Testing

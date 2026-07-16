@@ -20,6 +20,13 @@ A `Framework` is the sole owner of a project type, so what a repo scaffolds is
 whole GitOps baseline (`apps/`, the `defaults/` package, `cue.mod`). The difference is only
 how much `Infra.Scaffold` contributes — pure polymorphism, **no `IsInfra` predicate**.
 
+The launcher is the driver's own contribution, so the driver resolves its one hole the
+same way frameworks resolve theirs: `PLATFORM_VERSION` is stamped with
+`framework.PlatformVersion()` — the nearest release the running binary descends from (an
+exact tag verbatim; a between-releases pseudo-version resolves to the predecessor tag it
+encodes, keeping smoke goldens deterministic between cuts; nothing derivable is a hard
+init error).
+
 For the pipeline this feeds, see [architecture](architecture.md); the `Framework` contract
 and scaffold-time stack discovery live in [frameworks](frameworks.md) (the build path reads
 `[modules]`, never re-discovers).

@@ -7,10 +7,11 @@ package skel
 
 import "embed"
 
-// Launcher is the version-pinned launcher script every scaffolded repo gets, written
-// verbatim by the init driver — it carries no template holes.
+// Launcher is the version-pinned launcher script every scaffolded repo gets. Per the
+// collection convention its .tmpl name marks the hole — the platform version — which the
+// init driver resolves before writing.
 //
-//go:embed platform.launcher
+//go:embed platform.tmpl
 var Launcher []byte
 
 //go:embed apps-* defaults-*

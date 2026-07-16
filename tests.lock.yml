@@ -244,6 +244,8 @@
             - "0"
         - name: ./testbeds/infra-init/platform.toml
           data: []
+        - name: ./testbeds/infra-init/platform
+          data: []
     - command: ALWAYS_YES=1 ./testbed.sh infra-init init "Johnny Appleseed" "john@apple.com" "prod9/infra-new" "example.com"
       checks:
         - name: exitcode
@@ -276,6 +278,16 @@
             - '  NGINX_GATEWAY_VERSION = "v2.6.0"'
             - '  PLATFORM_HOSTNAME = "platform.prodigy9.co"'
             - '-----END platform.toml-----'
+            - ""
+        - name: ./testbeds/infra-init/platform
+          data:
+            - '-----BEGIN platform-----'
+            - '#!/bin/sh'
+            - ""
+            - PLATFORM_VERSION="v0.9.1"
+            - ""
+            - go run "platform.prodigy9.co@$PLATFORM_VERSION" "$@"
+            - '-----END platform-----'
             - ""
 - name: Platform \ Infra Init Render
   commands:

@@ -41,9 +41,10 @@ type Spec struct {
 // repository. A framework builds it from operator inputs and passes it to Resolve inside its
 // own Scaffold.
 type Data struct {
-	DaggerVersion string
-	ModulePath    string
-	ImageBase     string // OCI artifact base for the flux self-sync (oci://<ImageBase>)
+	DaggerVersion   string
+	PlatformVersion string // release the scaffolded launcher pins; the driver fills it
+	ModulePath      string
+	ImageBase       string // OCI artifact base for the flux self-sync (oci://<ImageBase>)
 }
 
 // Resolve resolves a framework's files for installation: ".tmpl" files pass through

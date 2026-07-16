@@ -77,12 +77,34 @@ func Analyze(dir string, info *Info, inputs map[string]string) (*Plan, error) {
 		return nil, err
 	}
 
+	launcher, err := resolveLauncher()
+	if err != nil {
+		return nil, err
+	}
+
 	files := []FileChange{
 		projFile,
-		fileChange(dir, "platform", skel.Launcher, 0744),
+		fileChange(dir, launcher.Path, launcher.Content, 0744),
 	}
 	files = append(files, specFileChanges(dir, spec)...)
 	return &Plan{Dir: dir, Files: files, Vars: vars}, nil
+}
+
+// resolveLauncher fills the launcher's version hole with the release this binary descends
+// from. No derivable release is a hard error — a launcher pinned to nothing cannot run.
+func resolveLauncher() (fwscaffold.File, error) {
+	version := platformVersion()
+	if version == "" {
+		return fwscaffold.File{}, errors.New("init: no platform release version is derivable from this binary's build info")
+	}
+
+	resolved, err := fwscaffold.Resolve(
+		[]fwscaffold.File{{Path: "platform.tmpl", Content: skel.Launcher, Mode: 0744}},
+		fwscaffold.Data{PlatformVersion: version})
+	if err != nil {
+		return fwscaffold.File{}, err
+	}
+	return resolved[0], nil
 }
 
 // discoverSpec finds the framework rooting dir and returns its scaffold contribution. A
@@ -132,9 +154,13 @@ func planProjectFile(dir string, info *Info, spec fwscaffold.Spec) (FileChange, 
 	return FileChange{Path: "platform.toml", Action: FileWrite, Content: content, Mode: 0644}, vars, nil
 }
 
-// daggerVersion is framework.DaggerVersion, seamed because `go test` binaries carry no
-// dependency versions in their build info — tests stub it; production reads the real SDK.
-var daggerVersion = framework.DaggerVersion
+// daggerVersion and platformVersion are framework.DaggerVersion/PlatformVersion, seamed
+// because `go test` binaries carry no versions in their build info — tests stub them;
+// production reads the real build info.
+var (
+	daggerVersion   = framework.DaggerVersion
+	platformVersion = framework.PlatformVersion
+)
 
 // specFileChanges turns the framework's already-resolved files into planned writes. Resolution
 // (which input fills which hole, reading an existing cue.mod) happened inside Scaffold — the

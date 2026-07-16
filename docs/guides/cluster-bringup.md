@@ -54,8 +54,11 @@ Commit the lot. This repo is the delivery record — the cluster runs what this 
 platform render
 ```
 
-renders `apps/` → `k8s/<component>/…`. Apply with plain `kubectl` in this order, waiting
-for CRDs to establish between steps:
+renders `apps/` → `k8s/<component>/…`. Apply with `kubectl apply --server-side` (the
+gateway-api/NGF CRDs exceed the 256KiB `last-applied-configuration` annotation limit, so
+client-side apply fails on them; server-side is safe for the whole bootstrap, add
+`--force-conflicts` on re-runs) in this order, waiting for CRDs to establish between
+steps:
 
 1. `k8s/nginx-gateway-exp/gateway-api-crds.yaml` + `nginx-gateway-crds.yaml`
 2. `k8s/cert-manager/` — wait for the webhook deployment to be Ready

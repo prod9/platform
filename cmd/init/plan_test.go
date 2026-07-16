@@ -16,8 +16,19 @@ func testInfo() *Info {
 	}
 }
 
+// stubVersions pins the build-info seams: test binaries carry no versions in their build
+// info, so every Analyze test stubs the linked-SDK and platform-release lookups.
+func stubVersions(t *testing.T) {
+	t.Helper()
+	origDagger, origPlatform := daggerVersion, platformVersion
+	daggerVersion = func() string { return "v0.21.7" }
+	platformVersion = func() string { return "v0.9.1" }
+	t.Cleanup(func() { daggerVersion, platformVersion = origDagger, origPlatform })
+}
+
 func TestAnalyze_freshRepoWritesEverything(t *testing.T) {
 	dir := gitRepo(t)
+	stubVersions(t)
 
 	plan, err := Analyze(dir, testInfo(), nil)
 	r.NoError(t, err)
@@ -30,6 +41,9 @@ func TestAnalyze_freshRepoWritesEverything(t *testing.T) {
 	}
 	r.Contains(t, byPath, "platform.toml")
 	r.Contains(t, byPath, "platform")
+
+	// The launcher pins the release this binary descends from — never a stale literal.
+	r.Contains(t, string(byPath["platform"].Content), `PLATFORM_VERSION="v0.9.1"`)
 
 	// Apply lands them on disk; the platform script is executable.
 	r.NoError(t, plan.Apply())
@@ -46,10 +60,7 @@ func TestAnalyze_infraGetsBaselineUniformly(t *testing.T) {
 	r.NoError(t, os.Mkdir(dir, 0o755))
 	r.NoError(t, os.Mkdir(filepath.Join(dir, ".git"), 0o755))
 
-	// Test binaries carry no dep versions in build info; stub the linked-SDK lookup.
-	orig := daggerVersion
-	daggerVersion = func() string { return "v0.21.7" }
-	t.Cleanup(func() { daggerVersion = orig })
+	stubVersions(t)
 
 	// The CUE module path is a greenfield scaffold input, not a platform.toml key.
 	plan, err := Analyze(dir, testInfo(), map[string]string{"CUE_MOD_PREFIX": "example.com"})
@@ -85,6 +96,7 @@ func TestAnalyze_rejectsNonGitDir(t *testing.T) {
 
 func TestAnalyze_rescaffoldPreservesExisting(t *testing.T) {
 	dir := gitRepo(t)
+	stubVersions(t)
 	existing := `maintainer = "operator <op@b.co>"
 repository = "github.com/prod9/app"
 
@@ -111,6 +123,7 @@ cert_manager_version = "v1.16.0"
 
 func TestApply_keepsExistingWhenNotReplacing(t *testing.T) {
 	dir := gitRepo(t)
+	stubVersions(t)
 	existing := `maintainer = "operator <op@b.co>"`
 	path := filepath.Join(dir, "platform.toml")
 	r.NoError(t, os.WriteFile(path, []byte(existing), 0644))

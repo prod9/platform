@@ -75,6 +75,10 @@ let testbeds = [...{name: string, dir: string}] &
 			checks: [
 				"exitcode",
 				"./testbeds/infra-init/platform.toml",
+				// The launcher is generated here (the app-testbed Init tests never apply —
+				// their launchers are committed fixtures), so this snapshot is the one place
+				// smoke sees the version stamp: the nearest release, drifting once per cut.
+				"./testbeds/infra-init/platform",
 			]
 			commands: [
 				// Wipe any generated leftovers from a prior local run so init GENERATES fresh
