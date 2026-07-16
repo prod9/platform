@@ -2,9 +2,16 @@
 
 How to write or patch a `.platform` component: the execution model in one screen and the
 verbs you'll actually reach for. Exhaustive grammar (lexing, paths, escapes) lives in the
-spec: [`../spec/manifest-patch-dsl.md`](../spec/manifest-patch-dsl.md). Vim/Neovim
-syntax + filetype detection ship in [`/editor/nvim/`](../../editor/nvim/) — copy or
-symlink into your runtimepath.
+spec: [`../spec/manifest-patch-dsl.md`](../spec/manifest-patch-dsl.md).
+
+## Editor setup
+
+Vim/Neovim support ships in [`/editor/nvim/`](../../editor/nvim/):
+`syntax/platform-dsl.vim` (verbs, paths, strings, `\(var)` interpolation) and
+`ftdetect/platform-dsl.vim` (associates `*.platform`). Copy or symlink both into your
+runtimepath (`~/.config/nvim/`). Scaffolded `.platform` files also carry a
+`# vim: ft=platform-dsl` modeline, so the syntax file alone is enough on machines
+without the ftdetect.
 
 ## Mental model
 
