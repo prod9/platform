@@ -35,7 +35,7 @@ final yes/no confirm. `CUE_MOD_PREFIX` is the CUE module path (first segment mus
 a dot, e.g. `prodigy9.co`) — asked greenfield only; an existing `cue.mod` is read instead.
 
 This writes the full baseline: `platform.toml` (strategy `rolling`, default `[vars]`
-version pins), `apps/` (cert-manager, flux, flux-sync, nginx-gateway-exp, platform),
+version pins), `apps/` (cert-manager, flux, flux-sync, nginx-gateway, platform),
 `defaults/basics.cue`, `cue.mod`, and the `platform` launcher.
 
 Re-running init later with `--force` replaces framework-owned files **including any
@@ -48,7 +48,7 @@ restore the wired values from git after. Only `platform.toml` merges surgically.
 | File                   | What to set                                                            |
 |------------------------|------------------------------------------------------------------------|
 | `platform.toml` `[vars]` | `PLATFORM_HOSTNAME` / `FLUX_HOSTNAME` — this cluster's ingress hosts. Leave version pins alone. |
-| `apps/nginx-gateway-exp.platform` | **Provider LB wiring — your repo's edit; the scaffold ships none** ([ADR](../decisions/2026-07-16-baseline-is-provider-neutral.md)). On Linode, add the reserved-IP annotation to the NginxProxy service patch **before anything from `k8s/nginx-gateway-exp/` first applies**: `set .spec.kubernetes.service.patches[0].type "StrategicMerge"` + `set …patches[0].value.metadata.annotations."service.beta.kubernetes.io/linode-loadbalancer-reserved-ipv4" "<ip>"`. The CCM honors it only at Service creation (retrofit = delete/recreate the Gateway) and rejects an empty value. Firewalls attach NB-side via terraform. |
+| `apps/nginx-gateway.platform` | **Provider LB wiring — your repo's edit; the scaffold ships none** ([ADR](../decisions/2026-07-16-baseline-is-provider-neutral.md)). On Linode, add the reserved-IP annotation to the NginxProxy service patch **before anything from `k8s/nginx-gateway/` first applies**: `set .spec.kubernetes.service.patches[0].type "StrategicMerge"` + `set …patches[0].value.metadata.annotations."service.beta.kubernetes.io/linode-loadbalancer-reserved-ipv4" "<ip>"`. The CCM honors it only at Service creation (retrofit = delete/recreate the Gateway) and rejects an empty value. Firewalls attach NB-side via terraform. |
 | `defaults/basics.cue`  | `#registry_username` / `#registry_password` — the ghcr **pull** creds (committed placeholders are empty). |
 | `apps/flux-sync.cue`   | `webhookToken` `#data: token:` — a fresh random HMAC secret (plaintext; `#Secret` base64-encodes). Generate with `openssl rand -hex 32`. |
 
@@ -66,9 +66,9 @@ client-side apply fails on them; server-side is safe for the whole bootstrap, ad
 `--force-conflicts` on re-runs) in this order, waiting for CRDs to establish between
 steps:
 
-1. `k8s/nginx-gateway-exp/gateway-api-crds.yaml` + `nginx-gateway-crds.yaml`
+1. `k8s/nginx-gateway/gateway-api-crds.yaml` + `nginx-gateway-crds.yaml`
 2. `k8s/cert-manager/` — wait for the webhook deployment to be Ready
-3. `k8s/nginx-gateway-exp/nginx-gateway.yaml`
+3. `k8s/nginx-gateway/nginx-gateway.yaml`
 4. `k8s/flux/` — wait for Flux CRDs (`ocirepositories`, `kustomizations`, `receivers`)
 5. `k8s/flux-sync/` — the OCIRepository + Kustomization + webhook Receiver/Secret/Route.
    **Before this step**, verify `ghcr.io/<org>/<repo>` holds no leftover package from a
@@ -86,7 +86,7 @@ The gateway and TLS are baseline components since the prod9-main bring-up: the s
 ships a **host-agnostic** `Gateway` app (`apps/gateway.cue` — components attach their own
 hostnames via `ListenerSet`s, never edit the gateway for a host) and the ACME
 cluster-issuer (`apps/cluster-issuer.cue`, contact = the maintainer email given at init).
-The GatewayClass `nginx` is owned by `nginx-gateway-exp` — the gateway app references it
+The GatewayClass `nginx` is owned by `nginx-gateway` — the gateway app references it
 by name, never re-declares it.
 
 What remains manual: point DNS for `PLATFORM_HOSTNAME` and `FLUX_HOSTNAME` at the

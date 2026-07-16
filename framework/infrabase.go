@@ -45,10 +45,12 @@ var DefaultVars = map[string]any{
 
 // infrabaseComponents is the fixed working set every fresh infra repo installs — the
 // components a functioning cluster needs out of the box plus the shared defaults/ package
-// every app imports for #Basics (namespace + registry pull secret). The stable
-// nginx-gateway (apps-nginx-gateway.platform) ships in the binary but is not installed;
-// the experimental one is. apps-platform.cue.tmpl carries the build engine + (for prod9's
-// self-host) the vanity server and its NetworkPolicies.
+// every app imports for #Basics (namespace + registry pull secret). The gateway-api
+// channel installed is STANDARD (it serves everything the baseline renders, ListenerSet
+// included); the experimental variant (apps-nginx-gateway-exp.platform, + TCPRoute/
+// UDPRoute) ships in the binary but is not installed — repos needing it swap by hand.
+// apps-platform.cue.tmpl carries the build engine + (for prod9's self-host) the vanity
+// server and its NetworkPolicies.
 var infrabaseComponents = []string{
 	"apps-cert-manager.platform",
 	"apps-cluster-issuer.cue.tmpl",
@@ -56,7 +58,7 @@ var infrabaseComponents = []string{
 	"apps-flux-sync.cue.tmpl",
 	"apps-gateway.cue.tmpl",
 	"apps-platform.cue.tmpl",
-	"apps-nginx-gateway-exp.platform",
+	"apps-nginx-gateway.platform",
 	"defaults-basics.cue",
 	"defaults-webapp.cue",
 }

@@ -234,14 +234,17 @@ spec:
 // STRING (the value-typing fix — a bare int there would be invalid).
 func TestEmbeddedNginxGateway(t *testing.T) {
 	_, byPath := infraSpec(t, t.TempDir())
-	body := byPath[filepath.Join("apps", "nginx-gateway-exp.platform")].Content
+	// The installed channel is STANDARD — it carries every CRD the baseline renders
+	// (ListenerSet is served v1 there); experimental adds only TCPRoute/UDPRoute, which
+	// nothing uses. The exp component stays embedded for repos that opt in by hand.
+	body := byPath[filepath.Join("apps", "nginx-gateway.platform")].Content
 	r.NotEmpty(t, body)
 
 	var urls []string
 	fetch := func(url string) ([]byte, error) {
 		urls = append(urls, url)
 		switch {
-		case strings.Contains(url, "experimental-install"):
+		case strings.Contains(url, "standard-install"):
 			return []byte("kind: CustomResourceDefinition\nmetadata:\n  name: gw\n"), nil
 		case strings.Contains(url, "deploy/crds.yaml"):
 			return []byte("kind: CustomResourceDefinition\nmetadata:\n  name: ngf\n"), nil
