@@ -42,7 +42,7 @@ version pins), `apps/` (cert-manager, flux, flux-sync, nginx-gateway-exp, platfo
 
 | File                   | What to set                                                            |
 |------------------------|------------------------------------------------------------------------|
-| `platform.toml` `[vars]` | `PLATFORM_HOSTNAME` / `FLUX_HOSTNAME` — this cluster's ingress hosts. `NGINX_GATEWAY_FIREWALL_ID` — this cluster's Linode firewall id. Leave version pins alone. |
+| `platform.toml` `[vars]` | `PLATFORM_HOSTNAME` / `FLUX_HOSTNAME` — this cluster's ingress hosts. `NGINX_GATEWAY_FIREWALL_ID` — this cluster's Linode firewall id. `NGINX_GATEWAY_RESERVED_IPV4` — the cluster's reserved LB IPv4; **must be set before anything from `k8s/nginx-gateway-exp/` first applies** — the Linode CCM honors the annotation only at Service creation, retrofitting does nothing, the fix is delete/recreate. No reserved IP → delete the reserved-ipv4 directive from `apps/nginx-gateway-exp.platform` instead (empty-value API behavior is unverified). Leave version pins alone. |
 | `defaults/basics.cue`  | `#registry_username` / `#registry_password` — the ghcr **pull** creds (committed placeholders are empty). |
 | `apps/flux-sync.cue`   | `webhookToken` `#data: token:` — a fresh random HMAC secret (plaintext; `#Secret` base64-encodes). Generate with `openssl rand -hex 32`. |
 

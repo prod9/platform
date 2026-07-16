@@ -201,6 +201,10 @@ func TestEmbeddedNginxGateway(t *testing.T) {
 	r.Contains(t, got, `serverTokens: "off"`)
 	// The firewall id must stay a string — yaml quotes it; a bare int would be invalid.
 	r.Contains(t, got, `linode-loadbalancer-firewall-id: "11222746"`)
+	// The reserved-IP slot must reach the generated LB Service at creation — the CCM reads
+	// it only then (not retrofittable; fix = delete/recreate the Gateway). Empty default:
+	// operators set it (or delete the directive) before the Gateway first applies.
+	r.Contains(t, got, `linode-loadbalancer-reserved-ipv4: ""`)
 	r.Contains(t, got, "type: StrategicMerge")
 }
 

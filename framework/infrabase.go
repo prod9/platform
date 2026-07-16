@@ -39,6 +39,11 @@ var DefaultVars = map[string]any{
 
 	"NGINX_GATEWAY_FIREWALL_ID": "11222746", // Linode LB firewall; string, not int
 
+	// Reserved NodeBalancer IPv4. The CCM honors the annotation only at Service CREATION —
+	// set this (or delete the directive) BEFORE the Gateway first applies; retrofitting does
+	// nothing and the fix is delete/recreate. Empty-value API behavior is unverified.
+	"NGINX_GATEWAY_RESERVED_IPV4": "",
+
 	// Per-deployment ingress hosts (render-time @tag holes): the platform server's own vanity
 	// host and the Flux webhook-receiver route. prod9 self-host defaults; operators edit.
 	"PLATFORM_HOSTNAME": "platform.prodigy9.co",

@@ -14,7 +14,7 @@ flipping.
 
 ## 2. Placeholder the Linode firewall ID
 
-`framework/baseline.go` ships `NGINX_GATEWAY_FIREWALL_ID = "11222746"` in `DefaultVars` — a
+`framework/infrabase.go` ships `NGINX_GATEWAY_FIREWALL_ID = "11222746"` in `DefaultVars` — a
 real prod9 Linode resource, baked into the binary and echoed in docs and tests. Swap it
 for an operator-supplied placeholder. Sweep docs and tests for the literal ID and update
 those too.
