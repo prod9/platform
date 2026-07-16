@@ -23,3 +23,5 @@ detail rather than inlining it. Update in place.
   goes public: LICENSE, firewall-id placeholder, exclude `docs/scratch/`.
 - [`migration.md`](migration.md) — how a consuming repo moves across each breaking change of
   the legacy → pull-based v2 rework.
+- [`cluster-bringup.md`](cluster-bringup.md) — fresh cluster → live platformv2 baseline:
+  scaffold, wire values, bootstrap apply, gateway/DNS, first publish, webhook, verify.
