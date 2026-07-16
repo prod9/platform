@@ -276,6 +276,8 @@ func TestEmbeddedFluxReceiver(t *testing.T) {
 		"flux-webhook-token",  // HMAC secret the Receiver validates against
 		"defs.#HTTPRoute",     // external exposure of the webhook-receiver service
 		"@tag(flux_hostname)", // receiver route host — a render-time var
+		"allow-acme-solver",   // HTTP-01 solver ingress — flux's stock netpols otherwise block issuance
+		"acme.cert-manager.io/http01-solver",
 	} {
 		r.Contains(t, body, want, "flux-sync baseline lost its webhook delivery wiring")
 	}

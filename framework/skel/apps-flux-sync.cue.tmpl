@@ -133,7 +133,29 @@ import (
 		}]
 	}
 
+	// Flux's stock allow-egress policy admits only same-namespace ingress, which
+	// blackholes cert-manager's HTTP-01 solver pods here — the gateway data plane
+	// can't reach them and issuance for _flux_host hangs forever. The solver only
+	// serves the one-shot challenge token on 8089, so cross-namespace ingress to
+	// it is safe. Raw resource: defs.#NetworkPolicy is the lockdown shape and can't
+	// admit ingress to pods labeled by cert-manager rather than by us.
+	let solverIngress = {
+		apiVersion: "networking.k8s.io/v1"
+		kind:       "NetworkPolicy"
+		metadata: {
+			name:      "allow-acme-solver"
+			namespace: nsp.#name
+		}
+		spec: {
+			podSelector: matchLabels: "acme.cert-manager.io/http01-solver": "true"
+			policyTypes: ["Ingress"]
+			ingress: [{
+				ports: [{port: 8089}]
+			}]
+		}
+	}
+
 	"namespace.yaml":   nsp
 	"flux-config.yaml": [source, kustomize]
-	"webhook.yaml":     [webhookToken, receiver, listeners, webhookRoute]
+	"webhook.yaml":     [webhookToken, receiver, listeners, webhookRoute, solverIngress]
 }
