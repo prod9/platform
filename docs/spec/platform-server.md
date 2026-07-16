@@ -7,7 +7,10 @@
 > embedded in `srv/`, run at boot. The GitHub App bootstrap is implemented: the manifest
 > flow lives at `/setup/github` (manifest form) + `/setup/github/callback` (code
 > exchange), storing the App credentials encrypted in the single-row `github_app` table.
-> No webhooks, token minting, or engine wiring yet; those land in later slices per this
+> Webhook ingest is implemented: `POST /api/webhooks/github` verifies the App webhook
+> HMAC signature and records a queued `builds` row for each pushed version tag
+> (`refs/tags/v*`, not deleted) — recording only, nothing executes a queued build yet.
+> No token minting, repo-prep, or engine wiring yet; those land in later slices per this
 > spec. It is the **second driver** of the one-publish-engine model — the tag-watch
 > server that invokes the same build+push engine the local CLI drives today (see
 > [delivery-verbs-are-orthogonal](../decisions/2026-07-05-delivery-verbs-are-orthogonal.md)

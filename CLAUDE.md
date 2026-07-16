@@ -312,7 +312,10 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
   srv-free. GitHub App bootstrap: `/setup/github` serves the App Manifest form,
   `/setup/github/callback` exchanges GitHub's one-time code and stores the credentials
   in the single-row `github_app` table (secrets encrypted via fx `secret`, SECRET var;
-  SERVER_URL / GITHUB_URL / GITHUB_API_URL config in `srv/setup.go`).
+  SERVER_URL / GITHUB_URL / GITHUB_API_URL config in `srv/setup.go`). Webhook ingest
+  (`srv/webhooks.go`): `POST /api/webhooks/github` verifies the HMAC signature and
+  records a queued `builds` row per pushed `refs/tags/v*` tag — recording only, no
+  execution yet.
 - `webui/` — the built web UI assets (`Assets`, `//go:embed all:build`); the SvelteKit
   source lands alongside later, its adapter-static output in `build/` (a committed
   placeholder `index.html` for now).
