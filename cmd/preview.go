@@ -1,4 +1,4 @@
-package preview
+package cmd
 
 import (
 	"context"
@@ -18,10 +18,10 @@ import (
 	"platform.prodigy9.co/project"
 )
 
-var Cmd = &cobra.Command{
+var PreviewCmd = &cobra.Command{
 	Use:   "preview [modules...]",
 	Short: "Builds and starts up the container",
-	Run:   run,
+	Run:   runPreview,
 }
 
 var (
@@ -30,11 +30,11 @@ var (
 )
 
 func init() {
-	Cmd.Flags().IntVarP(&previewPort, "port", "p", 0, "Binds port for preview")
-	Cmd.Flags().StringVarP(&previewCmd, "exec", "e", "", "Specify custom command to run")
+	PreviewCmd.Flags().IntVarP(&previewPort, "port", "p", 0, "Binds port for preview")
+	PreviewCmd.Flags().StringVarP(&previewCmd, "exec", "e", "", "Specify custom command to run")
 }
 
-func run(cmd *cobra.Command, args []string) {
+func runPreview(cmd *cobra.Command, args []string) {
 	cfg, err := project.Configure(".")
 	if err != nil {
 		buildlog.Fatalln(err)

@@ -1,4 +1,4 @@
-package release
+package cmd
 
 import (
 	"errors"
@@ -11,10 +11,10 @@ import (
 	"platform.prodigy9.co/releases"
 )
 
-var Cmd = &cobra.Command{
+var ReleaseCmd = &cobra.Command{
 	Use:   "release (name)",
 	Short: "Create a new release with the given name.",
-	Run:   run,
+	Run:   runReleaseCmd,
 }
 
 var (
@@ -26,18 +26,18 @@ var (
 )
 
 func init() {
-	Cmd.Flags().BoolVar(&forceRelease, "force", false,
+	ReleaseCmd.Flags().BoolVar(&forceRelease, "force", false,
 		"Force release even if worktree is dirty")
 
-	Cmd.Flags().BoolVarP(&bumpPatch, "patch", "p", false,
+	ReleaseCmd.Flags().BoolVarP(&bumpPatch, "patch", "p", false,
 		"(semver only) Create new release by incrementing patch version from the most recent release")
-	Cmd.Flags().BoolVarP(&bumpMinor, "minor", "m", false,
+	ReleaseCmd.Flags().BoolVarP(&bumpMinor, "minor", "m", false,
 		"(semver only) Create new release by incrementing minor version from the most recent release")
-	Cmd.Flags().BoolVar(&bumpMajor, "major", false,
+	ReleaseCmd.Flags().BoolVar(&bumpMajor, "major", false,
 		"(semver only) Create new release by incrementing major version from the most recent release")
 }
 
-func run(cmd *cobra.Command, args []string) {
+func runReleaseCmd(cmd *cobra.Command, args []string) {
 	if (bumpPatch && bumpMinor) ||
 		(bumpPatch && bumpMajor) ||
 		(bumpMinor && bumpMajor) {

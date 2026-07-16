@@ -1,4 +1,4 @@
-package vanity
+package cmd
 
 import (
 	"net/http"
@@ -9,20 +9,20 @@ import (
 	"fx.prodigy9.co/fxlog"
 	"github.com/felixge/httpsnoop"
 	"github.com/spf13/cobra"
-	govanity "go.jonnrb.io/vanity"
+	"go.jonnrb.io/vanity"
 )
 
 var vanityListenAddr string
 
-var Cmd = &cobra.Command{
+var VanityCmd = &cobra.Command{
 	Use:    "vanity",
 	Short:  "Starts an HTTP server for redirecting go get to GitHub",
 	Hidden: true,
-	Run:    run,
+	Run:    runVanityCmd,
 }
 
 func init() {
-	Cmd.Flags().StringVar(
+	VanityCmd.Flags().StringVar(
 		&vanityListenAddr,
 		"listen",
 		"0.0.0.0:8000",
@@ -30,8 +30,8 @@ func init() {
 	)
 }
 
-func run(cmd *cobra.Command, args []string) {
-	handler := govanity.GitHubHandler("platform.prodigy9.co", "prod9", "platform", "https")
+func runVanityCmd(cmd *cobra.Command, args []string) {
+	handler := vanity.GitHubHandler("platform.prodigy9.co", "prod9", "platform", "https")
 	wrapped := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		m := httpsnoop.CaptureMetrics(handler, w, r)
 		fxlog.Log("request",

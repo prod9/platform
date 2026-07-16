@@ -1,4 +1,4 @@
-package publish
+package cmd
 
 import (
 	"context"
@@ -15,13 +15,13 @@ import (
 	"platform.prodigy9.co/releases"
 )
 
-var Cmd = &cobra.Command{
+var PublishCmd = &cobra.Command{
 	Use:   "publish [modules...]",
 	Short: "Builds current directory and publish as a release",
-	Run:   run,
+	Run:   runPublish,
 }
 
-func run(cmd *cobra.Command, args []string) {
+func runPublish(cmd *cobra.Command, args []string) {
 	cfg, err := project.Configure(".")
 	if err != nil {
 		buildlog.Fatalln(err)

@@ -3,18 +3,7 @@ package cmd
 import (
 	fxcmd "fx.prodigy9.co/cmd"
 	"github.com/spf13/cobra"
-	"platform.prodigy9.co/cmd/build"
-	"platform.prodigy9.co/cmd/clean"
-	"platform.prodigy9.co/cmd/configure"
-	"platform.prodigy9.co/cmd/exec"
-	"platform.prodigy9.co/cmd/export"
 	initcmd "platform.prodigy9.co/cmd/init"
-	"platform.prodigy9.co/cmd/ls"
-	"platform.prodigy9.co/cmd/preview"
-	"platform.prodigy9.co/cmd/publish"
-	"platform.prodigy9.co/cmd/release"
-	"platform.prodigy9.co/cmd/render"
-	"platform.prodigy9.co/cmd/vanity"
 	"platform.prodigy9.co/internal/buildlog"
 	"platform.prodigy9.co/project"
 )
@@ -42,17 +31,17 @@ func init() {
 
 	rootCmd.AddCommand(
 		initcmd.Cmd,
-		build.Cmd,
-		clean.Cmd,
-		configure.Cmd,
-		exec.Cmd,
-		export.Cmd,
-		ls.Cmd,
-		preview.Cmd,
-		render.Cmd,
-		publish.Cmd,
-		release.Cmd,
-		vanity.Cmd,
+		BuildCmd,
+		CleanCmd,
+		ConfigureCmd,
+		ExecCmd,
+		ExportCmd,
+		ListCmd,
+		PreviewCmd,
+		RenderCmd,
+		PublishCmd,
+		ReleaseCmd,
+		VanityCmd,
 
 		fxcmd.PrintConfigCmd,
 	)

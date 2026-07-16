@@ -1,4 +1,4 @@
-package ls
+package cmd
 
 import (
 	"context"
@@ -15,13 +15,13 @@ import (
 	"platform.prodigy9.co/project"
 )
 
-var Cmd = &cobra.Command{
+var ListCmd = &cobra.Command{
 	Use:   "ls",
 	Short: "List files going into the container, for debugging purposes",
-	Run:   run,
+	Run:   runList,
 }
 
-func run(cmd *cobra.Command, args []string) {
+func runList(cmd *cobra.Command, args []string) {
 	cfg, err := project.Configure(".")
 	if err != nil {
 		buildlog.Fatalln(err)

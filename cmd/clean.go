@@ -1,4 +1,4 @@
-package clean
+package cmd
 
 import (
 	"context"
@@ -9,13 +9,13 @@ import (
 	"platform.prodigy9.co/internal/buildlog"
 )
 
-var Cmd = &cobra.Command{
+var CleanCmd = &cobra.Command{
 	Use:   "clean",
 	Short: "Prune the local Dagger build cache (clean-build reset)",
-	Run:   run,
+	Run:   runCleanCmd,
 }
 
-func run(cmd *cobra.Command, args []string) {
+func runCleanCmd(cmd *cobra.Command, args []string) {
 	eng := engine.New(fxconfig.Configure())
 	defer eng.Close()
 

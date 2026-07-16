@@ -1,8 +1,7 @@
-package build
+package cmd
 
 import (
 	"context"
-	"os"
 
 	fxconfig "fx.prodigy9.co/config"
 	"github.com/spf13/cobra"
@@ -12,13 +11,13 @@ import (
 	"platform.prodigy9.co/project"
 )
 
-var Cmd = &cobra.Command{
-	Use:   "build",
-	Short: "Builds current directory",
-	Run:   run,
+var ExportCmd = &cobra.Command{
+	Use:   "export [modules...]",
+	Short: "Builds and exports the container to a docker-compatible format",
+	Run:   runExport,
 }
 
-func run(cmd *cobra.Command, args []string) {
+func runExport(cmd *cobra.Command, args []string) {
 	cfg, err := project.Configure(".")
 	if err != nil {
 		buildlog.Fatalln(err)
@@ -38,14 +37,26 @@ func run(cmd *cobra.Command, args []string) {
 		buildlog.Fatalln(err)
 	}
 
-	anyerr := false
 	for _, result := range results {
 		if result.Err != nil {
 			buildlog.Error(result.Err)
-			anyerr = true
+			continue
 		}
-	}
-	if anyerr {
-		os.Exit(1)
+
+		id, err := result.Container.ID(ctx)
+		if err != nil {
+			buildlog.Fatalln(err)
+		}
+		if len(id) > 16 {
+			id = id[len(id)-16:]
+		}
+
+		outname := result.Unit.Name + ".docker"
+		_, err = result.Container.Export(ctx, outname)
+		if err != nil {
+			buildlog.Fatalln(err)
+		} else {
+			buildlog.Image("export", outname, string(id))
+		}
 	}
 }
