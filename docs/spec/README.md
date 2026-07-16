@@ -28,7 +28,7 @@ superseded moves to `../scratch/` — `spec/` holds current design only, never h
 - [`engine.md`](engine.md) — the Dagger execution layer: the `Engine` client pool over
   discovered runners, `Multiplexer` fan-out, `Build`/`Publish`/`BuildAndPublish`, registry
   creds, arch targets.
-- [`releases.md`](releases.md) — release strategies (semver/datestamp/timestamp/latest),
+- [`releases.md`](releases.md) — release strategies (semver/datestamp/timestamp/rolling),
   `Generate` vs `Create`, tag-history recovery, and release⊥publish orthogonality.
 - [`scaffolding.md`](scaffolding.md) — `platform init`: the `framework/scaffold` mechanism,
   the `Infra` framework's unconditional baseline (destination-encoded files, `[vars]`
