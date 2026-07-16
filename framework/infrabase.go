@@ -34,7 +34,7 @@ const (
 var DefaultVars = map[string]any{
 	"CERT_MANAGER_VERSION":  "v1.20.2",
 	"FLUX_VERSION":          "v2.8.8",
-	"NGINX_GATEWAY_VERSION": "v2.6.0",
+	"NGINX_GATEWAY_VERSION": "v2.6.7",
 	"GATEWAY_API_VERSION":   "v1.5.1",
 
 	// Per-deployment ingress hosts (render-time @tag holes): the platform server's own vanity
