@@ -36,13 +36,19 @@ func Serve() error {
 	if err := migrate(context.Background(), db); err != nil {
 		return err
 	}
+
+	// running rows are orphans at boot: single-server model, so a live claimant from a
+	// previous process cannot exist.
+	dataCtx := data.NewContext(context.Background(), db)
+	if err := (&RequeueOrphanBuilds{}).Execute(dataCtx, nil); err != nil {
+		return err
+	}
 	handler := middlewares.AddDataContext(cfg)(router)
 
 	eng := engine.New(cfg)
 	defer eng.Close()
 
-	runnerCtx, stopRunner := context.WithCancel(
-		engine.NewContext(data.NewContext(context.Background(), db), eng))
+	runnerCtx, stopRunner := context.WithCancel(engine.NewContext(dataCtx, eng))
 	runnerDone := make(chan struct{})
 	go func() {
 		defer close(runnerDone)

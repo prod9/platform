@@ -27,7 +27,8 @@ var publishBuild = runBuild
 // model — the same BuildAndPublish the local publish command drives.
 func runQueuedBuilds(ctx context.Context, cfg *config.Source) {
 	for ctx.Err() == nil {
-		build, err := ClaimBuild(ctx)
+		build := &Build{}
+		err := (&ClaimBuild{}).Execute(ctx, build)
 		if errors.Is(err, ErrNoQueuedBuild) || errors.Is(err, context.Canceled) {
 			waitPollTick(ctx)
 			continue
@@ -102,10 +103,11 @@ func removeWorkTree(ctx context.Context, prep *PrepRepo) {
 	}
 }
 
-// recordOutcome writes a finish/fail mutation; a write failure leaves the row running,
-// which only costs an operator a stale status — never the loop.
+// recordOutcome writes a finish/fail mutation, surviving a canceled ctx so a shutdown
+// mid-build still records the outcome; a write failure leaves the row running, which
+// only costs an operator a stale status — never the loop.
 func recordOutcome(ctx context.Context, outcome controllers.Action) {
-	if err := outcome.Execute(ctx, nil); err != nil {
+	if err := outcome.Execute(context.WithoutCancel(ctx), nil); err != nil {
 		fxlog.Error(err)
 	}
 }

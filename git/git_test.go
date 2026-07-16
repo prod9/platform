@@ -8,6 +8,23 @@ import (
 	r "github.com/stretchr/testify/require"
 )
 
+func TestRun(t *testing.T) {
+	dir := t.TempDir()
+
+	_, err := Run(t.Context(), dir, "init", "-q", "-b", "main")
+	r.NoError(t, err)
+
+	// stdout comes back trimmed.
+	branch, err := Run(t.Context(), dir, "symbolic-ref", "--short", "HEAD")
+	r.NoError(t, err)
+	r.Equal(t, "main", branch)
+
+	// on failure, git's stderr lands in the error.
+	_, err = Run(t.Context(), dir, "rev-parse", "--verify", "nonexistent")
+	r.Error(t, err)
+	r.ErrorContains(t, err, "fatal")
+}
+
 func TestIsRoot(t *testing.T) {
 	repo := gitRepo(t)
 

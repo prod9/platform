@@ -28,12 +28,30 @@ type Build struct {
 	UpdatedAt time.Time `db:"updated_at"`
 }
 
-// ClaimBuild atomically claims the oldest queued build, flipping it to running. SKIP
-// LOCKED keeps concurrent claimants from blocking on (or double-claiming) the same row;
-// an empty queue is ErrNoQueuedBuild.
-func ClaimBuild(ctx context.Context) (*Build, error) {
-	build := &Build{}
-	err := data.Get(ctx, build, `
+// CreateBuild records a queued build row for a pushed version tag.
+type CreateBuild struct {
+	Owner    string
+	Repo     string
+	CloneURL string
+	Tag      string
+	SHA      string
+}
+
+func (c *CreateBuild) Execute(ctx context.Context, out any) error {
+	return data.Exec(ctx, `
+		INSERT INTO builds (owner, repo, clone_url, tag, sha)
+		VALUES ($1, $2, $3, $4, $5)`,
+		c.Owner, c.Repo, c.CloneURL, c.Tag, c.SHA)
+}
+
+// ClaimBuild atomically claims the oldest queued build, flipping it to running and
+// filling out (a *Build) with the claimed row. SKIP LOCKED keeps concurrent claimants
+// from blocking on (or double-claiming) the same row; an empty queue is
+// ErrNoQueuedBuild.
+type ClaimBuild struct{}
+
+func (c *ClaimBuild) Execute(ctx context.Context, out any) error {
+	err := data.Get(ctx, out, `
 		UPDATE builds
 		SET status = 'running', updated_at = now()
 		WHERE id = (
@@ -44,11 +62,21 @@ func ClaimBuild(ctx context.Context) (*Build, error) {
 			FOR UPDATE SKIP LOCKED)
 		RETURNING *`)
 	if data.IsNoRows(err) {
-		return nil, ErrNoQueuedBuild
-	} else if err != nil {
-		return nil, err
+		return ErrNoQueuedBuild
 	}
-	return build, nil
+	return err
+}
+
+// RequeueOrphanBuilds flips every running build back to queued. Boot-time recovery:
+// in the single-server model, any row still running when the process starts belonged
+// to a crashed or killed predecessor — an orphan by definition.
+type RequeueOrphanBuilds struct{}
+
+func (r *RequeueOrphanBuilds) Execute(ctx context.Context, out any) error {
+	return data.Exec(ctx, `
+		UPDATE builds
+		SET status = 'queued', updated_at = now()
+		WHERE status = 'running'`)
 }
 
 // FinishBuild marks a claimed build succeeded, recording what it published.

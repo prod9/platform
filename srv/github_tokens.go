@@ -111,10 +111,20 @@ func githubAppCall(ctx context.Context, client *http.Client, method, url, jwt st
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != want {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<10))
-		return resp.StatusCode, fmt.Errorf("srv: %s %s failed: %d %s: %s",
-			method, url, resp.StatusCode, resp.Status, body)
+		return resp.StatusCode, githubRespError(method+" "+url, resp)
 	}
 
 	return resp.StatusCode, json.NewDecoder(resp.Body).Decode(out)
+}
+
+// githubRespError summarizes a failed GitHub API response: op, status line, and up to
+// 1KB of body. The body read is best-effort — GitHub's status already carries the
+// verdict, so a read failure only shortens the message, never masks it.
+func githubRespError(op string, resp *http.Response) error {
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<10))
+	if err != nil {
+		body = []byte("(unreadable body: " + err.Error() + ")")
+	}
+	return fmt.Errorf("srv: %s failed: %d %s: %s",
+		op, resp.StatusCode, resp.Status, body)
 }

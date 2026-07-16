@@ -68,7 +68,53 @@ func TestSetupGitHubRequiresServerURL(t *testing.T) {
 	require.Contains(t, resp.Body.String(), "SERVER_URL")
 }
 
-func TestExchangeManifest(t *testing.T) {
+func TestSetupCallbackMissingCode(t *testing.T) {
+	router, err := Router(fxtest.Configure())
+	require.NoError(t, err)
+
+	resp := httptest.NewRecorder()
+	router.ServeHTTP(resp, httptest.NewRequest("GET", "/setup/github/callback", nil))
+
+	require.Equal(t, http.StatusBadRequest, resp.Code)
+	require.Contains(t, resp.Body.String(), "missing code")
+}
+
+func TestSetupCallbackExchangeFailure(t *testing.T) {
+	github := httptest.NewServer(http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
+		resp.WriteHeader(http.StatusNotFound)
+	}))
+	t.Cleanup(github.Close)
+
+	cfg := fxtest.Configure()
+	config.Set(cfg, GitHubAPIURLConfig, github.URL)
+	router, err := Router(cfg)
+	require.NoError(t, err)
+
+	resp := httptest.NewRecorder()
+	router.ServeHTTP(resp, httptest.NewRequest("GET", "/setup/github/callback?code=EXPIRED", nil))
+
+	require.Equal(t, http.StatusBadGateway, resp.Code)
+}
+
+func TestSetupCallbackDuplicateApp(t *testing.T) {
+	ctx := setupDB(t)
+	require.NoError(t, (&SaveGitHubApp{AppID: 1, Slug: "existing"}).Execute(ctx, nil))
+	github := stubManifestConversion(t)
+
+	cfg := fxtest.Configure()
+	config.Set(cfg, GitHubAPIURLConfig, github.URL)
+	router, err := Router(cfg)
+	require.NoError(t, err)
+
+	resp := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/setup/github/callback?code=CODE123", nil).WithContext(ctx)
+	router.ServeHTTP(resp, req)
+
+	require.Equal(t, http.StatusConflict, resp.Code)
+}
+
+// stubManifestConversion answers the manifest conversion with a full credential set.
+func stubManifestConversion(t *testing.T) *httptest.Server {
 	github := httptest.NewServer(http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
 		require.Equal(t, "POST", req.Method)
 		require.Equal(t, "/app-manifests/CODE123/conversions", req.URL.Path)
@@ -83,7 +129,12 @@ func TestExchangeManifest(t *testing.T) {
 			"client_secret": "csec"
 		}`))
 	}))
-	defer github.Close()
+	t.Cleanup(github.Close)
+	return github
+}
+
+func TestExchangeManifest(t *testing.T) {
+	github := stubManifestConversion(t)
 
 	creds, err := exchangeManifest(t.Context(), github.Client(), github.URL, "CODE123")
 	require.NoError(t, err)

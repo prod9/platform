@@ -4,9 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"html/template"
-	"io"
 	"net/http"
 	"strings"
 
@@ -159,9 +157,7 @@ func exchangeManifest(ctx context.Context, client *http.Client, apiURL, code str
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusCreated {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<10))
-		return nil, fmt.Errorf("srv: manifest conversion failed: %d %s: %s",
-			resp.StatusCode, resp.Status, body)
+		return nil, githubRespError("manifest conversion", resp)
 	}
 
 	creds := &githubAppCreds{}

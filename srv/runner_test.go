@@ -77,6 +77,19 @@ func TestRunQueuedBuildsRecordsFailure(t *testing.T) {
 	require.Equal(t, "", build.Digest)
 }
 
+func TestRecordOutcomeSurvivesShutdown(t *testing.T) {
+	ctx := setupDB(t)
+	queueTestBuild(t, ctx, "app")
+	claimed, err := claimBuild(ctx)
+	require.NoError(t, err)
+
+	shutdown, cancel := context.WithCancel(ctx)
+	cancel()
+	recordOutcome(shutdown, &FinishBuild{ID: claimed.ID, Image: "i", Digest: "d"})
+
+	require.Equal(t, "succeeded", loadBuild(t, ctx, claimed.ID).Status)
+}
+
 func TestRunQueuedBuildsExitsOnCancel(t *testing.T) {
 	ctx := setupDB(t)
 

@@ -271,9 +271,10 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
   pushes. Bump vocab: `BumpAny/Patch/Minor/Major` (flags `-p`/`-m`/`--major`).
   `collection.go` recovers history from git tags. `dateref`/`timeref` subpackages parse
   the datestamp/timestamp ref formats.
-- `git/` — the repo's one git-exec boundary: `git.Context` runs git for a project,
-  caching current branch and tracking remote via `sync.OnceValues`; `git.IsRoot` is the
-  repo-root probe init's validation uses. Version tags are annotated and pushed once,
+- `git/` — the repo's one git-exec boundary: `git.Run` executes git in any directory
+  (srv's repo-prep drives mirrors/worktrees through it); `git.Context` runs git for a
+  project, caching current branch and tracking remote via `sync.OnceValues`;
+  `git.IsRoot` is the repo-root probe init's validation uses. Version tags are annotated and pushed once,
   non-forcefully — git holds only immutable version tags; the moving `latest` reference
   is a registry concern, not a force-pushed tag.
 - `gitops/dsl/` — manifest patch DSL (Slices D1–D2): a hermetic, line-oriented directive
@@ -314,8 +315,8 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
   in the single-row `github_app` table (secrets encrypted via fx `secret`, SECRET var;
   SERVER_URL / GITHUB_URL / GITHUB_API_URL config in `srv/setup.go`). Webhook ingest
   (`srv/webhooks.go`): `POST /api/webhooks/github` verifies the HMAC signature and
-  records a queued `builds` row per pushed `refs/tags/v*` tag — recording only, no
-  execution yet. Repo-prep (`srv/repoprep.go`): `PrepRepo` keeps a full bare mirror at
+  records a queued `builds` row per pushed `refs/tags/v*` tag; the build runner below
+  consumes the queue. Repo-prep (`srv/repoprep.go`): `PrepRepo` keeps a full bare mirror at
   `<CACHE_DIR>/git/<owner>/<repo>.git` (clone --mirror once, then fetch under a flock —
   never shallow), resolves the input sha to a full commit sha, and adds a per-build
   worktree at `<CACHE_DIR>/work/<build-id>/`; `RemoveWorkTree` cleans it up post-build

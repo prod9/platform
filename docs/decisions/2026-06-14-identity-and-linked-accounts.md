@@ -19,8 +19,10 @@ provider_id)`. Rules:
   links; username lives in `metadata`).
 - `kind` separates `login` providers from `service` links; the adapter declares capability.
 - Tokens in `metadata` are encrypted at rest (same key as secrets).
-- Auth providers sit behind an `IdentityProvider` interface; authz is internal-user +
-  claim→role mapping, never hardcoded to GitHub.
+- Auth providers sit behind an `IdentityProvider` interface, never hardcoded to GitHub.
+  *(The original "claim→role mapping" authz clause is superseded: platform holds zero
+  RBAC — see
+  [platform-server-github-app-zero-rbac](2026-06-29-platform-server-github-app-zero-rbac.md).)*
 - Platform issues its own session token; downstream consumes platform identity.
 - Same **verified** email across **trusted** providers auto-links to one user; a per-provider
   `trust` + `email_verified` flag gates it.

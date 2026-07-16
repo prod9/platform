@@ -55,13 +55,24 @@ func currentUser(req *http.Request) (*User, error) {
 	return user, nil
 }
 
-func me(resp http.ResponseWriter, req *http.Request) {
+// requireUser gates a handler on a live session: it resolves the current user or
+// writes the failure response (401 no session, 500 otherwise) itself — ok=false means
+// the response is already sent and the handler must return.
+func requireUser(resp http.ResponseWriter, req *http.Request) (*User, bool) {
 	user, err := currentUser(req)
 	if errors.Is(err, ErrNoSession) {
 		render.Error(resp, req, 401, httperrors.ErrUnauthorized)
-		return
+		return nil, false
 	} else if err != nil {
 		render.Error(resp, req, 500, err)
+		return nil, false
+	}
+	return user, true
+}
+
+func me(resp http.ResponseWriter, req *http.Request) {
+	user, ok := requireUser(resp, req)
+	if !ok {
 		return
 	}
 
@@ -87,11 +98,7 @@ type buildResponse struct {
 }
 
 func listBuilds(resp http.ResponseWriter, req *http.Request) {
-	if _, err := currentUser(req); errors.Is(err, ErrNoSession) {
-		render.Error(resp, req, 401, httperrors.ErrUnauthorized)
-		return
-	} else if err != nil {
-		render.Error(resp, req, 500, err)
+	if _, ok := requireUser(resp, req); !ok {
 		return
 	}
 

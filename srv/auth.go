@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -160,6 +159,16 @@ func githubLoginCallback(resp http.ResponseWriter, req *http.Request) {
 		Secure:   true,
 		SameSite: http.SameSiteLaxMode,
 	})
+	// the state cookie is single-use; a successful callback consumes it.
+	http.SetCookie(resp, &http.Cookie{
+		Name:     oauthStateCookie,
+		Value:    "",
+		Path:     "/api/auth",
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+	})
 	render.Redirect(resp, req, "/")
 }
 
@@ -215,9 +224,7 @@ func exchangeOAuthCode(ctx context.Context, client *http.Client, githubURL, clie
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<10))
-		return "", fmt.Errorf("srv: oauth code exchange failed: %d %s: %s",
-			resp.StatusCode, resp.Status, body)
+		return "", githubRespError("oauth code exchange", resp)
 	}
 
 	token := oauthTokenResponse{}
@@ -257,9 +264,7 @@ func fetchGitHubUser(ctx context.Context, client *http.Client, apiURL, token str
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<10))
-		return nil, fmt.Errorf("srv: fetching github user failed: %d %s: %s",
-			resp.StatusCode, resp.Status, body)
+		return nil, githubRespError("fetching github user", resp)
 	}
 
 	account := &githubAccount{}
@@ -281,6 +286,17 @@ type UpsertGitHubUser struct {
 }
 
 func (u *UpsertGitHubUser) Execute(ctx context.Context, out any) error {
+	err := u.upsertOnce(ctx, out)
+	if isUniqueViolation(err) {
+		// two concurrent first logins raced on the identity insert; the loser's
+		// transaction rolled back, and the winner's row is committed now, so a second
+		// pass resolves to it.
+		return u.upsertOnce(ctx, out)
+	}
+	return err
+}
+
+func (u *UpsertGitHubUser) upsertOnce(ctx context.Context, out any) error {
 	cfg := config.FromContext(ctx)
 	token, err := secret.Hide(cfg, u.Token)
 	if err != nil {
@@ -316,6 +332,36 @@ func (u *UpsertGitHubUser) Execute(ctx context.Context, out any) error {
 
 		return scope.Get(out, `SELECT * FROM users WHERE id = $1`, userID)
 	})
+}
+
+// errNoUserGitHubToken reports a user whose github identity carries no stored token —
+// state predating token storage; logging in again recreates it.
+var errNoUserGitHubToken = errors.New("srv: no stored github token — log in again via /api/auth/github")
+
+// loadUserGitHubToken retrieves the user's stored user-to-server token from their
+// github identity's metadata, where UpsertGitHubUser hid it.
+func loadUserGitHubToken(ctx context.Context, userID int64) (string, error) {
+	var metadata string
+	err := data.Get(ctx, &metadata, `
+		SELECT metadata::text FROM identities
+		WHERE user_id = $1 AND provider = 'github'`, userID)
+	if data.IsNoRows(err) {
+		return "", errNoUserGitHubToken
+	} else if err != nil {
+		return "", err
+	}
+
+	stored := struct {
+		Token string `json:"token"`
+	}{}
+	if err := json.Unmarshal([]byte(metadata), &stored); err != nil {
+		return "", err
+	}
+	if stored.Token == "" {
+		return "", errNoUserGitHubToken
+	}
+
+	return secret.Reveal(config.FromContext(ctx), stored.Token)
 }
 
 // CreateSession records a platform session. The client keeps the raw token in the

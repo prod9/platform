@@ -50,6 +50,7 @@ func TestMigrationsUsersAndIdentities(t *testing.T) {
 
 func setupDB(t *testing.T) context.Context {
 	skipWithoutPostgres(t)
+	t.Setenv("SECRET", "the cake is a lie")
 	ctx := fxtest.ConnectTestDatabase(t)
 
 	m := migrator.New(data.FromContext(ctx), migrator.FromFS(migrations))

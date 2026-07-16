@@ -185,11 +185,15 @@ func loginCallback(t *testing.T, router chi.Router, ctx context.Context) *http.C
 
 	require.Equal(t, http.StatusTemporaryRedirect, resp.Code)
 	require.Equal(t, "/", resp.Header().Get("Location"))
+
+	state := responseCookie(t, resp, oauthStateCookie)
+	require.Empty(t, state.Value, "a successful callback must clear the state cookie")
+	require.Negative(t, state.MaxAge)
+
 	return responseCookie(t, resp, sessionCookie)
 }
 
 func TestGitHubCallbackCreatesUserIdentityAndSession(t *testing.T) {
-	t.Setenv("SECRET", "the cake is a lie")
 	ctx := setupDB(t)
 	stubGitHubApp(t, &GitHubApp{ClientID: testClientID, ClientSecret: testClientSecret}, nil)
 	github := stubGitHubOAuth(t)
@@ -255,7 +259,6 @@ func TestGitHubCallbackCreatesUserIdentityAndSession(t *testing.T) {
 }
 
 func TestGitHubCallbackSecondLoginReusesUser(t *testing.T) {
-	t.Setenv("SECRET", "the cake is a lie")
 	ctx := setupDB(t)
 	stubGitHubApp(t, &GitHubApp{ClientID: testClientID, ClientSecret: testClientSecret}, nil)
 	github := stubGitHubOAuth(t)
@@ -282,6 +285,51 @@ func TestGitHubCallbackSecondLoginReusesUser(t *testing.T) {
 	require.Equal(t, 1, counts.Users)
 	require.Equal(t, 1, counts.Identities)
 	require.Equal(t, 2, counts.Sessions)
+}
+
+// TestUpsertGitHubUserFirstLoginRace simulates two concurrent first logins: a manual
+// transaction plays the winner — its user+identity stay uncommitted while the loser's
+// Execute starts, so the loser's SELECT misses the identity, takes the insert path,
+// and hits the unique violation once the winner commits. Covers Execute's retry
+// resolving to the winner's user. (If the loser's SELECT ever runs after the commit it
+// degrades to the plain found path — still green, just not exercising the retry.)
+func TestUpsertGitHubUserFirstLoginRace(t *testing.T) {
+	ctx := setupDB(t)
+
+	winner, err := data.FromContext(ctx).Beginx()
+	require.NoError(t, err)
+	var winnerID int64
+	require.NoError(t, winner.Get(&winnerID,
+		`INSERT INTO users (name) VALUES ('octocat') RETURNING id`))
+	_, err = winner.Exec(`
+		INSERT INTO identities (user_id, provider, provider_id, kind)
+		VALUES ($1, 'github', '12345', 'login')`, winnerID)
+	require.NoError(t, err)
+
+	loser := &UpsertGitHubUser{
+		Account: githubAccount{ID: 12345, Login: "octocat"},
+		Token:   testAccessToken,
+	}
+	user := &User{}
+	done := make(chan error, 1)
+	go func() { done <- loser.Execute(ctx, user) }()
+
+	time.Sleep(50 * time.Millisecond) // let Execute block on the identity insert
+	require.NoError(t, winner.Commit())
+
+	require.NoError(t, <-done)
+	require.Equal(t, winnerID, user.ID)
+
+	var counts struct {
+		Users      int `db:"users"`
+		Identities int `db:"identities"`
+	}
+	require.NoError(t, data.Get(ctx, &counts, `
+		SELECT
+			(SELECT count(*) FROM users) AS users,
+			(SELECT count(*) FROM identities) AS identities`))
+	require.Equal(t, 1, counts.Users)
+	require.Equal(t, 1, counts.Identities)
 }
 
 func TestLogoutInvalidatesSession(t *testing.T) {

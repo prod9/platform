@@ -151,6 +151,17 @@ func TestWebhookPingIsNoOp(t *testing.T) {
 	require.Equal(t, http.StatusOK, resp.Code)
 }
 
+func TestWebhookMalformedPushBody(t *testing.T) {
+	stubGitHubApp(t, &GitHubApp{WebhookSecret: testWebhookSecret}, nil)
+	router := webhookRouter(t)
+
+	resp := httptest.NewRecorder()
+	body := `{"ref": "refs/tags/v1"` // truncated JSON, correctly signed
+	router.ServeHTTP(resp, webhookRequest("push", body, signBody(testWebhookSecret, body)))
+
+	require.Equal(t, http.StatusBadRequest, resp.Code)
+}
+
 func TestWebhookBranchPushIsNoOp(t *testing.T) {
 	stubGitHubApp(t, &GitHubApp{WebhookSecret: testWebhookSecret}, nil)
 	router := webhookRouter(t)
@@ -162,7 +173,6 @@ func TestWebhookBranchPushIsNoOp(t *testing.T) {
 }
 
 func TestWebhookTagPushCreatesBuild(t *testing.T) {
-	t.Setenv("SECRET", "the cake is a lie")
 	ctx := setupDB(t)
 	require.NoError(t, (&SaveGitHubApp{WebhookSecret: testWebhookSecret}).Execute(ctx, nil))
 
@@ -199,7 +209,6 @@ func TestWebhookTagPushCreatesBuild(t *testing.T) {
 }
 
 func TestWebhookBranchPushCreatesNoBuild(t *testing.T) {
-	t.Setenv("SECRET", "the cake is a lie")
 	ctx := setupDB(t)
 	require.NoError(t, (&SaveGitHubApp{WebhookSecret: testWebhookSecret}).Execute(ctx, nil))
 

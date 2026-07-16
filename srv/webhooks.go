@@ -1,7 +1,6 @@
 package srv
 
 import (
-	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
@@ -12,7 +11,6 @@ import (
 	"strings"
 
 	"fx.prodigy9.co/config"
-	"fx.prodigy9.co/data"
 	"fx.prodigy9.co/httpserver/controllers"
 	"fx.prodigy9.co/httpserver/render"
 	"github.com/go-chi/chi/v5"
@@ -131,22 +129,6 @@ func buildForPush(ev pushEvent) *CreateBuild {
 		Tag:      tag,
 		SHA:      ev.After,
 	}
-}
-
-// CreateBuild records a queued build row for a pushed version tag.
-type CreateBuild struct {
-	Owner    string
-	Repo     string
-	CloneURL string
-	Tag      string
-	SHA      string
-}
-
-func (c *CreateBuild) Execute(ctx context.Context, out any) error {
-	return data.Exec(ctx, `
-		INSERT INTO builds (owner, repo, clone_url, tag, sha)
-		VALUES ($1, $2, $3, $4, $5)`,
-		c.Owner, c.Repo, c.CloneURL, c.Tag, c.SHA)
 }
 
 type webhookReceipt struct {

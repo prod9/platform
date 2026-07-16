@@ -6,14 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strings"
 
 	"fx.prodigy9.co/config"
 	"fx.prodigy9.co/httpserver/controllers"
-	"fx.prodigy9.co/httpserver/httperrors"
 	"fx.prodigy9.co/httpserver/render"
 	"github.com/go-chi/chi/v5"
 )
@@ -21,6 +19,10 @@ import (
 // ErrWebhookExists reports a repo that already carries the hook config GitHub was
 // asked to create; GitHub answers a duplicate with a 422.
 var ErrWebhookExists = errors.New("srv: flux webhook already configured")
+
+// errNoRepoPush reports a repo the session user cannot push to — GitHub answers a repo
+// the user cannot even see with a 404, so both fail the same way.
+var errNoRepoPush = errors.New("srv: no push access to repo")
 
 // FluxWebhook closes the flux-webhook ADR's manual GitHub-side step: it points a
 // repo's webhook at the cluster's Flux Receiver so a GHCR publish pokes the
@@ -37,11 +39,8 @@ func (FluxWebhook) Mount(cfg *config.Source, router chi.Router) error {
 func configureFluxWebhook(resp http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 
-	if _, err := currentUser(req); errors.Is(err, ErrNoSession) {
-		render.Error(resp, req, 401, httperrors.ErrUnauthorized)
-		return
-	} else if err != nil {
-		render.Error(resp, req, 500, err)
+	user, ok := requireUser(resp, req)
+	if !ok {
 		return
 	}
 
@@ -61,6 +60,28 @@ func configureFluxWebhook(resp http.ResponseWriter, req *http.Request) {
 	}
 	if err := controllers.ReadAction(req, action); err != nil {
 		render.Error(resp, req, 400, err)
+		return
+	}
+
+	// the hook is created with an installation token, which carries no notion of the
+	// session user — so their write access is checked explicitly first (spec §Two
+	// token types).
+	userToken, err := loadUserGitHubToken(ctx, user.ID)
+	if errors.Is(err, errNoUserGitHubToken) {
+		render.Error(resp, req, 403, err)
+		return
+	} else if err != nil {
+		render.Error(resp, req, 500, err)
+		return
+	}
+
+	apiURL := config.Get(config.FromContext(ctx), GitHubAPIURLConfig)
+	switch err := checkRepoPush(ctx, http.DefaultClient, apiURL, userToken, action.Owner, action.Repo); {
+	case errors.Is(err, errNoRepoPush):
+		render.Error(resp, req, 403, err)
+		return
+	case err != nil:
+		render.Error(resp, req, 502, err)
 		return
 	}
 
@@ -160,9 +181,48 @@ func (c *ConfigureFluxWebhook) Execute(ctx context.Context, out any) error {
 	case resp.StatusCode == http.StatusUnprocessableEntity:
 		return fmt.Errorf("%w on %s/%s", ErrWebhookExists, c.Owner, c.Repo)
 	case resp.StatusCode != http.StatusCreated:
-		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<10))
-		return fmt.Errorf("srv: creating flux webhook failed: %d %s: %s",
-			resp.StatusCode, resp.Status, respBody)
+		return githubRespError("creating flux webhook", resp)
+	}
+	return nil
+}
+
+// repoAccess is the subset of GET /repos/{owner}/{repo} the access check reads; the
+// permissions block reflects the requesting token's user.
+type repoAccess struct {
+	Permissions struct {
+		Push bool `json:"push"`
+	} `json:"permissions"`
+}
+
+// checkRepoPush verifies the token's user can push to owner/repo. No push permission,
+// or a repo the token cannot see at all (404), is errNoRepoPush.
+func checkRepoPush(ctx context.Context, client *http.Client, apiURL, token, owner, repo string) error {
+	repoURL := strings.TrimSuffix(apiURL, "/") + "/repos/" + owner + "/" + repo
+	req, err := http.NewRequestWithContext(ctx, "GET", repoURL, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	switch {
+	case resp.StatusCode == http.StatusNotFound:
+		return fmt.Errorf("%w: %s/%s", errNoRepoPush, owner, repo)
+	case resp.StatusCode != http.StatusOK:
+		return githubRespError("repo access check", resp)
+	}
+
+	access := repoAccess{}
+	if err := json.NewDecoder(resp.Body).Decode(&access); err != nil {
+		return err
+	}
+	if !access.Permissions.Push {
+		return fmt.Errorf("%w: %s/%s", errNoRepoPush, owner, repo)
 	}
 	return nil
 }

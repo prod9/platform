@@ -4,14 +4,13 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
-	"strings"
 	"syscall"
 
 	"fx.prodigy9.co/config"
+	"platform.prodigy9.co/git"
 )
 
 // CacheDirConfig roots the server's persistent clone cache (spec §Cache layout):
@@ -42,7 +41,7 @@ func (p *PrepRepo) Run(ctx context.Context) (workDir string, resolvedSHA string,
 		return "", "", err
 	}
 
-	resolvedSHA, err = runGit(ctx, mirror, "rev-parse", p.SHA+"^{commit}")
+	resolvedSHA, err = git.Run(ctx, mirror, "rev-parse", p.SHA+"^{commit}")
 	if err != nil {
 		return "", "", err
 	}
@@ -51,7 +50,7 @@ func (p *PrepRepo) Run(ctx context.Context) (workDir string, resolvedSHA string,
 	if err := os.MkdirAll(filepath.Dir(workDir), 0o755); err != nil {
 		return "", "", err
 	}
-	if _, err := runGit(ctx, mirror, "worktree", "add", "--detach", workDir, resolvedSHA); err != nil {
+	if _, err := git.Run(ctx, mirror, "worktree", "add", "--detach", workDir, resolvedSHA); err != nil {
 		return "", "", err
 	}
 	return workDir, resolvedSHA, nil
@@ -70,13 +69,13 @@ func (p *PrepRepo) syncMirror(ctx context.Context, mirror string) error {
 	defer lock.Close()
 
 	if _, err := os.Stat(mirror); os.IsNotExist(err) {
-		_, err := runGit(ctx, filepath.Dir(mirror), "clone", "--mirror", p.CloneURL, mirror)
+		_, err := git.Run(ctx, filepath.Dir(mirror), "clone", "--mirror", p.CloneURL, mirror)
 		return err
 	} else if err != nil {
 		return err
 	}
 
-	_, err = runGit(ctx, mirror, "fetch", "--prune", "origin")
+	_, err = git.Run(ctx, mirror, "fetch", "--prune", "origin")
 	return err
 }
 
@@ -92,10 +91,10 @@ type RemoveWorkTree struct {
 func (r *RemoveWorkTree) Run(ctx context.Context) error {
 	mirror := mirrorPath(r.CacheDir, r.Owner, r.Repo)
 
-	if _, err := runGit(ctx, mirror, "worktree", "remove", "--force", workPath(r.CacheDir, r.BuildID)); err != nil {
+	if _, err := git.Run(ctx, mirror, "worktree", "remove", "--force", workPath(r.CacheDir, r.BuildID)); err != nil {
 		return err
 	}
-	_, err := runGit(ctx, mirror, "worktree", "prune")
+	_, err := git.Run(ctx, mirror, "worktree", "prune")
 	return err
 }
 
@@ -131,18 +130,4 @@ func lockFile(path string) (*os.File, error) {
 		return nil, fmt.Errorf("srv: flock %s: %w", path, err)
 	}
 	return file, nil
-}
-
-func runGit(ctx context.Context, dir string, args ...string) (string, error) {
-	outbuf, errbuf := &strings.Builder{}, &strings.Builder{}
-
-	cmd := exec.CommandContext(ctx, "git", args...)
-	cmd.Dir = dir
-	cmd.Stdout, cmd.Stderr = outbuf, errbuf
-	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("srv: git %s: %w: %s",
-			strings.Join(args, " "), err, strings.TrimSpace(errbuf.String()))
-	}
-
-	return strings.TrimSpace(outbuf.String()), nil
 }

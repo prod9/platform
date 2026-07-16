@@ -9,7 +9,7 @@
 > exchange), storing the App credentials encrypted in the single-row `github_app` table.
 > Webhook ingest is implemented: `POST /api/webhooks/github` verifies the App webhook
 > HMAC signature and records a queued `builds` row for each pushed version tag
-> (`refs/tags/v*`, not deleted) — recording only, nothing executes a queued build yet.
+> (`refs/tags/v*`, not deleted); the build runner below consumes the queue.
 > Repo-prep is implemented (`srv/repoprep.go`): `PrepRepo` maintains the full bare
 > mirror under a per-repo flock, resolves the sha, and adds the per-build worktree
 > (§Repo preparation below); `RemoveWorkTree` is the post-build cleanup; cache root via
@@ -57,8 +57,8 @@ can reuse it.
 Go module (`platform.prodigy9.co`); the shared packages, `cmd`, and `srv` are conceptual
 layers (flat packages at the repo root — no `core/` grab-bag, see
 [architecture.md](architecture.md)), not separate `go.mod`s. The dependency rule is
-one-directional and lint-enforced once `srv/` lands: **the shared packages are the leaves
-and must never import server
+one-directional, guarded by a boundary test (`srv/boundary_test.go`): **the shared
+packages are the leaves and must never import server
 concerns** — no `fx/data`/`sqlx`/migrations, no `net/http` server, no auth, no knowledge
 that `srv` exists.
 
