@@ -229,9 +229,11 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
     only — ownership lives with the readers.
   - The `Infra` framework installs the cluster baseline: files destination-encoded by name
     (`apps-*` → `apps/`, `defaults-*` → `defaults/`, else repo root), `DefaultVars` =
-    version pins + per-deployment values (ingress hostnames, reserved LB IPv4 — set before
-    the gateway ever applies; empty 400s the CCM). Components own their hostnames via
-    `ListenerSet`s; the baseline ships a host-agnostic `Gateway` app + ACME cluster-issuer
+    version pins + ingress hostnames. The baseline is **provider-neutral** — no cloud
+    annotations/vars ever ship; provider LB wiring is the infra repo's own edit (see the
+    [provider-neutral ADR](docs/decisions/2026-07-16-baseline-is-provider-neutral.md)).
+    Components own their hostnames via `ListenerSet`s; the baseline ships a host-agnostic
+    `Gateway` app + ACME cluster-issuer
     (`MaintainerEmail` hole). It installs **unconditionally** — no install-time picker; registry
     creds ship as empty placeholders in committed CUE, never prompted. It seeds
     `strategy = "rolling"` and needs a fresh git repo — no `IsInfra` predicate anywhere,

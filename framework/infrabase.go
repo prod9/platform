@@ -37,13 +37,6 @@ var DefaultVars = map[string]any{
 	"NGINX_GATEWAY_VERSION": "v2.6.0",
 	"GATEWAY_API_VERSION":   "v1.5.1",
 
-	// Reserved NodeBalancer IPv4. The CCM honors the annotation only at Service CREATION —
-	// set this (or delete the directive) BEFORE the Gateway first applies; retrofitting does
-	// nothing and the fix is delete/recreate. An empty value 400s the CCM (observed live) —
-	// never apply the rendered gateway with this unset. (No firewall-id var: that
-	// annotation was excised as a dead path; terraform attaches the firewall NB-side.)
-	"NGINX_GATEWAY_RESERVED_IPV4": "",
-
 	// Per-deployment ingress hosts (render-time @tag holes): the platform server's own vanity
 	// host and the Flux webhook-receiver route. prod9 self-host defaults; operators edit.
 	"PLATFORM_HOSTNAME": "platform.prodigy9.co",

@@ -201,12 +201,12 @@ spec:
 	got := string(emitted)
 	r.Contains(t, got, "kind: Namespace")
 
-	// The controller must run with the ListenerSets gate or cert-manager's gateway-shim
-	// ignores every ListenerSet and HTTPS is dead for the whole distributed-hosts shape.
-	// The webhook deployment must NOT pick up the controller's flag.
-	r.Contains(t, got, "--feature-gates=ListenerSets=true")
-	r.Equal(t, 1, strings.Count(got, "--feature-gates=ListenerSets=true"),
-		"the gate belongs to the controller deployment only")
+	// The controller must reconcile Gateways AND ListenerSets or no per-host cert ever
+	// issues for the distributed-hosts baseline. Both flags land on the controller
+	// deployment only — the webhook must not pick them up.
+	for _, flag := range []string{"- --enable-gateway-api\n", "- --enable-gateway-api-listenerset=true\n"} {
+		r.Equal(t, 1, strings.Count(got, flag), "%s belongs on the controller deployment only", flag)
+	}
 }
 
 // TestEmbeddedNginxGateway runs the embedded NGF directive end to end with a fixture
@@ -254,15 +254,9 @@ func TestEmbeddedNginxGateway(t *testing.T) {
 	got := string(ngf)
 
 	r.Contains(t, got, `serverTokens: "off"`)
-	// The firewall-id annotation is excised: it 400s the CCM when empty, never took on
-	// dev-main, and prod9-main attaches the firewall NB-side via terraform. Operators
-	// with a working CCM path add the directive themselves.
-	r.NotContains(t, got, "linode-loadbalancer-firewall-id")
-	// The reserved-IP slot must reach the generated LB Service at creation — the CCM reads
-	// it only then (not retrofittable; fix = delete/recreate the Gateway). Empty default:
-	// operators set it (or delete the directive) before the Gateway first applies.
-	r.Contains(t, got, `linode-loadbalancer-reserved-ipv4: ""`)
-	r.Contains(t, got, "type: StrategicMerge")
+	// The shipped baseline is provider-neutral: cloud-specific LB annotations (Linode
+	// reserved-ipv4, firewall-id, …) are the infra repo's own edit, never scaffolded.
+	r.NotContains(t, got, "linode")
 }
 
 // TestEmbeddedFluxReceiver locks push-driven delivery into the baseline: the scaffolded

@@ -25,3 +25,6 @@ detail rather than inlining it. Update in place.
   the legacy → pull-based v2 rework.
 - [`cluster-bringup.md`](cluster-bringup.md) — fresh cluster → live platformv2 baseline:
   scaffold, wire values, bootstrap apply, gateway/DNS, first publish, webhook, verify.
+- [`authoring-platform-dsl.md`](authoring-platform-dsl.md) — writing `.platform` files:
+  execution model, the `set` family, and the no-conditionals patterns (provider wiring is
+  the consuming repo's edit; required values via undefined-var hard errors).

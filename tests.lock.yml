@@ -273,7 +273,6 @@
             - '  FLUX_HOSTNAME = "flux.prodigy9.co"'
             - '  FLUX_VERSION = "v2.8.8"'
             - '  GATEWAY_API_VERSION = "v1.5.1"'
-            - '  NGINX_GATEWAY_RESERVED_IPV4 = ""'
             - '  NGINX_GATEWAY_VERSION = "v2.6.0"'
             - '  PLATFORM_HOSTNAME = "platform.prodigy9.co"'
             - '-----END platform.toml-----'
@@ -283,7 +282,7 @@
             - '-----BEGIN platform-----'
             - '#!/bin/sh'
             - ""
-            - PLATFORM_VERSION="v0.9.2"
+            - PLATFORM_VERSION="v0.9.3"
             - ""
             - go run "platform.prodigy9.co@$PLATFORM_VERSION" "$@"
             - '-----END platform-----'

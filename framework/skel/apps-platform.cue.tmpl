@@ -54,6 +54,10 @@ platform: {
 	}
 
 	let server = packs.#WebApp & {
+		// The pack's ListenerSet references <host>-tls secrets; the issuer annotation is
+		// what makes cert-manager materialize them.
+		parts.#UseCertManager
+
 		#name:         "platform"
 		#ns:           nsp.#name
 		#image:        "ghcr.io/prod9/platform:latest"
