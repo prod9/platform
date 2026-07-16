@@ -298,7 +298,7 @@ emit     "some-operator.yaml"
 
 ## Implementation
 
-The DSL lives in `dsl/` (path-walk, the in-buffer verbs, lexer, directive parser, and the
+The DSL lives in `gitops/dsl/` (path-walk, the in-buffer verbs, lexer, directive parser, and the
 I/O verbs `download`/`extract`/`emit` with `\(var)` interpolation). `[vars]` reaches it
 verbatim as `Options.Vars` — `project.Vars` is a `map[string]any` stored with no
 defaults or per-software fields (see the

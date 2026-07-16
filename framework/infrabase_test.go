@@ -11,7 +11,7 @@ import (
 	"cuelang.org/go/cue"
 	"cuelang.org/go/mod/modfile"
 	r "github.com/stretchr/testify/require"
-	"platform.prodigy9.co/dsl"
+	"platform.prodigy9.co/gitops/dsl"
 	"platform.prodigy9.co/framework/scaffold"
 	"platform.prodigy9.co/project"
 )

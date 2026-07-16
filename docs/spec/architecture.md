@@ -66,7 +66,7 @@ needs (`Excludes`, `Repository`), so the build stage stays self-contained.
 Every package is named for a responsibility. `core/`, `util/`, `common/`, `helpers/`,
 `misc/` are banned (general-coding) — they absorb anything vaguely shareable and rot.
 Domain packages live at the top level by their own name: `framework/`, `gitops/`,
-`dsl/`, `engine/` — never nested under a `core/` catch-all.
+`engine/` — never nested under a `core/` catch-all.
 
 ## Package layout (target)
 
@@ -95,7 +95,7 @@ graph `project ← framework/scaffold ← framework ← cmd`:
   each attempt's units across them.
 - `gitops/` — infra **render** only (CUE/`.platform` → manifest `Tree`). Publishing is the
   ordinary `publish` path now that infra is a framework; the oras packer is retired.
-- `dsl/`, `releases/`, `git/` (formerly `gitctx/`+`gitcmd/`), `internal/` — unchanged in role.
+- `gitops/dsl/`, `releases/`, `git/` (formerly `gitctx/`+`gitcmd/`), `internal/` — unchanged in role.
 
 The former `baseline/` and top-level `scaffold/` packages are **absorbed**, not surviving
 packages: `baseline/`'s templating folds into `framework/scaffold/` and its embedded infra

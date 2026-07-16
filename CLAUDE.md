@@ -249,7 +249,7 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
   repo-root probe init's validation uses. Version tags are annotated and pushed once,
   non-forcefully — git holds only immutable version tags; the moving `latest` reference
   is a registry concern, not a force-pushed tag.
-- `dsl/` — manifest patch DSL (Slices D1–D2): a hermetic, line-oriented directive
+- `gitops/dsl/` — manifest patch DSL (Slices D1–D2): a hermetic, line-oriented directive
   language for adapting foreign Kubernetes manifests. `Apply(directives, Options)` runs
   directives against a two-state buffer (raw bytes after `download`/`extract`, decoded
   lazily when an edit or `emit` needs docs); `Lex` tokenizes shell-style into `Token`s,

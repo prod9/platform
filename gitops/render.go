@@ -18,7 +18,7 @@ import (
 	"cuelang.org/go/mod/modconfig"
 	"gopkg.in/yaml.v3"
 	"platform.prodigy9.co/cuemod"
-	"platform.prodigy9.co/dsl"
+	"platform.prodigy9.co/gitops/dsl"
 	"platform.prodigy9.co/project"
 )
 
