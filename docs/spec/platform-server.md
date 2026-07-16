@@ -2,8 +2,10 @@
 
 > **Target design — skeleton implemented.** A `srv/` tree now exists: the router +
 > `platform serve` command and the embedded `webui/` seam (placeholder page,
-> `GET /api/health`) — no DB, GitHub App, webhooks, or engine wiring yet; those land in
-> later slices per this spec. It is the **second driver** of the one-publish-engine model — the tag-watch
+> `GET /api/health`) + DB (users/identities per the
+> [identity ADR](../decisions/2026-06-14-identity-and-linked-accounts.md)), migrations
+> embedded in `srv/`, run at boot — no GitHub App, webhooks, or engine wiring yet; those
+> land in later slices per this spec. It is the **second driver** of the one-publish-engine model — the tag-watch
 > server that invokes the same build+push engine the local CLI drives today (see
 > [delivery-verbs-are-orthogonal](../decisions/2026-07-05-delivery-verbs-are-orthogonal.md)
 > and the one-engine-two-drivers model in [engine.md](engine.md)). The frozen ruling

@@ -302,8 +302,12 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
   [plain-image ADR](docs/decisions/2026-07-05-infra-publishes-as-plain-image-retire-oras.md)).
 - `srv/` — the platform server layer: API + webhook processor above the shared packages
   ([spec/platform-server.md](docs/spec/platform-server.md)). Skeleton today: a chi router
-  (fx `Configure` + `LogRequests`, no data middleware — DB is a later slice) serving the
-  embedded web UI at `/` and `GET /api/health`; started by `platform serve`. Logs via
+  (fx `Configure` + `LogRequests`) serving the embedded web UI at `/` and
+  `GET /api/health`; started by `platform serve`. `Serve` owns the DB boot — connect
+  (DATABASE_URL required, fail-fast), run the embedded `srv/*.sql` migrations
+  (users/identities per the [identity ADR](docs/decisions/2026-06-14-identity-and-linked-accounts.md)),
+  then wrap the router in fx's data-context middleware; `Router` stays DB-free so its
+  tests run without postgres (DB tests skip when DATABASE_URL is unset). Logs via
   `fxlog`, never `buildlog`. Only `cmd` may import `srv` — the shared packages stay
   srv-free.
 - `webui/` — the built web UI assets (`Assets`, `//go:embed all:build`); the SvelteKit

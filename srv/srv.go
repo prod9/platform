@@ -4,6 +4,7 @@
 package srv
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"time"
@@ -27,8 +28,20 @@ func Serve() error {
 		return err
 	}
 
+	db, err := connectDB(cfg)
+	if err != nil {
+		return err
+	}
+	if err := migrate(context.Background(), db); err != nil {
+		return err
+	}
+	if err := db.Close(); err != nil { // boot pool done; AddDataContext owns the serving pool
+		return err
+	}
+	handler := middlewares.AddDataContext(cfg)(router)
+
 	listenAddr := config.Get(cfg, httpserver.ListenAddrConfig)
-	server := &http.Server{Addr: listenAddr, Handler: router}
+	server := &http.Server{Addr: listenAddr, Handler: handler}
 	ctrlc.Do(func() { server.Close() })
 
 	fxlog.Log("listening", fxlog.String("addr", listenAddr))
@@ -39,8 +52,8 @@ func Serve() error {
 }
 
 // Router builds the server's routes on a fresh chi router; Serve listens with it and
-// tests drive it directly. Middlewares deliberately omit fx's AddDataContext — the
-// server must start without a DATABASE_URL until the DB slice lands.
+// tests drive it directly. Router stays pure routing — DB wiring (connect, migrate,
+// data-context middleware) is Serve's, so router tests run without postgres.
 func Router(cfg *config.Source) (chi.Router, error) {
 	router := chi.NewRouter()
 	router.Use(middlewares.Configure(cfg))
