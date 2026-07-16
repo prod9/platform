@@ -315,7 +315,11 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
   SERVER_URL / GITHUB_URL / GITHUB_API_URL config in `srv/setup.go`). Webhook ingest
   (`srv/webhooks.go`): `POST /api/webhooks/github` verifies the HMAC signature and
   records a queued `builds` row per pushed `refs/tags/v*` tag — recording only, no
-  execution yet.
+  execution yet. Repo-prep (`srv/repoprep.go`): `PrepRepo` keeps a full bare mirror at
+  `<CACHE_DIR>/git/<owner>/<repo>.git` (clone --mirror once, then fetch under a flock —
+  never shallow), resolves the input sha to a full commit sha, and adds a per-build
+  worktree at `<CACHE_DIR>/work/<build-id>/`; `RemoveWorkTree` cleans it up post-build
+  (`CACHE_DIR` config, default `/var/cache/platform`).
 - `webui/` — the built web UI assets (`Assets`, `//go:embed all:build`); the SvelteKit
   source lands alongside later, its adapter-static output in `build/` (a committed
   placeholder `index.html` for now).

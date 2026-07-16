@@ -10,9 +10,13 @@
 > Webhook ingest is implemented: `POST /api/webhooks/github` verifies the App webhook
 > HMAC signature and records a queued `builds` row for each pushed version tag
 > (`refs/tags/v*`, not deleted) — recording only, nothing executes a queued build yet.
-> No token minting, repo-prep, or engine wiring yet; those land in later slices per this
-> spec. It is the **second driver** of the one-publish-engine model — the tag-watch
-> server that invokes the same build+push engine the local CLI drives today (see
+> Repo-prep is implemented (`srv/repoprep.go`): `PrepRepo` maintains the full bare
+> mirror under a per-repo flock, resolves the sha, and adds the per-build worktree
+> (§Repo preparation below); `RemoveWorkTree` is the post-build cleanup; cache root via
+> `CACHE_DIR` (default `/var/cache/platform`). No token minting or engine wiring yet;
+> those land in later slices per this spec. It is the **second driver** of the
+> one-publish-engine model — the tag-watch server that invokes the same build+push
+> engine the local CLI drives today (see
 > [delivery-verbs-are-orthogonal](../decisions/2026-07-05-delivery-verbs-are-orthogonal.md)
 > and the one-engine-two-drivers model in [engine.md](engine.md)). The frozen ruling
 > behind the auth model lives in
