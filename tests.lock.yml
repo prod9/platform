@@ -282,7 +282,7 @@
             - '-----BEGIN platform-----'
             - '#!/bin/sh'
             - ""
-            - PLATFORM_VERSION="v0.9.11"
+            - PLATFORM_VERSION="v0.9.12"
             - ""
             - go run "platform.prodigy9.co@$PLATFORM_VERSION" "$@"
             - '-----END platform-----'

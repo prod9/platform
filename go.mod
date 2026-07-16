@@ -8,6 +8,7 @@ require (
 	fx.prodigy9.co v0.8.6
 	github.com/BurntSushi/toml v1.4.0
 	github.com/felixge/httpsnoop v1.0.4
+	github.com/go-chi/chi/v5 v5.2.2
 	github.com/lmittmann/tint v1.1.3
 	github.com/mattn/go-isatty v0.0.22
 	github.com/spf13/cobra v1.10.1
@@ -29,7 +30,6 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/emicklei/proto v1.14.2 // indirect
 	github.com/getsentry/sentry-go v0.34.1 // indirect
-	github.com/go-chi/chi/v5 v5.2.2 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/gobuffalo/flect v1.0.3 // indirect

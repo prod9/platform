@@ -193,6 +193,7 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
 | publish   | Build+publish a module's image under its strategy's tag (versioned → the release tag; `rolling` → the moving `latest` tag). |
 | release   | Create new release tag (semver/timestamp/datestamp/rolling); supports `-p/-m/--major`. |
 | clean     | Prune the local Dagger build cache (first-line cache diagnostics).|
+| serve     | Start the platform server (`srv/`): embedded web UI at `/`, API under `/api/`. |
 | vanity    | Hidden HTTP server: redirects `go get platform.prodigy9.co` to GitHub. |
 
 ### Packages
@@ -299,6 +300,15 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
   Wired as `platform render`; the `Infra` framework packs this tree into the published
   image, pushed by the ordinary `publish` (oras retired — see the
   [plain-image ADR](docs/decisions/2026-07-05-infra-publishes-as-plain-image-retire-oras.md)).
+- `srv/` — the platform server layer: API + webhook processor above the shared packages
+  ([spec/platform-server.md](docs/spec/platform-server.md)). Skeleton today: a chi router
+  (fx `Configure` + `LogRequests`, no data middleware — DB is a later slice) serving the
+  embedded web UI at `/` and `GET /api/health`; started by `platform serve`. Logs via
+  `fxlog`, never `buildlog`. Only `cmd` may import `srv` — the shared packages stay
+  srv-free.
+- `webui/` — the built web UI assets (`Assets`, `//go:embed all:build`); the SvelteKit
+  source lands alongside later, its adapter-static output in `build/` (a committed
+  placeholder `index.html` for now).
 - `internal/` — `buildlog` (build/CLI structured logger), `buildinfo` (program *output*
   rendering to stdout — results/summaries, NOT binary build info; that's
   `debug.ReadBuildInfo` at its readers, e.g. `framework.DaggerVersion`/`PlatformVersion`),

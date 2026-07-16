@@ -44,6 +44,7 @@ func init() {
 		RenderCmd,
 		PublishCmd,
 		ReleaseCmd,
+		ServeCmd,
 		VanityCmd,
 
 		fxcmd.PrintConfigCmd,
