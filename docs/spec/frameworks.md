@@ -12,15 +12,16 @@ mechanism and `cmd/init` orchestration — read [architecture.md](architecture.m
 
 A framework is a stateless value (an empty struct) implementing `framework.Framework`. It
 carries per-stack knowledge and nothing else — no config, no engine handle, no build
-state. Five methods:
+state. Six methods:
 
-| Method                            | Returns   | Role                                                      |
-| --------------------------------- | --------- | --------------------------------------------------------- |
-| `Name() string`                   | id        | Stable id (`go/basic`, `pnpm/static`, …); `[modules]` key |
-| `Layout() Layout`                 | shape     | `basic` \| `workspace` — module topology                  |
-| `Discover(wd string) bool`        | detect    | True if this stack owns `wd` (scaffold-time only)         |
-| `Scaffold(ctx, wd) scaffold.Spec`  | seed      | The framework's full contribution to a fresh repo (below) |
-| `Build(ctx, client, *BuildUnit)`  | container | Build the module → a synced `*dagger.Container`           |
+| Method                                            | Returns   | Role                                                      |
+| ------------------------------------------------- | --------- | --------------------------------------------------------- |
+| `Name() string`                                   | id        | Stable id (`go/basic`, `pnpm/static`, …); `[modules]` key |
+| `Layout() Layout`                                 | shape     | `basic` \| `workspace` — module topology                  |
+| `Discover(wd string) bool`                        | detect    | True if this stack owns `wd` (scaffold-time only)         |
+| `RequiredScaffoldInputs(wd) []string`             | inputs    | Operator inputs to prompt at init, by name (usually nil)  |
+| `Scaffold(ctx, wd, repo, dagger, inputs) Spec`    | seed      | The framework's full, **resolved** contribution (below)   |
+| `Build(ctx, client, *BuildUnit)`                  | container | Build the module → a synced `*dagger.Container`           |
 
 `Build` reads a fully-resolved `BuildUnit` (workdir, arch, env, command, asset dirs,
 image name, vars) and returns a synced container. It is handed the raw `*dagger.Client`,
@@ -29,15 +30,15 @@ only a client. `Discover` and `Scaffold` are scaffold-time: the build path reads
 `[modules]` (which pins `Name`), it never re-discovers.
 
 `Scaffold` is **rich, per-framework** — not an empty seam. It returns the framework's full
-declarative contribution to a fresh repo (`scaffold.Spec`): its `platform.toml` module, the
-default `[vars]` it seeds, the files it ships (resolved via `framework/scaffold`), the
-default `strategy` value it seeds, and whether it needs a freshly-created git repo. `cmd/init`
-gathers operator inputs, generates `platform.toml`, resolves the files' holes, and writes
-the result. There is **no `IsInfra` / app-vs-infra predicate**: `Infra.Scaffold` simply
-*does more* (it contributes the whole cluster baseline, a `strategy="rolling"` seed, and a
-create-repo need), so the app/infra distinction is pure `Scaffold` polymorphism. The
-`scaffold.Spec`/`scaffold.File` shapes and the resolve mechanism live in
-[scaffolding](scaffolding.md).
+contribution to a fresh repo (`scaffold.Spec`): its `platform.toml` module, the default
+`[vars]` it seeds, the files it ships, and the default `strategy` value it seeds. The
+framework owns resolution — which operator input fills which template hole, reading an
+existing `cue.mod` — so the files come back **resolved** and `cmd/init` gathers the inputs
+`RequiredScaffoldInputs` declares, generates `platform.toml`, and writes finished bytes.
+There is **no `IsInfra` / app-vs-infra predicate**: `Infra.Scaffold` simply *does more*
+(it contributes the whole cluster baseline and a `strategy="rolling"` seed), so the
+app/infra distinction is pure `Scaffold` polymorphism. The `scaffold.Spec`/`scaffold.File`
+shapes and the resolve mechanism live in [scaffolding](scaffolding.md).
 
 ## Layouts
 

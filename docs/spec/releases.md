@@ -95,7 +95,7 @@ commit — `* [<hash>][<repository>/commit/<hash>] <subject>`. Commits come from
 ## Tags are version tags
 
 Every tag `releases` cuts is a **version tag**: annotated (`git tag -a`, carrying the
-changelog) and pushed once, non-forcefully, to the tracking remote (`git/git.go`). A version tag is an immutable marker in history — it is never moved or
+changelog) and pushed once, non-forcefully, to the tracking remote (`git/context.go`). A version tag is an immutable marker in history — it is never moved or
 force-pushed.
 
 The non-versioned `rolling` strategy cuts **no git tag at all**. Its moving marker is the

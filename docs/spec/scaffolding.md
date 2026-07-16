@@ -5,10 +5,12 @@ code conforms; existing code migrates toward it.
 
 Scaffolding has exactly three concerns, each with one home:
 
-- **`framework/scaffold/`** — the one files/templating mechanism: resolve templates with
-  data, write files. Generic; no discover, no orchestration, no per-type data.
-- **The `Infra` framework** — owns the cluster baseline it scaffolds: the embedded files,
-  their version pins, and destination routing. There is no standalone `baseline/` package.
+- **`framework/scaffold/`** — the one files/templating mechanism: resolve templates
+  with data. Generic; no discover, no orchestration, no per-type data, no writes — the
+  driver writes finished bytes.
+- **The `Infra` framework** — owns the cluster baseline it scaffolds: its component set,
+  version pins, and destination routing (the bytes ship in the `framework/skel`
+  collection, alongside the universal launcher). There is no standalone `baseline/` package.
 - **`cmd/init`** — the human orchestration: gather operator inputs → `framework.Discover`
   → `fw.Scaffold` → confirm → write.
 
@@ -24,13 +26,13 @@ and scaffold-time stack discovery live in [frameworks](frameworks.md) (the build
 
 ## `framework/scaffold/` — the one mechanism
 
-`framework/scaffold/` resolves a framework's contribution and writes it. It defines the two
+`framework/scaffold/` resolves a framework's contribution. It defines the two
 shapes a framework returns and nothing stack-specific:
 
-- **`scaffold.Spec`** — a framework's full declarative contribution to a fresh repo: the
+- **`scaffold.Spec`** — a framework's full contribution to a fresh repo: the
   `platform.toml` module it adds, the default `[vars]` it seeds, the files it ships
-  (`[]scaffold.File`), the default `strategy` value it seeds, and whether it needs a
-  freshly-created git repo.
+  (`[]scaffold.File`, already **resolved** — the framework fills its own holes), and the
+  default `strategy` value it seeds.
 - **`scaffold.File`** — one file beyond the universal `platform.toml` + launcher: `Path`
   (repo-relative, routing already applied), `Content`, `Mode`. A `.tmpl` suffix marks
   `Content` as a `text/template` the mechanism resolves (and strips) with the
@@ -53,7 +55,8 @@ The cluster baseline — the thing an infra repo scaffolds — is **platform's o
 version-locked to the tool, not the operator's configuration (see
 [opinionated-appliance-embedded-init](../decisions/2026-06-17-opinionated-appliance-embedded-init.md)).
 Under the framework model it belongs to the framework that scaffolds it: the `Infra`
-framework embeds the baseline files, their version pins, and their destination routing (see
+framework owns the baseline component set, version pins, and destination routing — the
+file bytes ship in the `framework/skel` collection (see
 [baseline-dissolves-into-infra-framework](../decisions/2026-07-11-baseline-dissolves-into-infra-framework.md)).
 
 `Infra.Scaffold` returns the **full default baseline unconditionally** — one flat list, no
@@ -118,19 +121,19 @@ rewritten.
 **plan-then-apply**: computing the plan reads only, so `init` prints and confirms it before
 touching the tree.
 
-1. `framework.Discover(wd)` resolves the owning framework.
-2. `fw.Scaffold(ctx, wd)` returns the `scaffold.Spec` — module, vars, files, the seeded
-   `strategy` value, create-repo need.
-3. `init` resolves the files (via `framework/scaffold`), computes the `platform.toml`
-   disposition (below), and builds a plan.
-4. It prints the plan, confirms, then writes — creating the git repo first when the spec
-   asks for one.
+1. `init` validates the target: it exists, is a directory, and is its own git repo root
+   (`git.IsRoot` — a `.git` **directly** in `wd`, no walk-up, so a standalone repo nested
+   inside another checkout counts only with its own `.git`).
+2. `framework.Discover(wd)` resolves the owning framework, and `init` prompts for the
+   inputs its `RequiredScaffoldInputs(wd)` declares.
+3. `fw.Scaffold(ctx, wd, repository, daggerVersion, inputs)` returns the `scaffold.Spec` —
+   module, vars, files (resolved), the seeded `strategy` value. `init` computes the
+   `platform.toml` disposition (below) and builds a plan.
+4. It prints the plan, confirms, then writes finished bytes.
 
-**Git gating is framework-set, not an app-vs-infra branch.** When the `scaffold.Spec` needs
-a fresh repo, `init` runs `git init` itself (gated on `IsGitRoot` — a `.git` **directly** in
-`wd`, no walk-up — so it creates a standalone repo even nested inside another checkout).
-Otherwise the target must already be inside a git repo (walk-up for `.git`): the appliance
-baseline is delivered through GitOps, so a non-repo app target is virtually always a mistake.
+**The git precondition is uniform, not framework-set.** Platform never runs `git init` —
+the operator creates the repo (or clones) first, for every framework alike: delivery is
+git-based end to end, so a non-repo target is always a mistake.
 
 The plan carries `Files []FileChange` and `Vars []VarChange`. Each `FileChange` records
 `FileWrite` vs `FileOverwrite` (decided by an existence stat at plan time) so `Print` can

@@ -73,19 +73,21 @@ Domain packages live at the top level by their own name: `framework/`, `gitops/`
 A **`Framework` is the sole owner of a project type** — it recognizes itself, scaffolds
 itself, and builds itself. Only two things sit outside a framework: the `platform.toml`
 data model, and the `init` command's human orchestration. The packages form an acyclic
-graph `project ← framework/scaffold ← framework ← cmd`:
+graph `conf ← framework/scaffold ← framework ← cmd`:
 
 - `conf/` — the `platform.toml` model, both directions: `Generate` and the surgical
   `[vars]` merge. The publish target is not a stored section: a module's image is inferred
   per-module (`InferImageBase`) and the tag derives from the release strategy; only the
   top-level `[vars]` table is carried, fed to `render`.
 - `framework/scaffold/` — **the one** files/templating mechanism: render templates with
-  data, write files. Generic — no discover, no orchestration, no per-type data or "spec".
+  data. Generic — no discover, no orchestration, no per-type data; the driver writes
+  finished bytes.
 - `framework/` — the `Framework` interface (`Discover`, `Scaffold`, `Build`), the concrete
   frameworks, the package-level `Discover(wd)` resolver, the interpret stage (config →
   `BuildUnit`s), and the per-stack build strategies. **Stack discovery is a scaffold-time
   concern** — the build path reads `[modules]`, never re-discovers. The `Infra` framework
-  embeds its own baseline assets, version pins, and destination routing here, and its
+  owns its baseline component set, version pins, and destination routing here (bytes in
+  the `framework/skel` collection, alongside the universal launcher), and its
   `Build` renders `apps/` (CUE + `.platform`) into a `FROM scratch` image (see
   [infra-publishes-as-plain-image-retire-oras](../decisions/2026-07-05-infra-publishes-as-plain-image-retire-oras.md)).
 - `cmd/init` — the human orchestration of `platform init`: gather operator inputs →

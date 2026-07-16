@@ -70,7 +70,7 @@ ping's job; `Close` only runs at shutdown.
 ## Fan-out
 
 `Build` and `Publish` fan out over the attempt's units via
-[`internal.Multiplexer`](../../internal/multiplexer.go) — a generic `[TIn, TOut]` worker
+[the in-package `multiplexer`](../../engine/multiplexer.go) — a generic `[TIn, TOut]` worker
 that spawns one goroutine per input, collects results index-aligned under a mutex, and
 `WaitGroup`-joins. One unit → one goroutine.
 
