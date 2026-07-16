@@ -246,7 +246,7 @@ it appears in v0.5+.
 **Surface:** `internal/plog/{plog,events}.go` exposes `Fatalln`, `Error`, `Event`,
 `Config`, `Git`, `GitInfo`, `File`, `Image`, `HTTPServing`, `HTTPRequest`,
 `OutputForDagger`, `SetVerbosity`, `Logger`. Roughly 40 call sites across `cmd/`,
-`builder/`, `releases/`, `scaffold/`, `gitctx/`, and `main.go`.
+`builder/`, `releases/`, `scaffold/`, `git/`, and `main.go`.
 
 **Plan:**
 1. After the fx bump lands, inspect `fxlog` 's public API in the upgraded module cache.
@@ -307,7 +307,7 @@ repeat it.
 passes (builder stage → runner stage) per module. Insert a **metadata pass before them** —
 runs once per build invocation on the host (not per module, not inside Dagger):
 
-1. **Metadata pass** — collect from the host where `.git` exists, via `gitctx` /`gitcmd`
+1. **Metadata pass** — collect from the host where `.git` exists, via the `git` package
    (builders don't use them yet): commit sha, dirty flag, current release tag (from
    `releases/`), build timestamp. Produce a `BuildMeta` struct handed to every job.
 2. **Builder pass** — unchanged. Metadata must NOT enter this stage, so compile caches

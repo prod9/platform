@@ -73,7 +73,7 @@ No credential reaches into the cluster — the cluster pulls everything.
   [`architecture.md`](architecture.md)): `framework` (frameworks — discover/scaffold/build
   strategies) with `framework/scaffold` (the one templating mechanism), `engine` (the Dagger
   runtime + executor), `project` (`platform.toml`, incl. the top-level `[vars]` table),
-  `releases`, `gitctx`, `gitops` (linked-CUE-engine render), `dsl`; api-client + shared types
+  `releases`, `git`, `gitops` (linked-CUE-engine render), `dsl`; api-client + shared types
   land as the server grows.
 - **Flux** — source-controller + kustomize-controller. Reconciles config artifacts;
   prunes; corrects drift. Its own lifecycle is *not* self-managed. No Argo, no Helm.

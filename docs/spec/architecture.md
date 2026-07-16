@@ -95,7 +95,7 @@ graph `project ← framework/scaffold ← framework ← cmd`:
   each attempt's units across them.
 - `gitops/` — infra **render** only (CUE/`.platform` → manifest `Tree`). Publishing is the
   ordinary `publish` path now that infra is a framework; the oras packer is retired.
-- `dsl/`, `releases/`, `gitctx/`, `internal/` — unchanged in role.
+- `dsl/`, `releases/`, `git/` (formerly `gitctx/`+`gitcmd/`), `internal/` — unchanged in role.
 
 The former `baseline/` and top-level `scaffold/` packages are **absorbed**, not surviving
 packages: `baseline/`'s templating folds into `framework/scaffold/` and its embedded infra
