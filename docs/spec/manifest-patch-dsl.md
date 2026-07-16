@@ -1,5 +1,10 @@
 # Manifest Patch DSL
 
+> 🚨 **Change control (Law):** every change to this DSL — verbs, grammar, semantics —
+> is hard-gated on chakrit's explicit approval, in every session, no standing grant. The
+> language is deliberately small and branch-free; needing to change it demands a really
+> good reason (see CLAUDE.md).
+
 **Status:** living spec. Verb set, grammar, lexer, path-walk, `download`/`extract`/`emit`,
 and `\(var)` interpolation are landed and in use; the embedded baseline authors its foreign
 components (cert-manager, NGF, …) as `.platform` files rendered by `render`. The baseline is

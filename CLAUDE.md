@@ -66,6 +66,14 @@ Binding, every turn:
   inattention with no misleading artifact, sharpen this section instead. (E.g. the `ALWAYS_YES`
   clarification below was added exactly this way.)
 
+## 🚨 DSL changes are hard-gated (per-repo Law)
+
+Any change to the manifest-patch DSL (`gitops/dsl/` — verbs, grammar, semantics, its
+spec) requires chakrit's explicit approval, in every session, autonomous ones included —
+no standing grant ever covers it, no exceptions. The DSL is deliberately small and
+branch-free; we should never need to change it. A proposed change needs a really good
+reason, presented and approved before any edit.
+
 ## Conventions
 
 Commit messages **(per-repo Law)**: `area: Capitalized description`. Prefix is a code component/topic (`deps:`,
