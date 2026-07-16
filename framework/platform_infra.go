@@ -143,7 +143,7 @@ func (i Infra) Build(ctx context.Context, client *dagger.Client, unit *BuildUnit
 		dir = dir.WithNewFile(path, string(tree[path]))
 	}
 	c := client.Container(dagger.ContainerOpts{Platform: dagger.Platform(unit.Arch)}).
-		WithLabel("org.opencontainers.image.source", unit.Repository).
+		WithLabel("org.opencontainers.image.source", unit.RepositoryURL()).
 		WithDirectory("/", dir)
 	return c.Sync(ctx)
 }

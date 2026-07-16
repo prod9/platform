@@ -58,7 +58,7 @@ func BaseImageForUnit(client *dagger.Client, unit *BuildUnit) *dagger.Container 
 			Platform: dagger.Platform(unit.Arch),
 		}).
 		From(BaseImageName).
-		WithLabel("org.opencontainers.image.source", unit.Repository).
+		WithLabel("org.opencontainers.image.source", unit.RepositoryURL()).
 		WithExec([]string{"mkdir", "-p", SrcDir, BinDir, RunDir}).
 		WithEnvVariable("PATH", BinDir+":${PATH}", dagger.ContainerWithEnvVariableOpts{Expand: true}).
 		WithWorkdir(RunDir).

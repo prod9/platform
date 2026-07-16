@@ -117,6 +117,15 @@ ghcr package, create a webhook:
 The webhook is the primary, near-instant reconcile trigger; the OCIRepository's 10m poll
 is only the dropped-webhook fallback.
 
+Then verify the **package↔repo linkage** — `registry_package` is a *repository* event and
+fires only for packages GitHub has linked to the repo (publish's
+`org.opencontainers.image.source` label does this on the package-creating push):
+`gh api /orgs/<ORG>/packages/container/<pkg> --jq .repository.full_name` must return the
+repo, and the first real publish must show a 2xx `registry_package` delivery in the
+hook's deliveries list. **A green webhook with zero deliveries is the signature of a
+missing link** — for a pre-existing unlinked package, connect it manually (package page →
+Connect repository; UI-only, no API).
+
 ## 7. Verify end-to-end
 
 1. Commit a trivial visible change (e.g. a manifest label) to the infra repo; `platform publish`.

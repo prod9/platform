@@ -23,3 +23,12 @@ func TestResolveArch(t *testing.T) {
 	// honored verbatim.
 	r.Equal(t, "linux/amd64", resolveArch("linux/amd64"))
 }
+
+// TestBuildUnitRepositoryURL pins the GitHub package-linkage contract: the
+// org.opencontainers.image.source value must be the https URL form — the scheme-less
+// platform.toml repository does not link, and an unlinked package silently never routes
+// registry_package webhook events (repo webhooks stay green with zero deliveries).
+func TestBuildUnitRepositoryURL(t *testing.T) {
+	unit := &BuildUnit{Repository: "github.com/prod9/infra"}
+	r.Equal(t, "https://github.com/prod9/infra", unit.RepositoryURL())
+}
