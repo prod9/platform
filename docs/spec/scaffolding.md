@@ -86,7 +86,8 @@ markers. Each maps to its repo-relative destination (dropping any `.tmpl` suffix
 | _(other)_     | repo root     | root files (e.g. `platform.toml`)                        |
 
 The default working set is what a functioning cluster needs out of the box: cert-manager
-(with the `ListenerSets` feature gate), flux, flux-sync (the push-driven webhook `Receiver`
+(Gateway API + ListenerSet reconciliation enabled — the cross-cloud convention), flux,
+flux-sync (the push-driven webhook `Receiver`
 + its own `ListenerSet` and route), the platform app, the NGF gateway stack, the
 host-agnostic operator `Gateway` app, and the ACME cluster-issuer. Components own their
 hostnames via `ListenerSet`s (distributed-hosts shape) — the gateway app carries none. It

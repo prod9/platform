@@ -52,11 +52,13 @@ set .spec.kubernetes.service.patches[0].value.metadata.annotations."service.beta
 ```
 
 - **`serverTokens=off`** — NGF 2.5.1 bug workaround.
-- **Firewall annotation** — appended as a StrategicMerge patch under
+- **Cloud LB annotations** — appended as a StrategicMerge patch under
   `NginxProxy.spec.kubernetes.service.patches`. NGF v2's CRD exposes no
-  `service.annotations` field; the `patches` list is the only hatch to set the Linode
-  LB firewall annotation `service.beta.kubernetes.io/linode-loadbalancer-firewall-id`.
-  `set` auto-vivifies `patches[0]…` from nothing.
+  `service.annotations` field; the `patches` list is the only hatch to set provider
+  Service annotations (e.g. Linode's `…/linode-loadbalancer-firewall-id` or
+  `…-reserved-ipv4`). `set` auto-vivifies `patches[0]…` from nothing. These lines are
+  the **infra repo's own edit**, never scaffolded — see the
+  [provider-neutral ADR](../decisions/2026-07-16-baseline-is-provider-neutral.md).
 
 ## String-forcing constraint
 

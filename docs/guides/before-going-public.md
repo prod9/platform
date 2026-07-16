@@ -12,12 +12,12 @@ No LICENSE exists, so the repo defaults to all-rights-reserved. Pick one — MIT
 Apache-2.0 — or knowingly keep it source-available. Add the file at the repo root before
 flipping.
 
-## 2. Placeholder the Linode firewall ID
+## 2. ~~Placeholder the Linode firewall ID~~ — RESOLVED by provider neutrality
 
-`framework/infrabase.go` ships `NGINX_GATEWAY_FIREWALL_ID = "11222746"` in `DefaultVars` — a
-real prod9 Linode resource, baked into the binary and echoed in docs and tests. Swap it
-for an operator-supplied placeholder. Sweep docs and tests for the literal ID and update
-those too.
+The baseline no longer ships any Linode var or annotation
+([provider-neutral ADR](../decisions/2026-07-16-baseline-is-provider-neutral.md)) — the
+firewall ID left the binary entirely. Residual mentions of the old literal survive only
+in dated decision records, which stay as history.
 
 ## 3. Exclude docs/scratch from the published tree
 
