@@ -27,9 +27,15 @@
 > cookie, revoked by `POST /api/auth/logout`. The web-UI API is implemented
 > (`srv/api.go`): `GET /api/me` and `GET /api/builds` authenticate against that
 > session (hand-written wire structs — see §No `api/` contract layer).
-> No installation-token minting yet; that lands in a later slice per this spec. It is
-> the **second driver** of the one-publish-engine model — the tag-watch server
-> invoking the same build+push engine the local CLI drives (see
+> Installation-token minting is implemented (`srv/github_tokens.go`): a hand-rolled
+> RS256 App JWT resolves the repo's installation and mints its short-lived token
+> (§Two token types); its first consumer is
+> `POST /api/repos/{owner}/{repo}/flux-webhook` (`srv/flux_webhook.go`), the
+> session-gated endpoint that creates a repo's `registry_package` webhook pointing at
+> the cluster's Flux Receiver (closing the
+> [flux-webhook ADR](../decisions/2026-07-13-flux-webhook-delivery.md)'s manual step).
+> `srv` is the **second driver** of the one-publish-engine model — the tag-watch
+> server invoking the same build+push engine the local CLI drives (see
 > [delivery-verbs-are-orthogonal](../decisions/2026-07-05-delivery-verbs-are-orthogonal.md)
 > and the one-engine-two-drivers model in [engine.md](engine.md)). The frozen ruling
 > behind the auth model lives in

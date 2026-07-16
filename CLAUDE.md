@@ -334,6 +334,12 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
   deletes it). UI API (`srv/api.go`): `currentUser` resolves the session cookie
   (missing/expired → `ErrNoSession` → 401); `GET /api/me` and `GET /api/builds` (last
   50, newest-first) with hand-written wire structs — no shared `api/` package.
+  Installation tokens (`srv/github_tokens.go`): `appJWT` (hand-rolled RS256, no jwt
+  dep) → `mintInstallationToken` (installation lookup → access token; not installed →
+  `ErrAppNotInstalled`); first consumer is `POST /api/repos/{owner}/{repo}/flux-webhook`
+  (`srv/flux_webhook.go`, session-gated): `ConfigureFluxWebhook` creates the repo's
+  `registry_package` webhook pointing at the cluster's Flux Receiver URL + HMAC secret
+  (duplicate → `ErrWebhookExists` → 409), closing the flux-webhook ADR's manual step.
 - `webui/` — the built web UI assets (`Assets`, `//go:embed all:build`); the SvelteKit
   source lands alongside later, its adapter-static output in `build/` (a committed
   placeholder `index.html` for now).

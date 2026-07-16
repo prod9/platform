@@ -69,7 +69,7 @@ func Router(cfg *config.Source) (chi.Router, error) {
 	router.Use(middlewares.Configure(cfg))
 	router.Use(middlewares.LogRequests(cfg))
 
-	ctrs := []controllers.Interface{API{}, Auth{}, Webhooks{}, Setup{}, UI{}}
+	ctrs := []controllers.Interface{API{}, Auth{}, FluxWebhook{}, Webhooks{}, Setup{}, UI{}}
 	for _, ctr := range ctrs {
 		if err := ctr.Mount(cfg, router); err != nil {
 			return nil, err

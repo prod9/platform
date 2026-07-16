@@ -41,6 +41,11 @@ layer, neither of which exists; per [platform-server](../spec/platform-server.md
 now is not a workaround — it is the pull-model half platform owns; the push-config half is
 GitHub's, gated on the App.
 
+> **2026-07-17:** the GitHub-side automation now exists — `srv` mints an installation
+> token from the stored App and `POST /api/repos/{owner}/{repo}/flux-webhook`
+> (`srv/flux_webhook.go`) creates the repo's `registry_package` webhook pointing at the
+> Receiver URL with its HMAC secret. Manual wiring remains the fallback.
+
 ## Why written down
 
 Two conflations to head off:
