@@ -1,4 +1,4 @@
-package cmd
+package render
 
 import (
 	"fmt"
@@ -13,18 +13,18 @@ import (
 
 var renderOut string
 
-var RenderCmd = &cobra.Command{
+var Cmd = &cobra.Command{
 	Use:   "render [dir]",
 	Short: "Render an infra CUE module's apps to a Kubernetes manifest tree",
-	Run:   runRender,
+	Run:   run,
 }
 
 func init() {
-	RenderCmd.Flags().StringVar(&renderOut, "out", "k8s",
+	Cmd.Flags().StringVar(&renderOut, "out", "k8s",
 		"output directory for the rendered <component>/<file> tree")
 }
 
-func runRender(cmd *cobra.Command, args []string) {
+func run(cmd *cobra.Command, args []string) {
 	dir := "."
 	if len(args) > 0 {
 		dir = args[0]

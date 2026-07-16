@@ -1,4 +1,4 @@
-package cmd
+package configure
 
 import (
 	"os"
@@ -9,13 +9,13 @@ import (
 	"platform.prodigy9.co/project"
 )
 
-var ConfigureCmd = &cobra.Command{
+var Cmd = &cobra.Command{
 	Use:   "configure",
 	Short: "Parses and show effective configuration for the current directory",
-	Run:   runConfigureCmd,
+	Run:   run,
 }
 
-func runConfigureCmd(cmd *cobra.Command, args []string) {
+func run(cmd *cobra.Command, args []string) {
 	cfg, err := project.Configure(".")
 	if err != nil {
 		buildlog.Fatalln(err)

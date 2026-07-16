@@ -1,4 +1,4 @@
-package cmd
+package initcmd
 
 import (
 	_ "embed"

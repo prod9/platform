@@ -1,4 +1,4 @@
-package cmd
+package exec
 
 import (
 	"context"
@@ -16,13 +16,13 @@ import (
 	"platform.prodigy9.co/project"
 )
 
-var ExecCmd = &cobra.Command{
+var Cmd = &cobra.Command{
 	Use:   "exec [module] [-- command...]",
 	Short: "Run a command in, or open a shell into, the built container",
-	Run:   runExec,
+	Run:   run,
 }
 
-func runExec(cmd *cobra.Command, args []string) {
+func run(cmd *cobra.Command, args []string) {
 	selectors, command := splitAtDash(cmd, args)
 
 	cfg, err := project.Configure(".")

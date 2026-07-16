@@ -1,4 +1,4 @@
-package cmd
+package initcmd
 
 import (
 	"fmt"
@@ -14,22 +14,22 @@ import (
 
 var initForce bool
 
-var InitCmd = &cobra.Command{
+var Cmd = &cobra.Command{
 	Use:     "init",
 	Aliases: []string{"scaffold"},
 	Short:   "Scaffold a repo from its discovered framework (platform.toml + launcher + the framework's own files)",
-	Run:     runInit,
+	Run:     run,
 }
 
 func init() {
-	InitCmd.Flags().BoolVar(&initForce, "force", false,
+	Cmd.Flags().BoolVar(&initForce, "force", false,
 		"replace existing files instead of keeping them")
 }
 
-// runInit is one path for every repo: gather the operator inputs common to all, then let the
+// run is one path for every repo: gather the operator inputs common to all, then let the
 // scaffold driver discover the framework and compute the plan. What a repo gets is entirely
 // the framework's Scaffold contribution — never an app-vs-infra branch here.
-func runInit(cmd *cobra.Command, args []string) {
+func run(cmd *cobra.Command, args []string) {
 	wd, err := os.Getwd()
 	if err != nil {
 		buildlog.Fatalln(err)

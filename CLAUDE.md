@@ -158,8 +158,11 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
 
 ### Entry point
 
-- `main.go` — Cobra root, wires subcommands, persistent `-q`/`-v` and `-f` (alt `platform.toml`).
-- `cmd/` — one file per subcommand. All read `project.Configure(".")` first.
+- `main.go` — defers to `cmd.Execute()`.
+- `cmd/` — the root Cobra command: persistent `-q`/`-v` and `-f` (alt `platform.toml`),
+  subcommand wiring. One subpackage per subcommand (`cmd/build`, `cmd/init` (package
+  `initcmd` — Go reserves `init`), …), each exporting `Cmd`; all read
+  `project.Configure(".")` first.
 
 ### Subcommands
 
