@@ -1,23 +1,19 @@
 package framework
 
 import (
-	"embed"
 	"fmt"
-	"io/fs"
 	"path/filepath"
 	"strings"
 
 	"platform.prodigy9.co/framework/scaffold"
+	"platform.prodigy9.co/framework/skel"
 )
 
-// The embedded cluster baseline: the component files (`.platform` directives + `.cue`
-// apps) the Infra framework scaffolds into a fresh infra repo, plus the default version
-// pins they interpolate. There is no marker grammar, no render-time gating, and no
-// init-time picker — Infra.Scaffold contributes the fixed components set unconditionally
-// and `render` applies whatever was installed.
-//
-//go:embed infrabase
-var infrabaseFS embed.FS
+// The cluster baseline: the component files (`.platform` directives + `.cue` apps,
+// shipped via the skel collection) the Infra framework scaffolds into a fresh infra
+// repo, plus the default version pins they interpolate. There is no marker grammar, no
+// render-time gating, and no init-time picker — Infra.Scaffold contributes the fixed
+// components set unconditionally and `render` applies whatever was installed.
 
 // DefsModule is the infra-defs CUE dependency the baseline apps import; DefsVersion is the
 // version a freshly-init'd infra repo pins into its cue.mod. v0.4.0 carries the #NetworkPolicy
@@ -70,7 +66,7 @@ var infrabaseComponents = []string{
 func infrabaseFiles() ([]scaffold.File, error) {
 	out := make([]scaffold.File, 0, len(infrabaseComponents))
 	for _, name := range infrabaseComponents {
-		content, err := fs.ReadFile(infrabaseFS, "infrabase/"+name)
+		content, err := skel.Read(name)
 		if err != nil {
 			return nil, fmt.Errorf("baseline component %q is not embedded: %w", name, err)
 		}

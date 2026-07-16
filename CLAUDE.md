@@ -220,7 +220,11 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
   - `framework/scaffold/` — the **one** files/templating mechanism (`scaffold.Spec`/
     `scaffold.File`; `.tmpl` renders via `text/template` `missingkey=error`, everything
     else passes verbatim). No standalone `scaffold/` or `baseline/` package.
-  - The `Infra` framework embeds the cluster baseline: files destination-encoded by name
+  - `framework/skel/` — the shipped file assets (one `//go:embed`): the verbatim
+    `platform` launcher (`skel.Launcher`, written by the init driver into every repo)
+    and the cluster-baseline components the `Infra` framework picks via `skel.Read`.
+    Storage only — ownership lives with the readers.
+  - The `Infra` framework installs the cluster baseline: files destination-encoded by name
     (`apps-*` → `apps/`, `defaults-*` → `defaults/`, else repo root), `DefaultVars` =
     version pins only. It installs **unconditionally** — no install-time picker; registry
     creds ship as empty placeholders in committed CUE, never prompted. It seeds

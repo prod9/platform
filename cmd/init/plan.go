@@ -12,6 +12,7 @@ import (
 	"platform.prodigy9.co/conf"
 	"platform.prodigy9.co/framework"
 	fwscaffold "platform.prodigy9.co/framework/scaffold"
+	"platform.prodigy9.co/framework/skel"
 )
 
 // FileAction distinguishes a fresh write from replacing an existing file, so
@@ -78,7 +79,7 @@ func Analyze(dir string, info *Info, inputs map[string]string) (*Plan, error) {
 
 	files := []FileChange{
 		projFile,
-		fileChange(dir, "platform", []byte(platformTemplate), 0744),
+		fileChange(dir, "platform", skel.Launcher, 0744),
 	}
 	files = append(files, specFileChanges(dir, spec)...)
 	return &Plan{Dir: dir, Files: files, Vars: vars}, nil
