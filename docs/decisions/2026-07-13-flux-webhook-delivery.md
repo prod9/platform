@@ -7,9 +7,15 @@ Status: **accepted**
 
 The `Infra` baseline ships **push-driven delivery** as the primary reconcile trigger. On a
 GHCR publish GitHub fires the `registry_package` webhook; a Flux `Receiver` (`type: github`)
-validates the HMAC signature and pokes the `infra` `OCIRepository` for a near-instant
-reconcile. The `OCIRepository` poll interval drops from `1m` to `10m` — it is now only the
-**dropped-webhook fallback**, not the delivery path.
+validates the HMAC signature and pokes the `infra` `OCIRepository`. The `OCIRepository`
+poll interval drops from `1m` to `10m` — it is now only the **dropped-webhook fallback**,
+not the delivery path.
+
+> **Latency correction (2026-07-17, measured on prod9-main):** "near-instant" holds only
+> from event to cluster (receiver → fetch → apply: seconds). GitHub delivers
+> `registry_package` on a throttled cadence — ~6m observed steady-state, 10–24m under
+> publish surges — so end-to-end publish→cluster is **minutes**. The webhook's value is
+> beating the poll's worst case and decoupling from poll misses, not instancy.
 
 Three resources join `apps/flux-sync.cue`, all in `flux-system`:
 

@@ -91,10 +91,11 @@ import (
 		#source: source.#name
 	}
 
-	// Webhook Receiver — the primary, near-instant reconcile trigger. On a GHCR publish GitHub
-	// POSTs the registry_package event here; the Receiver validates the signature and pokes the
-	// OCIRepository, whose interval is only the dropped-webhook fallback. Guarded by
-	// TestEmbeddedFluxReceiver — do not drop back to poll-only delivery.
+	// Webhook Receiver — the primary reconcile trigger. On a GHCR publish GitHub POSTs the
+	// registry_package event here (on a throttled, minutes-scale cadence); the Receiver
+	// validates the signature and pokes the OCIRepository, whose interval is only the
+	// dropped-webhook fallback. Guarded by TestEmbeddedFluxReceiver — do not drop back to
+	// poll-only delivery.
 	let receiver = #Receiver & {
 		#name:   "infra"
 		#ns:     nsp.#name

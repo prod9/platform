@@ -114,8 +114,11 @@ ghcr package, create a webhook:
   `kubectl -n flux-system get receiver infra -o jsonpath='{.status.webhookPath}'`
 - Content type json; secret = the HMAC token from step 2; event: **`registry_package`**.
 
-The webhook is the primary, near-instant reconcile trigger; the OCIRepository's 10m poll
-is only the dropped-webhook fallback.
+The webhook is the primary reconcile trigger; the OCIRepository's 10m poll is only the
+dropped-webhook fallback. Expect **minutes**, not seconds: GitHub delivers
+`registry_package` events on a throttled cadence (~6m observed steady-state, 10–24m under
+publish surges) — the webhook's win is beating the poll's worst case and surviving poll
+misses, and everything after the event (receiver → fetch → apply) completes in seconds.
 
 Then verify the **package↔repo linkage** — `registry_package` is a *repository* event and
 fires only for packages GitHub has linked to the repo (publish's
@@ -130,8 +133,10 @@ Connect repository; UI-only, no API).
 
 1. Commit a trivial visible change (e.g. a manifest label) to the infra repo; `platform publish`.
 2. GitHub fires `registry_package` → Receiver validates → OCIRepository re-pulls →
-   Kustomization applies. Confirm the change lands on-cluster within seconds (not the 10m
-   poll): `kubectl -n flux-system get ocirepository,kustomization` timestamps move.
+   Kustomization applies. Confirm the hook shows a 2xx `registry_package` delivery and
+   the change lands on-cluster shortly after the event arrives (GitHub-side delivery runs
+   minutes behind the publish; receiver-to-cluster is seconds):
+   `kubectl -n flux-system get ocirepository,kustomization` timestamps move.
 3. `https://<PLATFORM_HOSTNAME>` serves the vanity redirect; certs valid.
 
 Baseline is live when all three hold.
