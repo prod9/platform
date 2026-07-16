@@ -202,9 +202,15 @@ spec:
 	r.Contains(t, got, "kind: Namespace")
 
 	// The controller must reconcile Gateways AND ListenerSets or no per-host cert ever
-	// issues for the distributed-hosts baseline. Both flags land on the controller
+	// issues for the distributed-hosts baseline: the enable pair starts the shims, and
+	// the ListenerSets feature gate is ALSO required — without it the listenerset shim
+	// silently never starts (v1.20, verified live). All three land on the controller
 	// deployment only — the webhook must not pick them up.
-	for _, flag := range []string{"- --enable-gateway-api\n", "- --enable-gateway-api-listenerset=true\n"} {
+	for _, flag := range []string{
+		"- --enable-gateway-api\n",
+		"- --enable-gateway-api-listenerset=true\n",
+		"- --feature-gates=ListenerSets=true\n",
+	} {
 		r.Equal(t, 1, strings.Count(got, flag), "%s belongs on the controller deployment only", flag)
 	}
 }

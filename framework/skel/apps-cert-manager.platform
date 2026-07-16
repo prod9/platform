@@ -1,11 +1,13 @@
 # vim: ft=platform-dsl
 download "https://github.com/cert-manager/cert-manager/releases/download/\(cert_manager_version)/cert-manager.yaml"
 
-# Baseline components request per-host certs via ListenerSets (parts.#UseCertManager);
-# the controller reconciles Gateways/ListenerSets only with both flags on.
+# Baseline components request per-host certs via ListenerSets (parts.#UseCertManager).
+# All three flags are required: the enable pair starts the gateway/listenerset shims,
+# and the feature gate must ALSO be on or the listenerset shim silently never starts.
 focus .[].kind "Deployment"
 focus .metadata.name "cert-manager"
 append .spec.template.spec.containers[0].args "--enable-gateway-api"
 append .spec.template.spec.containers[0].args "--enable-gateway-api-listenerset=true"
+append .spec.template.spec.containers[0].args "--feature-gates=ListenerSets=true"
 reset
 emit "cert-manager.yaml"
