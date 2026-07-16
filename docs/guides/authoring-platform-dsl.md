@@ -2,7 +2,9 @@
 
 How to write or patch a `.platform` component: the execution model in one screen and the
 verbs you'll actually reach for. Exhaustive grammar (lexing, paths, escapes) lives in the
-spec: [`../spec/manifest-patch-dsl.md`](../spec/manifest-patch-dsl.md).
+spec: [`../spec/manifest-patch-dsl.md`](../spec/manifest-patch-dsl.md). Vim/Neovim
+syntax + filetype detection ship in [`/editor/nvim/`](../../editor/nvim/) — copy or
+symlink into your runtimepath.
 
 ## Mental model
 
