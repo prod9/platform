@@ -25,10 +25,13 @@ Three `download`→`emit` steps land in `k8s/nginx-gateway/`. `\(gateway_api_ver
 | NGF CRDs         | `raw.githubusercontent.com/nginx/nginx-gateway-fabric/\(nginx_gateway_version)/deploy/crds.yaml`                       | `nginx-gateway-crds.yaml` |
 | NGF controller   | `raw.githubusercontent.com/nginx/nginx-gateway-fabric/\(nginx_gateway_version)/deploy/default/deploy.yaml`             | `nginx-gateway.yaml`      |
 
-- **Gateway API channel**: the baseline installs `standard-install.yaml` only.
-  `experimental-install.yaml` adds TCPRoute/UDPRoute (both experimental in NGF 2.6.x) —
-  swap the URL in your repo's committed component if you need them; note stage9 observed
-  NGF 2.6.0 never programming a Gateway-attached TCPRoute (unresolved as of 2.6.7).
+- **Gateway API channel**: the baseline installs `standard-install.yaml` only. Using
+  TCPRoute/UDPRoute needs **two** edits in your repo's committed component: the
+  `experimental-install.yaml` CRDs **and** the NGF controller started with
+  `--gateway-api-experimental-features` (upstream's `deploy/experimental/deploy.yaml` —
+  its only flag delta vs `deploy/default/`). Missing the flag is silent: NGF ignores the
+  route entirely (empty status, `attachedRoutes=0`) — this was the actual cause of
+  stage9's "dead" pmrelay TCPRoute; the CRDs alone were never enough.
 
 ## Pinned versions (`DefaultVars`, as of 2026-06-19 capture)
 
