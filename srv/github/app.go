@@ -1,6 +1,6 @@
-// Package github owns the server's GitHub integration: the stored GitHub App
-// credential set and its manifest-flow bootstrap, App-authenticated token minting,
-// and the repo-name whitelist every fragment taking owner/repo input shares.
+// Package github owns the server's GitHub integration: the GitHub App credential set
+// (supplied via fx config), App-authenticated token minting, and the repo-name
+// whitelist every fragment taking owner/repo input shares.
 package github
 
 import (
@@ -8,22 +8,17 @@ import (
 	"errors"
 
 	"fx.prodigy9.co/config"
-	"fx.prodigy9.co/data"
-	"fx.prodigy9.co/secret"
-	"platform.prodigy9.co/srv/pgerr"
 )
 
-var (
-	ErrNoApp     = errors.New("github: no github app configured")
-	ErrAppExists = errors.New("github: a github app is already configured")
-)
+// ErrNoApp reports that the GitHub App credentials are absent from config — how the
+// installer detects "not yet configured".
+var ErrNoApp = errors.New("github: no github app configured")
 
-// LoadApp seams loadApp so fragment tests run without postgres.
+// LoadApp seams loadApp so fragment tests can stub the App without config plumbing.
 var LoadApp = loadApp
 
-// App is the server's GitHub App credential set in decrypted, in-memory form. At
-// rest (the single-row github_app table) private_key, webhook_secret, and
-// client_secret are encrypted with fx's secret package (SECRET config var).
+// App is the server's GitHub App credential set. It is injected via fx config (a k8s
+// Secret at rest, provided by the operator), never stored in the DB.
 type App struct {
 	AppID         int64
 	Slug          string
@@ -34,79 +29,23 @@ type App struct {
 }
 
 func loadApp(ctx context.Context) (*App, error) {
-	var row struct {
-		AppID         int64  `db:"app_id"`
-		Slug          string `db:"slug"`
-		PrivateKey    string `db:"private_key"`
-		WebhookSecret string `db:"webhook_secret"`
-		ClientID      string `db:"client_id"`
-		ClientSecret  string `db:"client_secret"`
+	cfg := config.FromContext(ctx)
+	app := &App{
+		AppID:         config.Get(cfg, AppIDConfig),
+		Slug:          config.Get(cfg, SlugConfig),
+		PrivateKey:    config.Get(cfg, PrivateKeyConfig),
+		WebhookSecret: config.Get(cfg, WebhookSecretConfig),
+		ClientID:      config.Get(cfg, ClientIDConfig),
+		ClientSecret:  config.Get(cfg, ClientSecretConfig),
 	}
-	err := data.Get(ctx, &row, `
-		SELECT app_id, slug, private_key, webhook_secret, client_id, client_secret
-		FROM github_app WHERE id = 1`)
-	if data.IsNoRows(err) {
+
+	if app.AppID == 0 ||
+		app.PrivateKey == "" ||
+		app.WebhookSecret == "" ||
+		app.ClientID == "" ||
+		app.ClientSecret == "" {
 		return nil, ErrNoApp
-	} else if err != nil {
-		return nil, err
 	}
 
-	cfg := config.FromContext(ctx)
-	privateKey, err := secret.Reveal(cfg, row.PrivateKey)
-	if err != nil {
-		return nil, err
-	}
-	webhookSecret, err := secret.Reveal(cfg, row.WebhookSecret)
-	if err != nil {
-		return nil, err
-	}
-	clientSecret, err := secret.Reveal(cfg, row.ClientSecret)
-	if err != nil {
-		return nil, err
-	}
-
-	return &App{
-		AppID:         row.AppID,
-		Slug:          row.Slug,
-		PrivateKey:    privateKey,
-		WebhookSecret: webhookSecret,
-		ClientID:      row.ClientID,
-		ClientSecret:  clientSecret,
-	}, nil
-}
-
-// SaveApp records the App credentials received from the manifest exchange. The App
-// is created once — a second save is a hard error, never an upsert.
-type SaveApp struct {
-	AppID         int64
-	Slug          string
-	PrivateKey    string
-	WebhookSecret string
-	ClientID      string
-	ClientSecret  string
-}
-
-func (s *SaveApp) Execute(ctx context.Context, out any) error {
-	cfg := config.FromContext(ctx)
-	privateKey, err := secret.Hide(cfg, s.PrivateKey)
-	if err != nil {
-		return err
-	}
-	webhookSecret, err := secret.Hide(cfg, s.WebhookSecret)
-	if err != nil {
-		return err
-	}
-	clientSecret, err := secret.Hide(cfg, s.ClientSecret)
-	if err != nil {
-		return err
-	}
-
-	err = data.Exec(ctx, `
-		INSERT INTO github_app (app_id, slug, private_key, webhook_secret, client_id, client_secret)
-		VALUES ($1, $2, $3, $4, $5, $6)`,
-		s.AppID, s.Slug, privateKey, webhookSecret, s.ClientID, clientSecret)
-	if pgerr.IsUniqueViolation(err) {
-		return ErrAppExists
-	}
-	return err
+	return app, nil
 }

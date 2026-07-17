@@ -1,6 +1,6 @@
 // Package srv is the platform server: the API + webhook processor layer above the
 // shared build/render/publish packages (docs/spec/platform-server.md). It composes
-// the fragment packages (auth, github, builds) into one router, owns the DB
+// the fragment packages (auth, builds) into one router, owns the DB
 // boot (connect, aggregate fragment migrations, orphan requeue), and serves the
 // embedded web UI at / and the API under /api/.
 package srv
@@ -26,7 +26,6 @@ import (
 	"platform.prodigy9.co/engine"
 	"platform.prodigy9.co/srv/auth"
 	"platform.prodigy9.co/srv/builds"
-	"platform.prodigy9.co/srv/github"
 	"platform.prodigy9.co/srv/migrate"
 )
 
@@ -91,7 +90,6 @@ func Router(cfg *config.Source) (chi.Router, error) {
 		auth.SessionCtr{},
 		builds.APICtr{},
 		builds.WebhookCtr{},
-		github.SetupCtr{},
 		UI{},
 	}
 	for _, ctr := range ctrs {
@@ -130,7 +128,6 @@ func connectDB(cfg *config.Source) (*sqlx.DB, error) {
 // equivalent of fx's Mount collecting fragment migrations.
 var fragmentMigrations = migrate.Merged(
 	migrator.FromFS(auth.Migrations),
-	migrator.FromFS(github.Migrations),
 	migrator.FromFS(builds.Migrations),
 )
 

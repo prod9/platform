@@ -185,7 +185,7 @@ func TestWebhookBranchPushIsNoOp(t *testing.T) {
 
 func TestWebhookTagPushCreatesBuild(t *testing.T) {
 	ctx := setupDB(t)
-	require.NoError(t, (&github.SaveApp{WebhookSecret: testWebhookSecret}).Execute(ctx, nil))
+	stubApp(t, &github.App{WebhookSecret: testWebhookSecret}, nil)
 
 	router := webhookRouter(t)
 	resp := httptest.NewRecorder()
@@ -221,7 +221,7 @@ func TestWebhookTagPushCreatesBuild(t *testing.T) {
 
 func TestWebhookBranchPushCreatesNoBuild(t *testing.T) {
 	ctx := setupDB(t)
-	require.NoError(t, (&github.SaveApp{WebhookSecret: testWebhookSecret}).Execute(ctx, nil))
+	stubApp(t, &github.App{WebhookSecret: testWebhookSecret}, nil)
 
 	router := webhookRouter(t)
 	resp := httptest.NewRecorder()

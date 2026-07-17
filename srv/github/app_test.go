@@ -4,42 +4,23 @@ import (
 	"context"
 	"testing"
 
-	"fx.prodigy9.co/data"
-	"fx.prodigy9.co/data/migrator"
+	"fx.prodigy9.co/config"
+	"fx.prodigy9.co/fxtest"
 	"github.com/stretchr/testify/require"
-	"platform.prodigy9.co/srv/srvtest"
 )
 
-func setupDB(t *testing.T) context.Context {
-	return srvtest.SetupDB(t, migrator.FromFS(Migrations))
+func appContext(t *testing.T) context.Context {
+	t.Setenv("GITHUB_APP_ID", "42")
+	t.Setenv("GITHUB_APP_SLUG", "platform-test")
+	t.Setenv("GITHUB_APP_PRIVATE_KEY", "-----BEGIN RSA PRIVATE KEY-----")
+	t.Setenv("GITHUB_APP_WEBHOOK_SECRET", "whsec")
+	t.Setenv("GITHUB_APP_CLIENT_ID", "Iv1.abc")
+	t.Setenv("GITHUB_APP_CLIENT_SECRET", "csec")
+	return config.NewContext(context.Background(), fxtest.Configure())
 }
 
-func TestAppSaveLoadRoundtrip(t *testing.T) {
-	ctx := setupDB(t)
-
-	save := &SaveApp{
-		AppID:         42,
-		Slug:          "platform-test",
-		PrivateKey:    "-----BEGIN RSA PRIVATE KEY-----",
-		WebhookSecret: "whsec",
-		ClientID:      "Iv1.abc",
-		ClientSecret:  "csec",
-	}
-	require.NoError(t, save.Execute(ctx, nil))
-
-	var raw struct {
-		PrivateKey    string `db:"private_key"`
-		WebhookSecret string `db:"webhook_secret"`
-		ClientSecret  string `db:"client_secret"`
-	}
-	require.NoError(t, data.Get(ctx, &raw, `
-		SELECT private_key, webhook_secret, client_secret
-		FROM github_app WHERE id = 1`))
-	require.NotEqual(t, save.PrivateKey, raw.PrivateKey)
-	require.NotEqual(t, save.WebhookSecret, raw.WebhookSecret)
-	require.NotEqual(t, save.ClientSecret, raw.ClientSecret)
-
-	app, err := loadApp(ctx)
+func TestLoadAppFromConfig(t *testing.T) {
+	app, err := loadApp(appContext(t))
 	require.NoError(t, err)
 	require.Equal(t, &App{
 		AppID:         42,
@@ -49,13 +30,29 @@ func TestAppSaveLoadRoundtrip(t *testing.T) {
 		ClientID:      "Iv1.abc",
 		ClientSecret:  "csec",
 	}, app)
-
-	require.ErrorIs(t, save.Execute(ctx, nil), ErrAppExists)
 }
 
-func TestLoadAppWithoutRow(t *testing.T) {
-	ctx := setupDB(t)
+func TestLoadAppMissingCredIsNoApp(t *testing.T) {
+	t.Setenv("GITHUB_APP_ID", "42")
+	t.Setenv("GITHUB_APP_PRIVATE_KEY", "-----BEGIN RSA PRIVATE KEY-----")
+	t.Setenv("GITHUB_APP_WEBHOOK_SECRET", "whsec")
+	t.Setenv("GITHUB_APP_CLIENT_ID", "Iv1.abc")
+	// GITHUB_APP_CLIENT_SECRET deliberately absent.
 
+	ctx := config.NewContext(context.Background(), fxtest.Configure())
 	_, err := loadApp(ctx)
 	require.ErrorIs(t, err, ErrNoApp)
+}
+
+func TestLoadAppSlugOptional(t *testing.T) {
+	t.Setenv("GITHUB_APP_ID", "42")
+	t.Setenv("GITHUB_APP_PRIVATE_KEY", "-----BEGIN RSA PRIVATE KEY-----")
+	t.Setenv("GITHUB_APP_WEBHOOK_SECRET", "whsec")
+	t.Setenv("GITHUB_APP_CLIENT_ID", "Iv1.abc")
+	t.Setenv("GITHUB_APP_CLIENT_SECRET", "csec")
+	// GITHUB_APP_SLUG deliberately absent — slug is optional.
+
+	app, err := loadApp(config.NewContext(context.Background(), fxtest.Configure()))
+	require.NoError(t, err)
+	require.Equal(t, "", app.Slug)
 }

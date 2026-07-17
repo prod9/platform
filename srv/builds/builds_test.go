@@ -9,17 +9,14 @@ import (
 	"fx.prodigy9.co/data/migrator"
 	"github.com/stretchr/testify/require"
 	"platform.prodigy9.co/srv/auth"
-	"platform.prodigy9.co/srv/github"
 	"platform.prodigy9.co/srv/srvtest"
 )
 
-// setupDB migrates the sibling fragments' schemas too: webhook ingest stores real
-// App credentials and the /api/builds endpoint tests seed sessions.
+// setupDB migrates the auth schema too: the /api/builds endpoint tests seed sessions.
 func setupDB(t *testing.T) context.Context {
 	return srvtest.SetupDB(t,
 		migrator.FromFS(Migrations),
-		migrator.FromFS(auth.Migrations),
-		migrator.FromFS(github.Migrations))
+		migrator.FromFS(auth.Migrations))
 }
 
 func queueTestBuild(t *testing.T, ctx context.Context, repo string) *Build {
