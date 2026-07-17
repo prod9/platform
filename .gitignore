@@ -7,6 +7,7 @@ bin
 /infra/
 .inbox.log
 .afk.log
+.ace/
 
 # Render output (model I: rendered manifests are never committed).
 testbeds/*/k8s

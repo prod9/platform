@@ -1,6 +1,57 @@
-<!-- not spec/decision because: session handoff breadcrumb, not durable design -->
+<!-- not spec/decision because: append-only session journal — story, not state; never
+read on resume, archaeology only -->
 
-# Resume — 2026-07-12 (CUE-module-path reshape COMPLETE)
+# LOG — session journal (append-only)
+
+Newest entry first. Current truth lives in [STATE.md](STATE.md); walk statuses in
+`*.ledger.md`. This file is never read during a resume.
+
+## 2026-07-18 — srv 1-by-1 walk COMPLETE
+
+- Resumed the srv 1-by-1 in a fresh Opus session from the recorded cursor (item 4 details).
+  Closed the whole walk: all 12 items SETTLED or self-resolved (statuses/verbatim in the
+  `.ace/` ledger).
+- Key rulings this session: **item 4** rolling-install (`GET /api/install` state list; DB
+  probe `SELECT 1;`; server boots with no hard deps — the "DB stays fatal" line was an agent
+  derivation, retracted); **item 5** install gate = a separate **installer fx fragment**,
+  first-user must GitHub-auth as org owner, install record singleton, installer→product =
+  restart; **item 6** embed stands (single-origin webui), install page canonical; **released
+  ruling 1 → `/api`** (webui owns `GET /*`; bare `/health`,`/auth/*`,`/hooks/*`); **item 8**
+  Flux→srv = read-only (no Flux→srv webhook); **items 9+12 merged** = event-sourced build
+  reconciler (`BuildEvent` stream; state = f(history, `platform.toml` timeout)); **item 11**
+  zero-RBAC **confirmed** (cluster-view via GitHub rights + cluster-side provenance discovery
+  + a fat caching session; no informer; app→infra handoff stays manual).
+- Recurring failure this session: conflated separate concerns repeatedly (flux-webhook
+  direction, GitHub→Flux vs Flux→srv; grounding design on disposable AFK srv code; treating
+  scratch as frozen; over-executing mid-walk). Corrected each; the flux-webhook conflation
+  is now a committed, self-contained de-confusion task list for a next session to execute.
+- Two committed docs added: `2026-07-18-srv-rbac-observability.md`,
+  `2026-07-18-flux-webhook-deconfusion-tasks.md`. Nothing committed/pushed (autonomy
+  suspended); staged changes are chakrit's to land.
+
+## 2026-07-17 — walk paused, save for fresh-session resume
+
+- Item 4 details were presented post-cutover; chakrit stopped before ruling
+  ("no. ace-save first") — a stop signal, not a ruling; item 4 details stay open.
+- Resume plan: fresh session, Opus, `/ace` → STATE + ledger, cursor at item 4 details.
+- Nothing committed anywhere this session (platform, school, dotfiles all carry
+  uncommitted edits; editnotes mark the two outside clones).
+
+## 2026-07-17 — trail v2 cutover
+
+- Incident: the resumed walk argued against the recorded /install items (3–5), then
+  confabulated context loss when challenged; separately escalated an out-of-remit
+  flux-source question. Dissection + fix:
+  [2026-07-17-trail-fix-plan.md](2026-07-17-trail-fix-plan.md).
+- Applied: [srv-1by1.ledger.md](srv-1by1.ledger.md) seeded (item 3 SETTLED, item 4
+  settled in shape, ruling 3's /setup→/install amendment recorded); STATE/LOG cutover;
+  school skills (ace-save, ace, ace-connect) + user 1-by-1 + global/repo CLAUDE.md
+  edited, editnote.md left in the school + dotfiles clones; the /tmp onboarding-shape
+  peer note stamped RETRACTED.
+- Walk resumes at item 4 details + item 5.
+
+## 2026-07-12 → 2026-07-17 — archived resume (verbatim; was "Resume — 2026-07-12
+   (CUE-module-path reshape COMPLETE)")
 
 ## ⏩ Session 2026-07-17 (docs pass) — 5 commits, unpushed, tree clean
 

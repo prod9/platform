@@ -21,7 +21,10 @@ it there instead.
 ## Format
 
 One file per artifact: `YYYY-MM-DD-slug.md` (the date matters — scratch is about the moment
-it was written). No template; write whatever shape fits.
+it was written). No template; write whatever shape fits. Exception — `LOG.md`, the
+append-only session journal, is undated by design (a current surface, not a moment-in-time
+artifact). The live *state* trail (current truth + ruling ledger) is no longer here: it
+moved to gitignored `.ace/save.md` + `.ace/save.ledger.md` (see CLAUDE.md "Session trail").
 
 ## Lifecycle
 
@@ -33,11 +36,22 @@ the raw working material. Nothing else should depend on a scratch file continuin
 
 Newest first. Scratch is disposable, so this list may lag — the directory is the truth.
 
-**Live** — current entry point / work in flight:
+**Live state** lives in gitignored `.ace/` now, not here — `.ace/save.md` (current truth,
+**start there**) and `.ace/save.ledger.md` (ruling ledger; walk statuses live nowhere else).
 
-- [2026-07-12 — Resume breadcrumb (latest)](2026-07-12-resume.md) — **start here**
-- [2026-07-17 — srv API/architecture 1-by-1](2026-07-17-srv-1by1.md) — walk **in progress**;
-  chakrit's standing rulings are givens, every walk item is unsettled until he closes it
+**Live** — committed work in flight:
+
+- [LOG](LOG.md) — append-only session journal (archaeology; never read on resume)
+- [2026-07-17 — trail fix plan](2026-07-17-trail-fix-plan.md) — why the state trail split
+  from the journal (schema, provenance, disciplines)
+- [2026-07-17 — srv API/architecture 1-by-1](2026-07-17-srv-1by1.md) — frozen context for
+  the ledger (derivations, evidence)
+- [2026-07-18 — srv RBAC & observability authz](2026-07-18-srv-rbac-observability.md) —
+  item 11 full record: zero-RBAC confirmed; cluster-view via GitHub rights + cluster-side
+  provenance discovery + a fat caching session (SETTLED; graduates to spec/ + ADR note)
+- [2026-07-18 — TO-DO: de-confuse "flux webhook"](2026-07-18-flux-webhook-deconfusion-tasks.md)
+  — **pending task list** (GitHub→Flux vs Flux→srv; doc edits + delete the wrong ADR); delete
+  when done
 - [2026-07-17 — containerd vs the Dagger engine](2026-07-17-containerd-vs-dagger-engine.md)
 - [2026-07-09 — fx handoff: slog LogValuer resolving sink](2026-07-09-fx-handoff-slog-logvaluer-sink.md)
 
