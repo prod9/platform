@@ -6,6 +6,26 @@ read on resume, archaeology only -->
 Newest entry first. Current truth lives in [STATE.md](STATE.md); walk statuses in
 `*.ledger.md`. This file is never read during a resume.
 
+## 2026-07-18 — flux Receiver cluster-wide fan-out + release v0.9.15
+
+- Interrupt session (bugfix + release), not the srv overhaul. Started an ace-connect bridge
+  (`prod9.platform.claude`, control mode); prod9/infra shared its multi-tenancy plan
+  (`/tmp/flux-multitenant-plan-prod9.infra.claude.md`).
+- **Platform side of the plan landed:** baseline Flux `Receiver` → cluster-wide unconditional
+  fan-out (`name: "*"`, ns dropped) so one baseline-owner Receiver pokes every tenant's
+  OCIRepository off the shared org webhook. The owner-vs-tenant emission role is a **convention
+  in docs** (chakrit: "B) is just an instruction and/or skill/docs edit … no code"), NOT
+  scaffold-mode code — honors the flat-baseline law. Commit `65d8564`; spec'd in
+  `scaffolding.md` + `config-allocation.md`. Smoke UNCHANGED, guard green.
+- **Two mistakes, both surfaced + corrected:** (1) my first commit swept pre-existing staged
+  changes (ADR deletion, LOG rename) into the flux commit; chakrit kept it as-is. (2) I quoted
+  the next release as `v0.9.10` off **stale local tags** — `platform release` fetches remote
+  tags first, real latest was v0.9.14 → cut **`v0.9.15`**. Rejected a `--force` release; chakrit
+  clarified there was no operator WIP — the dirty tree was a prior session's uncommitted work.
+- **Committed that prior session's uncommitted tree** in 5 coherent slices (`8bf4f1f`..`39ddbe6`:
+  CLAUDE.md laws, flux-webhook de-confusion T1–T4, trail split to `.ace/`, srv-rbac scratch,
+  webui preview). Then cut + pushed **v0.9.15** clean (no --force). Peer notified.
+
 ## 2026-07-18 — srv 1-by-1 walk COMPLETE
 
 - Resumed the srv 1-by-1 in a fresh Opus session from the recorded cursor (item 4 details).
