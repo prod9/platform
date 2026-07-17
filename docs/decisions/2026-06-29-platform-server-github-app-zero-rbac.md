@@ -1,7 +1,7 @@
 # Platform server authenticates as a GitHub App; zero platform-side RBAC
 
 Date: 2026-06-29
-Status: **accepted**
+Status: **revised** — 2026-07-18 addendum below; the original ruling stands unchanged.
 
 Frozen *why*; current state lives in [platform-server.md](../spec/platform-server.md)
 (intended/target — the `srv/` layer is not yet built).
@@ -58,3 +58,26 @@ Either token only reaches a repo where the App is **installed** (and, for the us
 where the user also has access). Unlike a raw OAuth token, a GitHub App user token cannot
 reach every repo the user can — the install is the gate, and is also what enables
 webhooks. Accepted.
+
+## 2026-07-18 addendum — stress-tested against observability; holds
+
+The zero-RBAC model was pressure-tested against the one action that looked most likely to
+force a permission table: **cluster / Flux delivery observability** (letting a user see a
+repo's reconcile state). It **holds, unchanged**, with two enablers:
+
+- **Authz stays GitHub-derived.** A user's right to *view* a repo's delivery state is the
+  same **infra-repo rights check** already used for deploy; the read itself is performed
+  by the **pod ServiceAccount** reading Flux CR state (`OCIRepository`/`Kustomization`).
+  No platform role, no stored permission.
+- **repo→namespace mapping is routing, not authz.** It is *not* derivable from the repo
+  name (`bluepages-infra` → `haachang.com/s9-haachang`), so it is **discovered from
+  existing cluster metadata** (`Kustomization`→`sourceRef`→`OCIRepository`→image) and
+  cached in a **fat session** (which also holds the rights-derived repo list, hence a
+  TTL). It is never a stored mapping table.
+
+Consequences that follow: repo-first information architecture (no namespace leak), **no
+baseline change**, and **no informer** (over-engineered — smart session caching suffices
+if ever needed). The app→infra handoff stays manual. Full worked derivation (points 1–17):
+[`2026-07-18-srv-rbac-observability.md`](../scratch/2026-07-18-srv-rbac-observability.md).
+The observability *endpoint + UI surface* is a separate, still-open design question — this
+addendum rules only that zero-RBAC survives it.

@@ -74,7 +74,7 @@ Newest first.
 - [2026-07-05 — Delivery verbs are orthogonal; one publish engine, two drivers](2026-07-05-delivery-verbs-are-orthogonal.md) *(read `ops publish`/`ops render` as `publish`/`render`)*
 - [2026-07-05 — Test-in-build is a hard gate; blackbox-first testing](2026-07-05-test-in-build-is-a-hard-gate.md)
 - [2026-07-05 — Platform FHS container layout; cmd is the runtime command](2026-07-05-platform-fhs-container-layout.md)
-- [2026-06-29 — Platform server: GitHub App, zero platform RBAC](2026-06-29-platform-server-github-app-zero-rbac.md)
+- [2026-06-29 — Platform server: GitHub App, zero platform RBAC](2026-06-29-platform-server-github-app-zero-rbac.md) *(revised 2026-07-18: stress-tested against observability, holds)*
 - [2026-06-26 — Render is a pure function of committed git](2026-06-26-render-is-pure-function-of-committed-git.md)
 - [2026-06-26 — Repo stays private for now](2026-06-26-repo-stays-private.md)
 - [2026-06-24 — Split build and server log channels](2026-06-24-split-build-and-server-log-channels.md)
