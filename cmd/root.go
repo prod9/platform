@@ -4,6 +4,8 @@
 package cmd
 
 import (
+	"runtime/debug"
+
 	fxcmd "fx.prodigy9.co/cmd"
 	"github.com/spf13/cobra"
 	initcmd "platform.prodigy9.co/cmd/init"
@@ -12,8 +14,9 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "platform",
-	Short: "PRODIGY9 platform swiss army knife",
+	Use:     "platform",
+	Short:   "PRODIGY9 platform swiss army knife",
+	Version: versionString(debug.ReadBuildInfo()),
 }
 
 var (
@@ -24,6 +27,7 @@ var (
 func init() {
 	rootCmd.PersistentFlags().CountVarP(&quietness, "quiet", "q", "less verbose logging")
 	rootCmd.PersistentFlags().CountVarP(&verbosity, "verbose", "v", "more verbose logging")
+	rootCmd.SetVersionTemplate("{{.Version}}\n")
 
 	rootCmd.PersistentPreRun = func(*cobra.Command, []string) {
 		buildlog.SetVerbosity(verbosity - quietness)
@@ -46,6 +50,7 @@ func init() {
 		ReleaseCmd,
 		ServeCmd,
 		VanityCmd,
+		VersionsCmd,
 
 		fxcmd.PrintConfigCmd,
 	)
