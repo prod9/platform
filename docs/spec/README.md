@@ -40,8 +40,13 @@ superseded moves to `../scratch/` — `spec/` holds current design only, never h
   `platform.toml` / `infra/` / `tf/` / OCI / Flux; the no-overlap map.
 - [`platform.md`](platform.md) — the platformv2 vision: an in-cluster build + delivery control
   plane (components, identity, phases, anchors).
-- [`platform-server.md`](platform-server.md) — the `srv/` tag-watch server: GitHub-App auth,
-  the `/var/cache` worktree layout, the operations table. **Skeleton implemented, and its
-  surface is under active rework** — read it as target design, not settled current state.
+- [`platform-server.md`](platform-server.md) — the `srv/` tag-watch server: GitHub-App
+  auth, the `/var/cache` worktree layout, the settled operations table. Route surface +
+  install/boot flow settled; build lifecycle + Flux→srv observability held for a
+  design pass.
+- [`installation.md`](installation.md) — the server install model: the installer fragment,
+  the `GET /api/install` state surface, boot composition, the org-owner first-install
+  gate, the install record, by-hand App creation, and the org-wide GitHub→Flux delivery
+  webhook.
 
 Keep this list in sync when adding or removing a spec.

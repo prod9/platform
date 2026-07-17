@@ -1,9 +1,14 @@
 # Platform Server
 
-Status: **target design — skeleton implemented, surface under active rework.** Read this as
-intent, not settled current state: the route surface, the setup/install flow, the boot
-sequence, and the flux-webhook half are all being re-decided, and nothing here is closed
-until that lands. The implementation notes below are accurate to the code as it stands.
+Status: **target design — skeleton implemented, rebuild pending.** The **route surface**
+and the **install/boot flow** are now settled — the
+[Operations](#operations-settled-surface) table below teaches the settled surface, and
+[installation.md](installation.md) owns the
+install model (installer fragment, `GET /api/install`, boot composition). Still open, held
+for a design pass: the **build lifecycle** (event-sourced reconciler) and the **Flux→srv
+observability surface**. The implementation blockquote immediately below describes the
+**pre-rebuild skeleton as the code stands today** — its routes and setup flow are
+superseded by the settled surface; read the table, not the blockquote, for the target.
 
 > **Target design — skeleton implemented.** A `srv/` tree now exists: the router +
 > `platform serve` command and the embedded `webui/` seam (placeholder page,
@@ -76,30 +81,41 @@ fragments). The fragment import graph is acyclic — `auth → github`,
 github (which auth imports) never imports auth back. `srv/pgerr` and `srv/srvtest` hold
 the shared postgres-error check and fragment-neutral test scaffolding.
 
-### Operations (current surface)
+### Operations (settled surface)
 
-Everything the running server does today — the review/grill table. HTTP first, then the
-boot/background operations that run without a request.
+The settled HTTP surface — the review/grill table. **Reserved backend prefixes** are
+`/api`, `/auth`, `/hooks`, `/health`; the webui owns everything else under `GET /*`. JSON
+lives under `/api`; GitHub-facing and health routes stay bare.
 
-| Operation                                       | Gate                          | What it does                                                                          | Why it exists                                                                                              |
-| ----------------------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `GET /api/health`                               | none                          | `{"time": …}` liveness probe                                                           | k8s probes + smoke-level "is the server up" check without touching DB or auth                               |
-| `GET /api/auth/github`                          | none                          | sets the state cookie, redirects to GitHub's user-OAuth authorize page                 | login entry point — platform delegates identity to GitHub, holds no passwords (identity ADR)                |
-| `GET /api/auth/github/callback`                 | state cookie                  | exchanges the code, `GET /user`, find-or-create user+identity, mints a session cookie  | completes login; identity keyed on immutable provider id so GitHub renames don't break links (identity ADR) |
-| `POST /api/auth/logout`                         | none (cookie optional)        | deletes the session row, clears the cookie                                             | session revocation server-side — a stolen cookie dies with the row, not with the browser                     |
-| `GET /api/me`                                   | session                       | id + name of the session's user                                                        | the webui's "who am I / am I logged in" probe                                                                |
-| `GET /api/builds`                               | session                       | last 50 builds, newest first                                                           | the webui's build list — the server's whole point made visible                                               |
-| `POST /api/webhooks/github`                     | App webhook HMAC              | verifies signature; queues a build row per pushed `refs/tags/v*`                       | the pull-model trigger: a version tag *is* the build request (delivery-verbs ADR)                            |
-| `GET /setup/github` (+ `/callback`)             | none (operator bootstrap)     | App Manifest form; callback stores exchanged App credentials (single row, encrypted)   | one-time App bootstrap without hand-copying secrets; a second App is a hard 409                              |
-| `GET /*`                                        | none                          | serves the embedded webui (`webui.Assets`)                                             | single-binary delivery — no separate frontend deploy                                                         |
+| Operation                   | Gate                      | What it does                                                                          | Why it exists                                                                                                      |
+|-----------------------------|---------------------------|---------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------|
+| `GET /health`               | none                      | `{"time": …}` liveness probe                                                          | k8s probes + smoke-level "is the server up" check without touching DB or auth                                      |
+| `GET /auth/github`          | none                      | sets the state cookie, redirects to GitHub's user-OAuth authorize page                | login entry point — platform delegates identity to GitHub, holds no passwords (identity ADR)                       |
+| `GET /auth/github/callback` | state cookie              | exchanges the code, `GET /user`, find-or-create user+identity, mints a session cookie | completes login; identity keyed on immutable provider id so GitHub renames don't break links (identity ADR)        |
+| `GET /api/session`          | session                   | session state — expiry + user id; 401 when none                                       | the webui's "is my session valid" probe, distinct from the user's profile                                          |
+| `DELETE /api/session`       | none (cookie optional)    | deletes the session row, clears the cookie                                            | session revocation server-side — a stolen cookie dies with the row, not with the browser                           |
+| `GET /api/users/me`         | session                   | the session user's profile (id + name)                                                | the webui's "who am I" — profile, not session validity                                                             |
+| `GET /api/builds`           | session                   | last 50 builds, newest first                                                          | the webui's build list — the server's whole point made visible                                                     |
+| `POST /hooks/github`        | App webhook HMAC          | verifies signature; queues a build row per pushed `refs/tags/v*`                      | the pull-model trigger: a version tag *is* the build request (delivery-verbs ADR)                                  |
+| `GET /api/install`          | none (installer fragment) | ordered install-state list; served **only while not completely installed**            | drives the SPA installer-vs-app decision ([installation.md](installation.md)); its 404 *is* the "installed" signal |
+| `GET /*`                    | none                      | serves the embedded webui; the SPA drives installer-vs-app via `GET /api/install`     | single-binary delivery — no separate frontend deploy                                                               |
 
-Boot/background, in `Serve` order:
+`GET /api/me` splits into `GET /api/session` (validity) + `GET /api/users/me` (profile);
+`POST /api/auth/logout` becomes `DELETE /api/session`; `/api/webhooks/github` becomes bare
+`/hooks/github`; the `/setup/github` App-Manifest flow is **killed** (App creation is now
+a by-hand, install-page-guided step — [installation.md](installation.md)). The **Flux→srv
+observability** endpoint `GET /api/repos/{owner}/{repo}/flux` is **forthcoming** — its
+surface and UI need a design pass and are not settled here.
 
-| Operation             | When            | What it does                                                                    | Why it exists                                                                                 |
-| --------------------- | --------------- | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| DB connect + migrate  | boot, fail-fast | requires `DATABASE_URL`; applies embedded SQL; refuses a dirty migration state    | schema drift is an operator decision, never silently resynced                                     |
-| requeue orphan builds | boot            | flips every `running` row back to `queued`                                        | single-server model: a running row at boot can only be a crashed predecessor's orphan             |
-| build runner loop     | continuous      | claim (`SKIP LOCKED`) → mirror+worktree prep → `conf.Load` → `BuildAndPublish` → finish/fail; 2s poll, immediate re-claim | the server driver of the one-publish-engine model — same `BuildAndPublish` the CLI drives (delivery-verbs ADR) |
+Boot no longer runs the old fail-fast sequence. The server **always boots — no hard boot
+deps** (a DB unreachable is an install-state error, not a boot failure); **migrations
+never auto-run at boot** (installer button or `./platform srv data migrate` — see
+[installation.md](installation.md)); the boot-time **requeue-orphans** action is
+**removed**. Boot instead decides the API composition once from `installation.GetState()`
+(installer vs product fragments — [installation.md](installation.md)). The continuous
+**build runner** is being redesigned as an event-sourced reconciler (`BuildEvent` fold) —
+**forthcoming**, held for the build-lifecycle design pass; the current skeleton's
+claim-loop is described in the implementation blockquote above.
 
 ### No `api/` contract layer (deliberate)
 
@@ -130,6 +146,17 @@ consequence for credentials: platform must act with the **triggering user's GitH
 identity** where attribution/gating matters, never a single god credential that would
 force platform to decide who-can-do-what.
 
+This model was **stress-tested against cluster/flux observability** and holds (ADR
+[2026-06-29](../decisions/2026-06-29-platform-server-github-app-zero-rbac.md), revised
+2026-07-18): a user's view of delivery state is gated by an **infra-repo rights check**,
+and the read itself is the **pod ServiceAccount** reading Flux CR state — no platform role
+enters. The repo→namespace mapping that observability needs is **routing, not authz** (it
+is *not* derivable from the repo name — e.g. `bluepages-infra` →
+`haachang.com/s9-haachang`), so it is discovered from existing cluster metadata
+(`Kustomization`→`sourceRef`→`OCIRepository`) and cached in the session, never stored as a
+permission. The worked derivation is in
+[`2026-07-18-srv-rbac-observability.md`](../scratch/2026-07-18-srv-rbac-observability.md).
+
 ## Auth mechanism: a GitHub App
 
 `platform` authenticates as a **GitHub App** — the GitHub-sanctioned integration model
@@ -140,13 +167,14 @@ bus-factor on whoever connected the repo.
 
 ### `srv` owns the App
 
-The server owns the App and creates it **once, at server setup**, via GitHub's **App
-Manifest flow**: `srv` generates a manifest (permissions `contents:rw`, `metadata:r`;
-webhook events incl. `push`; webhook + callback URLs), the operator clicks **Create GitHub
-App** on GitHub, and GitHub redirects back with a one-time code that `srv` exchanges
-(`POST /app-manifests/{code}/conversions`) to receive the **app id, private key, webhook
-secret, client secret** automatically. No manual "copy the private key into config." This
-is a *server-bootstrap* step — **not** `platform init`.
+The server governs one App for its bound org. The App is **created by hand** on GitHub,
+guided by the **webui install page** (which renders the running server's live webhook +
+callback URLs at install time), then its credentials — **app id, private key, webhook
+secret, client secret** — are copied into **fx config**. The old App-Manifest
+auto-exchange flow (`/setup/github`) is **killed**: creation is now an install-page step,
+credentials arrive via config, and the install record holds only the `installation_id`,
+not the credentials. This is a *server install* concern owned by the installer fragment —
+**not** `platform init`. See [installation.md](installation.md).
 
 ### Two token types, chosen per operation
 
