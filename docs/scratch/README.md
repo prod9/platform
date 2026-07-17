@@ -35,6 +35,7 @@ Newest first. Scratch is disposable, so this list may lag — the directory is t
 
 **Live** — current entry point / work in flight:
 
+- [2026-07-17 — containerd vs the Dagger engine](2026-07-17-containerd-vs-dagger-engine.md)
 - [2026-07-12 — Resume breadcrumb (latest)](2026-07-12-resume.md)
 - [2026-07-09 — fx handoff: slog LogValuer resolving sink](2026-07-09-fx-handoff-slog-logvaluer-sink.md)
 
