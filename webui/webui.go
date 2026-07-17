@@ -1,6 +1,7 @@
-// Package webui owns the built web UI assets embedded into the platform binary. The
-// SvelteKit source will land alongside in a later slice, its adapter-static output
-// replacing the committed placeholder in build/.
+// Package webui owns the web UI embedded into the platform binary: the SvelteKit
+// source (src/, plain JS, adapter-static) and its committed build output in build/.
+// Rebuild with `pnpm build` and commit the result — the binary ships whatever build/
+// holds.
 package webui
 
 import "embed"

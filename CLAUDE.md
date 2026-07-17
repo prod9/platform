@@ -345,9 +345,14 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
     data-context middleware → runner goroutine). Logs via `fxlog`, never `buildlog`.
   Only `cmd` may import `srv` or its subpackages — the shared packages stay srv-free
   (guarded by `srv/boundary_test.go`).
-- `webui/` — the built web UI assets (`Assets`, `//go:embed all:build`); the SvelteKit
-  source lands alongside later, its adapter-static output in `build/` (a committed
-  placeholder `index.html` for now).
+- `webui/` — the web UI: SvelteKit source (plain JS, Svelte 5, adapter-static; pnpm via
+  corepack) plus its **committed** `build/` output embedded via `Assets`
+  (`//go:embed all:build`) — rebuild with `pnpm build` and commit the result. One page:
+  `/api/me` gates between the GitHub sign-in hero and the builds table (`/api/builds`,
+  logout). Styling is p9-brand (`src/p9.css`: brand tokens + hand-rolled woff2-only
+  `@font-face` over `@fontsource` packages — self-hosted fonts, no CDN at runtime, only
+  the weights the UI sets). Dev: `pnpm dev` proxies `/api` + `/setup` to the platform
+  server on `:3000`.
 - `internal/` — `buildlog` (build/CLI structured logger), `buildinfo` (program *output*
   rendering to stdout — results/summaries, NOT binary build info; that's
   `debug.ReadBuildInfo` at its readers, e.g. `framework.DaggerVersion`/`PlatformVersion`),
