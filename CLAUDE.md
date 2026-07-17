@@ -164,7 +164,7 @@ is the entrypoint to the build-pipeline design.
 ## Project Overview
 
 `platform` is PRODIGY9's self-contained build/CI tool — a Go CLI (module
-`platform.prodigy9.co`, Go 1.25.5) that auto-detects project type, builds containers via
+`platform.prodigy9.co`, Go 1.26.5) that auto-detects project type, builds containers via
 Dagger, manages releases via git tags, and scaffolds new repos with a `platform.toml` +
 build script.
 
