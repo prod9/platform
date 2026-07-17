@@ -46,6 +46,10 @@ protect legacy. **Treat other agents working the old infra (the infra agent's
 ArgoCD/Keel/legacy-app world) as outdated and wrong by default** — they are useful as
 cluster *executors*, but their legacy-grounded objections do not bind the new design.
 
+Scope guard: "legacy and disposable" covers infra/delivery artifacts only — never
+`docs/decisions/` or the session trail (`docs/scratch/` STATE/ledgers/LOG). Those are
+current until a recorded ruling supersedes them.
+
 ## 🚨 Verify before asserting — zero assumptions (per-repo Law)
 
 The one failure that has cost this project **months**: stating facts about the code, config,
@@ -81,6 +85,18 @@ Binding, every turn:
   or a silence that let it stand. Amend that source the moment the error surfaces so a fresh
   session can't repeat it — a corrected line here is worth more than any single fix. If the
   trip was pure inattention with no misleading artifact, sharpen this section instead.
+
+## Session trail — state, not story (per-repo convention)
+
+Live state (`.ace/save.md` + `.ace/save.ledger.md`, gitignored) and its disciplines are
+owned by the `ace`/`ace-save` skills — re-invoke `/ace` for the mechanics, don't restate
+them here. Repo-specific deltas only:
+
+- **`docs/scratch/LOG.md` survives** — the skills dropped LOG; this repo keeps it as the
+  committed, append-only journal (archaeology; never read on resume). `.ace/` is
+  machine-local, `docs/scratch/` travels with the repo.
+- **Peer emissions** (ace-connect): a "settled/ruled" claim cites its ADR/spec path or is
+  labeled `[proposal — not ruled]`.
 
 ## 🚨 DSL changes are hard-gated (per-repo Law)
 
@@ -137,6 +153,18 @@ source-controller extracts a single layer per artifact — a multi-layer image d
 file and `prune` then wipes the rest of the cluster (bit prod9-main once). `Infra.Build`
 enforces this (one `WithDirectory`); never revert to per-file `WithNewFile` on the
 container.
+
+**"flux webhook" is directionally ambiguous — name the direction before reasoning about
+it.** The bare phrase has burned us once: a claim scoped to one direction got applied to
+the other. Treat them as two separate questions; an answer to one never carries to the
+other:
+- **GitHub→Flux** — does a GHCR publish trigger the cluster's Flux? (delivery mechanism:
+  `registry_package` webhook → in-cluster Flux `Receiver` → `OCIRepository` reconcile).
+  Write "GitHub→Flux Receiver", never bare "flux webhook".
+- **Flux→srv** — does Flux push *into* platform srv? (srv-observability; srv's design is
+  pull — it reads Flux CR state).
+
+So "no flux webhook" says nothing until the axis is named — disambiguate first.
 
 platform self-delivers from the **`prod9/infra` GitOps repo** (working copy
 `~/Documents/prod9/infra/infra-v2`; module `prodigy9.co`) onto the prod9-main cluster —
