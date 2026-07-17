@@ -67,7 +67,6 @@ Newest first.
 
 - [2026-07-16 — The scaffolded baseline is provider-neutral; cloud wiring is the infra repo's edit](2026-07-16-baseline-is-provider-neutral.md)
 - [2026-07-16 — The v0.9 line is platformv2; v2 cuts are patch releases](2026-07-16-v0.9-line-is-platformv2.md)
-- [2026-07-13 — Flux webhook delivery: push-driven reconcile, poll as fallback](2026-07-13-flux-webhook-delivery.md)
 - [2026-07-12 — CUE module path is a scaffold input read from cue.mod, not the repository](2026-07-12-cue-module-path-is-a-scaffold-input.md)
 - [2026-07-11 — Terminology lexicon: one word, one concept](2026-07-11-terminology-lexicon.md)
 - [2026-07-11 — Baseline installs unconditionally; dissolves into the Infra framework](2026-07-11-baseline-dissolves-into-infra-framework.md)

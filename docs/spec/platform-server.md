@@ -34,11 +34,10 @@ until that lands. The implementation notes below are accurate to the code as it 
 > that session (hand-written wire structs — see §No `api/` contract layer).
 > Installation-token minting is implemented (`srv/github/tokens.go`): a hand-rolled
 > RS256 App JWT resolves the repo's installation and mints its short-lived token
-> (§Two token types); its first consumer is
-> `POST /api/repos/{owner}/{repo}/flux-webhook` (`srv/flux/webhook.go`), the
-> session-gated endpoint that creates a repo's `registry_package` webhook pointing at
-> the cluster's Flux Receiver (closing the
-> [flux-webhook ADR](../decisions/2026-07-13-flux-webhook-delivery.md)'s manual step).
+> (§Two token types). **VOID (2026-07-18):** its implemented consumer
+> `POST /api/repos/{owner}/{repo}/flux-webhook` (`srv/flux/webhook.go`) is dead — the
+> GitHub→Flux `registry_package` webhook is **org-wide, provisioned once in the install
+> flow**, never minted per-repo. The endpoint drops in the srv rebuild.
 > `srv` is the **second driver** of the one-publish-engine model — the tag-watch
 > server invoking the same build+push engine the local CLI drives (see
 > [delivery-verbs-are-orthogonal](../decisions/2026-07-05-delivery-verbs-are-orthogonal.md)
@@ -91,7 +90,6 @@ boot/background operations that run without a request.
 | `GET /api/me`                                   | session                       | id + name of the session's user                                                        | the webui's "who am I / am I logged in" probe                                                                |
 | `GET /api/builds`                               | session                       | last 50 builds, newest first                                                           | the webui's build list — the server's whole point made visible                                               |
 | `POST /api/webhooks/github`                     | App webhook HMAC              | verifies signature; queues a build row per pushed `refs/tags/v*`                       | the pull-model trigger: a version tag *is* the build request (delivery-verbs ADR)                            |
-| `POST /api/repos/{owner}/{repo}/flux-webhook`   | session + GitHub push check   | creates the repo's `registry_package` webhook → cluster Flux Receiver (409 duplicate)  | closes the flux-webhook ADR's manual GitHub-side step; push-permission check = zero platform RBAC            |
 | `GET /setup/github` (+ `/callback`)             | none (operator bootstrap)     | App Manifest form; callback stores exchanged App credentials (single row, encrypted)   | one-time App bootstrap without hand-copying secrets; a second App is a hard 409                              |
 | `GET /*`                                        | none                          | serves the embedded webui (`webui.Assets`)                                             | single-binary delivery — no separate frontend deploy                                                         |
 

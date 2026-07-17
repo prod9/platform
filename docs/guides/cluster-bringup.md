@@ -114,7 +114,7 @@ ghcr package, create a webhook:
   `kubectl -n flux-system get receiver infra -o jsonpath='{.status.webhookPath}'`
 - Content type json; secret = the HMAC token from step 2; event: **`registry_package`**.
 
-The webhook is the primary reconcile trigger; the OCIRepository's 10m poll is only the
+The GitHub→Flux webhook is the primary reconcile trigger; the OCIRepository's 10m poll is only the
 dropped-webhook fallback. Expect **minutes**, not seconds: GitHub delivers
 `registry_package` events on a throttled cadence (~6m observed steady-state, 10–24m under
 publish surges) — the webhook's win is beating the poll's worst case and surviving poll
