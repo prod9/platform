@@ -63,6 +63,10 @@ func (d DateRef) IsToday() bool {
 		d.date.Day() == now.Day()
 }
 
+// Time is the day the ref names; Counter breaks same-day ties.
+func (d DateRef) Time() time.Time { return d.date }
+func (d DateRef) Counter() int    { return d.counter }
+
 func (d DateRef) Compare(o DateRef) int {
 	if c := d.date.Compare(o.date); c != 0 {
 		return c

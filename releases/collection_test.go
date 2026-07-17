@@ -27,3 +27,21 @@ func TestSortReleaseNamesDatestampCounters(t *testing.T) {
 		[]string{"v20260717-2", "v20260717-1", "v20260717", "v20260710", "v0.9.10"},
 		names)
 }
+
+// TestSortReleaseNamesMixedClasses pins the total order over a real repo's tag mix
+// (semver, 12-digit timestamp refs, datestamps ± counters). Pairwise-delegating
+// comparators read timestamps as huge semver majors while datestamp pairs compared
+// chronologically — not a strict weak order, so SortFunc scrambled the list and
+// LatestName picked a stale prev (the x9 bare-tag re-cut). Chronological refs order
+// by the moment they name, above semver, above everything else.
+func TestSortReleaseNamesMixedClasses(t *testing.T) {
+	names := []string{
+		"v0.8.4", "v202306291214", "v20260717", "v0.9.10",
+		"v202401082142", "v20260710-2", "v20260717-1", "vodd",
+	}
+	sortReleaseNames(names)
+	r.Equal(t, []string{
+		"v20260717-1", "v20260717", "v20260710-2", "v202401082142",
+		"v202306291214", "v0.9.10", "v0.8.4", "vodd",
+	}, names)
+}
