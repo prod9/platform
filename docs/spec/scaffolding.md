@@ -87,18 +87,34 @@ markers. Each maps to its repo-relative destination (dropping any `.tmpl` suffix
 
 The default working set is what a functioning cluster needs out of the box: cert-manager
 (Gateway API + ListenerSet reconciliation enabled — the cross-cloud convention), flux,
-flux-sync (the push-driven webhook `Receiver`
+flux-sync (the GitHub→Flux `Receiver`
 + its own `ListenerSet` and route), the platform app, the NGF gateway stack, the
 host-agnostic operator `Gateway` app, and the ACME cluster-issuer. Components own their
 hostnames via `ListenerSet`s (distributed-hosts shape) — the gateway app carries none. It
 installs whole — selection is not an operator choice at init time.
 
+### Multi-tenant clusters: baseline owner vs tenant (convention, not code)
+
+A shared Flux cluster has **one baseline owner** (the repo that scaffolds this full baseline)
+and **N tenants** (other repos delivering apps onto the same cluster). The distinction is a
+**convention operators follow when committing a tenant repo**, never scaffolding machinery —
+`Infra.Scaffold` stays fixed and unconditional (per the flat-baseline ruling above):
+
+- **Baseline owner** emits the whole set above — including the single cluster-wide
+  `Receiver` (`name: "*"`), which pokes every tenant's `OCIRepository` off the one shared
+  org webhook. No per-tenant Receiver, webhook, or HMAC secret exists.
+- **Tenant** commits **only** its own `OCIRepository` + `Kustomization` in its own namespace.
+  It **must not** emit any baseline component (gateway / cert-manager / flux-system /
+  platform) — a double-emit gives the shared cluster two gateways / cert-managers / flux
+  installs that prune each other. An operator scaffolding a tenant prunes the baseline down
+  to those two resources; the pruning is the operator's, not a scaffold mode.
+
 ### `DefaultVars`: interpolation inputs, not selection
 
 The baseline's default `[vars]` are **pure interpolation inputs**: version pins
 (`CERT_MANAGER_VERSION`, `FLUX_VERSION`, …) and the per-deployment ingress hosts the CUE apps
-route on (`PLATFORM_HOSTNAME` for the platform app, `FLUX_HOSTNAME` for the Flux webhook
-route). Keys are SCREAMING_SNAKE (the preferred `platform.toml` form; render lowercases for
+route on (`PLATFORM_HOSTNAME` for the platform app, `FLUX_HOSTNAME` for the GitHub→Flux
+Receiver route). Keys are SCREAMING_SNAKE (the preferred `platform.toml` form; render lowercases for
 both consumption routes) — `\(var)` in directive `download` URLs and `@tag(var)` in CUE apps.
 **Selection is not a var** — the full baseline installs unconditionally.
 

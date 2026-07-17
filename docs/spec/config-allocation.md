@@ -83,9 +83,9 @@ Top (closest to the human) to bottom (closest to the metal). One owner each.
    [infra-publishes-as-plain-image-retire-oras](../decisions/2026-07-05-infra-publishes-as-plain-image-retire-oras.md).
 4. Flux's `OCIRepository` follows the tag, extracts the layer via `layerSelector` →
    reconciles → pods run the pinned image. The publish fires GitHub's `registry_package`
-   webhook → a Flux `Receiver` pokes the `OCIRepository` for a near-instant reconcile; the
-   `OCIRepository` poll interval is only the dropped-webhook fallback. See
-   [flux-webhook-delivery](../decisions/2026-07-13-flux-webhook-delivery.md).
+   webhook → the GitHub→Flux `Receiver` (one per cluster, `name: "*"` — pokes every
+   `OCIRepository` in every namespace) triggers a near-instant reconcile; the
+   `OCIRepository` poll interval is only the fallback when the Receiver misses a delivery.
 5. Pods' init-containers pull their secrets from platform (outbound) at start.
 
 No step pushes into the cluster. The gate is the git commit; everything after is pull.

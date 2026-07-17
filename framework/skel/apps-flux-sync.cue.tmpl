@@ -91,11 +91,14 @@ import (
 		#source: source.#name
 	}
 
-	// Webhook Receiver — the primary reconcile trigger. On a GHCR publish GitHub POSTs the
-	// registry_package event here (on a throttled, minutes-scale cadence); the Receiver
-	// validates the signature and pokes the OCIRepository, whose interval is only the
-	// dropped-webhook fallback. Guarded by TestEmbeddedFluxReceiver — do not drop back to
-	// poll-only delivery.
+	// Webhook Receiver — the primary reconcile trigger, one per cluster, owned by the baseline.
+	// On a GHCR publish GitHub POSTs the registry_package event here (throttled, minutes-scale);
+	// the Receiver validates the signature and pokes EVERY OCIRepository in EVERY namespace
+	// (name: "*", namespace omitted — cluster-wide fan-out), so tenant OCIRepos reconcile off
+	// this one shared org webhook without their own Receiver/HMAC. A poke is idempotent (registry
+	// HEAD, no-op if the digest is unchanged), so matching all is safe and needs no opt-out label.
+	// The OCIRepository interval is only the dropped-webhook fallback. Guarded by
+	// TestEmbeddedFluxReceiver — do not drop back to poll-only delivery.
 	let receiver = #Receiver & {
 		#name:   "infra"
 		#ns:     nsp.#name
@@ -104,8 +107,7 @@ import (
 		#resources: [{
 			apiVersion: source.apiVersion
 			kind:       source.kind
-			name:       source.#name
-			namespace:  source.#ns
+			name:       "*"
 		}]
 	}
 
