@@ -69,18 +69,6 @@ func (c *Claim) Execute(ctx context.Context, out any) error {
 	return err
 }
 
-// RequeueOrphans flips every running build back to queued. Boot-time recovery: in
-// the single-server model, any row still running when the process starts belonged
-// to a crashed or killed predecessor — an orphan by definition.
-type RequeueOrphans struct{}
-
-func (r *RequeueOrphans) Execute(ctx context.Context, out any) error {
-	return data.Exec(ctx, `
-		UPDATE builds
-		SET status = 'queued', updated_at = now()
-		WHERE status = 'running'`)
-}
-
 // Finish marks a claimed build succeeded, recording what it published.
 type Finish struct {
 	ID     int64

@@ -107,28 +107,6 @@ func TestClaimConcurrentClaimsOneWinner(t *testing.T) {
 	require.Equal(t, 1, missed)
 }
 
-func TestRequeueOrphansRequeuesRunning(t *testing.T) {
-	ctx := setupDB(t)
-	queueTestBuild(t, ctx, "app")
-	orphan, err := claimBuild(ctx)
-	require.NoError(t, err)
-
-	queueTestBuild(t, ctx, "done-app")
-	finished, err := claimBuild(ctx)
-	require.NoError(t, err)
-	require.NoError(t, (&Finish{ID: finished.ID, Image: "i", Digest: "d"}).Execute(ctx, nil))
-	queued := queueTestBuild(t, ctx, "queued-app")
-
-	require.NoError(t, (&RequeueOrphans{}).Execute(ctx, nil))
-
-	requeued := loadBuild(t, ctx, orphan.ID)
-	require.Equal(t, "queued", requeued.Status)
-	require.True(t, requeued.UpdatedAt.After(orphan.UpdatedAt))
-
-	require.Equal(t, "queued", loadBuild(t, ctx, queued.ID).Status)
-	require.Equal(t, "succeeded", loadBuild(t, ctx, finished.ID).Status)
-}
-
 func TestFinish(t *testing.T) {
 	ctx := setupDB(t)
 	queueTestBuild(t, ctx, "app")

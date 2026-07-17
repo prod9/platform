@@ -134,7 +134,9 @@ Migrations **never auto-run at boot**. Two paths reach the same schema:
 
 - **CLI** — `./platform srv data migrate`, run before a deploy so the new boot
   comes up already migrated.
-- **Installer button** — the `migrations` remediation on the install page.
+- **Installer button** — the `migrations` remediation on the install page, which `POST`s
+  `/api/install/migrations` (an installer-fragment action, org-owner gated per the
+  first-install gate).
 
 Because a pending migration drops the **whole product to the installer** (intended
 — the product API refuses to mount against an out-of-date schema), the CLI pre-run
