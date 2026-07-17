@@ -1,5 +1,10 @@
 # Platform Server
 
+Status: **target design — skeleton implemented, surface under active rework.** Read this as
+intent, not settled current state: the route surface, the setup/install flow, the boot
+sequence, and the flux-webhook half are all being re-decided, and nothing here is closed
+until that lands. The implementation notes below are accurate to the code as it stands.
+
 > **Target design — skeleton implemented.** A `srv/` tree now exists: the router +
 > `platform serve` command and the embedded `webui/` seam (placeholder page,
 > `GET /api/health`) + DB (users/identities per the
@@ -10,27 +15,27 @@
 > Webhook ingest is implemented: `POST /api/webhooks/github` verifies the App webhook
 > HMAC signature and records a queued `builds` row for each pushed version tag
 > (`refs/tags/v*`, not deleted); the build runner below consumes the queue.
-> Repo-prep is implemented (`srv/repoprep.go`): `PrepRepo` maintains the full bare
+> Repo-prep is implemented (`srv/builds/repoprep.go`): `PrepRepo` maintains the full bare
 > mirror under a per-repo flock, resolves the sha, and adds the per-build worktree
 > (§Repo preparation below); `RemoveWorkTree` is the post-build cleanup; cache root via
 > `CACHE_DIR` (default `/var/cache/platform`). Engine wiring is implemented
-> (`srv/builds.go` + `srv/runner.go`): `Serve` opens one `engine.New` per process and a
+> (`srv/builds/builds.go` + `srv/builds/runner.go`): `Serve` opens one `engine.New` per process and a
 > claim loop consumes queued builds — `ClaimBuild` (`FOR UPDATE SKIP LOCKED`, oldest
 > first) → repo-prep → `conf.Load` → `engine.BuildAndPublish` under the build's tag →
 > `FinishBuild`/`FailBuild` records the outcome (2s poll tick when the queue is empty).
-> GitHub login is implemented (`srv/auth.go`): `/api/auth/github` +
+> GitHub login is implemented (`srv/auth/auth.go`): `/api/auth/github` +
 > `/api/auth/github/callback` run the App's user-OAuth flow, find-or-create
 > user+identity per the [identity ADR](../decisions/2026-06-14-identity-and-linked-accounts.md)
 > (user token encrypted into identity metadata; no refresh handling and no
 > verified-email auto-link yet), and mint a platform session — a random token whose
 > SHA-256 lands in the `sessions` table, carried by a 30-day `platform_session`
-> cookie, revoked by `POST /api/auth/logout`. The web-UI API is implemented
-> (`srv/api.go`): `GET /api/me` and `GET /api/builds` authenticate against that
-> session (hand-written wire structs — see §No `api/` contract layer).
-> Installation-token minting is implemented (`srv/github_tokens.go`): a hand-rolled
+> cookie, revoked by `POST /api/auth/logout`. The web-UI API is implemented: `GET /api/me`
+> (`srv/auth/auth.go`) and `GET /api/builds` (`srv/builds/api.go`) authenticate against
+> that session (hand-written wire structs — see §No `api/` contract layer).
+> Installation-token minting is implemented (`srv/github/tokens.go`): a hand-rolled
 > RS256 App JWT resolves the repo's installation and mints its short-lived token
 > (§Two token types); its first consumer is
-> `POST /api/repos/{owner}/{repo}/flux-webhook` (`srv/flux_webhook.go`), the
+> `POST /api/repos/{owner}/{repo}/flux-webhook` (`srv/flux/webhook.go`), the
 > session-gated endpoint that creates a repo's `registry_package` webhook pointing at
 > the cluster's Flux Receiver (closing the
 > [flux-webhook ADR](../decisions/2026-07-13-flux-webhook-delivery.md)'s manual step).

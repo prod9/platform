@@ -40,7 +40,8 @@ superseded moves to `../scratch/` — `spec/` holds current design only, never h
   `platform.toml` / `infra/` / `tf/` / OCI / Flux; the no-overlap map.
 - [`platform.md`](platform.md) — the platformv2 vision: an in-cluster build + delivery control
   plane (components, identity, phases, anchors).
-- [`platform-server.md`](platform-server.md) — **intended/not-yet-built:** the `srv/` tag-watch
-  server, GitHub-App auth, zero platform RBAC, the `/var/cache` worktree layout.
+- [`platform-server.md`](platform-server.md) — the `srv/` tag-watch server: GitHub-App auth,
+  the `/var/cache` worktree layout, the operations table. **Skeleton implemented, and its
+  surface is under active rework** — read it as target design, not settled current state.
 
 Keep this list in sync when adding or removing a spec.
