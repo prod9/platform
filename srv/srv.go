@@ -1,6 +1,6 @@
 // Package srv is the platform server: the API + webhook processor layer above the
 // shared build/render/publish packages (docs/spec/platform-server.md). It composes
-// the fragment packages (auth, github, builds, flux) into one router, owns the DB
+// the fragment packages (auth, github, builds) into one router, owns the DB
 // boot (connect, aggregate fragment migrations, orphan requeue), and serves the
 // embedded web UI at / and the API under /api/.
 package srv
@@ -26,7 +26,6 @@ import (
 	"platform.prodigy9.co/engine"
 	"platform.prodigy9.co/srv/auth"
 	"platform.prodigy9.co/srv/builds"
-	"platform.prodigy9.co/srv/flux"
 	"platform.prodigy9.co/srv/github"
 	"platform.prodigy9.co/srv/migrate"
 )
@@ -86,13 +85,12 @@ func Router(cfg *config.Source) (chi.Router, error) {
 	router := chi.NewRouter()
 	router.Use(middlewares.Configure(cfg))
 	router.Use(middlewares.LogRequests(cfg))
-	router.Get("/api/health", health)
+	router.Get("/health", health)
 
 	ctrs := []controllers.Interface{
 		auth.SessionCtr{},
 		builds.APICtr{},
 		builds.WebhookCtr{},
-		flux.WebhookCtr{},
 		github.SetupCtr{},
 		UI{},
 	}

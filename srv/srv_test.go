@@ -27,7 +27,7 @@ func TestRouterServesAPIHealth(t *testing.T) {
 	require.NoError(t, err)
 
 	resp := httptest.NewRecorder()
-	router.ServeHTTP(resp, httptest.NewRequest("GET", "/api/health", nil))
+	router.ServeHTTP(resp, httptest.NewRequest("GET", "/health", nil))
 
 	require.Equal(t, http.StatusOK, resp.Code)
 	require.Equal(t, "application/json", resp.Header().Get("Content-Type"))

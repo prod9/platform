@@ -30,7 +30,7 @@ type WebhookCtr struct{}
 var _ controllers.Interface = WebhookCtr{}
 
 func (WebhookCtr) Mount(cfg *config.Source, router chi.Router) error {
-	router.Post("/api/webhooks/github", githubWebhook)
+	router.Post("/hooks/github", githubWebhook)
 	return nil
 }
 

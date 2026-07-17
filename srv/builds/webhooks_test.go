@@ -103,7 +103,7 @@ const branchPushBody = `{
 }`
 
 func webhookRequest(event, body, signature string) *http.Request {
-	req := httptest.NewRequest("POST", "/api/webhooks/github", strings.NewReader(body))
+	req := httptest.NewRequest("POST", "/hooks/github", strings.NewReader(body))
 	req.Header.Set("X-GitHub-Event", event)
 	if signature != "" {
 		req.Header.Set("X-Hub-Signature-256", signature)

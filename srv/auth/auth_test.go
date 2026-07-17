@@ -59,8 +59,16 @@ func startTestSession(t *testing.T, ctx context.Context, expiresAt time.Time) (i
 	return userID, token
 }
 
-func meRequest(ctx context.Context, token string) *http.Request {
-	req := httptest.NewRequest("GET", "/api/me", nil).WithContext(ctx)
+func usersMeRequest(ctx context.Context, token string) *http.Request {
+	req := httptest.NewRequest("GET", "/api/users/me", nil).WithContext(ctx)
+	if token != "" {
+		req.AddCookie(&http.Cookie{Name: sessionCookie, Value: token})
+	}
+	return req
+}
+
+func sessionRequest(ctx context.Context, token string) *http.Request {
+	req := httptest.NewRequest("GET", "/api/session", nil).WithContext(ctx)
 	if token != "" {
 		req.AddCookie(&http.Cookie{Name: sessionCookie, Value: token})
 	}
@@ -77,22 +85,22 @@ func responseCookie(t *testing.T, resp *httptest.ResponseRecorder, name string) 
 	return nil
 }
 
-func TestMeWithoutCookie(t *testing.T) {
+func TestUsersMeWithoutCookie(t *testing.T) {
 	router := authRouter(t, fxtest.Configure())
 
 	resp := httptest.NewRecorder()
-	router.ServeHTTP(resp, httptest.NewRequest("GET", "/api/me", nil))
+	router.ServeHTTP(resp, httptest.NewRequest("GET", "/api/users/me", nil))
 
 	require.Equal(t, http.StatusUnauthorized, resp.Code)
 }
 
-func TestMeWithSession(t *testing.T) {
+func TestUsersMeWithSession(t *testing.T) {
 	ctx := setupDB(t)
 	userID, token := startTestSession(t, ctx, time.Now().Add(time.Hour))
 	router := authRouter(t, fxtest.Configure())
 
 	resp := httptest.NewRecorder()
-	router.ServeHTTP(resp, meRequest(ctx, token))
+	router.ServeHTTP(resp, usersMeRequest(ctx, token))
 
 	require.Equal(t, http.StatusOK, resp.Code)
 
@@ -105,13 +113,53 @@ func TestMeWithSession(t *testing.T) {
 	require.Equal(t, "octocat", body.Name)
 }
 
-func TestMeWithExpiredSession(t *testing.T) {
+func TestUsersMeWithExpiredSession(t *testing.T) {
 	ctx := setupDB(t)
 	_, token := startTestSession(t, ctx, time.Now().Add(-time.Hour))
 	router := authRouter(t, fxtest.Configure())
 
 	resp := httptest.NewRecorder()
-	router.ServeHTTP(resp, meRequest(ctx, token))
+	router.ServeHTTP(resp, usersMeRequest(ctx, token))
+
+	require.Equal(t, http.StatusUnauthorized, resp.Code)
+}
+
+func TestSessionWithoutCookie(t *testing.T) {
+	router := authRouter(t, fxtest.Configure())
+
+	resp := httptest.NewRecorder()
+	router.ServeHTTP(resp, httptest.NewRequest("GET", "/api/session", nil))
+
+	require.Equal(t, http.StatusUnauthorized, resp.Code)
+}
+
+func TestSessionWithLiveSession(t *testing.T) {
+	ctx := setupDB(t)
+	expiresAt := time.Now().Add(time.Hour)
+	userID, token := startTestSession(t, ctx, expiresAt)
+	router := authRouter(t, fxtest.Configure())
+
+	resp := httptest.NewRecorder()
+	router.ServeHTTP(resp, sessionRequest(ctx, token))
+
+	require.Equal(t, http.StatusOK, resp.Code)
+
+	var body struct {
+		UserID    int64     `json:"user_id"`
+		ExpiresAt time.Time `json:"expires_at"`
+	}
+	require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &body))
+	require.Equal(t, userID, body.UserID)
+	require.WithinDuration(t, expiresAt, body.ExpiresAt, time.Second)
+}
+
+func TestSessionWithExpiredSession(t *testing.T) {
+	ctx := setupDB(t)
+	_, token := startTestSession(t, ctx, time.Now().Add(-time.Hour))
+	router := authRouter(t, fxtest.Configure())
+
+	resp := httptest.NewRecorder()
+	router.ServeHTTP(resp, sessionRequest(ctx, token))
 
 	require.Equal(t, http.StatusUnauthorized, resp.Code)
 }
@@ -121,7 +169,7 @@ func TestGitHubLoginRedirectsToAuthorize(t *testing.T) {
 	router := authRouter(t, fxtest.Configure())
 
 	resp := httptest.NewRecorder()
-	router.ServeHTTP(resp, httptest.NewRequest("GET", "/api/auth/github", nil))
+	router.ServeHTTP(resp, httptest.NewRequest("GET", "/auth/github", nil))
 
 	require.Equal(t, http.StatusTemporaryRedirect, resp.Code)
 
@@ -136,7 +184,7 @@ func TestGitHubLoginRedirectsToAuthorize(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "https://github.com/login/oauth/authorize", location.Scheme+"://"+location.Host+location.Path)
 	require.Equal(t, testClientID, location.Query().Get("client_id"))
-	require.Equal(t, testServerURL+"/api/auth/github/callback", location.Query().Get("redirect_uri"))
+	require.Equal(t, testServerURL+"/auth/github/callback", location.Query().Get("redirect_uri"))
 	require.Equal(t, state.Value, location.Query().Get("state"))
 }
 
@@ -145,7 +193,7 @@ func TestGitHubLoginWithoutApp(t *testing.T) {
 	router := authRouter(t, fxtest.Configure())
 
 	resp := httptest.NewRecorder()
-	router.ServeHTTP(resp, httptest.NewRequest("GET", "/api/auth/github", nil))
+	router.ServeHTTP(resp, httptest.NewRequest("GET", "/auth/github", nil))
 
 	require.Equal(t, http.StatusServiceUnavailable, resp.Code)
 }
@@ -154,18 +202,18 @@ func TestGitHubCallbackStateMismatch(t *testing.T) {
 	stubApp(t, &github.App{ClientID: testClientID, ClientSecret: testClientSecret}, nil)
 	router := authRouter(t, fxtest.Configure())
 
-	missingCookie := httptest.NewRequest("GET", "/api/auth/github/callback?code=C&state=abc", nil)
+	missingCookie := httptest.NewRequest("GET", "/auth/github/callback?code=C&state=abc", nil)
 	resp := httptest.NewRecorder()
 	router.ServeHTTP(resp, missingCookie)
 	require.Equal(t, http.StatusBadRequest, resp.Code)
 
-	mismatched := httptest.NewRequest("GET", "/api/auth/github/callback?code=C&state=abc", nil)
+	mismatched := httptest.NewRequest("GET", "/auth/github/callback?code=C&state=abc", nil)
 	mismatched.AddCookie(&http.Cookie{Name: oauthStateCookie, Value: "xyz"})
 	resp = httptest.NewRecorder()
 	router.ServeHTTP(resp, mismatched)
 	require.Equal(t, http.StatusBadRequest, resp.Code)
 
-	missingState := httptest.NewRequest("GET", "/api/auth/github/callback?code=C", nil)
+	missingState := httptest.NewRequest("GET", "/auth/github/callback?code=C", nil)
 	missingState.AddCookie(&http.Cookie{Name: oauthStateCookie, Value: ""})
 	resp = httptest.NewRecorder()
 	router.ServeHTTP(resp, missingState)
@@ -253,7 +301,7 @@ func stubGitHubOAuth(t *testing.T) *httptest.Server {
 }
 
 func loginCallback(t *testing.T, router chi.Router, ctx context.Context) *http.Cookie {
-	req := httptest.NewRequest("GET", "/api/auth/github/callback?code=C&state=S", nil)
+	req := httptest.NewRequest("GET", "/auth/github/callback?code=C&state=S", nil)
 	req.AddCookie(&http.Cookie{Name: oauthStateCookie, Value: "S"})
 
 	resp := httptest.NewRecorder()
@@ -408,12 +456,12 @@ func TestUpsertGitHubUserFirstLoginRace(t *testing.T) {
 	require.Equal(t, 1, counts.Identities)
 }
 
-func TestLogoutInvalidatesSession(t *testing.T) {
+func TestDeleteSessionInvalidatesSession(t *testing.T) {
 	ctx := setupDB(t)
 	_, token := startTestSession(t, ctx, time.Now().Add(time.Hour))
 	router := authRouter(t, fxtest.Configure())
 
-	req := httptest.NewRequest("POST", "/api/auth/logout", nil)
+	req := httptest.NewRequest("DELETE", "/api/session", nil)
 	req.AddCookie(&http.Cookie{Name: sessionCookie, Value: token})
 	resp := httptest.NewRecorder()
 	router.ServeHTTP(resp, req.WithContext(ctx))
@@ -428,6 +476,6 @@ func TestLogoutInvalidatesSession(t *testing.T) {
 	require.Zero(t, count)
 
 	resp = httptest.NewRecorder()
-	router.ServeHTTP(resp, meRequest(ctx, token))
+	router.ServeHTTP(resp, usersMeRequest(ctx, token))
 	require.Equal(t, http.StatusUnauthorized, resp.Code)
 }

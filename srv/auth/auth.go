@@ -50,8 +50,16 @@ type User struct {
 	CreatedAt time.Time `db:"created_at"`
 }
 
+// Session is a live platform session's identity and lifetime — what the webui's
+// validity probe needs, distinct from the user's profile.
+type Session struct {
+	UserID    int64     `db:"user_id"`
+	ExpiresAt time.Time `db:"expires_at"`
+}
+
 // SessionCtr serves the GitHub App user-OAuth login flow (spec §Two token types: the
-// user-to-server side), platform session logout, and the session probe /api/me.
+// user-to-server side), session validity (GET /api/session) and revocation
+// (DELETE /api/session), and the session user's profile (GET /api/users/me).
 // Platform issues its own session token per the identity ADR — the GitHub token is
 // stored, never handed to the client.
 type SessionCtr struct{}
@@ -59,10 +67,11 @@ type SessionCtr struct{}
 var _ controllers.Interface = SessionCtr{}
 
 func (SessionCtr) Mount(cfg *config.Source, router chi.Router) error {
-	router.Get("/api/auth/github", githubLogin)
-	router.Get("/api/auth/github/callback", githubLoginCallback)
-	router.Post("/api/auth/logout", logout)
-	router.Get("/api/me", me)
+	router.Get("/auth/github", githubLogin)
+	router.Get("/auth/github/callback", githubLoginCallback)
+	router.Get("/api/session", getSession)
+	router.Delete("/api/session", deleteSession)
+	router.Get("/api/users/me", usersMe)
 	return nil
 }
 
@@ -88,6 +97,27 @@ func CurrentUser(req *http.Request) (*User, error) {
 	return user, nil
 }
 
+// CurrentSession resolves the platform session cookie to its unexpired session's
+// user id and expiry; anything short of that is ErrNoSession.
+func CurrentSession(req *http.Request) (*Session, error) {
+	cookie, err := req.Cookie(sessionCookie)
+	if err != nil || cookie.Value == "" {
+		return nil, ErrNoSession
+	}
+
+	session := &Session{}
+	err = data.Get(req.Context(), session, `
+		SELECT user_id, expires_at FROM sessions
+		WHERE token_hash = $1 AND expires_at > now()`,
+		hashSessionToken(cookie.Value))
+	if data.IsNoRows(err) {
+		return nil, ErrNoSession
+	} else if err != nil {
+		return nil, err
+	}
+	return session, nil
+}
+
 // RequireUser gates a handler on a live session: it resolves the current user or
 // writes the failure response (401 no session, 500 otherwise) itself — ok=false
 // means the response is already sent and the handler must return.
@@ -103,7 +133,7 @@ func RequireUser(resp http.ResponseWriter, req *http.Request) (*User, bool) {
 	return user, true
 }
 
-func me(resp http.ResponseWriter, req *http.Request) {
+func usersMe(resp http.ResponseWriter, req *http.Request) {
 	user, ok := RequireUser(resp, req)
 	if !ok {
 		return
@@ -113,6 +143,22 @@ func me(resp http.ResponseWriter, req *http.Request) {
 		ID   int64  `json:"id"`
 		Name string `json:"name"`
 	}{user.ID, user.Name})
+}
+
+func getSession(resp http.ResponseWriter, req *http.Request) {
+	session, err := CurrentSession(req)
+	if errors.Is(err, ErrNoSession) {
+		render.Error(resp, req, 401, httperrors.ErrUnauthorized)
+		return
+	} else if err != nil {
+		render.Error(resp, req, 500, err)
+		return
+	}
+
+	render.JSON(resp, req, struct {
+		UserID    int64     `json:"user_id"`
+		ExpiresAt time.Time `json:"expires_at"`
+	}{session.UserID, session.ExpiresAt})
 }
 
 func githubLogin(resp http.ResponseWriter, req *http.Request) {
@@ -139,7 +185,7 @@ func githubLogin(resp http.ResponseWriter, req *http.Request) {
 	http.SetCookie(resp, &http.Cookie{
 		Name:     oauthStateCookie,
 		Value:    state,
-		Path:     "/api/auth",
+		Path:     "/auth",
 		MaxAge:   int(oauthStateTTL.Seconds()),
 		HttpOnly: true,
 		Secure:   true,
@@ -148,7 +194,7 @@ func githubLogin(resp http.ResponseWriter, req *http.Request) {
 
 	query := url.Values{
 		"client_id":    {app.ClientID},
-		"redirect_uri": {serverURL + "/api/auth/github/callback"},
+		"redirect_uri": {serverURL + "/auth/github/callback"},
 		"state":        {state},
 	}
 	githubURL := config.Get(cfg, github.URLConfig)
@@ -220,7 +266,7 @@ func githubLoginCallback(resp http.ResponseWriter, req *http.Request) {
 	http.SetCookie(resp, &http.Cookie{
 		Name:     oauthStateCookie,
 		Value:    "",
-		Path:     "/api/auth",
+		Path:     "/auth",
 		MaxAge:   -1,
 		HttpOnly: true,
 		Secure:   true,
@@ -229,7 +275,7 @@ func githubLoginCallback(resp http.ResponseWriter, req *http.Request) {
 	render.Redirect(resp, req, "/")
 }
 
-func logout(resp http.ResponseWriter, req *http.Request) {
+func deleteSession(resp http.ResponseWriter, req *http.Request) {
 	cookie, err := req.Cookie(sessionCookie)
 	if err == nil && cookie.Value != "" {
 		del := &DeleteSession{Token: cookie.Value}
@@ -393,7 +439,7 @@ func (u *UpsertGitHubUser) upsertOnce(ctx context.Context, out any) error {
 
 // ErrNoGitHubToken reports a user whose github identity carries no stored token —
 // state predating token storage; logging in again recreates it.
-var ErrNoGitHubToken = errors.New("auth: no stored github token — log in again via /api/auth/github")
+var ErrNoGitHubToken = errors.New("auth: no stored github token — log in again via /auth/github")
 
 // LoadUserGitHubToken retrieves the user's stored user-to-server token from their
 // github identity's metadata, where UpsertGitHubUser hid it.

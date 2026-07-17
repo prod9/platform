@@ -1,5 +1,5 @@
 <script>
-	// session gate: /api/me decides between the login panel and the builds list.
+	// session gate: /api/users/me decides between the login panel and the builds list.
 	let user = $state(null);
 	let builds = $state([]);
 	let loading = $state(true);
@@ -7,7 +7,7 @@
 	async function load() {
 		loading = true;
 
-		const me = await fetch("/api/me");
+		const me = await fetch("/api/users/me");
 		user = me.ok ? await me.json() : null;
 		if (user) {
 			const resp = await fetch("/api/builds");
@@ -18,7 +18,7 @@
 	}
 
 	async function logout() {
-		await fetch("/api/auth/logout", { method: "POST" });
+		await fetch("/api/session", { method: "DELETE" });
 		user = null;
 		builds = [];
 	}
@@ -49,7 +49,7 @@
 				account that pushes them.
 			</p>
 			<div class="p9-actions">
-				<a class="p9-btn p9-btn--primary" href="/api/auth/github">Sign in with GitHub</a>
+				<a class="p9-btn p9-btn--primary" href="/auth/github">Sign in with GitHub</a>
 			</div>
 		</div>
 	</section>
