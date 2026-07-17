@@ -51,3 +51,17 @@ func TestString(t *testing.T) {
 		})
 	}
 }
+
+func TestCompare(t *testing.T) {
+	day, next := "v20260717", "v20260718"
+	ordered := []string{day, day + "-1", day + "-2", day + "-10", next}
+	for i := 1; i < len(ordered); i++ {
+		lo, _ := Parse(ordered[i-1])
+		hi, _ := Parse(ordered[i])
+		require.Negative(t, lo.Compare(hi), "%s < %s", ordered[i-1], ordered[i])
+		require.Positive(t, hi.Compare(lo), "%s > %s", ordered[i], ordered[i-1])
+	}
+
+	self, _ := Parse(day + "-1")
+	require.Zero(t, self.Compare(self))
+}

@@ -1,6 +1,7 @@
 package dateref
 
 import (
+	"cmp"
 	"errors"
 	"regexp"
 	"strconv"
@@ -60,6 +61,13 @@ func (d DateRef) IsToday() bool {
 	return d.date.Year() == now.Year() &&
 		d.date.Month() == now.Month() &&
 		d.date.Day() == now.Day()
+}
+
+func (d DateRef) Compare(o DateRef) int {
+	if c := d.date.Compare(o.date); c != 0 {
+		return c
+	}
+	return cmp.Compare(d.counter, o.counter)
 }
 
 func (d DateRef) NextCounter() DateRef {

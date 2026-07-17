@@ -9,6 +9,7 @@ import (
 	"golang.org/x/mod/semver"
 	"platform.prodigy9.co/conf"
 	"platform.prodigy9.co/git"
+	"platform.prodigy9.co/releases/dateref"
 )
 
 // Collection is a collection of names of release irrespective of which naming strategy is
@@ -37,15 +38,23 @@ func Recover(cfg *conf.Model, g *git.Context) (*Collection, error) {
 	}, nil
 }
 
-// sortReleaseNames orders names newest-first, comparing semver tags numerically — a
-// string sort puts v0.9.9 above v0.9.10, making LatestName wrong at any double-digit
-// segment. Non-semver names (timestamp/datestamp refs) keep byte order among themselves.
+// sortReleaseNames orders names newest-first. Datestamp refs compare by date then
+// counter — semver would read v20260717-1 as a *prerelease* of v20260717 and sort it
+// below the bare tag, making LatestName re-yield an existing counter. Semver tags
+// compare numerically — a string sort puts v0.9.9 above v0.9.10. Everything else
+// keeps byte order.
 func sortReleaseNames(names []string) {
 	slices.SortFunc(names, func(a, b string) int {
-		if semver.IsValid(a) && semver.IsValid(b) {
+		aRef, aErr := dateref.Parse(a)
+		bRef, bErr := dateref.Parse(b)
+		switch {
+		case aErr == nil && bErr == nil:
+			return bRef.Compare(aRef)
+		case semver.IsValid(a) && semver.IsValid(b):
 			return semver.Compare(b, a)
+		default:
+			return strings.Compare(b, a)
 		}
-		return strings.Compare(b, a)
 	})
 }
 

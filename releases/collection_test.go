@@ -15,3 +15,15 @@ func TestSortReleaseNames(t *testing.T) {
 	sortReleaseNames(names)
 	r.Equal(t, []string{"v0.10.0", "v0.9.10", "v0.9.9", "v0.9.2", "v0.8.4"}, names)
 }
+
+// TestSortReleaseNamesDatestampCounters pins counter ordering: semver reads
+// v20260717-1 as a *prerelease* of v20260717 and sorts it below the bare tag, so
+// LatestName returned the bare tag and NextName re-yielded an existing counter on the
+// next same-day release. Datestamp refs compare by date then counter.
+func TestSortReleaseNamesDatestampCounters(t *testing.T) {
+	names := []string{"v0.9.10", "v20260710", "v20260717", "v20260717-2", "v20260717-1"}
+	sortReleaseNames(names)
+	r.Equal(t,
+		[]string{"v20260717-2", "v20260717-1", "v20260717", "v20260710", "v0.9.10"},
+		names)
+}
