@@ -1,3 +1,6 @@
+<!-- not spec/decision because: a capability-gap handoff to the fx agent; the ruling and the
+fix belong to the fx repo, not this one -->
+
 # Handoff to fx: fxlog can't resolve slog LogValuer / groups
 
 For the **fx agent**. Discovered while fixing platform's undebuggable build errors; the

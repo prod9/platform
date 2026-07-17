@@ -108,7 +108,7 @@ trapped in a `cmd/` file — so two front-ends embed the *same* logic:
 - **local CLI `publish`** — [`cmd/publish.go`](../../cmd/publish.go) resolves the
   release name, opens an engine, and calls `BuildAndPublish`. You stand in for the CI
   server.
-- **tag-watch platform server** — [`srv/runner.go`](../../srv/runner.go)'s claim loop
+- **tag-watch platform server** — [`srv/builds/runner.go`](../../srv/builds/runner.go)'s claim loop
   invokes the same unit on each queued tag build and records the returned
   `[]PublishResult`. The trigger lives only in the server; the CLI never watches.
 

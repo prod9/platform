@@ -21,9 +21,9 @@ below is chosen to preserve this.
 Top (closest to the human) to bottom (closest to the metal). One owner each.
 
 - **platform server** (in-cluster, pod SA, Postgres) — the control plane. Owns Project
-  entities, identity/RBAC/access, audit, secret *values*, delivery history. Three clients of
-  one API: **UI** (SvelteKit), **CLI**, **OpenTofu provider** — same backbone, no separate
-  state.
+  entities, identity, audit, secret *values*, delivery history. It does **not** own
+  authorization — that is GitHub's (zero platform RBAC). Three clients of one API: **UI**
+  (SvelteKit), **CLI**, **OpenTofu provider** — same backbone, no separate state.
 - **`platform.toml`** (in each source repo, git) — per-repo build/project metadata + the
   infra pointer + which Project it binds to. Changes with the code.
 - **`infra/` repo|path** (CUE, git) — the cluster's desired state: app image refs (committed
@@ -37,15 +37,10 @@ Top (closest to the human) to bottom (closest to the metal). One owner each.
 - **Flux** (in-cluster: source-controller + kustomize-controller) — reconciles the config
   artifact onto the cluster; applies/prunes; drift correction. No Argo. No Helm.
 - **`platform-init`** (embedded in the tool) — the cluster baseline: Flux, cert-manager,
-  NGF, the Dagger engine, platform itself. **Embedded** in platform (not a separate repo)
-  as a **flat list** of `.cue` apps + `.platform` directives, **destination-encoded by name**;
-  the `Infra` framework installs the **full baseline unconditionally**, each file to the
-  destination its name encodes — the repo root, `apps/` (render-able components), or the
-  mandatory `defaults/` package (shared defs like `#Basics`, imported by `apps/`). Seeded once
-  (manual), then Flux-reconciled (except Flux's own lifecycle — never self-managed). See the
-  [appliance ADR](../decisions/2026-06-17-opinionated-appliance-embedded-init.md), the
-  [flat-baseline ADR](../decisions/2026-06-22-flat-baseline-install-time-selection.md), and
-  [baseline-dissolves-into-infra-framework](../decisions/2026-07-11-baseline-dissolves-into-infra-framework.md).
+  NGF, the Dagger engine, platform itself. **Owned by the `Infra` framework**, which installs
+  it unconditionally; seeded once (manual), then Flux-reconciled — except Flux's own
+  lifecycle, never self-managed. The file set and its destination-encoding rules are
+  canonical in [`scaffolding.md`](scaffolding.md#destination-encoded-files).
 
 ## Allocation table
 
@@ -53,7 +48,8 @@ Top (closest to the human) to bottom (closest to the metal). One owner each.
 | ------------------------------------- | ---------------- | ------------------------------- |
 | How to build a module                 | `platform.toml`  | TOML in source repo             |
 | Project ↔ repo binding, infra pointer | `platform.toml`  | TOML in source repo             |
-| Project entity, members, roles        | platform server  | Postgres (UI/CLI/tf-provider)   |
+| Project entity + repo membership      | platform server  | Postgres (UI/CLI/tf-provider)   |
+| Authorization (who may deploy)        | GitHub           | infra-repo push permission      |
 | Identity, linked accounts, audit      | platform server  | Postgres (`users`/`identities`) |
 | Secret *values*                       | platform server  | Postgres, encrypted at rest     |
 | Secret *references*                   | `infra/`         | CUE (init-container pulls)      |
@@ -72,10 +68,9 @@ Top (closest to the human) to bottom (closest to the metal). One owner each.
   `k8s/` manifest tree → pushed as the OCI config artifact under a **moving** tag (git history is
   the record). App image refs *inside* are committed literals, digest-pinned to dodge stale cache.
 - **`tf/`** — OpenTofu cloud/DNS provisioning (v2.1); manual local apply. Not a platform env list.
-- **`platform-init`** — cluster baseline, **embedded in the tool** as a flat, destination-encoded
-  file list owned by the `Infra` framework; `init` installs the full baseline unconditionally,
-  each file to the destination its name encodes (repo root, `apps/`, or the mandatory
-  `defaults/` package); one manual seed, then Flux.
+- **`platform-init`** — not a repo: the cluster baseline is embedded in the tool and owned by
+  the `Infra` framework ([`scaffolding.md`](scaffolding.md#destination-encoded-files)); one
+  manual seed, then Flux.
 
 ## Delivery flow (where the surfaces meet)
 
@@ -97,9 +92,6 @@ No step pushes into the cluster. The gate is the git commit; everything after is
 
 ## Phase boundaries
 
-- **v2** — single home cluster; platform in-cluster; GitHub-only IdP; secrets via
-  platform-pull init-container; `tf/` manual; no DNS.
-- **v2.1** — DNS (Cloudflare via `tf/`), PR/branch preview instances (infra CUE + namespacing),
-  platform-run tofu. Gating stays GitHub push permissions — no separate approvals/plan-gate UI.
-- **phase 2** — multi-cluster (central control-plane + per-cluster agents); additional
-  IdPs/service links (Google, Sentry, custom) via the `identities` table.
+Canonical in [`platform.md`](platform.md#phase-boundaries) — this doc scopes config
+ownership, not phasing. The `tf/` row above is the only allocation a phase boundary moves
+(v2.1).

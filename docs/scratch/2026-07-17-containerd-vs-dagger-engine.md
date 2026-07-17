@@ -1,7 +1,7 @@
-# containerd vs the Dagger engine — could we drive containerd/BuildKit directly?
+<!-- not spec/decision because: exploration of a possible future direction; no ruling made —
+the engine stays Dagger unless/until this graduates to an ADR -->
 
-Not spec/decision because this is an exploration of a possible future direction — no
-ruling has been made; the engine stays Dagger unless/until this graduates to an ADR.
+# containerd vs the Dagger engine — could we drive containerd/BuildKit directly?
 
 Produced by a web-research subagent (Haiku, 2026-07-17); citations inline. Figures from
 third-party blogs (the mW idle-power numbers especially) are reported as found, not
