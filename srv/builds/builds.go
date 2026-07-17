@@ -1,4 +1,7 @@
-package srv
+// Package builds owns the webhook-triggered build pipeline: the builds queue, the
+// GitHub webhook ingest that feeds it, per-build repo preparation, the runner loop
+// that drives the shared publish engine, and the UI API listing the results.
+package builds
 
 import (
 	"context"
@@ -8,11 +11,10 @@ import (
 	"fx.prodigy9.co/data"
 )
 
-var ErrNoQueuedBuild = errors.New("srv: no queued build")
+var ErrNoneQueued = errors.New("builds: no queued build")
 
-// Build is the srv-owned record of one webhook-triggered build, mapping the builds
-// table: queued by CreateBuild, claimed by ClaimBuild, finished by FinishBuild or
-// FailBuild.
+// Build is the record of one webhook-triggered build, mapping the builds table:
+// queued by Create, claimed by Claim, finished by Finish or Fail.
 type Build struct {
 	ID        int64     `db:"id"`
 	Owner     string    `db:"owner"`
@@ -28,8 +30,8 @@ type Build struct {
 	UpdatedAt time.Time `db:"updated_at"`
 }
 
-// CreateBuild records a queued build row for a pushed version tag.
-type CreateBuild struct {
+// Create records a queued build row for a pushed version tag.
+type Create struct {
 	Owner    string
 	Repo     string
 	CloneURL string
@@ -37,20 +39,20 @@ type CreateBuild struct {
 	SHA      string
 }
 
-func (c *CreateBuild) Execute(ctx context.Context, out any) error {
+func (c *Create) Execute(ctx context.Context, out any) error {
 	return data.Exec(ctx, `
 		INSERT INTO builds (owner, repo, clone_url, tag, sha)
 		VALUES ($1, $2, $3, $4, $5)`,
 		c.Owner, c.Repo, c.CloneURL, c.Tag, c.SHA)
 }
 
-// ClaimBuild atomically claims the oldest queued build, flipping it to running and
-// filling out (a *Build) with the claimed row. SKIP LOCKED keeps concurrent claimants
-// from blocking on (or double-claiming) the same row; an empty queue is
-// ErrNoQueuedBuild.
-type ClaimBuild struct{}
+// Claim atomically claims the oldest queued build, flipping it to running and
+// filling out (a *Build) with the claimed row. SKIP LOCKED keeps concurrent
+// claimants from blocking on (or double-claiming) the same row; an empty queue is
+// ErrNoneQueued.
+type Claim struct{}
 
-func (c *ClaimBuild) Execute(ctx context.Context, out any) error {
+func (c *Claim) Execute(ctx context.Context, out any) error {
 	err := data.Get(ctx, out, `
 		UPDATE builds
 		SET status = 'running', updated_at = now()
@@ -62,31 +64,31 @@ func (c *ClaimBuild) Execute(ctx context.Context, out any) error {
 			FOR UPDATE SKIP LOCKED)
 		RETURNING *`)
 	if data.IsNoRows(err) {
-		return ErrNoQueuedBuild
+		return ErrNoneQueued
 	}
 	return err
 }
 
-// RequeueOrphanBuilds flips every running build back to queued. Boot-time recovery:
-// in the single-server model, any row still running when the process starts belonged
+// RequeueOrphans flips every running build back to queued. Boot-time recovery: in
+// the single-server model, any row still running when the process starts belonged
 // to a crashed or killed predecessor — an orphan by definition.
-type RequeueOrphanBuilds struct{}
+type RequeueOrphans struct{}
 
-func (r *RequeueOrphanBuilds) Execute(ctx context.Context, out any) error {
+func (r *RequeueOrphans) Execute(ctx context.Context, out any) error {
 	return data.Exec(ctx, `
 		UPDATE builds
 		SET status = 'queued', updated_at = now()
 		WHERE status = 'running'`)
 }
 
-// FinishBuild marks a claimed build succeeded, recording what it published.
-type FinishBuild struct {
+// Finish marks a claimed build succeeded, recording what it published.
+type Finish struct {
 	ID     int64
 	Image  string
 	Digest string
 }
 
-func (f *FinishBuild) Execute(ctx context.Context, out any) error {
+func (f *Finish) Execute(ctx context.Context, out any) error {
 	return data.Exec(ctx, `
 		UPDATE builds
 		SET status = 'succeeded', image = $2, digest = $3, updated_at = now()
@@ -94,13 +96,13 @@ func (f *FinishBuild) Execute(ctx context.Context, out any) error {
 		f.ID, f.Image, f.Digest)
 }
 
-// FailBuild marks a claimed build failed, recording the error that stopped it.
-type FailBuild struct {
+// Fail marks a claimed build failed, recording the error that stopped it.
+type Fail struct {
 	ID    int64
 	Error string
 }
 
-func (f *FailBuild) Execute(ctx context.Context, out any) error {
+func (f *Fail) Execute(ctx context.Context, out any) error {
 	return data.Exec(ctx, `
 		UPDATE builds
 		SET status = 'failed', error = $2, updated_at = now()

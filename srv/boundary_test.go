@@ -21,16 +21,25 @@ var sharedPackages = []string{
 	"../releases", "../git", "../internal",
 }
 
+// serverPackages ban as prefixes: srv's fragment subpackages (srv/auth, srv/builds,
+// …) are server concerns exactly like srv itself.
 var serverPackages = []string{"platform.prodigy9.co/srv", "platform.prodigy9.co/webui"}
+
+func isServerImport(imported string) bool {
+	for _, banned := range serverPackages {
+		if imported == banned || strings.HasPrefix(imported, banned+"/") {
+			return true
+		}
+	}
+	return false
+}
 
 func TestSharedPackagesNeverImportServer(t *testing.T) {
 	for _, pkg := range sharedPackages {
 		for file, imports := range packageImports(t, pkg) {
 			for _, imported := range imports {
-				for _, banned := range serverPackages {
-					require.NotEqual(t, banned, imported,
-						"%s imports %s across the shared→server boundary", file, imported)
-				}
+				require.False(t, isServerImport(imported),
+					"%s imports %s across the shared→server boundary", file, imported)
 			}
 		}
 	}
@@ -42,8 +51,9 @@ func TestOnlyServeCmdImportsSrv(t *testing.T) {
 			continue
 		}
 		for _, imported := range imports {
-			require.NotEqual(t, "platform.prodigy9.co/srv", imported,
-				"%s imports srv; only cmd/serve.go may", file)
+			require.False(t, imported == "platform.prodigy9.co/srv" ||
+				strings.HasPrefix(imported, "platform.prodigy9.co/srv/"),
+				"%s imports %s; only cmd/serve.go may reach srv", file, imported)
 		}
 	}
 }

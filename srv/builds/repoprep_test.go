@@ -1,4 +1,4 @@
-package srv
+package builds
 
 import (
 	"context"

@@ -1,4 +1,4 @@
-package srv
+package builds
 
 import (
 	"crypto/hmac"
@@ -14,21 +14,22 @@ import (
 	"fx.prodigy9.co/httpserver/controllers"
 	"fx.prodigy9.co/httpserver/render"
 	"github.com/go-chi/chi/v5"
+	"platform.prodigy9.co/srv/github"
 )
 
 // maxWebhookBody caps webhook reads; real push payloads are a few KB.
 const maxWebhookBody = 1 << 20
 
-var errBadWebhookSignature = errors.New("srv: invalid webhook signature")
+var errBadWebhookSignature = errors.New("builds: invalid webhook signature")
 
-// Webhooks ingests GitHub webhook deliveries: it verifies the App webhook signature
-// and records a queued build for each pushed version tag; runQueuedBuilds consumes the
-// queue.
-type Webhooks struct{}
+// WebhookCtr ingests GitHub webhook deliveries: it verifies the App webhook
+// signature and records a queued build for each pushed version tag; RunQueued
+// consumes the queue.
+type WebhookCtr struct{}
 
-var _ controllers.Interface = Webhooks{}
+var _ controllers.Interface = WebhookCtr{}
 
-func (Webhooks) Mount(cfg *config.Source, router chi.Router) error {
+func (WebhookCtr) Mount(cfg *config.Source, router chi.Router) error {
 	router.Post("/api/webhooks/github", githubWebhook)
 	return nil
 }
@@ -42,8 +43,8 @@ func githubWebhook(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	app, err := loadGitHubApp(ctx)
-	if errors.Is(err, ErrNoGitHubApp) {
+	app, err := github.LoadApp(ctx)
+	if errors.Is(err, github.ErrNoApp) {
 		render.Error(resp, req, 503, err)
 		return
 	} else if err != nil {
@@ -116,13 +117,13 @@ type pushOwner struct {
 // buildForPush decides whether a push warrants a build: only a still-existing version
 // tag (refs/tags/v*) does — rolling repos cut no tags and stay CLI-published (see the
 // delivery-verbs ADR). Everything else returns nil.
-func buildForPush(ev pushEvent) *CreateBuild {
+func buildForPush(ev pushEvent) *Create {
 	tag, isTag := strings.CutPrefix(ev.Ref, "refs/tags/")
 	if !isTag || !strings.HasPrefix(tag, "v") || ev.Deleted {
 		return nil
 	}
 
-	return &CreateBuild{
+	return &Create{
 		Owner:    ev.Repository.Owner.Login,
 		Repo:     ev.Repository.Name,
 		CloneURL: ev.Repository.CloneURL,

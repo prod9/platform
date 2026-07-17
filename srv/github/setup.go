@@ -1,4 +1,4 @@
-package srv
+package github
 
 import (
 	"context"
@@ -15,45 +15,43 @@ import (
 )
 
 var (
-	ServerURLConfig    = config.Str("SERVER_URL")
-	GitHubURLConfig    = config.StrDef("GITHUB_URL", "https://github.com")
-	GitHubAPIURLConfig = config.StrDef("GITHUB_API_URL", "https://api.github.com")
+	ServerURLConfig = config.Str("SERVER_URL")
+	URLConfig       = config.StrDef("GITHUB_URL", "https://github.com")
+	APIURLConfig    = config.StrDef("GITHUB_API_URL", "https://api.github.com")
 )
 
-// Setup serves the GitHub App bootstrap pages under /setup/ (spec §Auth mechanism):
-// srv generates an App Manifest, the operator submits it to GitHub, and GitHub
-// redirects back with a one-time code that srv exchanges for the App credentials.
-// Operator-facing pages served by srv directly — deliberately not part of the webui.
-type Setup struct{}
+// SetupCtr serves the GitHub App bootstrap pages under /setup/ (spec §Auth
+// mechanism): srv generates an App Manifest, the operator submits it to GitHub, and
+// GitHub redirects back with a one-time code that srv exchanges for the App
+// credentials. Operator-facing pages served by srv directly — deliberately not part
+// of the webui.
+type SetupCtr struct{}
 
-var _ controllers.Interface = Setup{}
+var _ controllers.Interface = SetupCtr{}
 
-func (Setup) Mount(cfg *config.Source, router chi.Router) error {
-	router.Get("/setup/github", githubSetupPage)
-	router.Get("/setup/github/callback", githubSetupCallback)
+func (SetupCtr) Mount(cfg *config.Source, router chi.Router) error {
+	router.Get("/setup/github", setupPage)
+	router.Get("/setup/github/callback", setupCallback)
 	return nil
 }
 
-// loadGitHubApp seams LoadGitHubApp so router tests run without postgres.
-var loadGitHubApp = LoadGitHubApp
-
-func githubSetupPage(resp http.ResponseWriter, req *http.Request) {
+func setupPage(resp http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 	cfg := config.FromContext(ctx)
 
 	serverURL, ok := config.GetOK(cfg, ServerURLConfig)
 	if !ok {
-		render.Error(resp, req, 500, errors.New("srv: SERVER_URL must be set to run GitHub App setup"))
+		render.Error(resp, req, 500, errors.New("github: SERVER_URL must be set to run GitHub App setup"))
 		return
 	}
 	serverURL = strings.TrimSuffix(serverURL, "/")
 
-	app, err := loadGitHubApp(ctx)
+	app, err := LoadApp(ctx)
 	switch {
 	case err == nil:
 		renderHTML(resp, req, "configured", app.Slug)
-	case errors.Is(err, ErrNoGitHubApp):
-		manifest, err := json.Marshal(githubAppManifest(serverURL))
+	case errors.Is(err, ErrNoApp):
+		manifest, err := json.Marshal(appManifest(serverURL))
 		if err != nil {
 			render.Error(resp, req, 500, err)
 			return
@@ -61,30 +59,30 @@ func githubSetupPage(resp http.ResponseWriter, req *http.Request) {
 		renderHTML(resp, req, "form", struct {
 			GitHubURL string
 			Manifest  string
-		}{config.Get(cfg, GitHubURLConfig), string(manifest)})
+		}{config.Get(cfg, URLConfig), string(manifest)})
 	default:
 		render.Error(resp, req, 500, err)
 	}
 }
 
-func githubSetupCallback(resp http.ResponseWriter, req *http.Request) {
+func setupCallback(resp http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 	cfg := config.FromContext(ctx)
 
 	code := req.URL.Query().Get("code")
 	if code == "" {
-		render.Error(resp, req, 400, errors.New("srv: missing code query parameter"))
+		render.Error(resp, req, 400, errors.New("github: missing code query parameter"))
 		return
 	}
 
-	apiURL := config.Get(cfg, GitHubAPIURLConfig)
+	apiURL := config.Get(cfg, APIURLConfig)
 	creds, err := exchangeManifest(ctx, http.DefaultClient, apiURL, code)
 	if err != nil {
 		render.Error(resp, req, 502, err)
 		return
 	}
 
-	save := &SaveGitHubApp{
+	save := &SaveApp{
 		AppID:         creds.ID,
 		Slug:          creds.Slug,
 		PrivateKey:    creds.PEM,
@@ -92,7 +90,7 @@ func githubSetupCallback(resp http.ResponseWriter, req *http.Request) {
 		ClientID:      creds.ClientID,
 		ClientSecret:  creds.ClientSecret,
 	}
-	if err := save.Execute(ctx, nil); errors.Is(err, ErrGitHubAppExists) {
+	if err := save.Execute(ctx, nil); errors.Is(err, ErrAppExists) {
 		render.Error(resp, req, 409, err)
 		return
 	} else if err != nil {
@@ -105,7 +103,7 @@ func githubSetupCallback(resp http.ResponseWriter, req *http.Request) {
 
 // manifest content per the spec: contents:rw + metadata:r permissions, push +
 // registry_package webhooks, callback back to this server.
-type githubManifest struct {
+type manifest struct {
 	Name               string            `json:"name"`
 	URL                string            `json:"url"`
 	HookAttributes     hookAttributes    `json:"hook_attributes"`
@@ -120,8 +118,8 @@ type hookAttributes struct {
 	URL string `json:"url"`
 }
 
-func githubAppManifest(serverURL string) githubManifest {
-	return githubManifest{
+func appManifest(serverURL string) manifest {
+	return manifest{
 		Name:               "platform",
 		URL:                serverURL,
 		HookAttributes:     hookAttributes{URL: serverURL + "/api/webhooks/github"},
@@ -133,8 +131,8 @@ func githubAppManifest(serverURL string) githubManifest {
 	}
 }
 
-// githubAppCreds is the credential set GitHub returns from a manifest conversion.
-type githubAppCreds struct {
+// appCreds is the credential set GitHub returns from a manifest conversion.
+type appCreds struct {
 	ID            int64  `json:"id"`
 	Slug          string `json:"slug"`
 	PEM           string `json:"pem"`
@@ -143,7 +141,7 @@ type githubAppCreds struct {
 	ClientSecret  string `json:"client_secret"`
 }
 
-func exchangeManifest(ctx context.Context, client *http.Client, apiURL, code string) (*githubAppCreds, error) {
+func exchangeManifest(ctx context.Context, client *http.Client, apiURL, code string) (*appCreds, error) {
 	url := strings.TrimSuffix(apiURL, "/") + "/app-manifests/" + code + "/conversions"
 	req, err := http.NewRequestWithContext(ctx, "POST", url, nil)
 	if err != nil {
@@ -157,10 +155,10 @@ func exchangeManifest(ctx context.Context, client *http.Client, apiURL, code str
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusCreated {
-		return nil, githubRespError("manifest conversion", resp)
+		return nil, RespError("manifest conversion", resp)
 	}
 
-	creds := &githubAppCreds{}
+	creds := &appCreds{}
 	if err := json.NewDecoder(resp.Body).Decode(creds); err != nil {
 		return nil, err
 	}

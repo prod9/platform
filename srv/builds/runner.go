@@ -1,4 +1,4 @@
-package srv
+package builds
 
 import (
 	"context"
@@ -14,22 +14,22 @@ import (
 	"platform.prodigy9.co/engine"
 )
 
-// buildPollInterval paces the empty-queue poll; a claimed run re-claims immediately
-// after finishing, so bursts drain without waiting on the tick.
-const buildPollInterval = 2 * time.Second
+// pollInterval paces the empty-queue poll; a claimed run re-claims immediately after
+// finishing, so bursts drain without waiting on the tick.
+const pollInterval = 2 * time.Second
 
-// publishBuild seams the engine-facing half of a run (the loadGitHubApp pattern) so the
-// loop tests without dagger.
+// publishBuild seams the engine-facing half of a run (the github.LoadApp pattern) so
+// the loop tests without dagger.
 var publishBuild = runBuild
 
-// runQueuedBuilds consumes queued builds until ctx is canceled: claim the oldest queued
+// RunQueued consumes queued builds until ctx is canceled: claim the oldest queued
 // row, run it, record the outcome. It is the server half of the one-publish-engine
 // model — the same BuildAndPublish the local publish command drives.
-func runQueuedBuilds(ctx context.Context, cfg *config.Source) {
+func RunQueued(ctx context.Context, cfg *config.Source) {
 	for ctx.Err() == nil {
 		build := &Build{}
-		err := (&ClaimBuild{}).Execute(ctx, build)
-		if errors.Is(err, ErrNoQueuedBuild) || errors.Is(err, context.Canceled) {
+		err := (&Claim{}).Execute(ctx, build)
+		if errors.Is(err, ErrNoneQueued) || errors.Is(err, context.Canceled) {
 			waitPollTick(ctx)
 			continue
 		} else if err != nil {
@@ -41,13 +41,13 @@ func runQueuedBuilds(ctx context.Context, cfg *config.Source) {
 		fxlog.Log("build claimed", buildAttrs(build)...)
 		image, digest, err := publishBuild(ctx, cfg, build)
 		if err != nil {
-			recordOutcome(ctx, &FailBuild{ID: build.ID, Error: err.Error()})
+			recordOutcome(ctx, &Fail{ID: build.ID, Error: err.Error()})
 			fxlog.Log("build failed",
 				append(buildAttrs(build), fxlog.String("error", err.Error()))...)
 			continue
 		}
 
-		recordOutcome(ctx, &FinishBuild{ID: build.ID, Image: image, Digest: digest})
+		recordOutcome(ctx, &Finish{ID: build.ID, Image: image, Digest: digest})
 		fxlog.Log("build succeeded",
 			append(buildAttrs(build), fxlog.String("image", image))...)
 	}
@@ -115,7 +115,7 @@ func recordOutcome(ctx context.Context, outcome controllers.Action) {
 func waitPollTick(ctx context.Context) {
 	select {
 	case <-ctx.Done():
-	case <-time.After(buildPollInterval):
+	case <-time.After(pollInterval):
 	}
 }
 

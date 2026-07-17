@@ -1,4 +1,4 @@
-package srv
+package auth
 
 import (
 	"context"
@@ -11,23 +11,60 @@ import (
 
 	"fx.prodigy9.co/config"
 	"fx.prodigy9.co/data"
+	"fx.prodigy9.co/data/migrator"
 	"fx.prodigy9.co/fxtest"
+	"fx.prodigy9.co/httpserver/middlewares"
 	"fx.prodigy9.co/secret"
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/require"
+	"platform.prodigy9.co/srv/github"
+	"platform.prodigy9.co/srv/srvtest"
 )
 
 const (
+	testServerURL    = "https://platform.example.com"
 	testClientID     = "Iv1.abc"
 	testClientSecret = "csec"
 	testAccessToken  = "gho_usertoken"
 )
 
+func setupDB(t *testing.T) context.Context {
+	return srvtest.SetupDB(t, migrator.FromFS(Migrations))
+}
+
+func stubApp(t *testing.T, app *github.App, err error) {
+	orig := github.LoadApp
+	github.LoadApp = func(ctx context.Context) (*github.App, error) { return app, err }
+	t.Cleanup(func() { github.LoadApp = orig })
+}
+
 func authRouter(t *testing.T, cfg *config.Source) chi.Router {
-	config.Set(cfg, ServerURLConfig, testServerURL)
-	router, err := Router(cfg)
-	require.NoError(t, err)
+	config.Set(cfg, github.ServerURLConfig, testServerURL)
+	router := chi.NewRouter()
+	router.Use(middlewares.Configure(cfg))
+	require.NoError(t, SessionCtr{}.Mount(cfg, router))
 	return router
+}
+
+// startTestSession seeds a user with a live (or expired) session, returning the user
+// id and the raw session token the client-side cookie would carry.
+func startTestSession(t *testing.T, ctx context.Context, expiresAt time.Time) (int64, string) {
+	var userID int64
+	require.NoError(t, data.Get(ctx, &userID,
+		`INSERT INTO users (name) VALUES ('octocat') RETURNING id`))
+
+	token := randomToken()
+	create := &CreateSession{UserID: userID, Token: token, ExpiresAt: expiresAt}
+	require.NoError(t, create.Execute(ctx, nil))
+	return userID, token
+}
+
+func meRequest(ctx context.Context, token string) *http.Request {
+	req := httptest.NewRequest("GET", "/api/me", nil).WithContext(ctx)
+	if token != "" {
+		req.AddCookie(&http.Cookie{Name: sessionCookie, Value: token})
+	}
+	return req
 }
 
 func responseCookie(t *testing.T, resp *httptest.ResponseRecorder, name string) *http.Cookie {
@@ -40,8 +77,47 @@ func responseCookie(t *testing.T, resp *httptest.ResponseRecorder, name string) 
 	return nil
 }
 
+func TestMeWithoutCookie(t *testing.T) {
+	router := authRouter(t, fxtest.Configure())
+
+	resp := httptest.NewRecorder()
+	router.ServeHTTP(resp, httptest.NewRequest("GET", "/api/me", nil))
+
+	require.Equal(t, http.StatusUnauthorized, resp.Code)
+}
+
+func TestMeWithSession(t *testing.T) {
+	ctx := setupDB(t)
+	userID, token := startTestSession(t, ctx, time.Now().Add(time.Hour))
+	router := authRouter(t, fxtest.Configure())
+
+	resp := httptest.NewRecorder()
+	router.ServeHTTP(resp, meRequest(ctx, token))
+
+	require.Equal(t, http.StatusOK, resp.Code)
+
+	var body struct {
+		ID   int64  `json:"id"`
+		Name string `json:"name"`
+	}
+	require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &body))
+	require.Equal(t, userID, body.ID)
+	require.Equal(t, "octocat", body.Name)
+}
+
+func TestMeWithExpiredSession(t *testing.T) {
+	ctx := setupDB(t)
+	_, token := startTestSession(t, ctx, time.Now().Add(-time.Hour))
+	router := authRouter(t, fxtest.Configure())
+
+	resp := httptest.NewRecorder()
+	router.ServeHTTP(resp, meRequest(ctx, token))
+
+	require.Equal(t, http.StatusUnauthorized, resp.Code)
+}
+
 func TestGitHubLoginRedirectsToAuthorize(t *testing.T) {
-	stubGitHubApp(t, &GitHubApp{ClientID: testClientID}, nil)
+	stubApp(t, &github.App{ClientID: testClientID}, nil)
 	router := authRouter(t, fxtest.Configure())
 
 	resp := httptest.NewRecorder()
@@ -65,7 +141,7 @@ func TestGitHubLoginRedirectsToAuthorize(t *testing.T) {
 }
 
 func TestGitHubLoginWithoutApp(t *testing.T) {
-	stubGitHubApp(t, nil, ErrNoGitHubApp)
+	stubApp(t, nil, github.ErrNoApp)
 	router := authRouter(t, fxtest.Configure())
 
 	resp := httptest.NewRecorder()
@@ -75,7 +151,7 @@ func TestGitHubLoginWithoutApp(t *testing.T) {
 }
 
 func TestGitHubCallbackStateMismatch(t *testing.T) {
-	stubGitHubApp(t, &GitHubApp{ClientID: testClientID, ClientSecret: testClientSecret}, nil)
+	stubApp(t, &github.App{ClientID: testClientID, ClientSecret: testClientSecret}, nil)
 	router := authRouter(t, fxtest.Configure())
 
 	missingCookie := httptest.NewRequest("GET", "/api/auth/github/callback?code=C&state=abc", nil)
@@ -97,7 +173,7 @@ func TestGitHubCallbackStateMismatch(t *testing.T) {
 }
 
 func TestExchangeOAuthCode(t *testing.T) {
-	github := httptest.NewServer(http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
+	stub := httptest.NewServer(http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
 		require.Equal(t, "POST", req.Method)
 		require.Equal(t, "/login/oauth/access_token", req.URL.Path)
 		require.Equal(t, "application/json", req.Header.Get("Accept"))
@@ -110,28 +186,28 @@ func TestExchangeOAuthCode(t *testing.T) {
 		resp.Header().Set("Content-Type", "application/json")
 		resp.Write([]byte(`{"access_token": "` + testAccessToken + `", "token_type": "bearer"}`))
 	}))
-	defer github.Close()
+	defer stub.Close()
 
-	token, err := exchangeOAuthCode(t.Context(), github.Client(), github.URL,
+	token, err := exchangeOAuthCode(t.Context(), stub.Client(), stub.URL,
 		testClientID, testClientSecret, "CODE123")
 	require.NoError(t, err)
 	require.Equal(t, testAccessToken, token)
 }
 
 func TestExchangeOAuthCodeRejectsErrorResponse(t *testing.T) {
-	github := httptest.NewServer(http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
+	stub := httptest.NewServer(http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
 		resp.Header().Set("Content-Type", "application/json")
 		resp.Write([]byte(`{"error": "bad_verification_code", "error_description": "expired"}`))
 	}))
-	defer github.Close()
+	defer stub.Close()
 
-	_, err := exchangeOAuthCode(t.Context(), github.Client(), github.URL,
+	_, err := exchangeOAuthCode(t.Context(), stub.Client(), stub.URL,
 		testClientID, testClientSecret, "EXPIRED")
 	require.ErrorContains(t, err, "bad_verification_code")
 }
 
 func TestFetchGitHubUser(t *testing.T) {
-	github := httptest.NewServer(http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
+	stub := httptest.NewServer(http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
 		require.Equal(t, "GET", req.Method)
 		require.Equal(t, "/user", req.URL.Path)
 		require.Equal(t, "Bearer "+testAccessToken, req.Header.Get("Authorization"))
@@ -139,21 +215,21 @@ func TestFetchGitHubUser(t *testing.T) {
 		resp.Header().Set("Content-Type", "application/json")
 		resp.Write([]byte(`{"id": 12345, "login": "octocat", "email": "octo@example.com"}`))
 	}))
-	defer github.Close()
+	defer stub.Close()
 
-	account, err := fetchGitHubUser(t.Context(), github.Client(), github.URL, testAccessToken)
+	account, err := fetchGitHubUser(t.Context(), stub.Client(), stub.URL, testAccessToken)
 	require.NoError(t, err)
 	require.Equal(t, &githubAccount{ID: 12345, Login: "octocat", Email: "octo@example.com"}, account)
 }
 
 func TestFetchGitHubUserHiddenEmail(t *testing.T) {
-	github := httptest.NewServer(http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
+	stub := httptest.NewServer(http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
 		resp.Header().Set("Content-Type", "application/json")
 		resp.Write([]byte(`{"id": 12345, "login": "octocat", "email": null}`))
 	}))
-	defer github.Close()
+	defer stub.Close()
 
-	account, err := fetchGitHubUser(t.Context(), github.Client(), github.URL, testAccessToken)
+	account, err := fetchGitHubUser(t.Context(), stub.Client(), stub.URL, testAccessToken)
 	require.NoError(t, err)
 	require.Equal(t, "", account.Email)
 }
@@ -171,9 +247,9 @@ func stubGitHubOAuth(t *testing.T) *httptest.Server {
 		resp.Write([]byte(`{"id": 12345, "login": "octocat", "email": "octo@example.com"}`))
 	})
 
-	github := httptest.NewServer(mux)
-	t.Cleanup(github.Close)
-	return github
+	stub := httptest.NewServer(mux)
+	t.Cleanup(stub.Close)
+	return stub
 }
 
 func loginCallback(t *testing.T, router chi.Router, ctx context.Context) *http.Cookie {
@@ -195,12 +271,12 @@ func loginCallback(t *testing.T, router chi.Router, ctx context.Context) *http.C
 
 func TestGitHubCallbackCreatesUserIdentityAndSession(t *testing.T) {
 	ctx := setupDB(t)
-	stubGitHubApp(t, &GitHubApp{ClientID: testClientID, ClientSecret: testClientSecret}, nil)
-	github := stubGitHubOAuth(t)
+	stubApp(t, &github.App{ClientID: testClientID, ClientSecret: testClientSecret}, nil)
+	stub := stubGitHubOAuth(t)
 
 	cfg := fxtest.Configure()
-	config.Set(cfg, GitHubURLConfig, github.URL)
-	config.Set(cfg, GitHubAPIURLConfig, github.URL)
+	config.Set(cfg, github.URLConfig, stub.URL)
+	config.Set(cfg, github.APIURLConfig, stub.URL)
 	router := authRouter(t, cfg)
 
 	session := loginCallback(t, router, ctx)
@@ -260,12 +336,12 @@ func TestGitHubCallbackCreatesUserIdentityAndSession(t *testing.T) {
 
 func TestGitHubCallbackSecondLoginReusesUser(t *testing.T) {
 	ctx := setupDB(t)
-	stubGitHubApp(t, &GitHubApp{ClientID: testClientID, ClientSecret: testClientSecret}, nil)
-	github := stubGitHubOAuth(t)
+	stubApp(t, &github.App{ClientID: testClientID, ClientSecret: testClientSecret}, nil)
+	stub := stubGitHubOAuth(t)
 
 	cfg := fxtest.Configure()
-	config.Set(cfg, GitHubURLConfig, github.URL)
-	config.Set(cfg, GitHubAPIURLConfig, github.URL)
+	config.Set(cfg, github.URLConfig, stub.URL)
+	config.Set(cfg, github.APIURLConfig, stub.URL)
 	router := authRouter(t, cfg)
 
 	first := loginCallback(t, router, ctx)
@@ -351,9 +427,7 @@ func TestLogoutInvalidatesSession(t *testing.T) {
 	require.NoError(t, data.Get(ctx, &count, `SELECT count(*) FROM sessions`))
 	require.Zero(t, count)
 
-	me := httptest.NewRequest("GET", "/api/me", nil)
-	me.AddCookie(&http.Cookie{Name: sessionCookie, Value: token})
 	resp = httptest.NewRecorder()
-	router.ServeHTTP(resp, me.WithContext(ctx))
+	router.ServeHTTP(resp, meRequest(ctx, token))
 	require.Equal(t, http.StatusUnauthorized, resp.Code)
 }

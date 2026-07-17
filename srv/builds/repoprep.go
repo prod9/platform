@@ -1,16 +1,16 @@
-package srv
+package builds
 
 import (
 	"context"
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strconv"
 	"syscall"
 
 	"fx.prodigy9.co/config"
 	"platform.prodigy9.co/git"
+	"platform.prodigy9.co/srv/github"
 )
 
 // CacheDirConfig roots the server's persistent clone cache (spec §Cache layout):
@@ -32,7 +32,7 @@ type PrepRepo struct {
 }
 
 func (p *PrepRepo) Run(ctx context.Context) (workDir string, resolvedSHA string, err error) {
-	if err := checkRepoPath(p.Owner, p.Repo); err != nil {
+	if err := github.CheckRepoPath(p.Owner, p.Repo); err != nil {
 		return "", "", err
 	}
 
@@ -98,18 +98,6 @@ func (r *RemoveWorkTree) Run(ctx context.Context) error {
 	return err
 }
 
-// checkRepoPath admits only names GitHub itself allows (letters, digits, '-', plus
-// '._' in repo names, never leading '.') — owner/repo land in filesystem paths, so the
-// whitelist is what keeps a hostile payload from escaping the cache dir.
-func checkRepoPath(owner, repo string) error {
-	if !repoNamePattern.MatchString(owner) || !repoNamePattern.MatchString(repo) {
-		return fmt.Errorf("srv: invalid repo path: %q/%q", owner, repo)
-	}
-	return nil
-}
-
-var repoNamePattern = regexp.MustCompile(`^[A-Za-z0-9-][A-Za-z0-9._-]*$`)
-
 func mirrorPath(cacheDir, owner, repo string) string {
 	return filepath.Join(cacheDir, "git", owner, repo+".git")
 }
@@ -127,7 +115,7 @@ func lockFile(path string) (*os.File, error) {
 	}
 	if err := syscall.Flock(int(file.Fd()), syscall.LOCK_EX); err != nil {
 		file.Close()
-		return nil, fmt.Errorf("srv: flock %s: %w", path, err)
+		return nil, fmt.Errorf("builds: flock %s: %w", path, err)
 	}
 	return file, nil
 }

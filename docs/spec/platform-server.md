@@ -62,6 +62,16 @@ packages are the leaves and must never import server
 concerns** — no `fx/data`/`sqlx`/migrations, no `net/http` server, no auth, no knowledge
 that `srv` exists.
 
+Internally `srv` is organized as **self-contained fx-style fragments** — one subpackage
+per concern (`srv/auth`, `srv/github`, `srv/builds`, `srv/flux`), each carrying its own
+domain models, controllers, and embedded migration SQL, portable by copy-paste. The root
+package composes them: `Router` mounts every fragment's controllers; `Serve` aggregates
+their `Migrations` embeds at boot (`srv/migrate.Merged`, timestamps re-sorted across
+fragments). The fragment import graph is acyclic — `auth → github`,
+`builds → {auth, github}`, `flux → {auth, github}` — with `flux` split out precisely so
+github (which auth imports) never imports auth back. `srv/pgerr` and `srv/srvtest` hold
+the shared postgres-error check and fragment-neutral test scaffolding.
+
 ### Operations (current surface)
 
 Everything the running server does today — the review/grill table. HTTP first, then the

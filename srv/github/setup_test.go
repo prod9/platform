@@ -1,4 +1,4 @@
-package srv
+package github
 
 import (
 	"context"
@@ -8,23 +8,31 @@ import (
 
 	"fx.prodigy9.co/config"
 	"fx.prodigy9.co/fxtest"
+	"fx.prodigy9.co/httpserver/middlewares"
+	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/require"
 )
 
 const testServerURL = "https://platform.example.com"
 
-func stubGitHubApp(t *testing.T, app *GitHubApp, err error) {
-	orig := loadGitHubApp
-	loadGitHubApp = func(ctx context.Context) (*GitHubApp, error) { return app, err }
-	t.Cleanup(func() { loadGitHubApp = orig })
+func stubApp(t *testing.T, app *App, err error) {
+	orig := LoadApp
+	LoadApp = func(ctx context.Context) (*App, error) { return app, err }
+	t.Cleanup(func() { LoadApp = orig })
+}
+
+func setupRouter(t *testing.T, cfg *config.Source) chi.Router {
+	router := chi.NewRouter()
+	router.Use(middlewares.Configure(cfg))
+	require.NoError(t, SetupCtr{}.Mount(cfg, router))
+	return router
 }
 
 func TestSetupGitHubRendersManifestForm(t *testing.T) {
-	stubGitHubApp(t, nil, ErrNoGitHubApp)
+	stubApp(t, nil, ErrNoApp)
 	cfg := fxtest.Configure()
 	config.Set(cfg, ServerURLConfig, testServerURL)
-	router, err := Router(cfg)
-	require.NoError(t, err)
+	router := setupRouter(t, cfg)
 
 	resp := httptest.NewRecorder()
 	router.ServeHTTP(resp, httptest.NewRequest("GET", "/setup/github", nil))
@@ -42,11 +50,10 @@ func TestSetupGitHubRendersManifestForm(t *testing.T) {
 }
 
 func TestSetupGitHubAlreadyConfigured(t *testing.T) {
-	stubGitHubApp(t, &GitHubApp{Slug: "platform-test"}, nil)
+	stubApp(t, &App{Slug: "platform-test"}, nil)
 	cfg := fxtest.Configure()
 	config.Set(cfg, ServerURLConfig, testServerURL)
-	router, err := Router(cfg)
-	require.NoError(t, err)
+	router := setupRouter(t, cfg)
 
 	resp := httptest.NewRecorder()
 	router.ServeHTTP(resp, httptest.NewRequest("GET", "/setup/github", nil))
@@ -57,9 +64,8 @@ func TestSetupGitHubAlreadyConfigured(t *testing.T) {
 }
 
 func TestSetupGitHubRequiresServerURL(t *testing.T) {
-	stubGitHubApp(t, nil, ErrNoGitHubApp)
-	router, err := Router(fxtest.Configure())
-	require.NoError(t, err)
+	stubApp(t, nil, ErrNoApp)
+	router := setupRouter(t, fxtest.Configure())
 
 	resp := httptest.NewRecorder()
 	router.ServeHTTP(resp, httptest.NewRequest("GET", "/setup/github", nil))
@@ -69,8 +75,7 @@ func TestSetupGitHubRequiresServerURL(t *testing.T) {
 }
 
 func TestSetupCallbackMissingCode(t *testing.T) {
-	router, err := Router(fxtest.Configure())
-	require.NoError(t, err)
+	router := setupRouter(t, fxtest.Configure())
 
 	resp := httptest.NewRecorder()
 	router.ServeHTTP(resp, httptest.NewRequest("GET", "/setup/github/callback", nil))
@@ -86,9 +91,8 @@ func TestSetupCallbackExchangeFailure(t *testing.T) {
 	t.Cleanup(github.Close)
 
 	cfg := fxtest.Configure()
-	config.Set(cfg, GitHubAPIURLConfig, github.URL)
-	router, err := Router(cfg)
-	require.NoError(t, err)
+	config.Set(cfg, APIURLConfig, github.URL)
+	router := setupRouter(t, cfg)
 
 	resp := httptest.NewRecorder()
 	router.ServeHTTP(resp, httptest.NewRequest("GET", "/setup/github/callback?code=EXPIRED", nil))
@@ -98,13 +102,12 @@ func TestSetupCallbackExchangeFailure(t *testing.T) {
 
 func TestSetupCallbackDuplicateApp(t *testing.T) {
 	ctx := setupDB(t)
-	require.NoError(t, (&SaveGitHubApp{AppID: 1, Slug: "existing"}).Execute(ctx, nil))
+	require.NoError(t, (&SaveApp{AppID: 1, Slug: "existing"}).Execute(ctx, nil))
 	github := stubManifestConversion(t)
 
 	cfg := fxtest.Configure()
-	config.Set(cfg, GitHubAPIURLConfig, github.URL)
-	router, err := Router(cfg)
-	require.NoError(t, err)
+	config.Set(cfg, APIURLConfig, github.URL)
+	router := setupRouter(t, cfg)
 
 	resp := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/setup/github/callback?code=CODE123", nil).WithContext(ctx)

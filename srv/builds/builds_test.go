@@ -1,4 +1,4 @@
-package srv
+package builds
 
 import (
 	"context"
@@ -6,11 +6,24 @@ import (
 	"testing"
 
 	"fx.prodigy9.co/data"
+	"fx.prodigy9.co/data/migrator"
 	"github.com/stretchr/testify/require"
+	"platform.prodigy9.co/srv/auth"
+	"platform.prodigy9.co/srv/github"
+	"platform.prodigy9.co/srv/srvtest"
 )
 
+// setupDB migrates the sibling fragments' schemas too: webhook ingest stores real
+// App credentials and the /api/builds endpoint tests seed sessions.
+func setupDB(t *testing.T) context.Context {
+	return srvtest.SetupDB(t,
+		migrator.FromFS(Migrations),
+		migrator.FromFS(auth.Migrations),
+		migrator.FromFS(github.Migrations))
+}
+
 func queueTestBuild(t *testing.T, ctx context.Context, repo string) *Build {
-	create := &CreateBuild{
+	create := &Create{
 		Owner:    "prod9",
 		Repo:     repo,
 		CloneURL: "https://github.com/prod9/" + repo + ".git",
@@ -33,13 +46,13 @@ func loadBuild(t *testing.T, ctx context.Context, id int64) *Build {
 
 func claimBuild(ctx context.Context) (*Build, error) {
 	build := &Build{}
-	if err := (&ClaimBuild{}).Execute(ctx, build); err != nil {
+	if err := (&Claim{}).Execute(ctx, build); err != nil {
 		return nil, err
 	}
 	return build, nil
 }
 
-func TestClaimBuildClaimsOldestQueued(t *testing.T) {
+func TestClaimClaimsOldestQueued(t *testing.T) {
 	ctx := setupDB(t)
 	first := queueTestBuild(t, ctx, "app")
 	queueTestBuild(t, ctx, "later-app")
@@ -58,15 +71,15 @@ func TestClaimBuildClaimsOldestQueued(t *testing.T) {
 	require.Equal(t, "running", loadBuild(t, ctx, first.ID).Status)
 }
 
-func TestClaimBuildEmptyQueue(t *testing.T) {
+func TestClaimEmptyQueue(t *testing.T) {
 	ctx := setupDB(t)
 
 	build, err := claimBuild(ctx)
-	require.ErrorIs(t, err, ErrNoQueuedBuild)
+	require.ErrorIs(t, err, ErrNoneQueued)
 	require.Nil(t, build)
 }
 
-func TestClaimBuildConcurrentClaimsOneWinner(t *testing.T) {
+func TestClaimConcurrentClaimsOneWinner(t *testing.T) {
 	ctx := setupDB(t)
 	queueTestBuild(t, ctx, "app")
 
@@ -87,7 +100,7 @@ func TestClaimBuildConcurrentClaimsOneWinner(t *testing.T) {
 		switch {
 		case errs[i] == nil && builds[i] != nil:
 			claimed++
-		case errs[i] == ErrNoQueuedBuild:
+		case errs[i] == ErrNoneQueued:
 			missed++
 		default:
 			t.Fatalf("claim %d: unexpected result: %v, %v", i, builds[i], errs[i])
@@ -97,7 +110,7 @@ func TestClaimBuildConcurrentClaimsOneWinner(t *testing.T) {
 	require.Equal(t, 1, missed)
 }
 
-func TestRequeueOrphanBuildsRequeuesRunning(t *testing.T) {
+func TestRequeueOrphansRequeuesRunning(t *testing.T) {
 	ctx := setupDB(t)
 	queueTestBuild(t, ctx, "app")
 	orphan, err := claimBuild(ctx)
@@ -106,10 +119,10 @@ func TestRequeueOrphanBuildsRequeuesRunning(t *testing.T) {
 	queueTestBuild(t, ctx, "done-app")
 	finished, err := claimBuild(ctx)
 	require.NoError(t, err)
-	require.NoError(t, (&FinishBuild{ID: finished.ID, Image: "i", Digest: "d"}).Execute(ctx, nil))
+	require.NoError(t, (&Finish{ID: finished.ID, Image: "i", Digest: "d"}).Execute(ctx, nil))
 	queued := queueTestBuild(t, ctx, "queued-app")
 
-	require.NoError(t, (&RequeueOrphanBuilds{}).Execute(ctx, nil))
+	require.NoError(t, (&RequeueOrphans{}).Execute(ctx, nil))
 
 	requeued := loadBuild(t, ctx, orphan.ID)
 	require.Equal(t, "queued", requeued.Status)
@@ -119,13 +132,13 @@ func TestRequeueOrphanBuildsRequeuesRunning(t *testing.T) {
 	require.Equal(t, "succeeded", loadBuild(t, ctx, finished.ID).Status)
 }
 
-func TestFinishBuild(t *testing.T) {
+func TestFinish(t *testing.T) {
 	ctx := setupDB(t)
 	queueTestBuild(t, ctx, "app")
 	claimed, err := claimBuild(ctx)
 	require.NoError(t, err)
 
-	finish := &FinishBuild{
+	finish := &Finish{
 		ID:     claimed.ID,
 		Image:  "ghcr.io/prod9/app:v1.2.3\nghcr.io/prod9/app-web:v1.2.3",
 		Digest: "sha256:feed\nsha256:f00d",
@@ -140,13 +153,13 @@ func TestFinishBuild(t *testing.T) {
 	require.True(t, build.UpdatedAt.After(claimed.UpdatedAt))
 }
 
-func TestFailBuild(t *testing.T) {
+func TestFail(t *testing.T) {
 	ctx := setupDB(t)
 	queueTestBuild(t, ctx, "app")
 	claimed, err := claimBuild(ctx)
 	require.NoError(t, err)
 
-	fail := &FailBuild{ID: claimed.ID, Error: "engine: build exploded"}
+	fail := &Fail{ID: claimed.ID, Error: "engine: build exploded"}
 	require.NoError(t, fail.Execute(ctx, nil))
 
 	build := loadBuild(t, ctx, claimed.ID)

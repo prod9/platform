@@ -1,4 +1,7 @@
-package srv
+// Package auth owns platform identity: users and their linked provider identities,
+// the GitHub App user-OAuth login flow, platform sessions, and the session gate
+// other fragments put in front of their endpoints.
+package auth
 
 import (
 	"context"
@@ -17,9 +20,12 @@ import (
 	"fx.prodigy9.co/config"
 	"fx.prodigy9.co/data"
 	"fx.prodigy9.co/httpserver/controllers"
+	"fx.prodigy9.co/httpserver/httperrors"
 	"fx.prodigy9.co/httpserver/render"
 	"fx.prodigy9.co/secret"
 	"github.com/go-chi/chi/v5"
+	"platform.prodigy9.co/srv/github"
+	"platform.prodigy9.co/srv/pgerr"
 )
 
 const (
@@ -31,9 +37,9 @@ const (
 )
 
 var (
-	ErrNoSession     = errors.New("srv: no session")
-	errBadOAuthState = errors.New("srv: oauth state mismatch")
-	errNoOAuthToken  = errors.New("srv: oauth code exchange returned no access token")
+	ErrNoSession     = errors.New("auth: no session")
+	errBadOAuthState = errors.New("auth: oauth state mismatch")
+	errNoOAuthToken  = errors.New("auth: oauth code exchange returned no access token")
 )
 
 // User is an internal platform user, the anchor of the identity ADR's model; external
@@ -44,33 +50,84 @@ type User struct {
 	CreatedAt time.Time `db:"created_at"`
 }
 
-// Auth serves the GitHub App user-OAuth login flow (spec §Two token types: the
-// user-to-server side) and platform session logout. Platform issues its own session
-// token per the identity ADR — the GitHub token is stored, never handed to the client.
-type Auth struct{}
+// SessionCtr serves the GitHub App user-OAuth login flow (spec §Two token types: the
+// user-to-server side), platform session logout, and the session probe /api/me.
+// Platform issues its own session token per the identity ADR — the GitHub token is
+// stored, never handed to the client.
+type SessionCtr struct{}
 
-var _ controllers.Interface = Auth{}
+var _ controllers.Interface = SessionCtr{}
 
-func (Auth) Mount(cfg *config.Source, router chi.Router) error {
+func (SessionCtr) Mount(cfg *config.Source, router chi.Router) error {
 	router.Get("/api/auth/github", githubLogin)
 	router.Get("/api/auth/github/callback", githubLoginCallback)
 	router.Post("/api/auth/logout", logout)
+	router.Get("/api/me", me)
 	return nil
+}
+
+// CurrentUser resolves the platform session cookie to its unexpired session's user;
+// anything short of that is ErrNoSession.
+func CurrentUser(req *http.Request) (*User, error) {
+	cookie, err := req.Cookie(sessionCookie)
+	if err != nil || cookie.Value == "" {
+		return nil, ErrNoSession
+	}
+
+	user := &User{}
+	err = data.Get(req.Context(), user, `
+		SELECT users.* FROM sessions
+		JOIN users ON users.id = sessions.user_id
+		WHERE sessions.token_hash = $1 AND sessions.expires_at > now()`,
+		hashSessionToken(cookie.Value))
+	if data.IsNoRows(err) {
+		return nil, ErrNoSession
+	} else if err != nil {
+		return nil, err
+	}
+	return user, nil
+}
+
+// RequireUser gates a handler on a live session: it resolves the current user or
+// writes the failure response (401 no session, 500 otherwise) itself — ok=false
+// means the response is already sent and the handler must return.
+func RequireUser(resp http.ResponseWriter, req *http.Request) (*User, bool) {
+	user, err := CurrentUser(req)
+	if errors.Is(err, ErrNoSession) {
+		render.Error(resp, req, 401, httperrors.ErrUnauthorized)
+		return nil, false
+	} else if err != nil {
+		render.Error(resp, req, 500, err)
+		return nil, false
+	}
+	return user, true
+}
+
+func me(resp http.ResponseWriter, req *http.Request) {
+	user, ok := RequireUser(resp, req)
+	if !ok {
+		return
+	}
+
+	render.JSON(resp, req, struct {
+		ID   int64  `json:"id"`
+		Name string `json:"name"`
+	}{user.ID, user.Name})
 }
 
 func githubLogin(resp http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 	cfg := config.FromContext(ctx)
 
-	serverURL, ok := config.GetOK(cfg, ServerURLConfig)
+	serverURL, ok := config.GetOK(cfg, github.ServerURLConfig)
 	if !ok {
-		render.Error(resp, req, 500, errors.New("srv: SERVER_URL must be set for GitHub login"))
+		render.Error(resp, req, 500, errors.New("auth: SERVER_URL must be set for GitHub login"))
 		return
 	}
 	serverURL = strings.TrimSuffix(serverURL, "/")
 
-	app, err := loadGitHubApp(ctx)
-	if errors.Is(err, ErrNoGitHubApp) {
+	app, err := github.LoadApp(ctx)
+	if errors.Is(err, github.ErrNoApp) {
 		render.Error(resp, req, 503, err)
 		return
 	} else if err != nil {
@@ -94,7 +151,7 @@ func githubLogin(resp http.ResponseWriter, req *http.Request) {
 		"redirect_uri": {serverURL + "/api/auth/github/callback"},
 		"state":        {state},
 	}
-	githubURL := config.Get(cfg, GitHubURLConfig)
+	githubURL := config.Get(cfg, github.URLConfig)
 	render.Redirect(resp, req, githubURL+"/login/oauth/authorize?"+query.Encode())
 }
 
@@ -109,8 +166,8 @@ func githubLoginCallback(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	app, err := loadGitHubApp(ctx)
-	if errors.Is(err, ErrNoGitHubApp) {
+	app, err := github.LoadApp(ctx)
+	if errors.Is(err, github.ErrNoApp) {
 		render.Error(resp, req, 503, err)
 		return
 	} else if err != nil {
@@ -118,7 +175,7 @@ func githubLoginCallback(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	githubURL := config.Get(cfg, GitHubURLConfig)
+	githubURL := config.Get(cfg, github.URLConfig)
 	token, err := exchangeOAuthCode(ctx, http.DefaultClient, githubURL,
 		app.ClientID, app.ClientSecret, req.URL.Query().Get("code"))
 	if err != nil {
@@ -126,7 +183,7 @@ func githubLoginCallback(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	apiURL := config.Get(cfg, GitHubAPIURLConfig)
+	apiURL := config.Get(cfg, github.APIURLConfig)
 	account, err := fetchGitHubUser(ctx, http.DefaultClient, apiURL, token)
 	if err != nil {
 		render.Error(resp, req, 502, err)
@@ -142,7 +199,7 @@ func githubLoginCallback(resp http.ResponseWriter, req *http.Request) {
 	sessionToken := randomToken()
 	create := &CreateSession{
 		UserID:    user.ID,
-		TokenHash: hashSessionToken(sessionToken),
+		Token:     sessionToken,
 		ExpiresAt: time.Now().Add(sessionTTL),
 	}
 	if err := create.Execute(ctx, nil); err != nil {
@@ -175,7 +232,7 @@ func githubLoginCallback(resp http.ResponseWriter, req *http.Request) {
 func logout(resp http.ResponseWriter, req *http.Request) {
 	cookie, err := req.Cookie(sessionCookie)
 	if err == nil && cookie.Value != "" {
-		del := &DeleteSession{TokenHash: hashSessionToken(cookie.Value)}
+		del := &DeleteSession{Token: cookie.Value}
 		if err := del.Execute(req.Context(), nil); err != nil {
 			render.Error(resp, req, 500, err)
 			return
@@ -224,7 +281,7 @@ func exchangeOAuthCode(ctx context.Context, client *http.Client, githubURL, clie
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return "", githubRespError("oauth code exchange", resp)
+		return "", github.RespError("oauth code exchange", resp)
 	}
 
 	token := oauthTokenResponse{}
@@ -232,7 +289,7 @@ func exchangeOAuthCode(ctx context.Context, client *http.Client, githubURL, clie
 		return "", err
 	}
 	if token.Error != "" {
-		return "", fmt.Errorf("srv: oauth code exchange failed: %s: %s",
+		return "", fmt.Errorf("auth: oauth code exchange failed: %s: %s",
 			token.Error, token.ErrorDescription)
 	}
 	if token.AccessToken == "" {
@@ -264,7 +321,7 @@ func fetchGitHubUser(ctx context.Context, client *http.Client, apiURL, token str
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, githubRespError("fetching github user", resp)
+		return nil, github.RespError("fetching github user", resp)
 	}
 
 	account := &githubAccount{}
@@ -287,7 +344,7 @@ type UpsertGitHubUser struct {
 
 func (u *UpsertGitHubUser) Execute(ctx context.Context, out any) error {
 	err := u.upsertOnce(ctx, out)
-	if isUniqueViolation(err) {
+	if pgerr.IsUniqueViolation(err) {
 		// two concurrent first logins raced on the identity insert; the loser's
 		// transaction rolled back, and the winner's row is committed now, so a second
 		// pass resolves to it.
@@ -334,19 +391,19 @@ func (u *UpsertGitHubUser) upsertOnce(ctx context.Context, out any) error {
 	})
 }
 
-// errNoUserGitHubToken reports a user whose github identity carries no stored token —
+// ErrNoGitHubToken reports a user whose github identity carries no stored token —
 // state predating token storage; logging in again recreates it.
-var errNoUserGitHubToken = errors.New("srv: no stored github token — log in again via /api/auth/github")
+var ErrNoGitHubToken = errors.New("auth: no stored github token — log in again via /api/auth/github")
 
-// loadUserGitHubToken retrieves the user's stored user-to-server token from their
+// LoadUserGitHubToken retrieves the user's stored user-to-server token from their
 // github identity's metadata, where UpsertGitHubUser hid it.
-func loadUserGitHubToken(ctx context.Context, userID int64) (string, error) {
+func LoadUserGitHubToken(ctx context.Context, userID int64) (string, error) {
 	var metadata string
 	err := data.Get(ctx, &metadata, `
 		SELECT metadata::text FROM identities
 		WHERE user_id = $1 AND provider = 'github'`, userID)
 	if data.IsNoRows(err) {
-		return "", errNoUserGitHubToken
+		return "", ErrNoGitHubToken
 	} else if err != nil {
 		return "", err
 	}
@@ -358,17 +415,18 @@ func loadUserGitHubToken(ctx context.Context, userID int64) (string, error) {
 		return "", err
 	}
 	if stored.Token == "" {
-		return "", errNoUserGitHubToken
+		return "", ErrNoGitHubToken
 	}
 
 	return secret.Reveal(config.FromContext(ctx), stored.Token)
 }
 
-// CreateSession records a platform session. The client keeps the raw token in the
-// session cookie; only its SHA-256 lands in the database.
+// CreateSession records a platform session for a raw token. Hashing is the store's
+// own invariant: the client keeps the raw token in the session cookie; only its
+// SHA-256 lands in the database.
 type CreateSession struct {
 	UserID    int64
-	TokenHash string
+	Token     string
 	ExpiresAt time.Time
 }
 
@@ -376,17 +434,17 @@ func (c *CreateSession) Execute(ctx context.Context, out any) error {
 	return data.Exec(ctx, `
 		INSERT INTO sessions (user_id, token_hash, expires_at)
 		VALUES ($1, $2, $3)`,
-		c.UserID, c.TokenHash, c.ExpiresAt)
+		c.UserID, hashSessionToken(c.Token), c.ExpiresAt)
 }
 
-// DeleteSession revokes one session by its token hash; an already-gone session
+// DeleteSession revokes one session by its raw token; an already-gone session
 // deletes as a no-op.
 type DeleteSession struct {
-	TokenHash string
+	Token string
 }
 
 func (d *DeleteSession) Execute(ctx context.Context, out any) error {
-	return data.Exec(ctx, `DELETE FROM sessions WHERE token_hash = $1`, d.TokenHash)
+	return data.Exec(ctx, `DELETE FROM sessions WHERE token_hash = $1`, hashSessionToken(d.Token))
 }
 
 // randomToken returns 32 crypto/rand bytes hex-encoded — the shape of both OAuth

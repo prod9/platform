@@ -1,6 +1,7 @@
-package srv
+package builds
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
@@ -11,11 +12,19 @@ import (
 
 	"fx.prodigy9.co/data"
 	"fx.prodigy9.co/fxtest"
+	"fx.prodigy9.co/httpserver/middlewares"
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/require"
+	"platform.prodigy9.co/srv/github"
 )
 
 const testWebhookSecret = "whsec"
+
+func stubApp(t *testing.T, app *github.App, err error) {
+	orig := github.LoadApp
+	github.LoadApp = func(ctx context.Context) (*github.App, error) { return app, err }
+	t.Cleanup(func() { github.LoadApp = orig })
+}
 
 func signBody(secret string, body string) string {
 	mac := hmac.New(sha256.New, []byte(secret))
@@ -50,7 +59,7 @@ func TestBuildForPush(t *testing.T) {
 
 	create := buildForPush(tagPush)
 	require.NotNil(t, create)
-	require.Equal(t, &CreateBuild{
+	require.Equal(t, &Create{
 		Owner:    "prod9",
 		Repo:     "app",
 		CloneURL: "https://github.com/prod9/app.git",
@@ -103,13 +112,15 @@ func webhookRequest(event, body, signature string) *http.Request {
 }
 
 func webhookRouter(t *testing.T) chi.Router {
-	router, err := Router(fxtest.Configure())
-	require.NoError(t, err)
+	cfg := fxtest.Configure()
+	router := chi.NewRouter()
+	router.Use(middlewares.Configure(cfg))
+	require.NoError(t, WebhookCtr{}.Mount(cfg, router))
 	return router
 }
 
 func TestWebhookWithoutGitHubApp(t *testing.T) {
-	stubGitHubApp(t, nil, ErrNoGitHubApp)
+	stubApp(t, nil, github.ErrNoApp)
 	router := webhookRouter(t)
 
 	resp := httptest.NewRecorder()
@@ -120,7 +131,7 @@ func TestWebhookWithoutGitHubApp(t *testing.T) {
 }
 
 func TestWebhookRejectsMissingSignature(t *testing.T) {
-	stubGitHubApp(t, &GitHubApp{WebhookSecret: testWebhookSecret}, nil)
+	stubApp(t, &github.App{WebhookSecret: testWebhookSecret}, nil)
 	router := webhookRouter(t)
 
 	resp := httptest.NewRecorder()
@@ -130,7 +141,7 @@ func TestWebhookRejectsMissingSignature(t *testing.T) {
 }
 
 func TestWebhookRejectsBadSignature(t *testing.T) {
-	stubGitHubApp(t, &GitHubApp{WebhookSecret: testWebhookSecret}, nil)
+	stubApp(t, &github.App{WebhookSecret: testWebhookSecret}, nil)
 	router := webhookRouter(t)
 
 	resp := httptest.NewRecorder()
@@ -141,7 +152,7 @@ func TestWebhookRejectsBadSignature(t *testing.T) {
 }
 
 func TestWebhookPingIsNoOp(t *testing.T) {
-	stubGitHubApp(t, &GitHubApp{WebhookSecret: testWebhookSecret}, nil)
+	stubApp(t, &github.App{WebhookSecret: testWebhookSecret}, nil)
 	router := webhookRouter(t)
 
 	resp := httptest.NewRecorder()
@@ -152,7 +163,7 @@ func TestWebhookPingIsNoOp(t *testing.T) {
 }
 
 func TestWebhookMalformedPushBody(t *testing.T) {
-	stubGitHubApp(t, &GitHubApp{WebhookSecret: testWebhookSecret}, nil)
+	stubApp(t, &github.App{WebhookSecret: testWebhookSecret}, nil)
 	router := webhookRouter(t)
 
 	resp := httptest.NewRecorder()
@@ -163,7 +174,7 @@ func TestWebhookMalformedPushBody(t *testing.T) {
 }
 
 func TestWebhookBranchPushIsNoOp(t *testing.T) {
-	stubGitHubApp(t, &GitHubApp{WebhookSecret: testWebhookSecret}, nil)
+	stubApp(t, &github.App{WebhookSecret: testWebhookSecret}, nil)
 	router := webhookRouter(t)
 
 	resp := httptest.NewRecorder()
@@ -174,7 +185,7 @@ func TestWebhookBranchPushIsNoOp(t *testing.T) {
 
 func TestWebhookTagPushCreatesBuild(t *testing.T) {
 	ctx := setupDB(t)
-	require.NoError(t, (&SaveGitHubApp{WebhookSecret: testWebhookSecret}).Execute(ctx, nil))
+	require.NoError(t, (&github.SaveApp{WebhookSecret: testWebhookSecret}).Execute(ctx, nil))
 
 	router := webhookRouter(t)
 	resp := httptest.NewRecorder()
@@ -210,7 +221,7 @@ func TestWebhookTagPushCreatesBuild(t *testing.T) {
 
 func TestWebhookBranchPushCreatesNoBuild(t *testing.T) {
 	ctx := setupDB(t)
-	require.NoError(t, (&SaveGitHubApp{WebhookSecret: testWebhookSecret}).Execute(ctx, nil))
+	require.NoError(t, (&github.SaveApp{WebhookSecret: testWebhookSecret}).Execute(ctx, nil))
 
 	router := webhookRouter(t)
 	resp := httptest.NewRecorder()

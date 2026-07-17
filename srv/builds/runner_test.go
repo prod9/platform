@@ -1,4 +1,4 @@
-package srv
+package builds
 
 import (
 	"context"
@@ -24,7 +24,7 @@ func startRunner(t *testing.T, ctx context.Context) (cancel func(), done chan st
 	done = make(chan struct{})
 	go func() {
 		defer close(done)
-		runQueuedBuilds(runnerCtx, fxtest.Configure())
+		RunQueued(runnerCtx, fxtest.Configure())
 	}()
 	t.Cleanup(func() { stop(); requireRunnerExit(t, done) })
 	return stop, done
@@ -34,7 +34,7 @@ func requireRunnerExit(t *testing.T, done chan struct{}) {
 	select {
 	case <-done:
 	case <-time.After(time.Second):
-		t.Fatal("runQueuedBuilds did not exit after cancel")
+		t.Fatal("RunQueued did not exit after cancel")
 	}
 }
 
@@ -51,7 +51,7 @@ func waitForStatus(t *testing.T, ctx context.Context, id int64, status string) *
 	return nil
 }
 
-func TestRunQueuedBuildsRecordsSuccess(t *testing.T) {
+func TestRunQueuedRecordsSuccess(t *testing.T) {
 	ctx := setupDB(t)
 	queued := queueTestBuild(t, ctx, "app")
 	stubPublishBuild(t, "ghcr.io/prod9/app:v1.2.3", "sha256:feed", nil)
@@ -64,7 +64,7 @@ func TestRunQueuedBuildsRecordsSuccess(t *testing.T) {
 	require.Equal(t, "", build.Error)
 }
 
-func TestRunQueuedBuildsRecordsFailure(t *testing.T) {
+func TestRunQueuedRecordsFailure(t *testing.T) {
 	ctx := setupDB(t)
 	queued := queueTestBuild(t, ctx, "app")
 	stubPublishBuild(t, "", "", errors.New("engine: build exploded"))
@@ -85,15 +85,16 @@ func TestRecordOutcomeSurvivesShutdown(t *testing.T) {
 
 	shutdown, cancel := context.WithCancel(ctx)
 	cancel()
-	recordOutcome(shutdown, &FinishBuild{ID: claimed.ID, Image: "i", Digest: "d"})
+	recordOutcome(shutdown, &Finish{ID: claimed.ID, Image: "i", Digest: "d"})
 
 	require.Equal(t, "succeeded", loadBuild(t, ctx, claimed.ID).Status)
 }
 
-func TestRunQueuedBuildsExitsOnCancel(t *testing.T) {
+func TestRunQueuedExitsOnCancel(t *testing.T) {
 	ctx := setupDB(t)
 
 	cancel, done := startRunner(t, ctx)
 	cancel()
 	requireRunnerExit(t, done)
 }
+

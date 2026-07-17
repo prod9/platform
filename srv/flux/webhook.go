@@ -1,4 +1,8 @@
-package srv
+// Package flux wires GitHub repos to the cluster's Flux delivery path: today, the
+// session-gated endpoint that points a repo's registry_package webhook at the
+// cluster's Flux Receiver. It composes auth (the session user's push check) with
+// github (installation-token minting).
+package flux
 
 import (
 	"bytes"
@@ -14,38 +18,40 @@ import (
 	"fx.prodigy9.co/httpserver/controllers"
 	"fx.prodigy9.co/httpserver/render"
 	"github.com/go-chi/chi/v5"
+	"platform.prodigy9.co/srv/auth"
+	"platform.prodigy9.co/srv/github"
 )
 
 // ErrWebhookExists reports a repo that already carries the hook config GitHub was
 // asked to create; GitHub answers a duplicate with a 422.
-var ErrWebhookExists = errors.New("srv: flux webhook already configured")
+var ErrWebhookExists = errors.New("flux: webhook already configured")
 
-// errNoRepoPush reports a repo the session user cannot push to — GitHub answers a repo
-// the user cannot even see with a 404, so both fail the same way.
-var errNoRepoPush = errors.New("srv: no push access to repo")
+// errNoRepoPush reports a repo the session user cannot push to — GitHub answers a
+// repo the user cannot even see with a 404, so both fail the same way.
+var errNoRepoPush = errors.New("flux: no push access to repo")
 
-// FluxWebhook closes the flux-webhook ADR's manual GitHub-side step: it points a
+// WebhookCtr closes the flux-webhook ADR's manual GitHub-side step: it points a
 // repo's webhook at the cluster's Flux Receiver so a GHCR publish pokes the
 // reconcile. Deploy-adjacent config, so the endpoint is session-gated.
-type FluxWebhook struct{}
+type WebhookCtr struct{}
 
-var _ controllers.Interface = FluxWebhook{}
+var _ controllers.Interface = WebhookCtr{}
 
-func (FluxWebhook) Mount(cfg *config.Source, router chi.Router) error {
-	router.Post("/api/repos/{owner}/{repo}/flux-webhook", configureFluxWebhook)
+func (WebhookCtr) Mount(cfg *config.Source, router chi.Router) error {
+	router.Post("/api/repos/{owner}/{repo}/flux-webhook", configureWebhook)
 	return nil
 }
 
-func configureFluxWebhook(resp http.ResponseWriter, req *http.Request) {
+func configureWebhook(resp http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 
-	user, ok := requireUser(resp, req)
+	user, ok := auth.RequireUser(resp, req)
 	if !ok {
 		return
 	}
 
-	app, err := loadGitHubApp(ctx)
-	if errors.Is(err, ErrNoGitHubApp) {
+	app, err := github.LoadApp(ctx)
+	if errors.Is(err, github.ErrNoApp) {
 		render.Error(resp, req, 503, err)
 		return
 	} else if err != nil {
@@ -53,7 +59,7 @@ func configureFluxWebhook(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	action := &ConfigureFluxWebhook{
+	action := &ConfigureWebhook{
 		Owner: chi.URLParam(req, "owner"),
 		Repo:  chi.URLParam(req, "repo"),
 		app:   app,
@@ -66,8 +72,8 @@ func configureFluxWebhook(resp http.ResponseWriter, req *http.Request) {
 	// the hook is created with an installation token, which carries no notion of the
 	// session user — so their write access is checked explicitly first (spec §Two
 	// token types).
-	userToken, err := loadUserGitHubToken(ctx, user.ID)
-	if errors.Is(err, errNoUserGitHubToken) {
+	userToken, err := auth.LoadUserGitHubToken(ctx, user.ID)
+	if errors.Is(err, auth.ErrNoGitHubToken) {
 		render.Error(resp, req, 403, err)
 		return
 	} else if err != nil {
@@ -75,7 +81,7 @@ func configureFluxWebhook(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	apiURL := config.Get(config.FromContext(ctx), GitHubAPIURLConfig)
+	apiURL := config.Get(config.FromContext(ctx), github.APIURLConfig)
 	switch err := checkRepoPush(ctx, http.DefaultClient, apiURL, userToken, action.Owner, action.Repo); {
 	case errors.Is(err, errNoRepoPush):
 		render.Error(resp, req, 403, err)
@@ -86,7 +92,7 @@ func configureFluxWebhook(resp http.ResponseWriter, req *http.Request) {
 	}
 
 	switch err := action.Execute(ctx, nil); {
-	case errors.Is(err, ErrAppNotInstalled):
+	case errors.Is(err, github.ErrAppNotInstalled):
 		render.Error(resp, req, 404, err)
 	case errors.Is(err, ErrWebhookExists):
 		render.Error(resp, req, 409, err)
@@ -99,34 +105,34 @@ func configureFluxWebhook(resp http.ResponseWriter, req *http.Request) {
 	}
 }
 
-// ConfigureFluxWebhook creates the repo's registry_package webhook pointing at the
+// ConfigureWebhook creates the repo's registry_package webhook pointing at the
 // cluster's Flux Receiver URL with its HMAC secret, authenticated as the App's
 // installation on the repo. Owner/Repo come from the URL, never the body.
-type ConfigureFluxWebhook struct {
+type ConfigureWebhook struct {
 	Owner       string `json:"-"`
 	Repo        string `json:"-"`
 	ReceiverURL string `json:"receiver_url"`
 	Secret      string `json:"secret"`
 
-	app *GitHubApp
+	app *github.App
 }
 
-var _ controllers.Validator = (*ConfigureFluxWebhook)(nil)
+var _ controllers.Validator = (*ConfigureWebhook)(nil)
 
-func (c *ConfigureFluxWebhook) Validate() error {
-	if err := checkRepoPath(c.Owner, c.Repo); err != nil {
+func (c *ConfigureWebhook) Validate() error {
+	if err := github.CheckRepoPath(c.Owner, c.Repo); err != nil {
 		return err
 	}
 
 	receiver, err := url.Parse(c.ReceiverURL)
 	if err != nil {
-		return fmt.Errorf("srv: invalid receiver_url: %w", err)
+		return fmt.Errorf("flux: invalid receiver_url: %w", err)
 	}
 	if receiver.Scheme != "https" || receiver.Host == "" {
-		return fmt.Errorf("srv: receiver_url must be an https URL, got %q", c.ReceiverURL)
+		return fmt.Errorf("flux: receiver_url must be an https URL, got %q", c.ReceiverURL)
 	}
 	if c.Secret == "" {
-		return errors.New("srv: secret must not be empty")
+		return errors.New("flux: secret must not be empty")
 	}
 	return nil
 }
@@ -145,11 +151,11 @@ type hookConfig struct {
 	Secret      string `json:"secret"`
 }
 
-func (c *ConfigureFluxWebhook) Execute(ctx context.Context, out any) error {
+func (c *ConfigureWebhook) Execute(ctx context.Context, out any) error {
 	cfg := config.FromContext(ctx)
-	apiURL := strings.TrimSuffix(config.Get(cfg, GitHubAPIURLConfig), "/")
+	apiURL := strings.TrimSuffix(config.Get(cfg, github.APIURLConfig), "/")
 
-	token, err := mintInstallationToken(ctx, http.DefaultClient, apiURL, c.app, c.Owner, c.Repo)
+	token, err := github.MintInstallationToken(ctx, http.DefaultClient, apiURL, c.app, c.Owner, c.Repo)
 	if err != nil {
 		return err
 	}
@@ -181,7 +187,7 @@ func (c *ConfigureFluxWebhook) Execute(ctx context.Context, out any) error {
 	case resp.StatusCode == http.StatusUnprocessableEntity:
 		return fmt.Errorf("%w on %s/%s", ErrWebhookExists, c.Owner, c.Repo)
 	case resp.StatusCode != http.StatusCreated:
-		return githubRespError("creating flux webhook", resp)
+		return github.RespError("creating flux webhook", resp)
 	}
 	return nil
 }
@@ -194,8 +200,8 @@ type repoAccess struct {
 	} `json:"permissions"`
 }
 
-// checkRepoPush verifies the token's user can push to owner/repo. No push permission,
-// or a repo the token cannot see at all (404), is errNoRepoPush.
+// checkRepoPush verifies the token's user can push to owner/repo. No push
+// permission, or a repo the token cannot see at all (404), is errNoRepoPush.
 func checkRepoPush(ctx context.Context, client *http.Client, apiURL, token, owner, repo string) error {
 	repoURL := strings.TrimSuffix(apiURL, "/") + "/repos/" + owner + "/" + repo
 	req, err := http.NewRequestWithContext(ctx, "GET", repoURL, nil)
@@ -214,7 +220,7 @@ func checkRepoPush(ctx context.Context, client *http.Client, apiURL, token, owne
 	case resp.StatusCode == http.StatusNotFound:
 		return fmt.Errorf("%w: %s/%s", errNoRepoPush, owner, repo)
 	case resp.StatusCode != http.StatusOK:
-		return githubRespError("repo access check", resp)
+		return github.RespError("repo access check", resp)
 	}
 
 	access := repoAccess{}

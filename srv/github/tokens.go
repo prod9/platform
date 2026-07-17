@@ -1,4 +1,4 @@
-package srv
+package github
 
 import (
 	"context"
@@ -20,7 +20,7 @@ import (
 
 // ErrAppNotInstalled reports a repo the stored GitHub App has no installation on —
 // either token type only reaches installed repos (spec §Constraints to design around).
-var ErrAppNotInstalled = errors.New("srv: github app not installed")
+var ErrAppNotInstalled = errors.New("github: app not installed")
 
 // appJWT mints the App-authentication JWT GitHub expects on App endpoints. Wire
 // shape: base64url (no padding) of header {"alg":"RS256","typ":"JWT"} and claims
@@ -28,14 +28,14 @@ var ErrAppNotInstalled = errors.New("srv: github app not installed")
 // RSASSA-PKCS1-v1_5/SHA-256 signature over that joined string appended the same way.
 // The App key is PKCS#1 PEM as GitHub issues it. One sign operation — deliberately
 // hand-rolled to keep a JWT dependency out.
-func appJWT(app *GitHubApp, now time.Time) (string, error) {
+func appJWT(app *App, now time.Time) (string, error) {
 	block, _ := pem.Decode([]byte(app.PrivateKey))
 	if block == nil {
-		return "", errors.New("srv: github app private key is not PEM")
+		return "", errors.New("github: app private key is not PEM")
 	}
 	key, err := x509.ParsePKCS1PrivateKey(block.Bytes)
 	if err != nil {
-		return "", fmt.Errorf("srv: parsing github app private key: %w", err)
+		return "", fmt.Errorf("github: parsing app private key: %w", err)
 	}
 
 	claims, err := json.Marshal(struct {
@@ -61,10 +61,10 @@ func appJWT(app *GitHubApp, now time.Time) (string, error) {
 	return signing + "." + encode(signature), nil
 }
 
-// mintInstallationToken exchanges the App JWT for a short-lived installation token
+// MintInstallationToken exchanges the App JWT for a short-lived installation token
 // scoped to owner/repo's installation (spec §Two token types): the repo installation
 // lookup resolves the installation id, then the access-token create mints the token.
-func mintInstallationToken(ctx context.Context, client *http.Client, apiURL string, app *GitHubApp, owner, repo string) (string, error) {
+func MintInstallationToken(ctx context.Context, client *http.Client, apiURL string, app *App, owner, repo string) (string, error) {
 	jwt, err := appJWT(app, time.Now())
 	if err != nil {
 		return "", err
@@ -74,7 +74,7 @@ func mintInstallationToken(ctx context.Context, client *http.Client, apiURL stri
 	installation := struct {
 		ID int64 `json:"id"`
 	}{}
-	status, err := githubAppCall(ctx, client, "GET",
+	status, err := appCall(ctx, client, "GET",
 		base+"/repos/"+owner+"/"+repo+"/installation", jwt, http.StatusOK, &installation)
 	if status == http.StatusNotFound {
 		return "", fmt.Errorf("%w on %s/%s", ErrAppNotInstalled, owner, repo)
@@ -85,7 +85,7 @@ func mintInstallationToken(ctx context.Context, client *http.Client, apiURL stri
 	token := struct {
 		Token string `json:"token"`
 	}{}
-	_, err = githubAppCall(ctx, client, "POST",
+	_, err = appCall(ctx, client, "POST",
 		base+"/app/installations/"+strconv.FormatInt(installation.ID, 10)+"/access_tokens",
 		jwt, http.StatusCreated, &token)
 	if err != nil {
@@ -94,10 +94,10 @@ func mintInstallationToken(ctx context.Context, client *http.Client, apiURL stri
 	return token.Token, nil
 }
 
-// githubAppCall runs one JWT-authenticated, bodyless GitHub API call, decoding the
-// JSON response into out on the wanted status and returning the actual status either
-// way so callers can special-case (the 404 → not-installed mapping).
-func githubAppCall(ctx context.Context, client *http.Client, method, url, jwt string, want int, out any) (int, error) {
+// appCall runs one JWT-authenticated, bodyless GitHub API call, decoding the JSON
+// response into out on the wanted status and returning the actual status either way
+// so callers can special-case (the 404 → not-installed mapping).
+func appCall(ctx context.Context, client *http.Client, method, url, jwt string, want int, out any) (int, error) {
 	req, err := http.NewRequestWithContext(ctx, method, url, nil)
 	if err != nil {
 		return 0, err
@@ -111,20 +111,20 @@ func githubAppCall(ctx context.Context, client *http.Client, method, url, jwt st
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != want {
-		return resp.StatusCode, githubRespError(method+" "+url, resp)
+		return resp.StatusCode, RespError(method+" "+url, resp)
 	}
 
 	return resp.StatusCode, json.NewDecoder(resp.Body).Decode(out)
 }
 
-// githubRespError summarizes a failed GitHub API response: op, status line, and up to
-// 1KB of body. The body read is best-effort — GitHub's status already carries the
+// RespError summarizes a failed GitHub API response: op, status line, and up to 1KB
+// of body. The body read is best-effort — GitHub's status already carries the
 // verdict, so a read failure only shortens the message, never masks it.
-func githubRespError(op string, resp *http.Response) error {
+func RespError(op string, resp *http.Response) error {
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<10))
 	if err != nil {
 		body = []byte("(unreadable body: " + err.Error() + ")")
 	}
-	return fmt.Errorf("srv: %s failed: %d %s: %s",
+	return fmt.Errorf("github: %s failed: %d %s: %s",
 		op, resp.StatusCode, resp.Status, body)
 }

@@ -302,45 +302,49 @@ Goal: zero per-project build config; new repos onboard quickly; no tech-stack lo
   image, pushed by the ordinary `publish` (oras retired — see the
   [plain-image ADR](docs/decisions/2026-07-05-infra-publishes-as-plain-image-retire-oras.md)).
 - `srv/` — the platform server layer: API + webhook processor above the shared packages
-  ([spec/platform-server.md](docs/spec/platform-server.md)). Skeleton today: a chi router
-  (fx `Configure` + `LogRequests`) serving the embedded web UI at `/` and
-  `GET /api/health`; started by `platform serve`. `Serve` owns the DB boot — connect
-  (DATABASE_URL required, fail-fast), run the embedded `srv/*.sql` migrations
-  (users/identities per the [identity ADR](docs/decisions/2026-06-14-identity-and-linked-accounts.md)),
-  then wrap the router in fx's data-context middleware; `Router` stays DB-free so its
-  tests run without postgres (DB tests skip when DATABASE_URL is unset). Logs via
-  `fxlog`, never `buildlog`. Only `cmd` may import `srv` — the shared packages stay
-  srv-free. GitHub App bootstrap: `/setup/github` serves the App Manifest form,
-  `/setup/github/callback` exchanges GitHub's one-time code and stores the credentials
-  in the single-row `github_app` table (secrets encrypted via fx `secret`, SECRET var;
-  SERVER_URL / GITHUB_URL / GITHUB_API_URL config in `srv/setup.go`). Webhook ingest
-  (`srv/webhooks.go`): `POST /api/webhooks/github` verifies the HMAC signature and
-  records a queued `builds` row per pushed `refs/tags/v*` tag; the build runner below
-  consumes the queue. Repo-prep (`srv/repoprep.go`): `PrepRepo` keeps a full bare mirror at
-  `<CACHE_DIR>/git/<owner>/<repo>.git` (clone --mirror once, then fetch under a flock —
-  never shallow), resolves the input sha to a full commit sha, and adds a per-build
-  worktree at `<CACHE_DIR>/work/<build-id>/`; `RemoveWorkTree` cleans it up post-build
-  (`CACHE_DIR` config, default `/var/cache/platform`). Build runner (`srv/builds.go` +
-  `srv/runner.go`): `Serve` opens one `engine.New` per process and runs a claim loop —
-  `ClaimBuild` (`FOR UPDATE SKIP LOCKED`) → repo-prep → `conf.Load(workDir)` →
-  `engine.BuildAndPublish` → `FinishBuild`/`FailBuild` (newline-joined images/digests;
-  2s poll tick, immediate re-claim after a run) — the server driver of the
-  one-publish-engine model; the engine-facing half is seamed as `publishBuild` for
-  dagger-free loop tests. GitHub login (`srv/auth.go`): `/api/auth/github` +
-  `/api/auth/github/callback` run the App's user-OAuth flow (state cookie, code
-  exchange, `GET /user`), find-or-create user+identity by `(github, provider_id)`
-  (`UpsertGitHubUser`; user token `secret.Hide`'d into identity metadata — no refresh,
-  no email auto-link yet), then mint a platform session (`sessions` table stores the
-  SHA-256 of a random token; 30d `platform_session` cookie; `POST /api/auth/logout`
-  deletes it). UI API (`srv/api.go`): `currentUser` resolves the session cookie
-  (missing/expired → `ErrNoSession` → 401); `GET /api/me` and `GET /api/builds` (last
-  50, newest-first) with hand-written wire structs — no shared `api/` package.
-  Installation tokens (`srv/github_tokens.go`): `appJWT` (hand-rolled RS256, no jwt
-  dep) → `mintInstallationToken` (installation lookup → access token; not installed →
-  `ErrAppNotInstalled`); first consumer is `POST /api/repos/{owner}/{repo}/flux-webhook`
-  (`srv/flux_webhook.go`, session-gated): `ConfigureFluxWebhook` creates the repo's
-  `registry_package` webhook pointing at the cluster's Flux Receiver URL + HMAC secret
-  (duplicate → `ErrWebhookExists` → 409), closing the flux-webhook ADR's manual step.
+  ([spec/platform-server.md](docs/spec/platform-server.md), incl. the full operations
+  table); started by `platform serve`. Organized as **self-contained fx-style fragments**
+  (one subpackage per concern, each carrying its own domain, controllers, and embedded
+  `*.sql` migrations — copy-pasteable per the prod9-fx convention):
+  - `srv/auth/` — users + identities + sessions (schema per the
+    [identity ADR](docs/decisions/2026-06-14-identity-and-linked-accounts.md)): the
+    GitHub user-OAuth login flow (`/api/auth/github` + callback: state cookie, code
+    exchange, `GET /user`, `UpsertGitHubUser` keyed on `(github, provider_id)`, user
+    token `secret.Hide`'d into identity metadata), sessions (`CreateSession` takes the
+    raw token and hashes internally — SHA-256 at rest; 30d `platform_session` cookie;
+    logout deletes), the `RequireUser`/`CurrentUser` gate, and `GET /api/me`
+    (`SessionCtr`).
+  - `srv/github/` — the GitHub App: single-row `github_app` storage (fx-`secret`
+    encrypted; `LoadApp` is the test seam), `/setup/github` manifest bootstrap
+    (`SetupCtr`; SERVER_URL / GITHUB_URL / GITHUB_API_URL config), installation tokens
+    (`appJWT` hand-rolled RS256 → `MintInstallationToken`; not installed →
+    `ErrAppNotInstalled`), and `CheckRepoPath` (the owner/repo whitelist).
+  - `srv/builds/` — the build pipeline: queue actions (`Create`/`Claim` via
+    `FOR UPDATE SKIP LOCKED`/`Finish`/`Fail`/`RequeueOrphans`), webhook ingest
+    (`WebhookCtr`: HMAC-verified `POST /api/webhooks/github` queues a row per pushed
+    `refs/tags/v*`), repo-prep (`PrepRepo`: bare mirror at
+    `<CACHE_DIR>/git/<owner>/<repo>.git`, fetch under flock, never shallow; per-build
+    worktree at `<CACHE_DIR>/work/<build-id>/`; `RemoveWorkTree` cleans up), the runner
+    loop (`RunQueued`: claim → prep → `conf.Load` → `engine.BuildAndPublish` →
+    finish/fail; 2s poll, immediate re-claim; engine half seamed as `publishBuild` for
+    dagger-free tests), and `GET /api/builds` (`APICtr`, last 50 newest-first).
+  - `srv/flux/` — `POST /api/repos/{owner}/{repo}/flux-webhook` (`WebhookCtr`,
+    session-gated + explicit push-permission check): creates the repo's
+    `registry_package` webhook → cluster Flux Receiver (duplicate → 409), closing the
+    flux-webhook ADR's manual step. Composes auth + github; keeping it out of either
+    breaks the auth↔github import cycle.
+  - `srv/pgerr/`, `srv/migrate/`, `srv/srvtest/` — postgres error classification,
+    migration-source merging (root `Serve` aggregates every fragment's `Migrations`
+    embed, re-sorted by timestamp), and shared test scaffolding (`SetupDB` takes the
+    migration sources each fragment's tests need — srvtest imports no fragment, so no
+    cycles).
+  - Root `srv` composes: `Router` (chi + fx `Configure`/`LogRequests`, `/api/health`,
+    embedded web UI at `/`) stays DB-free so router tests run without postgres (DB
+    tests skip when DATABASE_URL is unset); `Serve` owns the DB boot (DATABASE_URL
+    fail-fast → aggregated migrations, dirty state refuses boot → orphan requeue →
+    data-context middleware → runner goroutine). Logs via `fxlog`, never `buildlog`.
+  Only `cmd` may import `srv` or its subpackages — the shared packages stay srv-free
+  (guarded by `srv/boundary_test.go`).
 - `webui/` — the built web UI assets (`Assets`, `//go:embed all:build`); the SvelteKit
   source lands alongside later, its adapter-static output in `build/` (a committed
   placeholder `index.html` for now).

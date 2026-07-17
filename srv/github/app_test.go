@@ -1,17 +1,23 @@
-package srv
+package github
 
 import (
+	"context"
 	"testing"
 
 	"fx.prodigy9.co/data"
+	"fx.prodigy9.co/data/migrator"
 	"github.com/stretchr/testify/require"
+	"platform.prodigy9.co/srv/srvtest"
 )
 
-func TestGitHubAppSaveLoadRoundtrip(t *testing.T) {
-	t.Setenv("SECRET", "the cake is a lie")
+func setupDB(t *testing.T) context.Context {
+	return srvtest.SetupDB(t, migrator.FromFS(Migrations))
+}
+
+func TestAppSaveLoadRoundtrip(t *testing.T) {
 	ctx := setupDB(t)
 
-	save := &SaveGitHubApp{
+	save := &SaveApp{
 		AppID:         42,
 		Slug:          "platform-test",
 		PrivateKey:    "-----BEGIN RSA PRIVATE KEY-----",
@@ -33,9 +39,9 @@ func TestGitHubAppSaveLoadRoundtrip(t *testing.T) {
 	require.NotEqual(t, save.WebhookSecret, raw.WebhookSecret)
 	require.NotEqual(t, save.ClientSecret, raw.ClientSecret)
 
-	app, err := LoadGitHubApp(ctx)
+	app, err := loadApp(ctx)
 	require.NoError(t, err)
-	require.Equal(t, &GitHubApp{
+	require.Equal(t, &App{
 		AppID:         42,
 		Slug:          "platform-test",
 		PrivateKey:    "-----BEGIN RSA PRIVATE KEY-----",
@@ -44,12 +50,12 @@ func TestGitHubAppSaveLoadRoundtrip(t *testing.T) {
 		ClientSecret:  "csec",
 	}, app)
 
-	require.ErrorIs(t, save.Execute(ctx, nil), ErrGitHubAppExists)
+	require.ErrorIs(t, save.Execute(ctx, nil), ErrAppExists)
 }
 
-func TestLoadGitHubAppWithoutRow(t *testing.T) {
+func TestLoadAppWithoutRow(t *testing.T) {
 	ctx := setupDB(t)
 
-	_, err := LoadGitHubApp(ctx)
-	require.ErrorIs(t, err, ErrNoGitHubApp)
+	_, err := loadApp(ctx)
+	require.ErrorIs(t, err, ErrNoApp)
 }
