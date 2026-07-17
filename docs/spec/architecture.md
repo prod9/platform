@@ -82,7 +82,8 @@ graph `conf ← framework/scaffold ← framework ← cmd`:
 - `framework/scaffold/` — **the one** files/templating mechanism: render templates with
   data. Generic — no discover, no orchestration, no per-type data; the driver writes
   finished bytes.
-- `framework/` — the `Framework` interface (`Discover`, `Scaffold`, `Build`), the concrete
+- `framework/` — the `Framework` contract (six methods — [`frameworks.md`](frameworks.md)
+  is canonical), the concrete
   frameworks, the package-level `Discover(wd)` resolver, the interpret stage (config →
   `BuildUnit`s), and the per-stack build strategies. **Stack discovery is a scaffold-time
   concern** — the build path reads `[modules]`, never re-discovers. The `Infra` framework
@@ -90,6 +91,11 @@ graph `conf ← framework/scaffold ← framework ← cmd`:
   the `framework/skel` collection, alongside the universal launcher), and its
   `Build` renders `apps/` (CUE + `.platform`) into a `FROM scratch` image (see
   [infra-publishes-as-plain-image-retire-oras](../decisions/2026-07-05-infra-publishes-as-plain-image-retire-oras.md)).
+- `cmd/` — `main.go` defers to `cmd.Execute()`. `cmd` holds the root Cobra command
+  (persistent `-q`/`-v`, and `-f` for an alt `platform.toml`) plus **one file per
+  single-file subcommand**. A subcommand only earns its own subpackage (exporting `Cmd`)
+  once it grows a file cluster — today `cmd/init` alone (package `initcmd`; Go reserves
+  `init`). Single-file subcommands stay flat in `package cmd`. All read the config first.
 - `cmd/init` — the human orchestration of `platform init`: gather operator inputs →
   `framework.Discover` → `fw.Scaffold` → confirm → write. No app-vs-infra branch; the
   distinction is pure `Scaffold` polymorphism (`Infra.Scaffold` simply contributes more).
@@ -106,10 +112,14 @@ folds into `framework/scaffold/`, its discovery into `framework/`, and its orche
 into `cmd/init`.
 
 Command surface: `init  build  configure  exec  export  ls  preview  publish  release
-render  clean  vanity`. `clean` prunes the local Dagger build cache (first-line cache
-diagnostics — see [`../guides/troubleshooting-build-cache.md`](../guides/troubleshooting-build-cache.md)). `publish` is uniform (infra is just a framework module); `render` emits the
-`k8s/` tree for the serverless `kubectl apply` path. No `ops` group; no `discover` or
-`bootstrap` — re-run `init` to see detected modules.
+render  clean  serve  versions  vanity`. `clean` prunes the local Dagger build cache
+(first-line cache diagnostics — see
+[`../guides/troubleshooting-build-cache.md`](../guides/troubleshooting-build-cache.md));
+`versions` lists the release history. `publish` is uniform (infra is just a framework
+module); `render` emits the `k8s/` tree for the serverless `kubectl apply` path. `serve`
+starts the platform server — **its surface is under active rework and is not settled
+here**; [`platform-server.md`](platform-server.md) is its only spec. No `ops` group; no
+`discover` or `bootstrap` — re-run `init` to see detected modules.
 
 ## Arch target (local vs publish)
 

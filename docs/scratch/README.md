@@ -35,8 +35,10 @@ Newest first. Scratch is disposable, so this list may lag — the directory is t
 
 **Live** — current entry point / work in flight:
 
+- [2026-07-12 — Resume breadcrumb (latest)](2026-07-12-resume.md) — **start here**
+- [2026-07-17 — srv API/architecture 1-by-1](2026-07-17-srv-1by1.md) — walk **in progress**;
+  chakrit's standing rulings are givens, every walk item is unsettled until he closes it
 - [2026-07-17 — containerd vs the Dagger engine](2026-07-17-containerd-vs-dagger-engine.md)
-- [2026-07-12 — Resume breadcrumb (latest)](2026-07-12-resume.md)
 - [2026-07-09 — fx handoff: slog LogValuer resolving sink](2026-07-09-fx-handoff-slog-logvaluer-sink.md)
 
 **Retained for provenance** — cited as the evidentiary record by a frozen decision or spec;

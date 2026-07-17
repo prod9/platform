@@ -22,9 +22,8 @@ superseded moves to `../scratch/` — `spec/` holds current design only, never h
 - [`architecture.md`](architecture.md) — the build pipeline (parse → interpret → engine)
   and the object model: `BuildAttempt`/`BuildUnit`, package layout, data-vs-behavior rules.
 - [`frameworks.md`](frameworks.md) — the framework catalog and order-sensitive discovery,
-  the `Framework` interface (`Discover`/`Scaffold`/`Build`), layouts, runtime-shape
-  families, the Wolfi
-  base, and the Go test-in-build gate.
+  the six-method `Framework` contract, layouts, runtime-shape families, the Wolfi base,
+  Node/pnpm provisioning, and the Go test-in-build gate.
 - [`engine.md`](engine.md) — the Dagger execution layer: the `Engine` client pool over
   discovered runners, `Multiplexer` fan-out, `Build`/`Publish`/`BuildAndPublish`, registry
   creds, arch targets.
@@ -35,6 +34,8 @@ superseded moves to `../scratch/` — `spec/` holds current design only, never h
   merge), and `cmd/init` orchestration.
 - [`manifest-patch-dsl.md`](manifest-patch-dsl.md) — the line-oriented DSL for adapting
   foreign Kubernetes manifests: verbs, path grammar, `\(var)` interpolation.
+- [`testing.md`](testing.md) — the two suites (`go test` / `./test.sh`), the smoke
+  drift-detector contract and its golden, the per-test timeout.
 - [`config-allocation.md`](config-allocation.md) — one owner per config kind across
   `platform.toml` / `infra/` / `tf/` / OCI / Flux; the no-overlap map.
 - [`platform.md`](platform.md) — the platformv2 vision: an in-cluster build + delivery control

@@ -150,10 +150,19 @@ and there is no skip-tests opt-out. Full rationale:
   full source, so the dependency layer keys on manifests alone. Runner carries only the
   compiled binary.
 - **pnpm** — Node comes from nodejs.org via `tj/n` (pinned `NodeVersion`), pnpm via Node's
-  corepack (pinned `PNPMVersion`) — never from distro packages (see the project's
-  Node/pnpm provisioning rule). `pnpm/basic` and `pnpm/workspace` serve via bare `node`;
+  corepack (pinned `PNPMVersion`). `pnpm/basic` and `pnpm/workspace` serve via bare `node`;
   `pnpm/static` serves the built bundle with Caddy `file-server`. Workspace runner marks
   `RunDir` as ESM (`withPNPMModuleFix`).
+
+  🚨 **This provisioning is deliberate — never "simplify" it to distro packages.** Never
+  `apk add nodejs`/`corepack`. Node, corepack, pnpm, and the distro are four uncoordinated
+  maintainer groups; sourcing Node from the distro adds a party whose repackaging borks the
+  seams downstream (linux-wifi-driver style). Stay closest to the least-magic, most-reliable
+  upstream. pnpm over npm because npm is slow; corepack because it is Node-sanctioned and
+  narrow-jobbed, not a version-juggler like nvm. A cache or build failure in this step is
+  **never** a reason to switch to apk — shed the cache with `platform clean` (first-line
+  diagnostics for any "worked on a fresh checkout but not here" failure) and fix the real
+  cause.
 - **Dockerfile** — `host.DockerBuild` on the user's `Dockerfile`; env becomes build args.
   Discouraged: bypasses Wolfi, the apk cache, and package conventions; warns at build
   time.
