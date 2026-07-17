@@ -89,6 +89,12 @@
 						Copy the created App's id, private key, and client/webhook secrets into
 						the server's fx config, then restart.
 					</li>
+					<li>
+						Wire the org-wide delivery webhook (GitHub &rarr; Flux): add an
+						organization webhook delivering <code>registry_package</code> events to
+						the cluster's Flux Receiver, so a published image pokes delivery.
+						Org-wide, wired once.
+					</li>
 				</ol>
 			</div>
 		{:else if isStep("app-installed", "pending")}
