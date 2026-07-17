@@ -41,7 +41,7 @@ app-credentials ∧ app-installed ∧ migrations-current`.
 
 ## Boot composition — the installer gates the product API
 
-Boot decides the API composition **once**, from `installation.GetState()`:
+Boot decides the API composition **once**, from `install.GetState()`:
 
 - **Webui `GET /*` is mounted unconditionally** in both states. It never needs
   remounting.

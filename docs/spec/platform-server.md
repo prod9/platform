@@ -111,7 +111,7 @@ Boot no longer runs the old fail-fast sequence. The server **always boots — no
 deps** (a DB unreachable is an install-state error, not a boot failure); **migrations
 never auto-run at boot** (installer button or `./platform srv data migrate` — see
 [installation.md](installation.md)); the boot-time **requeue-orphans** action is
-**removed**. Boot instead decides the API composition once from `installation.GetState()`
+**removed**. Boot instead decides the API composition once from `install.GetState()`
 (installer vs product fragments — [installation.md](installation.md)). The continuous
 **build runner** is being redesigned as an event-sourced reconciler (`BuildEvent` fold) —
 **forthcoming**, held for the build-lifecycle design pass; the current skeleton's
