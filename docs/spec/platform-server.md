@@ -62,6 +62,32 @@ packages are the leaves and must never import server
 concerns** — no `fx/data`/`sqlx`/migrations, no `net/http` server, no auth, no knowledge
 that `srv` exists.
 
+### Operations (current surface)
+
+Everything the running server does today — the review/grill table. HTTP first, then the
+boot/background operations that run without a request.
+
+| Operation                                       | Gate                          | What it does                                                                          | Why it exists                                                                                              |
+| ----------------------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `GET /api/health`                               | none                          | `{"time": …}` liveness probe                                                           | k8s probes + smoke-level "is the server up" check without touching DB or auth                               |
+| `GET /api/auth/github`                          | none                          | sets the state cookie, redirects to GitHub's user-OAuth authorize page                 | login entry point — platform delegates identity to GitHub, holds no passwords (identity ADR)                |
+| `GET /api/auth/github/callback`                 | state cookie                  | exchanges the code, `GET /user`, find-or-create user+identity, mints a session cookie  | completes login; identity keyed on immutable provider id so GitHub renames don't break links (identity ADR) |
+| `POST /api/auth/logout`                         | none (cookie optional)        | deletes the session row, clears the cookie                                             | session revocation server-side — a stolen cookie dies with the row, not with the browser                     |
+| `GET /api/me`                                   | session                       | id + name of the session's user                                                        | the webui's "who am I / am I logged in" probe                                                                |
+| `GET /api/builds`                               | session                       | last 50 builds, newest first                                                           | the webui's build list — the server's whole point made visible                                               |
+| `POST /api/webhooks/github`                     | App webhook HMAC              | verifies signature; queues a build row per pushed `refs/tags/v*`                       | the pull-model trigger: a version tag *is* the build request (delivery-verbs ADR)                            |
+| `POST /api/repos/{owner}/{repo}/flux-webhook`   | session + GitHub push check   | creates the repo's `registry_package` webhook → cluster Flux Receiver (409 duplicate)  | closes the flux-webhook ADR's manual GitHub-side step; push-permission check = zero platform RBAC            |
+| `GET /setup/github` (+ `/callback`)             | none (operator bootstrap)     | App Manifest form; callback stores exchanged App credentials (single row, encrypted)   | one-time App bootstrap without hand-copying secrets; a second App is a hard 409                              |
+| `GET /*`                                        | none                          | serves the embedded webui (`webui.Assets`)                                             | single-binary delivery — no separate frontend deploy                                                         |
+
+Boot/background, in `Serve` order:
+
+| Operation             | When            | What it does                                                                    | Why it exists                                                                                 |
+| --------------------- | --------------- | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| DB connect + migrate  | boot, fail-fast | requires `DATABASE_URL`; applies embedded SQL; refuses a dirty migration state    | schema drift is an operator decision, never silently resynced                                     |
+| requeue orphan builds | boot            | flips every `running` row back to `queued`                                        | single-server model: a running row at boot can only be a crashed predecessor's orphan             |
+| build runner loop     | continuous      | claim (`SKIP LOCKED`) → mirror+worktree prep → `conf.Load` → `BuildAndPublish` → finish/fail; 2s poll, immediate re-claim | the server driver of the one-publish-engine model — same `BuildAndPublish` the CLI drives (delivery-verbs ADR) |
+
 ### No `api/` contract layer (deliberate)
 
 A shared `api/` package of wire types + generated client is **rejected as over-engineering**
