@@ -284,7 +284,7 @@
             - set -e
             - ""
             - PLATFORM_MODULE="platform.prodigy9.co"
-            - PLATFORM_VERSION="v0.9.14"
+            - PLATFORM_VERSION="v0.9.15"
             - ""
             - bindir="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)/bin"
             - bin="$bindir/platform-$PLATFORM_VERSION"
