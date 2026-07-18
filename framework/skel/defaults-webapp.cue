@@ -20,9 +20,9 @@ import (
 	[...]
 }
 
-// #Listeners is the repo-defaulted ListenerSet for hand-rolled routes (e.g. flux-sync):
+// #ListenerSet is the repo-defaulted ListenerSet for hand-rolled routes (e.g. flux-sync):
 // attached to the operator gateway, certs issued via cert-manager.
-#Listeners: defs.#ListenerSet & parts.#UseCertManager & {
+#ListenerSet: defs.#ListenerSet & parts.#UseCertManager & {
 	#gateway_name: #gateway.name
 	#gateway_ns:   #gateway.ns
 }

@@ -112,8 +112,8 @@ import (
 	}
 
 	// flux-sync owns its hostname (distributed-hosts shape): the repo-defaulted
-	// #Listeners attaches to the operator gateway with cert-manager issuance.
-	let listeners = defaults.#Listeners & {
+	// #ListenerSet attaches to the operator gateway with cert-manager issuance.
+	let listeners = defaults.#ListenerSet & {
 		#name: "flux-listeners"
 		#ns:   nsp.#name
 		#hosts: [_flux_host]
