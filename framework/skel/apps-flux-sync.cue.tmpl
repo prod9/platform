@@ -3,124 +3,54 @@ package apps
 import (
 	"{{ .ModulePath }}/defaults"
 	"prodigy9.co/defs"
-	"prodigy9.co/defs/parts"
 )
-
-// Flux CRD wrappers, defs-style — scoped here because flux-sync is their only consumer for
-// now. Promote to prodigy9.co/defs if another app needs them.
-#OCIRepository: Self={
-	parts.#Metadata
-	#url!:     string
-	#tag:      string | *"latest"
-	#interval: string | *"10m"
-	#secret:   string
-
-	apiVersion: "source.toolkit.fluxcd.io/v1"
-	kind:       "OCIRepository"
-	spec: {
-		interval: Self.#interval
-		url:      Self.#url
-		ref: tag: Self.#tag
-		secretRef: name: Self.#secret
-	}
-}
-
-#Kustomization: Self={
-	parts.#Metadata
-	#source!:  string
-	#interval: string | *"10m"
-	#path:     string | *"./"
-
-	apiVersion: "kustomize.toolkit.fluxcd.io/v1"
-	kind:       "Kustomization"
-	spec: {
-		interval:  Self.#interval
-		sourceRef: {kind: "OCIRepository", name: Self.#source}
-		path:      Self.#path
-		prune:     true
-		wait:      true
-	}
-}
-
-#Receiver: Self={
-	parts.#Metadata
-	#type:   string | *"github"
-	#events: [...string]
-	#secret: string
-	#resources: [...{apiVersion: string, kind: string, name: string, namespace?: string}]
-
-	apiVersion: "notification.toolkit.fluxcd.io/v1"
-	kind:       "Receiver"
-	spec: {
-		type:   Self.#type
-		events: Self.#events
-		secretRef: name: Self.#secret
-		resources: Self.#resources
-	}
-}
 
 "flux-sync": {
 	_flux_host: string @tag(flux_hostname)
 
-	// Namespace + ghcr.io-pull-secret via the shared #Basics (creds in defaults/basics.cue).
 	let nsp = defaults.#Basics & {
 		#name: "flux-system"
 
 		[...]
 	}
 
-	// HMAC token the Receiver validates GitHub's signature against. Empty placeholder in
-	// committed CUE (like the registry creds); put the plaintext token in #data before wiring
-	// the GitHub webhook — #Secret base64-encodes it.
+	// HMAC token GitHub signs the webhook with; plaintext goes in #data before wiring.
 	let webhookToken = defs.#Secret & {
 		#name: "flux-webhook-token"
 		#ns:   nsp.#name
 		#data: token: ""
 	}
 
-	let source = #OCIRepository & {
+	let source = defs.#FluxOCIRepo & {
 		#name:   "infra"
 		#ns:     nsp.#name
 		#url:    "oci://{{ .ImageBase }}"
 		#secret: nsp.#out.pull_secret_name
 	}
 
-	let kustomize = #Kustomization & {
-		#name:   "infra"
-		#ns:     nsp.#name
-		#source: source.#name
+	let kustomize = defs.#FluxKustomization & {
+		#name:        "infra"
+		#ns:          nsp.#name
+		#source_name: source.#name
 	}
 
-	// Webhook Receiver — the primary reconcile trigger, one per cluster, owned by the baseline.
-	// On a GHCR publish GitHub POSTs the registry_package event here (throttled, minutes-scale);
-	// the Receiver validates the signature and pokes EVERY OCIRepository in EVERY namespace
-	// (name: "*", namespace omitted — cluster-wide fan-out), so tenant OCIRepos reconcile off
-	// this one shared org webhook without their own Receiver/HMAC. A poke is idempotent (registry
-	// HEAD, no-op if the digest is unchanged), so matching all is safe and needs no opt-out label.
-	// The OCIRepository interval is only the dropped-webhook fallback. Guarded by
-	// TestEmbeddedFluxReceiver — do not drop back to poll-only delivery.
-	let receiver = #Receiver & {
-		#name:   "infra"
-		#ns:     nsp.#name
-		#events: ["registry_package"]
-		#secret: webhookToken.#name
-		#resources: [{
-			apiVersion: source.apiVersion
-			kind:       source.kind
-			name:       "*"
-		}]
+	// One org webhook; #target_ns lists every reconciled namespace (owner + tenants), so a
+	// GHCR publish pokes each without its own Receiver. Onboarding a tenant appends its ns.
+	// TODO(tenant-mode init): scaffold packs.#FluxTenant per tenant — held on its multi-ns fix.
+	let receiver = defs.#FluxReceiver & {
+		#name:      "infra"
+		#ns:        nsp.#name
+		#events:    ["registry_package"]
+		#secret:    webhookToken.#name
+		#target_ns: [nsp.#name]
 	}
 
-	// flux-sync owns its hostname (distributed-hosts shape): the repo-defaulted
-	// #ListenerSet attaches to the operator gateway with cert-manager issuance.
 	let listeners = defaults.#ListenerSet & {
 		#name: "flux-listeners"
 		#ns:   nsp.#name
 		#hosts: [_flux_host]
 	}
 
-	// Exposes notification-controller's webhook-receiver service so GitHub can
-	// reach it. backendRef is same-namespace (flux-system) → no ReferenceGrant.
 	let webhookRoute = defs.#HTTPRoute & {
 		#name:             "flux-webhook"
 		#ns:               nsp.#name
@@ -133,12 +63,9 @@ import (
 		}]
 	}
 
-	// Flux's stock allow-egress policy admits only same-namespace ingress, which
-	// blackholes cert-manager's HTTP-01 solver pods here — the gateway data plane
-	// can't reach them and issuance for _flux_host hangs forever. The solver only
-	// serves the one-shot challenge token on 8089, so cross-namespace ingress to
-	// it is safe. Raw resource: defs.#NetworkPolicy is the lockdown shape and can't
-	// admit ingress to pods labeled by cert-manager rather than by us.
+	// cert-manager's HTTP-01 solver pods run here but carry its labels, so flux's stock netpol
+	// blackholes the gateway→solver hop and issuance hangs. Admit :8089 (one-shot challenge).
+	// Raw resource: defs.#NetworkPolicy can't select pods labeled by cert-manager, not us.
 	let solverIngress = {
 		apiVersion: "networking.k8s.io/v1"
 		kind:       "NetworkPolicy"

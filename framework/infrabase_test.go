@@ -292,13 +292,15 @@ func TestEmbeddedFluxReceiver(t *testing.T) {
 	r.NotEmpty(t, body)
 
 	for _, want := range []string{
-		`"Receiver"`,          // notification-controller CR kind
-		`"github"`,            // GitHub webhook type
-		`"registry_package"`,  // GHCR publish event (X-GitHub-Event header)
-		"flux-webhook-token",  // HMAC secret the Receiver validates against
-		"defs.#HTTPRoute",     // external exposure of the webhook-receiver service
-		"@tag(flux_hostname)", // receiver route host — a render-time var
-		"allow-acme-solver",   // HTTP-01 solver ingress — flux's stock netpols otherwise block issuance
+		"defs.#FluxReceiver",      // notification-controller Receiver, defs-wrapped
+		"defs.#FluxOCIRepo",       // OCIRepository source the Receiver pokes
+		"defs.#FluxKustomization", // reconcile of the pulled artifact
+		"#target_ns",              // enumerated fan-out (owner + tenants), not cluster-wide
+		`"registry_package"`,      // GHCR publish event (X-GitHub-Event header)
+		"flux-webhook-token",      // HMAC secret the Receiver validates against
+		"defs.#HTTPRoute",         // external exposure of the webhook-receiver service
+		"@tag(flux_hostname)",     // receiver route host — a render-time var
+		"allow-acme-solver",       // HTTP-01 solver ingress — flux's stock netpols otherwise block issuance
 		"acme.cert-manager.io/http01-solver",
 	} {
 		r.Contains(t, body, want, "flux-sync baseline lost its webhook delivery wiring")

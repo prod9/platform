@@ -16,13 +16,13 @@ import (
 // components set unconditionally and `render` applies whatever was installed.
 
 // DefsModule is the infra-defs CUE dependency the baseline apps import; DefsVersion is the
-// version a freshly-init'd infra repo pins into its cue.mod. v0.4.0 carries the #NetworkPolicy
-// access-grant pattern and #pod_labels that platform.cue needs to lock the engine's TCP port to
-// the dispatcher (atop the v0.3.x #Service #headless + parts.#PodMounts #claim_templates the
-// engine StatefulSet renders with).
+// version a freshly-init'd infra repo pins into its cue.mod. v0.4.3 adds the Flux defs
+// (#FluxOCIRepo/#FluxKustomization/#FluxReceiver) the flux-sync baseline composes; additive over
+// v0.4.0's #NetworkPolicy access-grant + #pod_labels that platform.cue still needs to lock the
+// engine's TCP port to the dispatcher.
 const (
 	DefsModule  = "prodigy9.co/defs@v0"
-	DefsVersion = "v0.4.0"
+	DefsVersion = "v0.4.3"
 )
 
 // DefaultVars is the baseline's shipped [vars]: the version pins each baseline hook
