@@ -83,8 +83,9 @@ Top (closest to the human) to bottom (closest to the metal). One owner each.
    [infra-publishes-as-plain-image-retire-oras](../decisions/2026-07-05-infra-publishes-as-plain-image-retire-oras.md).
 4. Flux's `OCIRepository` follows the tag, extracts the layer via `layerSelector` →
    reconciles → pods run the pinned image. The publish fires GitHub's `registry_package`
-   webhook → the GitHub→Flux `Receiver` (one per cluster, `name: "*"` — pokes every
-   `OCIRepository` in every namespace) triggers a near-instant reconcile; the
+   webhook → the GitHub→Flux `Receiver` (one per cluster; its `#target_ns` enumerates each
+   reconciled namespace, one wildcard `OCIRepository` entry per ns) triggers a near-instant
+   reconcile; the
    `OCIRepository` poll interval is only the fallback when the Receiver misses a delivery.
 5. Pods' init-containers pull their secrets from platform (outbound) at start.
 

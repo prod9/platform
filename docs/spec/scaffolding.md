@@ -100,10 +100,14 @@ and **N tenants** (other repos delivering apps onto the same cluster). The disti
 **convention operators follow when committing a tenant repo**, never scaffolding machinery —
 `Infra.Scaffold` stays fixed and unconditional (per the flat-baseline ruling above):
 
-- **Baseline owner** emits the whole set above — including the single cluster-wide
-  `Receiver` (`name: "*"`), which pokes every tenant's `OCIRepository` off the one shared
-  org webhook. No per-tenant Receiver, webhook, or HMAC secret exists.
-- **Tenant** commits **only** its own `OCIRepository` + `Kustomization` in its own namespace.
+- **Baseline owner** emits the whole set above — including the `Receiver`, whose `#target_ns`
+  enumerates every reconciled namespace (owner + each tenant); it emits one wildcard
+  `OCIRepository` entry per namespace, all poked off the one shared org webhook. Onboarding a
+  tenant **appends that tenant's namespace** to the owner's `#target_ns` (defs v0.4.3 dropped
+  the older cluster-wide `name: "*"` entry — the def cannot express a namespace-omitted match).
+  No per-tenant Receiver, webhook, or HMAC secret exists.
+- **Tenant** commits **only** its own `OCIRepository` + `Kustomization` in its own namespace
+  (`packs.#FluxTenant`).
   It **must not** emit any baseline component (gateway / cert-manager / flux-system /
   platform) — a double-emit gives the shared cluster two gateways / cert-managers / flux
   installs that prune each other. An operator scaffolding a tenant prunes the baseline down
