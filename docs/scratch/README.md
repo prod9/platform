@@ -49,6 +49,9 @@ Newest first. Scratch is disposable, so this list may lag — the directory is t
 - [2026-07-18 — srv RBAC & observability authz](2026-07-18-srv-rbac-observability.md) —
   item 11 full record: zero-RBAC confirmed; cluster-view via GitHub rights + cluster-side
   provenance discovery + a fat caching session (SETTLED; graduates to spec/ + ADR note)
+- [2026-07-19 — builder lifecycle structure](2026-07-19-builder-lifecycle-options.md) —
+  framework emits a serializable `Plan` → `Execute` with `.Sync()` phase boundaries + a
+  host-side observer feeding the event-sourced reconciler; one-install-per-cluster ruled
 - [2026-07-18 — TO-DO: de-confuse "flux webhook"](2026-07-18-flux-webhook-deconfusion-tasks.md)
   — **pending task list** (GitHub→Flux vs Flux→srv; doc edits + delete the wrong ADR); delete
   when done
