@@ -29,15 +29,17 @@ renders from that entry.
 |-------------------|---------------------------------------------|--------------------------------------------|
 | `db-reachable`    | `SELECT 1;`                                 | `error` → "Database connection problem: …" |
 | `app-credentials` | App id / private key / secrets in fx config | `error` when missing                       |
-| `app-installed`   | the App is installed on the bound org       | `pending` → install button                 |
 | `migrations`      | schema is current                           | `pending` → run button; dirty → `error`    |
+| `app-installed`   | the install record exists                   | `pending` → org-owner claim                |
 
 Remediations are **convergent and re-runnable**. A dirty migration and a DB error
 surface as **errors**, not action buttons — they are operator conditions, not
 one-click fixes.
 
 "Completely installed" is the conjunction of all four: `db-reachable ∧
-app-credentials ∧ app-installed ∧ migrations-current`.
+app-credentials ∧ migrations-current ∧ app-installed`. The order matters:
+`app-installed` is a record-based check, and the record can't be written until
+migrations create the `installations` table — so it is the **last** entry.
 
 ## Boot composition — the installer gates the product API
 
@@ -83,7 +85,10 @@ server binds to exactly the org set at install time and does not rebind live.
 
 ## The install record
 
-A **singleton** row, written by the installer fragment:
+A **singleton** row, written by the org-owner **claim** — the GitHub App Setup URL
+redirects to `GET /api/install/claim` (org-owner-gated: resolve installation→org,
+verify owner, write the row). The write needs the `installations` table, so the
+claim runs **after** migrations, which is why `app-installed` is the last state entry:
 
 | Field                  | Note                           |
 |------------------------|--------------------------------|

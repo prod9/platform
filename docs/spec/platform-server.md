@@ -62,7 +62,7 @@ and consumes them per request — the engine is an `sql.DB`-style, context-carri
 handle (`engine.New(cfg)` once, `engine.Build(ctx, …)` per call) so a long-running server
 can reuse it.
 
-`srv` ships **in the same binary** as the CLI — `platform serve` starts the process. One
+`srv` ships **in the same binary** as the CLI — `platform srv` starts the process (`platform serve` is a back-compat alias). One
 Go module (`platform.prodigy9.co`); the shared packages, `cmd`, and `srv` are conceptual
 layers (flat packages at the repo root — no `core/` grab-bag, see
 [architecture.md](architecture.md)), not separate `go.mod`s. The dependency rule is
