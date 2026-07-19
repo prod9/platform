@@ -74,12 +74,15 @@ Binding, every turn:
   producer→consumer end to end — who writes it, who reads it, who ignores it — before you
   state what it does. "Read by nobody / seeded from X" must be a grep/read result, not a
   guess.
-- **Specs are truth AND a live artifact — keep them current in-slice.** Read the relevant
-  `docs/spec/` + `docs/decisions/` before designing; when code and spec diverge, surface
-  it — the spec is wrong until reconciled, don't silently follow either. When a slice
-  changes behavior or a decision, update the spec/ADR in that **same slice** (route via
-  [`docs/README.md`](docs/README.md)), never as a later batch. A slice whose design moved is
-  not done until its spec is current — same tier as tests passing.
+- **Specs are truth AND the most up-to-date docs in the repo — they LEAD implementation.**
+  Read the relevant `docs/spec/` + `docs/decisions/` before designing; when code and spec
+  diverge, surface it — the spec is wrong until reconciled, don't silently follow either. A
+  decision not yet in the specs is a **gap**: close it by updating the spec **before
+  implementing** — immediately when the decision lands if you can, or as one dedicated
+  spec-update slice that **precedes** the implementation slice (route via
+  [`docs/README.md`](docs/README.md)). Never update a spec after-the-fact, and never in the
+  same slice as the implementation. **Implementors get only the current spec — never decision
+  docs, scratch, or the ledger** — so anything not in the spec never reaches them.
 - **When wrong, fix the artifact that misled you — same turn, no exceptions.** Every wrong
   assumption traces to a source: a `CLAUDE.md`/spec/comment line that stated it imprecisely,
   or a silence that let it stand. Amend that source the moment the error surfaces so a fresh
