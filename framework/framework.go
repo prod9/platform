@@ -32,7 +32,7 @@ type (
 		// RequiredScaffoldInputs lists the operator inputs this framework needs at init,
 		// by name (the name is the prompt label). The driver prompts each and passes the
 		// answers back via ScaffoldData. Most frameworks onboard an existing repo and need
-		// none (nil); Infra needs the CUE module path only when greenfield.
+		// none (nil); PlatformInfra needs the CUE module path only when greenfield.
 		RequiredScaffoldInputs(wd string) []string
 
 		// Scaffold returns the framework's full, ready-to-write contribution to a fresh repo:
@@ -64,7 +64,7 @@ var (
 	// IMPORTANT: This list is **Order Sensitive** due to Discover() calls on different
 	// frameworks discovering the same subfolder a little differently.
 	knownFrameworks = []Framework{
-		Infra{},
+		PlatformInfra{},
 		GoWorkspace{},
 		PNPMWorkspace{},
 		GoBasic{},

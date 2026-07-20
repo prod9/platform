@@ -16,12 +16,12 @@ import (
 	"platform.prodigy9.co/gitops/dsl"
 )
 
-// infraSpec runs Infra.Scaffold against a temp dir (greenfield: CUE_MOD_PREFIX supplied) and
+// infraSpec runs PlatformInfra.Scaffold against a temp dir (greenfield: CUE_MOD_PREFIX supplied) and
 // indexes its resolved files by path.
 func infraSpec(t *testing.T, wd string) (scaffold.Spec, map[string]scaffold.File) {
 	t.Helper()
 
-	spec, err := Infra{}.Scaffold(context.Background(), wd,
+	spec, err := PlatformInfra{}.Scaffold(context.Background(), wd,
 		scaffold.Env{Repository: "github.com/prod9/infra", MaintainerEmail: "john@apple.com", DaggerVersion: "v0.21.7"},
 		map[string]string{"CUE_MOD_PREFIX": "example.com"})
 	r.NoError(t, err)
@@ -89,8 +89,8 @@ func TestInfraScaffoldCueModule(t *testing.T) {
 	r.NoError(t, err)
 	r.Equal(t, "example.com", mf.Module)
 	r.Equal(t, cue.LanguageVersion(), mf.Language.Version)
-	r.Contains(t, mf.Deps, DefsModule)
-	r.Equal(t, DefsVersion, mf.Deps[DefsModule].Version)
+	r.Contains(t, mf.Deps, infraDefsModule)
+	r.Equal(t, infraDefsVersion, mf.Deps[infraDefsModule].Version)
 }
 
 func TestInfraScaffoldKeepsExistingCueModule(t *testing.T) {
@@ -107,18 +107,18 @@ func TestInfraScaffoldKeepsExistingCueModule(t *testing.T) {
 
 func TestInfraRequiredScaffoldInputs(t *testing.T) {
 	// Greenfield: the CUE module path is a required operator input.
-	r.Equal(t, []string{"CUE_MOD_PREFIX"}, Infra{}.RequiredScaffoldInputs(t.TempDir()))
+	r.Equal(t, []string{"CUE_MOD_PREFIX"}, PlatformInfra{}.RequiredScaffoldInputs(t.TempDir()))
 
 	// With an existing cue.mod, the path is read from it, never re-asked.
 	existing := t.TempDir()
 	writeModuleFile(t, existing, "kept.example/infra")
-	r.Nil(t, Infra{}.RequiredScaffoldInputs(existing))
+	r.Nil(t, PlatformInfra{}.RequiredScaffoldInputs(existing))
 }
 
 func TestInfraScaffoldData(t *testing.T) {
 	// Greenfield: module path comes from the CUE_MOD_PREFIX input; env facts pass through.
 	green := t.TempDir()
-	data, err := Infra{}.scaffoldData(green,
+	data, err := PlatformInfra{}.scaffoldData(green,
 		scaffold.Env{Repository: "github.com/prod9/infra", MaintainerEmail: "a@b.co", DaggerVersion: "v0.21.7"},
 		map[string]string{"CUE_MOD_PREFIX": "prodigy9.co"})
 	r.NoError(t, err)
@@ -126,21 +126,21 @@ func TestInfraScaffoldData(t *testing.T) {
 	r.Equal(t, "v0.21.7", data.DaggerVersion)
 	r.Equal(t, "a@b.co", data.MaintainerEmail)
 
-	// Infra needs the linked SDK version for the engine image ref — an empty one is a hard
+	// PlatformInfra needs the linked SDK version for the engine image ref — an empty one is a hard
 	// error here, not a tagless ref downstream.
-	_, err = Infra{}.scaffoldData(green, scaffold.Env{Repository: "r"}, map[string]string{"CUE_MOD_PREFIX": "x.co"})
+	_, err = PlatformInfra{}.scaffoldData(green, scaffold.Env{Repository: "r"}, map[string]string{"CUE_MOD_PREFIX": "x.co"})
 	r.Error(t, err)
 
 	// An input CUE would reject as a module path (no dot in the first segment) fails fast —
 	// this is the exact case a bare GitHub org/repo produces.
-	_, err = Infra{}.scaffoldData(green, scaffold.Env{Repository: "r", DaggerVersion: "v"},
+	_, err = PlatformInfra{}.scaffoldData(green, scaffold.Env{Repository: "r", DaggerVersion: "v"},
 		map[string]string{"CUE_MOD_PREFIX": "prod9/infra-new"})
 	r.Error(t, err)
 
 	// An existing cue.mod wins over any input — operator truth.
 	existing := t.TempDir()
 	writeModuleFile(t, existing, "kept.example/infra")
-	data, err = Infra{}.scaffoldData(existing, scaffold.Env{Repository: "r", DaggerVersion: "v"},
+	data, err = PlatformInfra{}.scaffoldData(existing, scaffold.Env{Repository: "r", DaggerVersion: "v"},
 		map[string]string{"CUE_MOD_PREFIX": "ignored.co"})
 	r.NoError(t, err)
 	r.Equal(t, "kept.example/infra", data.ModulePath)
@@ -162,7 +162,7 @@ func TestEmbeddedCertManager(t *testing.T) {
 	body := byPath[filepath.Join("apps", "cert-manager.platform")].Content
 	r.NotEmpty(t, body)
 
-	version := fmt.Sprint(DefaultVars["CERT_MANAGER_VERSION"])
+	version := fmt.Sprint(infraVars["CERT_MANAGER_VERSION"])
 	r.NotEmpty(t, version)
 
 	var gotURL string
@@ -201,7 +201,7 @@ spec:
 
 	out := t.TempDir()
 	_, err := dsl.Apply(string(body), dsl.Options{
-		Vars:   conf.NormalizeVars(DefaultVars),
+		Vars:   conf.NormalizeVars(infraVars),
 		OutDir: out,
 		Fetch:  fetch,
 	})
@@ -257,7 +257,7 @@ func TestEmbeddedNginxGateway(t *testing.T) {
 
 	out := t.TempDir()
 	_, err := dsl.Apply(string(body), dsl.Options{
-		Vars:   conf.NormalizeVars(DefaultVars),
+		Vars:   conf.NormalizeVars(infraVars),
 		OutDir: out,
 		Fetch:  fetch,
 	})
@@ -265,8 +265,8 @@ func TestEmbeddedNginxGateway(t *testing.T) {
 
 	joined := strings.Join(urls, "\n")
 	for _, want := range []string{
-		fmt.Sprint(DefaultVars["GATEWAY_API_VERSION"]),
-		fmt.Sprint(DefaultVars["NGINX_GATEWAY_VERSION"]),
+		fmt.Sprint(infraVars["GATEWAY_API_VERSION"]),
+		fmt.Sprint(infraVars["NGINX_GATEWAY_VERSION"]),
 	} {
 		r.Contains(t, joined, want, "version not interpolated into a download URL")
 	}

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"cuelang.org/go/cue"
 	"dagger.io/dagger"
 	"fx.prodigy9.co/errutil"
 	"platform.prodigy9.co/conf"
@@ -17,38 +18,32 @@ import (
 	"platform.prodigy9.co/gitops"
 )
 
-// hasInfraName reports whether wd is an infra repo, matched by an "infra" glob on the
-// directory name — "infra", "fi-infra", "bluepages-infra", "infra-stage9" all qualify. A
-// directory marker like apps/ is a poor signal (an ordinary app may also have apps/), so
-// identity is the name. It backs Infra.Discover — the framework's own discovery heuristic.
-func hasInfraName(wd string) bool {
-	return strings.Contains(filepath.Base(wd), "infra")
-}
-
-// Infra builds an infra repo's delivery image: it renders the repo's apps/ (CUE +
+// PlatformInfra builds an infra repo's delivery image: it renders the repo's apps/ (CUE +
 // .platform directives) to a manifest tree in-process, then packs that tree into a plain
 // `FROM scratch` image as ONE layer — Flux's source-controller extracts a single layer
 // from an OCI artifact, so a multi-layer image silently delivers one file and prune
 // orphans the rest of the cluster. kustomize-controller applies the extracted YAML — no
 // bespoke OCI pusher (see the infra-publishes-as-plain-image decision). It is a real
 // framework module so infra delivery is the ordinary `publish` verb.
-type Infra struct{}
+type PlatformInfra struct{}
 
-var _ Framework = Infra{}
+var _ Framework = PlatformInfra{}
 
-func (Infra) Name() string   { return "platform/infra" }
-func (Infra) Layout() Layout { return LayoutBasic }
+func (PlatformInfra) Name() string   { return "platform/infra" }
+func (PlatformInfra) Layout() Layout { return LayoutBasic }
 
-// Discover matches by the infra-name glob (see hasInfraName), not a file marker.
-func (Infra) Discover(wd string) bool {
-	return hasInfraName(wd)
+// Discover matches an "infra" glob on the directory name — "infra", "fi-infra",
+// "bluepages-infra", "infra-stage9" all qualify. A directory marker like apps/ is a poor
+// signal (an ordinary app may also have apps/), so identity is the name.
+func (PlatformInfra) Discover(wd string) bool {
+	return strings.Contains(filepath.Base(wd), "infra")
 }
 
 // Scaffold contributes the whole cluster baseline: the infra module, the baseline's default
 // [vars] pins, the embedded component files (routed and resolved), a greenfield cue.mod, and
-// the "rolling" strategy seed. There is no app-vs-infra branch anywhere — Infra simply
+// the "rolling" strategy seed. There is no app-vs-infra branch anywhere — PlatformInfra simply
 // contributes more, and owns resolving its own template holes.
-func (i Infra) Scaffold(ctx context.Context, wd string, env scaffold.Env, inputs map[string]string) (scaffold.Spec, error) {
+func (i PlatformInfra) Scaffold(ctx context.Context, wd string, env scaffold.Env, inputs map[string]string) (scaffold.Spec, error) {
 	files, err := infraFiles()
 	if err != nil {
 		return scaffold.Spec{}, err
@@ -68,7 +63,7 @@ func (i Infra) Scaffold(ctx context.Context, wd string, env scaffold.Env, inputs
 
 	return scaffold.Spec{
 		Module:   defaultModule(i, wd),
-		Vars:     maps.Clone(DefaultVars),
+		Vars:     maps.Clone(infraVars),
 		Files:    resolved,
 		Strategy: "rolling",
 	}, nil
@@ -80,7 +75,7 @@ const cueModPrefixInput = "CUE_MOD_PREFIX"
 
 // RequiredScaffoldInputs asks for the CUE module path only on a greenfield repo; an existing
 // cue.mod is operator truth, read (never re-asked) in ScaffoldData.
-func (Infra) RequiredScaffoldInputs(wd string) []string {
+func (PlatformInfra) RequiredScaffoldInputs(wd string) []string {
 	if cuemod.Present(wd) {
 		return nil
 	}
@@ -90,9 +85,9 @@ func (Infra) RequiredScaffoldInputs(wd string) []string {
 // scaffoldData builds the baseline's template data: the CUE module path (from an existing
 // cue.mod or the greenfield CUE_MOD_PREFIX input), the linked dagger SDK version, the
 // maintainer email (the cluster-issuer's ACME contact), and the flux self-sync image base
-// derived from the repository. Infra needs the SDK version for the engine image ref, so an
+// derived from the repository. PlatformInfra needs the SDK version for the engine image ref, so an
 // empty one is a hard error here rather than a tagless ref downstream.
-func (i Infra) scaffoldData(wd string, env scaffold.Env, inputs map[string]string) (scaffold.Data, error) {
+func (i PlatformInfra) scaffoldData(wd string, env scaffold.Env, inputs map[string]string) (scaffold.Data, error) {
 	if env.DaggerVersion == "" {
 		return scaffold.Data{}, errors.New("infra scaffold: the linked dagger SDK version is unknown")
 	}
@@ -113,7 +108,7 @@ func (i Infra) scaffoldData(wd string, env scaffold.Env, inputs map[string]strin
 // modulePath resolves the CUE module path: an existing cue.mod wins (operator truth);
 // otherwise the greenfield CUE_MOD_PREFIX input, validated as a legal CUE module path (its
 // first segment must be a domain — contain a dot — which CUE requires).
-func (Infra) modulePath(wd string, inputs map[string]string) (string, error) {
+func (PlatformInfra) modulePath(wd string, inputs map[string]string) (string, error) {
 	if cuemod.Present(wd) {
 		return cuemod.Path(wd)
 	}
@@ -126,23 +121,23 @@ func (Infra) modulePath(wd string, inputs map[string]string) (string, error) {
 	return prefix, nil
 }
 
-// DefsModule is the infra-defs CUE dependency the baseline apps import; DefsVersion is the
-// version a freshly-init'd infra repo pins into its cue.mod. v0.4.3 adds the Flux defs
-// (#FluxOCIRepo/#FluxKustomization/#FluxReceiver) the flux-sync baseline composes; additive over
-// v0.4.0's #NetworkPolicy access-grant + #pod_labels that platform.cue still needs to lock the
-// engine's TCP port to the dispatcher.
+// infraDefsModule is the infra-defs CUE dependency the baseline apps import;
+// infraDefsVersion is the version a freshly-init'd infra repo pins into its cue.mod.
+// v0.4.3 adds the Flux defs (#FluxOCIRepo/#FluxKustomization/#FluxReceiver) the flux-sync
+// baseline composes; additive over v0.4.0's #NetworkPolicy access-grant + #pod_labels that
+// platform.cue still needs to lock the engine's TCP port to the dispatcher.
 const (
-	DefsModule  = "prodigy9.co/defs@v0"
-	DefsVersion = "v0.4.3"
+	infraDefsModule  = "prodigy9.co/defs@v0"
+	infraDefsVersion = "v0.4.3"
 )
 
-// DefaultVars is the baseline's shipped [vars]: the version pins each baseline hook
+// infraVars is the baseline's shipped [vars]: the version pins each baseline hook
 // consumes. Keys are env-style (SCREAMING_SNAKE) — the preferred platform.toml form; render
 // normalizes them to lowercase for both consumption routes, `\(cert_manager_version)` in
 // directives and `@tag(cert_manager_version)` in CUE apps. Scaffold seeds these into a fresh
 // platform.toml and merges on re-scaffold (new keys appended, operator values preserved).
 // Pure interpolation inputs — component selection is not a var.
-var DefaultVars = map[string]any{
+var infraVars = map[string]any{
 	"CERT_MANAGER_VERSION":  "v1.20.2",
 	"FLUX_VERSION":          "v2.8.8",
 	"NGINX_GATEWAY_VERSION": "v2.6.7",
@@ -174,6 +169,17 @@ var infraComponents = []string{
 	"defaults-webapp.cue",
 }
 
+// cueModFile is the greenfield cue.mod/module.cue contribution: the operator's module path
+// (a {{.ModulePath}} hole the driver resolves), the linked CUE evaluator's language version
+// (so render never demands a newer language than it links), and the pinned infra-defs
+// dependency the baseline apps import.
+func cueModFile() scaffold.File {
+	content := fmt.Sprintf(
+		"module: \"{{.ModulePath}}\"\nlanguage: {\n\tversion: %q\n}\ndeps: {\n\t%q: {\n\t\tv: %q\n\t}\n}\n",
+		cue.LanguageVersion(), infraDefsModule, infraDefsVersion)
+	return scaffold.File{Path: cuemod.ModuleFile + ".tmpl", Content: []byte(content), Mode: 0644}
+}
+
 // infraFiles returns the baseline as routed, unresolved scaffold files: each component
 // pulled from the embed and routed to the destination its name encodes. `.tmpl` holes stay
 // unresolved — the driver's Resolve fills them.
@@ -203,7 +209,7 @@ func infraDest(name string) string {
 	}
 }
 
-func (i Infra) Build(ctx context.Context, client *dagger.Client, unit *BuildUnit) (container *dagger.Container, err error) {
+func (i PlatformInfra) Build(ctx context.Context, client *dagger.Client, unit *BuildUnit) (container *dagger.Container, err error) {
 	defer errutil.Wrap("platform/infra", &err)
 
 	tree, err := gitops.Render(unit.WorkDir, gitops.RenderOptions{Vars: unit.Vars})
