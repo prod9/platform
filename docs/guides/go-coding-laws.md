@@ -42,19 +42,38 @@ named so a later scan can recognize the same shape. Append; don't prune.
 12. **Check a proposed name against concepts already live** in the domain before adopting
     it.
 
+## Composition
+
+13. **Two producers means two chains and one merge point** — never grow one result by
+    handing it to the next stage, and never fuse with `maps.Copy` at the callsite. Each
+    route builds and returns its own value; a named `merge` combines them.
+    *Broke it:* `Render` built the CUE tree, then `maps.Copy`'d the directives tree over it.
+14. **Chained checks use `if … ; err != nil { } else if … ; err != nil { } else { }`.** The
+    values stay scoped to the chain that produced them.
+
+    ```go
+    if cueTree, err := renderCueTree(srcDir, vars); err != nil {
+        return nil, err
+    } else if platformTree, err := renderPlatformTree(srcDir, vars, opts.Fetch); err != nil {
+        return nil, err
+    } else {
+        return merge(cueTree, platformTree), nil
+    }
+    ```
+
 ## Constants and errors
 
-13. **No `const` for a fixed identifier that cannot change.** Inline it; a name far from
+15. **No `const` for a fixed identifier that cannot change.** Inline it; a name far from
     the one line that reads it costs a jump and buys nothing. *Broke it:*
     `cueModPrefixInput`, `daggerModule`, `varsHeader`. A const naming a *chosen policy*
     (`pollInterval`, `maxWebhookBody`) or a layout (`dateFormat`) stays.
-14. **Never return an error no caller consumes.** Seven `detected, _ := detectFile(...)`
+16. **Never return an error no caller consumes.** Seven `detected, _ := detectFile(...)`
     callsites meant the error return was dead; the fix is dropping the return, not
     swallowing it seven times.
 
 ## Enforcement
 
-15. **The type system or nothing — never police a convention with a test.** A
+17. **The type system or nothing — never police a convention with a test.** A
     reflection-based shape test is the tell that the design is wrong, and half of what it
     asserted (which file a declaration sits in) is not a fact Go can hold. Conventions are
     followed and written down; `var _ Framework = X{}` is the assertion the compiler can
@@ -62,7 +81,7 @@ named so a later scan can recognize the same shape. Append; don't prune.
 
 ## Conduct
 
-16. **Don't defend code by its provenance.** Every commit here is agent-authored; naming an
+18. **Don't defend code by its provenance.** Every commit here is agent-authored; naming an
     earlier one explains nothing and answers nothing.
-17. **Don't rationalize a design under review.** When the shape is called bad, re-derive it —
+19. **Don't rationalize a design under review.** When the shape is called bad, re-derive it —
     don't narrate why the current one was reasonable.

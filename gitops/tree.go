@@ -11,6 +11,19 @@ import (
 // is the uniform output of every render route and the unit Publish packages.
 type Tree map[string][]byte
 
+// merge fuses the render routes' trees into the one tree Render returns. The routes write
+// disjoint paths — a component is authored in CUE or in directives, never both — so a
+// collision means two routes claimed one path and later trees win.
+func merge(trees ...Tree) Tree {
+	merged := Tree{}
+	for _, tree := range trees {
+		for path, content := range tree {
+			merged[path] = content
+		}
+	}
+	return merged
+}
+
 // Paths returns the tree's keys in sorted order — a stable iteration order for
 // deterministic disk writes and archive digests.
 func (t Tree) Paths() []string {

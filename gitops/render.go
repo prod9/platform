@@ -8,7 +8,6 @@ package gitops
 import (
 	"fmt"
 	"io/fs"
-	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -53,25 +52,20 @@ type RenderOptions struct {
 func Render(srcDir string, opts RenderOptions) (Tree, error) {
 	vars := conf.NormalizeVars(opts.Vars)
 
-	tree, err := renderCue(srcDir, vars)
-	if err != nil {
+	if cueTree, err := renderCueTree(srcDir, vars); err != nil {
 		return nil, err
-	}
-
-	rendered, err := renderDirectives(srcDir, vars, opts.Fetch)
-	if err != nil {
+	} else if platformTree, err := renderPlatformTree(srcDir, vars, opts.Fetch); err != nil {
 		return nil, err
+	} else {
+		return merge(cueTree, platformTree), nil
 	}
-
-	maps.Copy(tree, rendered)
-	return tree, nil
 }
 
-// renderCue exports the CUE apps package under srcDir/apps into a file-map tree. Each app
+// renderCueTree exports the CUE apps package under srcDir/apps into a file-map tree. Each app
 // field becomes a component directory; each filename key under it becomes a named file
-// holding one document (a map value) or a multi-doc stream (a list value). Skipped when the
+// holding one document (a map value) or a multi-doc stream (a list value). Empty when the
 // dir has no `.cue` files (directives-only apps/, or no apps/ at all).
-func renderCue(srcDir string, vars map[string]any) (Tree, error) {
+func renderCueTree(srcDir string, vars map[string]any) (Tree, error) {
 	cue, err := filesWithExt(filepath.Join(srcDir, appsPackage), ".cue")
 	if err != nil {
 		return nil, err
@@ -188,11 +182,11 @@ func tagAttrName(a *ast.Attribute) (string, bool) {
 	return name, name != ""
 }
 
-// renderDirectives runs every `.platform` directive co-located with the CUE apps (selection
-// happened at install time, so whatever is present applies). Each runs with dsl.Apply into a
-// per-component output directory; results collect into a tree keyed by <component>/<emitted-file>.
-// No `.platform` files renders nothing.
-func renderDirectives(srcDir string, vars map[string]any, fetch func(string) ([]byte, error)) (Tree, error) {
+// renderPlatformTree runs every `.platform` directive co-located with the CUE apps (selection
+// happened at install time, so whatever is present applies) into a file-map tree keyed by
+// <component>/<emitted-file>. Each runs with dsl.Apply into a per-component output
+// directory. Empty when the dir has no `.platform` files.
+func renderPlatformTree(srcDir string, vars map[string]any, fetch func(string) ([]byte, error)) (Tree, error) {
 	dir := filepath.Join(srcDir, appsPackage)
 	names, err := filesWithExt(dir, platformExt)
 	if err != nil || len(names) == 0 {
