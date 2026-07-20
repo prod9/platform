@@ -16,8 +16,6 @@ type VarChange struct {
 	Appended bool
 }
 
-const varsHeader = "[vars]"
-
 var varKeyPattern = regexp.MustCompile(`^([A-Za-z0-9_-]+)\s*=`)
 
 // MergeVars folds the baseline's default [vars] into an existing
@@ -50,7 +48,7 @@ func MergeVars(existing []byte, defaults map[string]any) ([]byte, []VarChange) {
 
 	if headerIdx < 0 {
 		merged := strings.TrimRight(string(existing), "\n") +
-			"\n\n" + varsHeader + "\n" + strings.Join(newLines, "\n") + "\n"
+			"\n\n" + "[vars]" + "\n" + strings.Join(newLines, "\n") + "\n"
 		return []byte(merged), changes
 	}
 
@@ -90,7 +88,7 @@ func appendedLines(changes []VarChange) []string {
 // indexOfHeader returns the line index of the [vars] table header, or -1.
 func indexOfHeader(lines []string) int {
 	for i, line := range lines {
-		if strings.TrimSpace(line) == varsHeader {
+		if strings.TrimSpace(line) == "[vars]" {
 			return i
 		}
 	}

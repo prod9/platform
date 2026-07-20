@@ -73,17 +73,14 @@ func (i PlatformInfra) Scaffold(ctx context.Context, wd string, env scaffold.Env
 	}, nil
 }
 
-// cueModPrefixInput names the operator input carrying the CUE module path — the cue.mod
-// `module:` value and the prefix of every `import "<prefix>/defaults"`. Asked only greenfield.
-const cueModPrefixInput = "CUE_MOD_PREFIX"
-
-// ScaffoldVars asks for the CUE module path only on a greenfield repo; an existing
-// cue.mod is operator truth, read (never re-asked) in ScaffoldData.
+// ScaffoldVars asks for CUE_MOD_PREFIX — the cue.mod `module:` value and the prefix of
+// every `import "<prefix>/defaults"` — only on a greenfield repo; an existing cue.mod is
+// operator truth, read (never re-asked) in scaffoldData.
 func (PlatformInfra) ScaffoldVars(wd string) []string {
 	if cuemod.Present(wd) {
 		return nil
 	}
-	return []string{cueModPrefixInput}
+	return []string{"CUE_MOD_PREFIX"}
 }
 
 func (i PlatformInfra) Build(ctx context.Context, client *dagger.Client, unit *BuildUnit) (container *dagger.Container, err error) {
@@ -143,9 +140,9 @@ func (PlatformInfra) modulePath(wd string, inputs map[string]string) (string, er
 		return cuemod.Path(wd)
 	}
 
-	prefix := inputs[cueModPrefixInput]
+	prefix := inputs["CUE_MOD_PREFIX"]
 	if err := cuemod.ValidatePath(prefix); err != nil {
-		return "", fmt.Errorf("%s %w", cueModPrefixInput, err)
+		return "", fmt.Errorf("CUE_MOD_PREFIX %w", err)
 	}
 	return prefix, nil
 }
