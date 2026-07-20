@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"maps"
 	"path/filepath"
 	"strings"
 
@@ -67,7 +66,7 @@ func (i PlatformInfra) Scaffold(ctx context.Context, wd string, env scaffold.Env
 
 	return scaffold.Spec{
 		Module:   defaultModule(i, wd),
-		Vars:     maps.Clone(infraVars),
+		Vars:     infraVars,
 		Files:    resolved,
 		Strategy: "rolling",
 	}, nil
