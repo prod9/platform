@@ -5,6 +5,7 @@
 package initcmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -63,8 +64,11 @@ func run(cmd *cobra.Command, args []string) {
 // non-interactively). An unrecognized repo needs none.
 func promptScaffoldInputs(sess *prompts.Session, wd string) map[string]string {
 	fw, err := framework.Discover(wd)
-	if err != nil || fw == nil {
+	if errors.Is(err, framework.ErrNoFramework) {
 		return nil
+	}
+	if err != nil {
+		buildlog.Fatalln(err)
 	}
 
 	inputs := map[string]string{}
@@ -87,11 +91,13 @@ func applyPlan(wd string, sess *prompts.Session, plan *Plan) {
 		replace = sess.YesNo(fmt.Sprintf("replace %d existing file(s)?", n))
 	}
 
-	apply := plan.Apply
+	var err error
 	if replace {
-		apply = plan.ApplyOverwrite
+		err = plan.ApplyOverwrite()
+	} else {
+		err = plan.Apply()
 	}
-	if err := apply(); err != nil {
+	if err != nil {
 		buildlog.Fatalln(err)
 	}
 	for _, f := range plan.Files {

@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"net/http"
 	"os"
 	"os/signal"
@@ -52,11 +53,14 @@ func runVanityCmd(cmd *cobra.Command, args []string) {
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		<-sigs
-		srv.Close()
+		if err := srv.Close(); err != nil {
+			fxlog.Fatal(err)
+		}
 	}()
 
 	fxlog.Log("serving", fxlog.String("addr", vanityListenAddr))
-	if err := srv.ListenAndServe(); err != nil {
+	// Close makes ListenAndServe return ErrServerClosed — that is the shutdown path, not a fault.
+	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		fxlog.Fatal(err)
 	}
 }

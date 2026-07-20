@@ -64,9 +64,12 @@ func runPreview(cmd *cobra.Command, args []string) {
 				preview = unit
 			}
 		}
-		if preview == nil {
-			buildlog.Fatalln(errors.New("no module to preview"))
-		}
+	}
+
+	// The frameworks read CommandName during Build, so --exec has to land before it.
+	if custom := strings.TrimSpace(previewCmd); custom != "" {
+		preview.CommandName = custom
+		preview.CommandArgs = nil
 	}
 
 	// build only the selected module
@@ -91,21 +94,20 @@ func runPreview(cmd *cobra.Command, args []string) {
 		buildlog.Fatalln(err)
 	}
 
-	if previewPort == 0 {
-		if preview.Port == 0 {
-			buildlog.Fatalln(errors.New("specify preview port with --port or port= key in platform.toml"))
-		}
-		previewPort = preview.Port
-	} else if previewPort < 1000 {
-		buildlog.Fatalln(fmt.Errorf("preview port %d is reserved; use a port >= 1000", previewPort))
+	fromFlag, fromConfig := previewPort, preview.Port
+	port := fromFlag
+	if port == 0 {
+		port = fromConfig
 	}
-	if custom := strings.TrimSpace(previewCmd); custom != "" {
-		preview.CommandName = custom
-		preview.CommandArgs = nil // TODO: Allow specifying args?
+	if port == 0 {
+		buildlog.Fatalln(errors.New("specify preview port with --port or port= key in platform.toml"))
+	}
+	if port < 1000 {
+		buildlog.Fatalln(fmt.Errorf("preview port %d is reserved; use a port >= 1000", port))
 	}
 
 	container := result.Container.
-		WithExposedPort(previewPort).
+		WithExposedPort(port).
 		WithExec(startArgs).
 		AsService()
 
@@ -114,7 +116,9 @@ func runPreview(cmd *cobra.Command, args []string) {
 	})
 
 	ctrlc.Do(func() {
-		tunnel.Stop(ctx)
+		if _, err := tunnel.Stop(ctx); err != nil {
+			buildlog.Fatalln(err)
+		}
 		os.Exit(0)
 	})
 	tunnel, err = tunnel.Start(ctx)
