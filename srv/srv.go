@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"net/http"
 	"time"
 
@@ -31,6 +32,7 @@ import (
 	"platform.prodigy9.co/srv/builds"
 	"platform.prodigy9.co/srv/install"
 	"platform.prodigy9.co/srv/migrate"
+	"platform.prodigy9.co/webui"
 )
 
 // Serve configures and runs the platform server until interrupted, listening on
@@ -158,3 +160,19 @@ var merged = migrate.Merged(
 	migrator.FromFS(builds.Migrations),
 	migrator.FromFS(install.Migrations),
 )
+
+// UI serves the embedded web UI (webui.Assets) at the site root; requests not matched
+// by an API route fall through to it.
+type UI struct{}
+
+var _ controllers.Interface = UI{}
+
+func (UI) Mount(cfg *config.Source, router chi.Router) error {
+	build, err := fs.Sub(webui.Assets, "build")
+	if err != nil {
+		return err
+	}
+
+	router.Handle("/*", http.FileServer(http.FS(build)))
+	return nil
+}

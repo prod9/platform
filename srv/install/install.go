@@ -6,6 +6,7 @@ package install
 
 import (
 	"context"
+	"embed"
 	"errors"
 	"time"
 
@@ -45,3 +46,8 @@ func Load(ctx context.Context) (*Record, error) {
 	}
 	return record, nil
 }
+
+// Migrations is this fragment's schema; srv aggregates every fragment's SQL at boot.
+//
+//go:embed *.sql
+var Migrations embed.FS

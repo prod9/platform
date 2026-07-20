@@ -97,4 +97,3 @@ func TestRunQueuedExitsOnCancel(t *testing.T) {
 	cancel()
 	requireRunnerExit(t, done)
 }
-

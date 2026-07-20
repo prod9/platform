@@ -7,6 +7,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
+	"embed"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -477,3 +478,8 @@ func hashSessionToken(token string) string {
 	sum := sha256.Sum256([]byte(token))
 	return hex.EncodeToString(sum[:])
 }
+
+// Migrations is this fragment's schema; srv aggregates every fragment's SQL at boot.
+//
+//go:embed *.sql
+var Migrations embed.FS

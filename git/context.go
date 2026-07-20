@@ -1,11 +1,9 @@
 package git
 
 import (
+	"context"
 	"errors"
-	"os"
-	"os/exec"
 	"path/filepath"
-	"strings"
 	"sync"
 
 	"platform.prodigy9.co/conf"
@@ -108,16 +106,6 @@ func (ctx *Context) run(args ...string) (string, error) {
 		return "", err
 	}
 
-	buildlog.Git("git", args...)
-	outbuf := &strings.Builder{}
-
-	cmd := exec.Command("git", args...)
-	cmd.Dir = wd
-	cmd.Stdout = outbuf
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return "", err
-	}
-
-	return strings.TrimSpace(outbuf.String()), nil
+	buildlog.Git(args...)
+	return RunWithProgress(context.Background(), wd, args...)
 }

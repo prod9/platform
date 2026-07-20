@@ -5,6 +5,7 @@ package builds
 
 import (
 	"context"
+	"embed"
 	"errors"
 	"time"
 
@@ -97,3 +98,8 @@ func (f *Fail) Execute(ctx context.Context, out any) error {
 		WHERE id = $1`,
 		f.ID, f.Error)
 }
+
+// Migrations is this fragment's schema; srv aggregates every fragment's SQL at boot.
+//
+//go:embed *.sql
+var Migrations embed.FS

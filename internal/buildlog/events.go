@@ -37,10 +37,10 @@ func Fatalln(err error) {
 	os.Exit(1)
 }
 
-// Git traces a git invocation (`git <cmd> <args>`) at Debug level — visible only
+// Git traces a git invocation (`git <args>`) at Debug level — visible only
 // at raised verbosity, for diagnosing what platform ran under the hood.
-func Git(cmd string, args ...string) {
-	Logger().Debug("git", cmd, strings.Join(args, " "))
+func Git(args ...string) {
+	Logger().Debug("git", slog.String("args", strings.Join(args, " ")))
 }
 
 // File reports a file action taken on the operator's tree (`write x`,
