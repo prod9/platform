@@ -437,36 +437,6 @@ func (u *UpsertGitHubUser) upsertOnce(ctx context.Context, out any) error {
 	})
 }
 
-// ErrNoGitHubToken reports a user whose github identity carries no stored token —
-// state predating token storage; logging in again recreates it.
-var ErrNoGitHubToken = errors.New("auth: no stored github token — log in again via /auth/github")
-
-// LoadUserGitHubToken retrieves the user's stored user-to-server token from their
-// github identity's metadata, where UpsertGitHubUser hid it.
-func LoadUserGitHubToken(ctx context.Context, userID int64) (string, error) {
-	var metadata string
-	err := data.Get(ctx, &metadata, `
-		SELECT metadata::text FROM identities
-		WHERE user_id = $1 AND provider = 'github'`, userID)
-	if data.IsNoRows(err) {
-		return "", ErrNoGitHubToken
-	} else if err != nil {
-		return "", err
-	}
-
-	stored := struct {
-		Token string `json:"token"`
-	}{}
-	if err := json.Unmarshal([]byte(metadata), &stored); err != nil {
-		return "", err
-	}
-	if stored.Token == "" {
-		return "", ErrNoGitHubToken
-	}
-
-	return secret.Reveal(config.FromContext(ctx), stored.Token)
-}
-
 // CreateSession records a platform session for a raw token. Hashing is the store's
 // own invariant: the client keeps the raw token in the session cookie; only its
 // SHA-256 lands in the database.

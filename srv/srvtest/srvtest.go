@@ -6,12 +6,6 @@ package srvtest
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/rsa"
-	"crypto/x509"
-	"encoding/pem"
-	"net/http"
-	"strings"
 	"testing"
 
 	"fx.prodigy9.co/config"
@@ -41,44 +35,6 @@ func SetupDB(t *testing.T, sources ...migrator.Source) context.Context {
 		require.NoError(t, m.Apply(ctx, plan))
 	}
 	return ctx
-}
-
-// InstallToken is the installation token InstallationAPIMux mints.
-const InstallToken = "ghs_installtoken"
-
-// AppKey generates a throwaway RSA key and returns it with its PKCS#1 PEM form —
-// the shape GitHub issues App private keys in.
-func AppKey(t *testing.T) (*rsa.PrivateKey, string) {
-	key, err := rsa.GenerateKey(rand.Reader, 2048)
-	require.NoError(t, err)
-
-	keyPEM := pem.EncodeToMemory(&pem.Block{
-		Type:  "RSA PRIVATE KEY",
-		Bytes: x509.MarshalPKCS1PrivateKey(key),
-	})
-	return key, string(keyPEM)
-}
-
-// InstallationAPIMux handles the two calls installation-token minting walks: the
-// repo installation lookup (asserting a well-formed App JWT arrives) and the
-// access-token create answering InstallToken. Fragment tests extend it with their
-// own endpoints.
-func InstallationAPIMux(t *testing.T) *http.ServeMux {
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /repos/prod9/app/installation", func(resp http.ResponseWriter, req *http.Request) {
-		auth := req.Header.Get("Authorization")
-		require.True(t, strings.HasPrefix(auth, "Bearer "))
-		require.Len(t, strings.Split(strings.TrimPrefix(auth, "Bearer "), "."), 3)
-
-		resp.Header().Set("Content-Type", "application/json")
-		resp.Write([]byte(`{"id": 42}`))
-	})
-	mux.HandleFunc("POST /app/installations/42/access_tokens", func(resp http.ResponseWriter, req *http.Request) {
-		resp.Header().Set("Content-Type", "application/json")
-		resp.WriteHeader(http.StatusCreated)
-		resp.Write([]byte(`{"token": "` + InstallToken + `"}`))
-	})
-	return mux
 }
 
 // SkipWithoutPostgres skips the test unless DATABASE_URL points at a reachable

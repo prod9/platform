@@ -18,7 +18,7 @@ func (d Datestamp) IsValid(name string) bool {
 
 func (d Datestamp) NextName(prevName string, bump Bump) (string, error) {
 	if prevName == "" {
-		return dateref.Now(0).String(), nil
+		return dateref.Now().String(), nil
 	}
 
 	ref, err := dateref.Parse(prevName)
@@ -27,6 +27,6 @@ func (d Datestamp) NextName(prevName string, bump Bump) (string, error) {
 	} else if ref.IsToday() {
 		return ref.NextCounter().String(), nil
 	} else {
-		return dateref.Now(0).String(), nil
+		return dateref.Now().String(), nil
 	}
 }

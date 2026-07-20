@@ -43,7 +43,6 @@ type (
 		Commits []CommitRef `toml:"commits"`
 	}
 	Options struct {
-		Name  string
 		Force bool
 		Bump  Bump
 	}

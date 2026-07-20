@@ -1,7 +1,6 @@
 package dateref
 
 import (
-	"cmp"
 	"errors"
 	"regexp"
 	"strconv"
@@ -22,16 +21,8 @@ type DateRef struct {
 	counter int
 }
 
-func New(date time.Time, counter int) DateRef {
-	return DateRef{date, counter}
-}
-
-func Now(counter int) DateRef {
-	if counter < 0 {
-		return DateRef{time.Now(), 0}
-	} else {
-		return DateRef{time.Now(), counter}
-	}
+func Now() DateRef {
+	return DateRef{time.Now(), 0}
 }
 
 func Parse(str string) (DateRef, error) {
@@ -67,19 +58,8 @@ func (d DateRef) IsToday() bool {
 func (d DateRef) Time() time.Time { return d.date }
 func (d DateRef) Counter() int    { return d.counter }
 
-func (d DateRef) Compare(o DateRef) int {
-	if c := d.date.Compare(o.date); c != 0 {
-		return c
-	}
-	return cmp.Compare(d.counter, o.counter)
-}
-
 func (d DateRef) NextCounter() DateRef {
-	if d.counter < 0 {
-		return DateRef{d.date, 1}
-	} else {
-		return DateRef{d.date, d.counter + 1}
-	}
+	return DateRef{d.date, d.counter + 1}
 }
 
 func (d DateRef) String() string {

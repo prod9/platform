@@ -43,7 +43,6 @@ func New(proj *conf.Model) *Context {
 	return ctx
 }
 
-func (ctx *Context) CurrentBranch() (string, error)  { return ctx.currentBranch() }
 func (ctx *Context) MainRemoteName() (string, error) { return ctx.mainRemote() }
 
 // IsClean checks if the working directory is clean (no uncommitted changes)

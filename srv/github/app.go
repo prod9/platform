@@ -1,11 +1,14 @@
 // Package github owns the server's GitHub integration: the GitHub App credential set
-// (supplied via fx config), App-authenticated token minting, and the repo-name
-// whitelist every fragment taking owner/repo input shares.
+// (supplied via fx config), the repo-name whitelist every fragment taking owner/repo
+// input shares, and the shared API-error summary.
 package github
 
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io"
+	"net/http"
 
 	"fx.prodigy9.co/config"
 )
@@ -21,7 +24,6 @@ var LoadApp = loadApp
 // Secret at rest, provided by the operator), never stored in the DB.
 type App struct {
 	AppID         int64
-	Slug          string
 	PrivateKey    string
 	WebhookSecret string
 	ClientID      string
@@ -32,7 +34,6 @@ func loadApp(ctx context.Context) (*App, error) {
 	cfg := config.FromContext(ctx)
 	app := &App{
 		AppID:         config.Get(cfg, AppIDConfig),
-		Slug:          config.Get(cfg, SlugConfig),
 		PrivateKey:    config.Get(cfg, PrivateKeyConfig),
 		WebhookSecret: config.Get(cfg, WebhookSecretConfig),
 		ClientID:      config.Get(cfg, ClientIDConfig),
@@ -48,4 +49,16 @@ func loadApp(ctx context.Context) (*App, error) {
 	}
 
 	return app, nil
+}
+
+// RespError summarizes a failed GitHub API response: op, status line, and up to 1KB
+// of body. The body read is best-effort — GitHub's status already carries the
+// verdict, so a read failure only shortens the message, never masks it.
+func RespError(op string, resp *http.Response) error {
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<10))
+	if err != nil {
+		body = []byte("(unreadable body: " + err.Error() + ")")
+	}
+	return fmt.Errorf("github: %s failed: %d %s: %s",
+		op, resp.StatusCode, resp.Status, body)
 }

@@ -14,7 +14,6 @@ var (
 // directly, never stored in the DB. See docs/spec/platform-server.md §"srv owns the App".
 var (
 	AppIDConfig         = config.Int64("GITHUB_APP_ID")
-	SlugConfig          = config.Str("GITHUB_APP_SLUG")
 	PrivateKeyConfig    = config.Str("GITHUB_APP_PRIVATE_KEY")
 	WebhookSecretConfig = config.Str("GITHUB_APP_WEBHOOK_SECRET")
 	ClientIDConfig      = config.Str("GITHUB_APP_CLIENT_ID")

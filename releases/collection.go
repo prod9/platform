@@ -3,7 +3,6 @@ package releases
 import (
 	"cmp"
 	"fmt"
-	"iter"
 	"slices"
 	"strings"
 	"time"
@@ -110,9 +109,6 @@ func chronoKey(name string) (time.Time, int) {
 	return moment, 0
 }
 
-func (c *Collection) Len() int                      { return len(c.names) }
-func (c *Collection) Names() iter.Seq2[int, string] { return slices.All(c.names) }
-
 func (c *Collection) LatestName(strat Strategy) string {
 	if len(c.names) == 0 {
 		return ""
@@ -151,13 +147,4 @@ func (c *Collection) GetLatest(g *git.Context, strat Strategy) (*Release, error)
 	}
 
 	return c.Get(g, name)
-}
-
-func (c *Collection) PendingChanges(g *git.Context) ([]CommitRef, error) {
-	last := c.LatestName(nil)
-	if last == "" {
-		return nil, nil
-	}
-
-	return listCommits(g, last+"..HEAD")
 }

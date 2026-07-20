@@ -43,12 +43,6 @@ func Git(cmd string, args ...string) {
 	Logger().Debug("git", cmd, strings.Join(args, " "))
 }
 
-// GitInfo reports a resolved git fact (current branch, tracking remote, the tag
-// just cut) at Info level.
-func GitInfo(item, value string) {
-	Logger().Info("git", item, value)
-}
-
 // File reports a file action taken on the operator's tree (`write x`,
 // `overwrite y` — the scaffold apply trail) at Info level.
 func File(action, filename string) {
