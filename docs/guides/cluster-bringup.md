@@ -15,7 +15,7 @@ legacy teardown are later phases, out of scope here.
   working `kubectl` context. Provider per the executing agent's tooling (prior clusters
   are Linode; the nginx-gateway LB expects a Linode firewall — capture its **firewall id**).
 - A **new GitHub repo whose name contains `infra`** (framework discovery matches the
-  directory name glob — `framework/infrabase.go` `hasInfraName`). Clone it; rename the
+  directory name glob — `framework/platform_infra.go` `hasInfraName`). Clone it; rename the
   remote to `gh`.
 - ghcr.io credentials able to **pull** the infra image (read-only PAT is enough for the
   cluster; the operator's local docker creds handle the push side).

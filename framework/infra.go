@@ -37,7 +37,7 @@ var DefaultVars = map[string]any{
 	"FLUX_HOSTNAME":     "flux.prodigy9.co",
 }
 
-// infrabaseComponents is the fixed working set every fresh infra repo installs — the
+// infraComponents is the fixed working set every fresh infra repo installs — the
 // components a functioning cluster needs out of the box plus the shared defaults/ package
 // every app imports for #Basics (namespace + registry pull secret). The gateway-api
 // channel is STANDARD-only: it serves everything the baseline renders (ListenerSet
@@ -45,7 +45,7 @@ var DefaultVars = map[string]any{
 // a repo needing them edits its committed component, like any provider-specific wiring.
 // apps-platform.cue.tmpl carries the build engine + (for prod9's self-host) the vanity
 // server and its NetworkPolicies.
-var infrabaseComponents = []string{
+var infraComponents = []string{
 	"apps-cert-manager.platform",
 	"apps-cluster-issuer.cue.tmpl",
 	"apps-flux.platform",
@@ -57,25 +57,25 @@ var infrabaseComponents = []string{
 	"defaults-webapp.cue",
 }
 
-// infrabaseFiles returns the baseline as routed, unresolved scaffold files: each component
+// infraFiles returns the baseline as routed, unresolved scaffold files: each component
 // pulled from the embed and routed to the destination its name encodes. `.tmpl` holes stay
 // unresolved — the driver's Resolve fills them.
-func infrabaseFiles() ([]scaffold.File, error) {
-	out := make([]scaffold.File, 0, len(infrabaseComponents))
-	for _, name := range infrabaseComponents {
+func infraFiles() ([]scaffold.File, error) {
+	out := make([]scaffold.File, 0, len(infraComponents))
+	for _, name := range infraComponents {
 		content, err := skel.Read(name)
 		if err != nil {
 			return nil, fmt.Errorf("baseline component %q is not embedded: %w", name, err)
 		}
-		out = append(out, scaffold.File{Path: infrabaseDest(name), Content: content, Mode: 0644})
+		out = append(out, scaffold.File{Path: infraDest(name), Content: content, Mode: 0644})
 	}
 	return out, nil
 }
 
-// infrabaseDest maps a baseline filename to its repo-relative destination: `apps-*` →
+// infraDest maps a baseline filename to its repo-relative destination: `apps-*` →
 // `apps/`, `defaults-*` → `defaults/`, anything else → the repo root. The `.tmpl` suffix
 // survives — it marks the file for the resolve mechanism, which strips it.
-func infrabaseDest(name string) string {
+func infraDest(name string) string {
 	switch {
 	case strings.HasPrefix(name, "apps-"):
 		return filepath.Join("apps", strings.TrimPrefix(name, "apps-"))

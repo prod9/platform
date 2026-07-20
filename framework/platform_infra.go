@@ -48,7 +48,7 @@ func (Infra) Discover(wd string) bool {
 // the "rolling" strategy seed. There is no app-vs-infra branch anywhere — Infra simply
 // contributes more, and owns resolving its own template holes.
 func (i Infra) Scaffold(ctx context.Context, wd string, env scaffold.Env, inputs map[string]string) (scaffold.Spec, error) {
-	files, err := infrabaseFiles()
+	files, err := infraFiles()
 	if err != nil {
 		return scaffold.Spec{}, err
 	}
