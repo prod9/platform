@@ -10,7 +10,7 @@ import (
 	"platform.prodigy9.co/internal/buildlog"
 )
 
-type Dockerfile struct{ noScaffoldInputs }
+type Dockerfile struct{ noScaffoldVars }
 
 var _ Framework = Dockerfile{}
 

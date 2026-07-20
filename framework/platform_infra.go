@@ -77,9 +77,9 @@ func (i PlatformInfra) Scaffold(ctx context.Context, wd string, env scaffold.Env
 // `module:` value and the prefix of every `import "<prefix>/defaults"`. Asked only greenfield.
 const cueModPrefixInput = "CUE_MOD_PREFIX"
 
-// RequiredScaffoldInputs asks for the CUE module path only on a greenfield repo; an existing
+// ScaffoldVars asks for the CUE module path only on a greenfield repo; an existing
 // cue.mod is operator truth, read (never re-asked) in ScaffoldData.
-func (PlatformInfra) RequiredScaffoldInputs(wd string) []string {
+func (PlatformInfra) ScaffoldVars(wd string) []string {
 	if cuemod.Present(wd) {
 		return nil
 	}

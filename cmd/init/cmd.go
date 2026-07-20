@@ -68,7 +68,7 @@ func promptScaffoldInputs(sess *prompts.Session, wd string) map[string]string {
 	}
 
 	inputs := map[string]string{}
-	for _, name := range fw.RequiredScaffoldInputs(wd) {
+	for _, name := range fw.ScaffoldVars(wd) {
 		inputs[name] = sess.Str(name)
 	}
 	return inputs

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"dagger.io/dagger"
+	"platform.prodigy9.co/conf"
 	"platform.prodigy9.co/framework/scaffold"
 )
 
@@ -31,11 +32,11 @@ type (
 		// build path resolves the framework by the [modules] name, never re-discovers.
 		Discover(wd string) bool
 
-		// RequiredScaffoldInputs lists the operator inputs this framework needs at init,
+		// ScaffoldVars lists the operator inputs this framework needs at init,
 		// by name (the name is the prompt label). The driver prompts each and passes the
 		// answers back via ScaffoldData. Most frameworks onboard an existing repo and need
 		// none (nil); PlatformInfra needs the CUE module path only when greenfield.
-		RequiredScaffoldInputs(wd string) []string
+		ScaffoldVars(wd string) []string
 
 		// Scaffold returns the framework's full, ready-to-write contribution to a fresh repo:
 		// its platform.toml module, default [vars], the strategy it seeds, and the files it
@@ -43,19 +44,19 @@ type (
 		// knows which operator input fills which hole (e.g. CUE_MOD_PREFIX -> the CUE module
 		// path) and how to read existing state (an existing cue.mod wins over the input).
 		// repository and daggerVersion are environment facts the driver supplies; inputs are
-		// the operator's answers to RequiredScaffoldInputs. The driver just writes what it gets.
+		// the operator's answers to ScaffoldVars. The driver just writes what it gets.
 		Scaffold(ctx context.Context, wd string, env scaffold.Env, inputs map[string]string) (scaffold.Spec, error)
 
 		Build(ctx context.Context, client *dagger.Client, unit *BuildUnit) (*dagger.Container, error)
 	}
 )
 
-// noScaffoldInputs is the default for frameworks that onboard an existing repo: they read
+// noScaffoldVars is the default for frameworks that onboard an existing repo: they read
 // their own module file (go.mod, package.json) rather than scaffolding one, so they need no
-// operator inputs. Embed it to satisfy RequiredScaffoldInputs.
-type noScaffoldInputs struct{}
+// operator inputs. Embed it to satisfy ScaffoldVars.
+type noScaffoldVars struct{}
 
-func (noScaffoldInputs) RequiredScaffoldInputs(string) []string { return nil }
+func (noScaffoldVars) ScaffoldVars(string) []string { return nil }
 
 const (
 	LayoutBasic     Layout = "basic"
@@ -102,4 +103,18 @@ func Discover(wd string) (Framework, error) {
 func hasFile(wd, filename string) bool {
 	_, err := os.Stat(filepath.Join(wd, filename))
 	return err == nil
+}
+
+// defaultModule is the single-module platform.toml contribution shared by the
+// frameworks, with WorkDir set per layout (workspace layouts nest the module under
+// ./<name>, basic ones sit at the root). The driver keys it by the directory name.
+func defaultModule(fw Framework, wd string) *conf.Module {
+	mod := *conf.ModuleDefaults
+	mod.Framework = fw.Name()
+	if fw.Layout() == LayoutWorkspace {
+		mod.WorkDir = "./" + filepath.Base(wd)
+	} else {
+		mod.WorkDir = "."
+	}
+	return &mod
 }

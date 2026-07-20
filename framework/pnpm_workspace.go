@@ -10,7 +10,7 @@ import (
 	"platform.prodigy9.co/framework/scaffold"
 )
 
-type PNPMWorkspace struct{ noScaffoldInputs }
+type PNPMWorkspace struct{ noScaffoldVars }
 
 var _ Framework = PNPMWorkspace{}
 

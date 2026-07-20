@@ -105,14 +105,14 @@ func TestInfraScaffoldKeepsExistingCueModule(t *testing.T) {
 		"existing cue.mod must not be re-scaffolded")
 }
 
-func TestInfraRequiredScaffoldInputs(t *testing.T) {
+func TestInfraScaffoldVars(t *testing.T) {
 	// Greenfield: the CUE module path is a required operator input.
-	r.Equal(t, []string{"CUE_MOD_PREFIX"}, PlatformInfra{}.RequiredScaffoldInputs(t.TempDir()))
+	r.Equal(t, []string{"CUE_MOD_PREFIX"}, PlatformInfra{}.ScaffoldVars(t.TempDir()))
 
 	// With an existing cue.mod, the path is read from it, never re-asked.
 	existing := t.TempDir()
 	writeModuleFile(t, existing, "kept.example/infra")
-	r.Nil(t, PlatformInfra{}.RequiredScaffoldInputs(existing))
+	r.Nil(t, PlatformInfra{}.ScaffoldVars(existing))
 }
 
 func TestInfraScaffoldData(t *testing.T) {

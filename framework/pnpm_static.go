@@ -9,7 +9,7 @@ import (
 	"platform.prodigy9.co/framework/scaffold"
 )
 
-type PNPMStatic struct{ noScaffoldInputs }
+type PNPMStatic struct{ noScaffoldVars }
 
 var _ Framework = PNPMStatic{}
 
