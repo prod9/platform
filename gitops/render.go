@@ -119,9 +119,7 @@ func exportCue(srcDir string, vars map[string]any) ([]byte, error) {
 	if err := probe[0].Err; err != nil {
 		return nil, err
 	}
-	declared := declaredTags(probe[0])
-
-	if tags := varsToTags(vars, declared); len(tags) > 0 {
+	if tags := computeCueTags(probe[0], vars); len(tags) > 0 {
 		cfg.Tags = tags
 	}
 
@@ -140,36 +138,34 @@ func exportCue(srcDir string, vars map[string]any) ([]byte, error) {
 	return cueyaml.Encode(value)
 }
 
-// varsToTags renders the normalized [vars] table into cue load tags ("name=value") — the
-// committed-config source for every `@tag(name)` in the apps CUE. Only vars a `@tag` actually
-// declares are injected (declared); the rest are directive-only and CUE would reject them.
-// Values stringify verbatim; the consuming field's `@tag(name,type=...)` annotation drives any
-// non-string coercion.
-func varsToTags(vars map[string]any, declared map[string]bool) []string {
+// computeCueTags walks the loaded apps' syntax for `@tag(name)` attributes and renders the cue
+// load tags ("name=value") for the ones [vars] carries a value for — the committed-config
+// source for every CUE tag. A var no `@tag` declares is directive-only and stays out; CUE
+// rejects an injected tag nothing declares. The same hole declared in two files yields one
+// tag. Values stringify verbatim; the consuming field's `@tag(name,type=...)` annotation
+// drives any non-string coercion.
+func computeCueTags(inst *build.Instance, vars map[string]any) []string {
+	seen := map[string]bool{}
 	tags := make([]string, 0, len(vars))
-	for name, val := range vars {
-		if declared[name] {
-			tags = append(tags, fmt.Sprintf("%s=%v", name, val))
-		}
-	}
-	return tags
-}
 
-// declaredTags walks the loaded apps' syntax for `@tag(name)` attributes and returns the set of
-// declared tag names — the holes the CUE package is willing to receive from [vars].
-func declaredTags(inst *build.Instance) map[string]bool {
-	declared := map[string]bool{}
 	for _, f := range inst.Files {
 		ast.Walk(f, func(n ast.Node) bool {
-			if a, ok := n.(*ast.Attribute); ok {
-				if name, ok := tagAttrName(a); ok {
-					declared[name] = true
-				}
+			a, ok := n.(*ast.Attribute)
+			if !ok {
+				return true
+			}
+			name, ok := tagAttrName(a)
+			if !ok || seen[name] {
+				return true
+			}
+			if val, ok := vars[name]; ok {
+				seen[name] = true
+				tags = append(tags, fmt.Sprintf("%s=%v", name, val))
 			}
 			return true
 		}, nil)
 	}
-	return declared
+	return tags
 }
 
 // tagAttrName extracts the tag name from an `@tag(name,opts...)` attribute, false for any other.
