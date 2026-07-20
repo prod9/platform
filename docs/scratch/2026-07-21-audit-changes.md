@@ -76,7 +76,7 @@ bucket: violations. No borderline.
 | 47 | `builds/webhooks.go:139`       | one-caller helper, single-valued parameter                   | inline                                       |      |
 | 48 | `builds/repoprep.go:109`       | `lockFile` one-caller helper                                 | inline into `syncMirror`                     |      |
 | 49 | `install/state.go:16-26`       | `Status` stringly typed; a test returns an unrepresented ""  | `type Status string`, typed consts           |      |
-| 50 | `builds/builds.go:42,55,79,93` | `out any` unused in 3 of 4; every callsite passes `nil`      | `Run(ctx) error`; `Claim` returns `*Build`   |      |
+| 50 | `builds/builds.go:42,55,79,93` | `out any` unused in 3 of 4; every callsite passes `nil`      | ~~`Run(ctx) error`~~                          | **REJECTED** |
 | 51 | `github/app.go:42`             | unnamed `\|\|` chain across five credential fields           | name them; report which is missing           |      |
 
 ### `releases/`, `engine/`, `git/`, `internal/`, `webui/` — 30 violations
@@ -152,6 +152,17 @@ bucket: violations. No borderline.
 | 109 | `gitops/dsl/resolve_test.go` | named for a file that does not exist                          | merge into `lex_test.go`                  |      |
 | 110 | `cmd/init` ×4                | "no app-vs-infra branch" narrated four times                  | keep once at most                         |      |
 | 111 | `cmd/exec.go:52`,`preview.go:104` | comment restating a switch; a TODO on a dead line        | delete both                               |      |
+
+## Finding 50 — rejected, the auditor was wrong
+
+`Execute(ctx context.Context, out any) error` is **fx's `controllers.Action` interface**
+(`fx.prodigy9.co@v0.8.6/httpserver/controllers/actions.go:12-14`), not a shape invented
+here. `recordOutcome` (`srv/builds/runner.go:109`) takes a `controllers.Action`, so `Finish`
+and `Fail` must keep the signature; `Create` and `Claim` match their siblings for the same
+contract. Changing them to `Run(ctx) error` breaks the interface.
+
+The unused `out` is the cost of implementing a framework interface, which the
+Dependencies section accepts. Left alone.
 
 ## Finding 1 — blocked on the build budget
 

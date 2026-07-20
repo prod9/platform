@@ -15,14 +15,18 @@ import (
 // next step.
 type Entry struct {
 	Name    string `json:"name"`
-	Status  string `json:"status"`
+	Status  Status `json:"status"`
 	Message string `json:"message,omitempty"`
 }
 
+// Status is the verdict of one check. The three values below are the whole domain — a
+// bare string cannot stand in for one.
+type Status string
+
 const (
-	StatusDone    = "done"
-	StatusPending = "pending"
-	StatusError   = "error"
+	StatusDone    Status = "done"
+	StatusPending Status = "pending"
+	StatusError   Status = "error"
 )
 
 // GetState returns the ordered install-state list. db may be nil (no database

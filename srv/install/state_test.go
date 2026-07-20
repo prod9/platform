@@ -30,10 +30,10 @@ func TestGetStateMigratedButNotInstalled(t *testing.T) {
 	require.Equal(t,
 		[]string{"db-reachable", "app-credentials", "app-installed", "migrations"},
 		names(entries))
-	require.Equal(t, StatusDone, statusOf(entries, "db-reachable"))
-	require.Equal(t, StatusError, statusOf(entries, "app-credentials"))
-	require.Equal(t, StatusPending, statusOf(entries, "app-installed"))
-	require.Equal(t, StatusDone, statusOf(entries, "migrations"))
+	require.Equal(t, StatusDone, statusOf(t, entries, "db-reachable"))
+	require.Equal(t, StatusError, statusOf(t, entries, "app-credentials"))
+	require.Equal(t, StatusPending, statusOf(t, entries, "app-installed"))
+	require.Equal(t, StatusDone, statusOf(t, entries, "migrations"))
 	require.False(t, Complete(entries))
 }
 
@@ -46,9 +46,9 @@ func TestGetStateFreshDBReportsPending(t *testing.T) {
 
 	entries := GetState(ctx, db, migrate.Merged(migrator.FromFS(Migrations)))
 
-	require.Equal(t, StatusDone, statusOf(entries, "db-reachable"))
-	require.Equal(t, StatusPending, statusOf(entries, "app-installed"))
-	require.Equal(t, StatusPending, statusOf(entries, "migrations"))
+	require.Equal(t, StatusDone, statusOf(t, entries, "db-reachable"))
+	require.Equal(t, StatusPending, statusOf(t, entries, "app-installed"))
+	require.Equal(t, StatusPending, statusOf(t, entries, "migrations"))
 }
 
 // GetState mirrors an absent database as errors rather than panicking on a nil handle.
@@ -56,9 +56,9 @@ func TestGetStateNilDB(t *testing.T) {
 	ctx := config.NewContext(context.Background(), fxtest.Configure())
 	entries := GetState(ctx, nil, migrate.Merged(migrator.FromFS(Migrations)))
 
-	require.Equal(t, StatusError, statusOf(entries, "db-reachable"))
-	require.Equal(t, StatusError, statusOf(entries, "app-installed"))
-	require.Equal(t, StatusError, statusOf(entries, "migrations"))
+	require.Equal(t, StatusError, statusOf(t, entries, "db-reachable"))
+	require.Equal(t, StatusError, statusOf(t, entries, "app-installed"))
+	require.Equal(t, StatusError, statusOf(t, entries, "migrations"))
 	require.False(t, Complete(entries))
 }
 
@@ -70,11 +70,14 @@ func names(entries []Entry) []string {
 	return out
 }
 
-func statusOf(entries []Entry, name string) string {
+// statusOf fails the test outright on an unknown name — a missing entry is a broken
+// expectation, not a fourth status.
+func statusOf(t *testing.T, entries []Entry, name string) Status {
 	for _, entry := range entries {
 		if entry.Name == name {
 			return entry.Status
 		}
 	}
+	require.FailNow(t, "no install-state entry named "+name)
 	return ""
 }
