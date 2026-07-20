@@ -5,6 +5,7 @@
 package cuemod
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -21,6 +22,16 @@ var ModuleFile = filepath.Join("cue.mod", "module.cue")
 func Present(dir string) bool {
 	_, err := os.Stat(filepath.Join(dir, ModuleFile))
 	return err == nil
+}
+
+// ValidatePath checks a proposed CUE module path: its first segment must be a domain
+// (contain a dot), which CUE requires of every module.
+func ValidatePath(path string) error {
+	first, _, _ := strings.Cut(path, "/")
+	if !strings.Contains(first, ".") {
+		return fmt.Errorf("%q is not a valid CUE module path: its first segment must be a domain (contain a dot)", path)
+	}
+	return nil
 }
 
 // Path reads the import path of an existing CUE module (cue.mod/module.cue), stripping any

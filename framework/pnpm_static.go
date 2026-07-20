@@ -11,12 +11,13 @@ import (
 
 type PNPMStatic struct{ noScaffoldInputs }
 
+var _ Framework = PNPMStatic{}
+
 func (PNPMStatic) Name() string   { return "pnpm/static" }
 func (PNPMStatic) Layout() Layout { return LayoutBasic }
 
 func (PNPMStatic) Discover(wd string) bool {
-	detected, _ := detectFile(wd, "astro.config.mjs")
-	return detected
+	return hasFile(wd, "astro.config.mjs")
 }
 
 func (fw PNPMStatic) Scaffold(ctx context.Context, wd string, _ scaffold.Env, _ map[string]string) (scaffold.Spec, error) {

@@ -56,6 +56,12 @@ type Data struct {
 	MaintainerEmail string
 	ModulePath      string
 	ImageBase       string // OCI artifact base for the flux self-sync (oci://<ImageBase>)
+
+	// cue.mod holes: the language version of the linked CUE evaluator, and the infra-defs
+	// dependency a freshly-init'd repo pins.
+	CueLanguageVersion string
+	DefsModule         string
+	DefsVersion        string
 }
 
 // Resolve resolves a framework's files for installation: ".tmpl" files pass through

@@ -13,12 +13,13 @@ import (
 
 type GoWorkspace struct{ noScaffoldInputs }
 
+var _ Framework = GoWorkspace{}
+
 func (GoWorkspace) Name() string   { return "go/workspace" }
 func (GoWorkspace) Layout() Layout { return LayoutWorkspace }
 
 func (GoWorkspace) Discover(wd string) bool {
-	detected, _ := detectFile(wd, "go.work")
-	return detected
+	return hasFile(wd, "go.work")
 }
 
 func (fw GoWorkspace) Scaffold(ctx context.Context, wd string, _ scaffold.Env, _ map[string]string) (scaffold.Spec, error) {

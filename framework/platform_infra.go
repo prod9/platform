@@ -44,12 +44,16 @@ func (PlatformInfra) Discover(wd string) bool {
 // the "rolling" strategy seed. There is no app-vs-infra branch anywhere — PlatformInfra simply
 // contributes more, and owns resolving its own template holes.
 func (i PlatformInfra) Scaffold(ctx context.Context, wd string, env scaffold.Env, inputs map[string]string) (scaffold.Spec, error) {
-	files, err := infraFiles()
+	files, err := skel.Files()
 	if err != nil {
 		return scaffold.Spec{}, err
 	}
 	if !cuemod.Present(wd) {
-		files = append(files, cueModFile())
+		files = append(files, scaffold.File{
+			Path:    cuemod.ModuleFile + ".tmpl",
+			Content: skel.CueMod,
+			Mode:    0644,
+		})
 	}
 
 	data, err := i.scaffoldData(wd, env, inputs)
@@ -82,6 +86,29 @@ func (PlatformInfra) RequiredScaffoldInputs(wd string) []string {
 	return []string{cueModPrefixInput}
 }
 
+func (i PlatformInfra) Build(ctx context.Context, client *dagger.Client, unit *BuildUnit) (container *dagger.Container, err error) {
+	defer errutil.Wrap("platform/infra", &err)
+
+	tree, err := gitops.Render(unit.WorkDir, gitops.RenderOptions{Vars: unit.Vars})
+	if err != nil {
+		return nil, err
+	}
+
+	// client.Container() with no From is an empty (scratch) image. The whole rendered
+	// tree is staged as one Directory and mounted in a single WithDirectory, so the
+	// pushed manifest carries exactly one tar+gzip layer holding every
+	// <component>/<filename> — per-file WithNewFile calls would emit one layer each,
+	// and Flux extracts only the first.
+	dir := client.Directory()
+	for _, path := range tree.Paths() {
+		dir = dir.WithNewFile(path, string(tree[path]))
+	}
+	c := client.Container(dagger.ContainerOpts{Platform: dagger.Platform(unit.Arch)}).
+		WithLabel("org.opencontainers.image.source", unit.RepositoryURL()).
+		WithDirectory("/", dir)
+	return c.Sync(ctx)
+}
+
 // scaffoldData builds the baseline's template data: the CUE module path (from an existing
 // cue.mod or the greenfield CUE_MOD_PREFIX input), the linked dagger SDK version, the
 // maintainer email (the cluster-issuer's ACME contact), and the flux self-sync image base
@@ -98,10 +125,13 @@ func (i PlatformInfra) scaffoldData(wd string, env scaffold.Env, inputs map[stri
 	}
 
 	return scaffold.Data{
-		DaggerVersion:   env.DaggerVersion,
-		MaintainerEmail: env.MaintainerEmail,
-		ModulePath:      modulePath,
-		ImageBase:       conf.InferImageBase(env.Repository),
+		DaggerVersion:      env.DaggerVersion,
+		MaintainerEmail:    env.MaintainerEmail,
+		ModulePath:         modulePath,
+		ImageBase:          conf.InferImageBase(env.Repository),
+		CueLanguageVersion: cue.LanguageVersion(),
+		DefsModule:         infraDefsModule,
+		DefsVersion:        infraDefsVersion,
 	}, nil
 }
 
@@ -114,9 +144,8 @@ func (PlatformInfra) modulePath(wd string, inputs map[string]string) (string, er
 	}
 
 	prefix := inputs[cueModPrefixInput]
-	first, _, _ := strings.Cut(prefix, "/")
-	if !strings.Contains(first, ".") {
-		return "", fmt.Errorf("%s %q is not a valid CUE module path: its first segment must be a domain (contain a dot)", cueModPrefixInput, prefix)
+	if err := cuemod.ValidatePath(prefix); err != nil {
+		return "", fmt.Errorf("%s %w", cueModPrefixInput, err)
 	}
 	return prefix, nil
 }
@@ -147,87 +176,4 @@ var infraVars = map[string]any{
 	// host and the Flux webhook-receiver route. prod9 self-host defaults; operators edit.
 	"PLATFORM_HOSTNAME": "platform.prodigy9.co",
 	"FLUX_HOSTNAME":     "flux.prodigy9.co",
-}
-
-// infraComponents is the fixed working set every fresh infra repo installs — the
-// components a functioning cluster needs out of the box plus the shared defaults/ package
-// every app imports for #Basics (namespace + registry pull secret). The gateway-api
-// channel is STANDARD-only: it serves everything the baseline renders (ListenerSet
-// included), and the experimental channel's extras (TCPRoute/UDPRoute) have no consumer —
-// a repo needing them edits its committed component, like any provider-specific wiring.
-// apps-platform.cue.tmpl carries the build engine + (for prod9's self-host) the vanity
-// server and its NetworkPolicies.
-var infraComponents = []string{
-	"apps-cert-manager.platform",
-	"apps-cluster-issuer.cue.tmpl",
-	"apps-flux.platform",
-	"apps-flux-sync.cue.tmpl",
-	"apps-gateway.cue.tmpl",
-	"apps-platform.cue.tmpl",
-	"apps-nginx-gateway.platform",
-	"defaults-basics.cue",
-	"defaults-webapp.cue",
-}
-
-// cueModFile is the greenfield cue.mod/module.cue contribution: the operator's module path
-// (a {{.ModulePath}} hole the driver resolves), the linked CUE evaluator's language version
-// (so render never demands a newer language than it links), and the pinned infra-defs
-// dependency the baseline apps import.
-func cueModFile() scaffold.File {
-	content := fmt.Sprintf(
-		"module: \"{{.ModulePath}}\"\nlanguage: {\n\tversion: %q\n}\ndeps: {\n\t%q: {\n\t\tv: %q\n\t}\n}\n",
-		cue.LanguageVersion(), infraDefsModule, infraDefsVersion)
-	return scaffold.File{Path: cuemod.ModuleFile + ".tmpl", Content: []byte(content), Mode: 0644}
-}
-
-// infraFiles returns the baseline as routed, unresolved scaffold files: each component
-// pulled from the embed and routed to the destination its name encodes. `.tmpl` holes stay
-// unresolved — the driver's Resolve fills them.
-func infraFiles() ([]scaffold.File, error) {
-	out := make([]scaffold.File, 0, len(infraComponents))
-	for _, name := range infraComponents {
-		content, err := skel.Read(name)
-		if err != nil {
-			return nil, fmt.Errorf("baseline component %q is not embedded: %w", name, err)
-		}
-		out = append(out, scaffold.File{Path: infraDest(name), Content: content, Mode: 0644})
-	}
-	return out, nil
-}
-
-// infraDest maps a baseline filename to its repo-relative destination: `apps-*` →
-// `apps/`, `defaults-*` → `defaults/`, anything else → the repo root. The `.tmpl` suffix
-// survives — it marks the file for the resolve mechanism, which strips it.
-func infraDest(name string) string {
-	switch {
-	case strings.HasPrefix(name, "apps-"):
-		return filepath.Join("apps", strings.TrimPrefix(name, "apps-"))
-	case strings.HasPrefix(name, "defaults-"):
-		return filepath.Join("defaults", strings.TrimPrefix(name, "defaults-"))
-	default:
-		return name
-	}
-}
-
-func (i PlatformInfra) Build(ctx context.Context, client *dagger.Client, unit *BuildUnit) (container *dagger.Container, err error) {
-	defer errutil.Wrap("platform/infra", &err)
-
-	tree, err := gitops.Render(unit.WorkDir, gitops.RenderOptions{Vars: unit.Vars})
-	if err != nil {
-		return nil, err
-	}
-
-	// client.Container() with no From is an empty (scratch) image. The whole rendered
-	// tree is staged as one Directory and mounted in a single WithDirectory, so the
-	// pushed manifest carries exactly one tar+gzip layer holding every
-	// <component>/<filename> — per-file WithNewFile calls would emit one layer each,
-	// and Flux extracts only the first.
-	dir := client.Directory()
-	for _, path := range tree.Paths() {
-		dir = dir.WithNewFile(path, string(tree[path]))
-	}
-	c := client.Container(dagger.ContainerOpts{Platform: dagger.Platform(unit.Arch)}).
-		WithLabel("org.opencontainers.image.source", unit.RepositoryURL()).
-		WithDirectory("/", dir)
-	return c.Sync(ctx)
 }

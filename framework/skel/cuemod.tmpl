@@ -1,0 +1,9 @@
+module: "{{ .ModulePath }}"
+language: {
+	version: "{{ .CueLanguageVersion }}"
+}
+deps: {
+	"{{ .DefsModule }}": {
+		v: "{{ .DefsVersion }}"
+	}
+}

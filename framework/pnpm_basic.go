@@ -11,12 +11,13 @@ import (
 
 type PNPMBasic struct{ noScaffoldInputs }
 
+var _ Framework = PNPMBasic{}
+
 func (PNPMBasic) Name() string   { return "pnpm/basic" }
 func (PNPMBasic) Layout() Layout { return LayoutBasic }
 
 func (PNPMBasic) Discover(wd string) bool {
-	detected, _ := detectFile(wd, "pnpm-lock.yaml")
-	return detected
+	return hasFile(wd, "pnpm-lock.yaml")
 }
 
 func (fw PNPMBasic) Scaffold(ctx context.Context, wd string, _ scaffold.Env, _ map[string]string) (scaffold.Spec, error) {

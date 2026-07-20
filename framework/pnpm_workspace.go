@@ -12,15 +12,15 @@ import (
 
 type PNPMWorkspace struct{ noScaffoldInputs }
 
+var _ Framework = PNPMWorkspace{}
+
 func (PNPMWorkspace) Name() string   { return "pnpm/workspace" }
 func (PNPMWorkspace) Layout() Layout { return LayoutWorkspace }
 
 func (PNPMWorkspace) Discover(wd string) bool {
-	detected, _ := detectFile(wd, "pnpm-workspace.yaml")
-	if !detected {
-		detected, _ = detectFile(wd, "pnpm-workspaces.yaml")
-	}
-	return detected
+	singular := hasFile(wd, "pnpm-workspace.yaml")
+	plural := hasFile(wd, "pnpm-workspaces.yaml")
+	return singular || plural
 }
 
 func (fw PNPMWorkspace) Scaffold(ctx context.Context, wd string, _ scaffold.Env, _ map[string]string) (scaffold.Spec, error) {

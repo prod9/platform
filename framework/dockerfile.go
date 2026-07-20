@@ -18,8 +18,7 @@ func (Dockerfile) Name() string   { return "dockerfile" }
 func (Dockerfile) Layout() Layout { return LayoutBasic }
 
 func (Dockerfile) Discover(wd string) bool {
-	detected, _ := detectFile(wd, "Dockerfile")
-	return detected
+	return hasFile(wd, "Dockerfile")
 }
 
 func (fw Dockerfile) Scaffold(ctx context.Context, wd string, _ scaffold.Env, _ map[string]string) (scaffold.Spec, error) {

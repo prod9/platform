@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"dagger.io/dagger"
@@ -92,4 +94,12 @@ func Discover(wd string) (Framework, error) {
 		}
 	}
 	return nil, ErrNoFramework
+}
+
+// hasFile is the discovery probe: reports whether wd carries the framework's marker
+// file (go.mod, pnpm-lock.yaml, Dockerfile, …). A stat that fails for any reason means
+// the marker is not usable, which is indistinguishable from absent to a Discover.
+func hasFile(wd, filename string) bool {
+	_, err := os.Stat(filepath.Join(wd, filename))
+	return err == nil
 }

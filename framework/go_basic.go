@@ -13,12 +13,13 @@ import (
 
 type GoBasic struct{ noScaffoldInputs }
 
+var _ Framework = GoBasic{}
+
 func (GoBasic) Name() string   { return "go/basic" }
 func (GoBasic) Layout() Layout { return LayoutBasic }
 
 func (GoBasic) Discover(wd string) bool {
-	detected, _ := detectFile(wd, "go.mod")
-	return detected
+	return hasFile(wd, "go.mod")
 }
 
 func (fw GoBasic) Scaffold(ctx context.Context, wd string, _ scaffold.Env, _ map[string]string) (scaffold.Spec, error) {
