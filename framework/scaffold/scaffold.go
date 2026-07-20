@@ -44,25 +44,12 @@ type Env struct {
 	DaggerVersion   string
 }
 
-// Data fills the placeholders in ".tmpl" files at init time: DaggerVersion comes from the
-// linked SDK; MaintainerEmail from init's universal prompt (the cluster-issuer ACME
-// contact); ModulePath is the CUE module a .tmpl hole resolves to, read from an existing
-// cue.mod or from the CUE_MOD_PREFIX scaffold input; ImageBase is derived from the
-// repository. A framework builds it from operator inputs and passes it to Resolve inside its
-// own Scaffold.
-type Data struct {
-	DaggerVersion   string
-	PlatformVersion string // release the scaffolded launcher pins; the driver fills it
-	MaintainerEmail string
-	ModulePath      string
-	ImageBase       string // OCI artifact base for the flux self-sync (oci://<ImageBase>)
-
-	// cue.mod holes: the language version of the linked CUE evaluator, and the infra-defs
-	// dependency a freshly-init'd repo pins.
-	CueLanguageVersion string
-	DefsModule         string
-	DefsVersion        string
-}
+// Data fills the placeholders in ".tmpl" files at init time, keyed by the hole name the
+// template writes ({{ .ModulePath }} reads Data["ModulePath"]). It is a map, not a struct,
+// because the holes belong to whoever authored the .tmpl: a framework knows its own
+// templates and fills its own keys, and this package must not grow a field per framework.
+// A hole with no entry is a hard error at Resolve, so a typo cannot silently render empty.
+type Data map[string]any
 
 // Resolve resolves a framework's files for installation: ".tmpl" files pass through
 // text/template with data (missing keys are hard errors) and lose the suffix;

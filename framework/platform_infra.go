@@ -125,13 +125,13 @@ func (i PlatformInfra) scaffoldData(wd string, env scaffold.Env, inputs map[stri
 	}
 
 	return scaffold.Data{
-		DaggerVersion:      env.DaggerVersion,
-		MaintainerEmail:    env.MaintainerEmail,
-		ModulePath:         modulePath,
-		ImageBase:          conf.InferImageBase(env.Repository),
-		CueLanguageVersion: cue.LanguageVersion(),
-		DefsModule:         infraDefsModule,
-		DefsVersion:        infraDefsVersion,
+		"DaggerVersion":      env.DaggerVersion,
+		"MaintainerEmail":    env.MaintainerEmail,
+		"ModulePath":         modulePath,
+		"ImageBase":          conf.InferImageBase(env.Repository),
+		"CueLanguageVersion": cue.LanguageVersion(),
+		"DefsModule":         infraDefsModule,
+		"DefsVersion":        infraDefsVersion,
 	}, nil
 }
 

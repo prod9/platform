@@ -13,7 +13,7 @@ func TestResolveResolvesTemplates(t *testing.T) {
 			`#image: "registry.dagger.io/engine:{{ .DaggerVersion }}"`),
 		Mode: 0644,
 	}}
-	data := Data{DaggerVersion: "v0.21.7", ModulePath: "prodigy9.co"}
+	data := Data{"DaggerVersion": "v0.21.7", "ModulePath": "prodigy9.co"}
 
 	out, err := Resolve(files, data)
 	r.NoError(t, err)

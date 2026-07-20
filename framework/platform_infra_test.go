@@ -122,9 +122,9 @@ func TestInfraScaffoldData(t *testing.T) {
 		scaffold.Env{Repository: "github.com/prod9/infra", MaintainerEmail: "a@b.co", DaggerVersion: "v0.21.7"},
 		map[string]string{"CUE_MOD_PREFIX": "prodigy9.co"})
 	r.NoError(t, err)
-	r.Equal(t, "prodigy9.co", data.ModulePath)
-	r.Equal(t, "v0.21.7", data.DaggerVersion)
-	r.Equal(t, "a@b.co", data.MaintainerEmail)
+	r.Equal(t, "prodigy9.co", data["ModulePath"])
+	r.Equal(t, "v0.21.7", data["DaggerVersion"])
+	r.Equal(t, "a@b.co", data["MaintainerEmail"])
 
 	// PlatformInfra needs the linked SDK version for the engine image ref — an empty one is a hard
 	// error here, not a tagless ref downstream.
@@ -143,7 +143,7 @@ func TestInfraScaffoldData(t *testing.T) {
 	data, err = PlatformInfra{}.scaffoldData(existing, scaffold.Env{Repository: "r", DaggerVersion: "v"},
 		map[string]string{"CUE_MOD_PREFIX": "ignored.co"})
 	r.NoError(t, err)
-	r.Equal(t, "kept.example/infra", data.ModulePath)
+	r.Equal(t, "kept.example/infra", data["ModulePath"])
 }
 
 func writeModuleFile(t *testing.T, dir, module string) {

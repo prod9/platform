@@ -100,7 +100,7 @@ func resolveLauncher() (fwscaffold.File, error) {
 
 	resolved, err := fwscaffold.Resolve(
 		[]fwscaffold.File{{Path: "platform.tmpl", Content: skel.Launcher, Mode: 0744}},
-		fwscaffold.Data{PlatformVersion: version})
+		fwscaffold.Data{"PlatformVersion": version})
 	if err != nil {
 		return fwscaffold.File{}, err
 	}
