@@ -39,6 +39,13 @@ decide**, not a failed assertion.
   reviewed, **in that same slice** — same tier as `go test` passing, never a session-end
   batch. The docker/runtime cost is mechanism, not a deferral.
 
+🚨 **Cutting a release moves smoke output — re-record in the release commit.** The
+scaffolded launcher embeds `PLATFORM_VERSION`, and `init` testbeds snapshot that launcher
+into the golden, so every `platform release` drifts `tests.lock.yml` by exactly that pin.
+Tagging without re-recording leaves smoke red on main for whoever runs it next (v0.9.16 did
+this). The version pin is the *only* line a release may move — any other drift in the same
+diff is a real regression, not release noise.
+
 ## The 1m per-test timeout
 
 The per-test timeout in `tests.cue` is deliberately tight — it keeps builds honest. Never
