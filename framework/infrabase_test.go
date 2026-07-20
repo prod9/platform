@@ -61,7 +61,7 @@ func TestInfraScaffoldContributesBaseline(t *testing.T) {
 	r.Contains(t, issuer, `"john@apple.com"`, "issuer ACME contact must resolve from the maintainer email")
 
 	fluxSync := string(byPath[filepath.Join("apps", "flux-sync.cue")].Content)
-	r.Contains(t, fluxSync, "defaults.#Listeners", "flux-sync must own its hostname (distributed-hosts shape)")
+	r.Contains(t, fluxSync, "defaults.#ListenerSet", "flux-sync must own its hostname (distributed-hosts shape)")
 	r.Contains(t, fluxSync, "#listenerset_name: listeners.#name")
 
 	// The defaults package owns the gateway coordinates once: wrappers pre-wire the
@@ -69,7 +69,7 @@ func TestInfraScaffoldContributesBaseline(t *testing.T) {
 	webapp := string(byPath[filepath.Join("defaults", "webapp.cue")].Content)
 	r.Contains(t, webapp, "#gateway:")
 	r.Contains(t, webapp, "#WebApp: packs.#WebApp & parts.#UseCertManager")
-	r.Contains(t, webapp, "#Listeners: defs.#ListenerSet & parts.#UseCertManager")
+	r.Contains(t, webapp, "#ListenerSet: defs.#ListenerSet & parts.#UseCertManager")
 
 	platformApp := string(byPath[filepath.Join("apps", "platform.cue")].Content)
 	r.Contains(t, platformApp, "defaults.#WebApp")
