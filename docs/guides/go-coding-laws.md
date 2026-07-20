@@ -79,9 +79,17 @@ named so a later scan can recognize the same shape. Append; don't prune.
     followed and written down; `var _ Framework = X{}` is the assertion the compiler can
     actually make.
 
+## Verification
+
+18. **A skipped test is not a passing test.** The `srv` suites call
+    `srvtest.SkipWithoutPostgres`, so `go test ./...` prints `ok` for packages where not
+    one test ran. Before claiming a change to `srv/` is verified, run it with
+    `DATABASE_URL` set and confirm the tests you care about actually executed
+    (`-v`, look for PASS not SKIP). This cost a session's worth of false green.
+
 ## Conduct
 
-18. **Don't defend code by its provenance.** Every commit here is agent-authored; naming an
+19. **Don't defend code by its provenance.** Every commit here is agent-authored; naming an
     earlier one explains nothing and answers nothing.
-19. **Don't rationalize a design under review.** When the shape is called bad, re-derive it —
+20. **Don't rationalize a design under review.** When the shape is called bad, re-derive it —
     don't narrate why the current one was reasonable.
