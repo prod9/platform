@@ -22,7 +22,7 @@ bucket: violations. No borderline.
 
 | #  | Where                              | Violation                                                    | Fix                                             | Done |
 |----|------------------------------------|--------------------------------------------------------------|-------------------------------------------------|------|
-| 1  | `pnpm_shared.go:12`                | `NodeVersion`/`PNPMVersion` restate the built repo's own file | read from the repo; delete both                 |      |
+| 1  | `pnpm_shared.go:12`                | `NodeVersion`/`PNPMVersion` restate the built repo's own file | read from the repo; delete both                 | **BLOCKED** |
 | 2  | `conf/conf.go:67`                  | `Module.GoVersion` read by nothing; silently ignored          | delete the field                                |      |
 | 3  | `gowork/gowork.go:11`              | `ErrBadGoWork` never returned; parser has no failure mode     | return it, or delete                            |      |
 | 4  | `conf/conf.go:33,56,130-158`       | `Model.Platform`/`Module.Builder` deprecated shims            | delete fields + fold-in blocks                  |      |
@@ -152,6 +152,27 @@ bucket: violations. No borderline.
 | 109 | `gitops/dsl/resolve_test.go` | named for a file that does not exist                          | merge into `lex_test.go`                  |      |
 | 110 | `cmd/init` ×4                | "no app-vs-infra branch" narrated four times                  | keep once at most                         |      |
 | 111 | `cmd/exec.go:52`,`preview.go:104` | comment restating a switch; a TODO on a dead line        | delete both                               |      |
+
+## Finding 1 — blocked on the build budget
+
+Two shapes were tried and **both blew the 1m budget** in `testbeds/*/platform.toml`, on all
+three pnpm testbeds:
+
+1. Delete both consts, `corepack enable pnpm` only, let corepack resolve `packageManager`
+   when it first runs pnpm.
+2. Read `.node-version` + `packageManager` host-side and bake them into the layer with
+   `n install <ver>` + `corepack install -g pnpm@<ver>` — the shape the Go frameworks use
+   for `go.mod`.
+
+Reverted; the constants stand. What is **not** established is *why*. Three of the four runs
+recompiled the pnpm base layer, so only the last was a fair warm measurement — it was red,
+which rules out cache but does not name the slow step. Untested suspicion, recorded as
+suspicion: moving `WithWorkdir(SrcDir)` ahead of the toolchain re-keys the `withBuildPkgs`
+apk layer, so pnpm testbeds stop sharing it with the Go ones.
+
+Next attempt should measure the step first (`dagger` step timings on one testbed), not
+redesign on a guess. The timeout is not the variable — it is the budget the design has to
+fit.
 
 ## Already landed this session
 
