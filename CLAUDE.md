@@ -95,9 +95,8 @@ Live state (`.ace/save.md` + `.ace/save.ledger.md`, gitignored) and its discipli
 owned by the `ace`/`ace-save` skills — re-invoke `/ace` for the mechanics, don't restate
 them here. Repo-specific deltas only:
 
-- **`docs/scratch/LOG.md` survives** — the skills dropped LOG; this repo keeps it as the
-  committed, append-only journal (archaeology; never read on resume). `.ace/` is
-  machine-local, `docs/scratch/` travels with the repo.
+- **No session journal.** There is no `LOG.md`; don't recreate one. Git history is the
+  archaeology. `.ace/` is machine-local, `docs/scratch/` travels with the repo.
 - **Peer emissions** (ace-connect): a "settled/ruled" claim cites its ADR/spec path or is
   labeled `[proposal — not ruled]`.
 

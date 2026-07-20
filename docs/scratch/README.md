@@ -21,10 +21,9 @@ it there instead.
 ## Format
 
 One file per artifact: `YYYY-MM-DD-slug.md` (the date matters — scratch is about the moment
-it was written). No template; write whatever shape fits. Exception — `LOG.md`, the
-append-only session journal, is undated by design (a current surface, not a moment-in-time
-artifact). The live *state* trail (current truth + ruling ledger) is no longer here: it
-moved to gitignored `.ace/save.md` + `.ace/save.ledger.md` (see CLAUDE.md "Session trail").
+it was written). No template; write whatever shape fits. The live *state* trail (current
+truth + ruling ledger) is not here: it lives in gitignored `.ace/save.md` +
+`.ace/save.ledger.md` (see CLAUDE.md "Session trail"). There is no session journal.
 
 ## Lifecycle
 
@@ -41,7 +40,6 @@ Newest first. Scratch is disposable, so this list may lag — the directory is t
 
 **Live** — committed work in flight:
 
-- [LOG](LOG.md) — append-only session journal (archaeology; never read on resume)
 - [2026-07-17 — trail fix plan](2026-07-17-trail-fix-plan.md) — why the state trail split
   from the journal (schema, provenance, disciplines)
 - [2026-07-17 — srv API/architecture 1-by-1](2026-07-17-srv-1by1.md) — frozen context for
