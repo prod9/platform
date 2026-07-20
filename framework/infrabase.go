@@ -9,12 +9,6 @@ import (
 	"platform.prodigy9.co/framework/skel"
 )
 
-// The cluster baseline: the component files (`.platform` directives + `.cue` apps,
-// shipped via the skel collection) the Infra framework scaffolds into a fresh infra
-// repo, plus the default version pins they interpolate. There is no marker grammar, no
-// render-time gating, and no init-time picker — Infra.Scaffold contributes the fixed
-// components set unconditionally and `render` applies whatever was installed.
-
 // DefsModule is the infra-defs CUE dependency the baseline apps import; DefsVersion is the
 // version a freshly-init'd infra repo pins into its cue.mod. v0.4.3 adds the Flux defs
 // (#FluxOCIRepo/#FluxKustomization/#FluxReceiver) the flux-sync baseline composes; additive over
