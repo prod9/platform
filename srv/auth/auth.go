@@ -24,8 +24,8 @@ import (
 	"fx.prodigy9.co/httpserver/render"
 	"fx.prodigy9.co/secret"
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"platform.prodigy9.co/srv/github"
-	"platform.prodigy9.co/srv/pgerr"
 )
 
 const (
@@ -78,44 +78,41 @@ func (SessionCtr) Mount(cfg *config.Source, router chi.Router) error {
 // CurrentUser resolves the platform session cookie to its unexpired session's user;
 // anything short of that is ErrNoSession.
 func CurrentUser(req *http.Request) (*User, error) {
-	cookie, err := req.Cookie(sessionCookie)
-	if err != nil || cookie.Value == "" {
-		return nil, ErrNoSession
-	}
-
-	user := &User{}
-	err = data.Get(req.Context(), user, `
-		SELECT users.* FROM sessions
-		JOIN users ON users.id = sessions.user_id
-		WHERE sessions.token_hash = $1 AND sessions.expires_at > now()`,
-		hashSessionToken(cookie.Value))
-	if data.IsNoRows(err) {
-		return nil, ErrNoSession
-	} else if err != nil {
-		return nil, err
-	}
-	return user, nil
+	_, user, err := currentSession(req)
+	return user, err
 }
 
 // CurrentSession resolves the platform session cookie to its unexpired session's
 // user id and expiry; anything short of that is ErrNoSession.
 func CurrentSession(req *http.Request) (*Session, error) {
+	session, _, err := currentSession(req)
+	return session, err
+}
+
+// currentSession is the one live-session lookup both public forms project from: the
+// join already answers each, so neither needs its own query.
+func currentSession(req *http.Request) (*Session, *User, error) {
 	cookie, err := req.Cookie(sessionCookie)
 	if err != nil || cookie.Value == "" {
-		return nil, ErrNoSession
+		return nil, nil, ErrNoSession
 	}
 
-	session := &Session{}
-	err = data.Get(req.Context(), session, `
-		SELECT user_id, expires_at FROM sessions
-		WHERE token_hash = $1 AND expires_at > now()`,
+	row := struct {
+		Session
+		User
+	}{}
+	err = data.Get(req.Context(), &row, `
+		SELECT sessions.user_id, sessions.expires_at, users.id, users.name, users.created_at
+		FROM sessions
+		JOIN users ON users.id = sessions.user_id
+		WHERE sessions.token_hash = $1 AND sessions.expires_at > now()`,
 		hashSessionToken(cookie.Value))
 	if data.IsNoRows(err) {
-		return nil, ErrNoSession
+		return nil, nil, ErrNoSession
 	} else if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return session, nil
+	return &row.Session, &row.User, nil
 }
 
 // RequireUser gates a handler on a live session: it resolves the current user or
@@ -390,10 +387,11 @@ type UpsertGitHubUser struct {
 
 func (u *UpsertGitHubUser) Execute(ctx context.Context, out any) error {
 	err := u.upsertOnce(ctx, out)
-	if pgerr.IsUniqueViolation(err) {
-		// two concurrent first logins raced on the identity insert; the loser's
-		// transaction rolled back, and the winner's row is committed now, so a second
-		// pass resolves to it.
+	// 23505 is unique_violation: two concurrent first logins raced on the identity
+	// insert; the loser's transaction rolled back, and the winner's row is committed
+	// now, so a second pass resolves to it.
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 		return u.upsertOnce(ctx, out)
 	}
 	return err

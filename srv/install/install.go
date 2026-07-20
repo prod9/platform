@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"fx.prodigy9.co/data"
-	"platform.prodigy9.co/srv/pgerr"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // ErrNotInstalled reports that the server is not bound to an org yet — either the
@@ -35,7 +35,10 @@ type Record struct {
 func Load(ctx context.Context) (*Record, error) {
 	record := &Record{}
 	err := data.Get(ctx, record, `SELECT * FROM installations WHERE id = 1`)
-	if data.IsNoRows(err) || pgerr.IsUndefinedTable(err) {
+
+	var pgErr *pgconn.PgError
+	undefinedTable := errors.As(err, &pgErr) && pgErr.Code == "42P01"
+	if data.IsNoRows(err) || undefinedTable {
 		return nil, ErrNotInstalled
 	} else if err != nil {
 		return nil, err
