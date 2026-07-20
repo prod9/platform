@@ -1,8 +1,8 @@
 # Engine
 
-Status: **implemented.** The `engine/` package — the Dagger execution layer that runs a
-`BuildAttempt`'s units and pushes their images. Sits at the tail of the pipeline
-([`architecture.md`](architecture.md)): `BuildAttempt ─▶ engine.Build ─▶ images`.
+Status: **design-of-record.** The `engine/` package — the Dagger execution layer that runs
+a unit's planned steps and pushes the resulting images. Sits at the tail of the pipeline
+([`architecture.md`](architecture.md)): `[]*BuildUnit ─▶ engine.Run ─▶ images`.
 
 ## What the Engine is
 
@@ -22,16 +22,18 @@ discover → pick → get.
 | Call                       | Role                                                              |
 | -------------------------- | ---------------------------------------------------------------- |
 | `New(cfg)`                 | build the handle from an fx config source; dials nothing yet     |
-| `NewContext(ctx, eng)`     | carry `eng` on a context so `Build`/`Publish` resolve it         |
+| `NewContext(ctx, eng)`     | carry `eng` on a context so runs resolve it                       |
 | `FromContext(ctx)`         | Must-style fetch; panics if absent (engine is a precondition)    |
 | `LookupFromContext(ctx)`   | comma-ok fetch                                                    |
 | `Client(ctx)`              | next endpoint round-robin → a live client (ad-hoc: `ls`/preview) |
 | `Clean(ctx)`               | prune every fleet engine's local cache (drives `platform clean`) |
 | `Close()`                  | tear down every dialed connection; call once at shutdown         |
 
-Commands open one engine, defer `Close`, and stash it on the context via `NewContext`;
-downstream `Build`/`Publish`/`BuildAndPublish` pull it back with `FromContext`. Mirrors
-fx/data's request-scoped `*sqlx.DB`.
+Commands open **one** engine, defer `Close`, and stash it on the context via `NewContext`;
+downstream runs pull it back with `FromContext`. Mirrors fx/data's request-scoped
+`*sqlx.DB`. One shared `*Engine` serves every concurrent run — it is concurrency-safe via
+the atomic round-robin cursor, and `NewRun` does no engine work at all (a client is
+grabbed at the first `Next`), so there is never a reason to open a second.
 
 ## Runner discovery
 
@@ -67,50 +69,92 @@ mid-build. The lock is held only around map reads/writes, never across a dial or
 concurrent dial races keep one winner and close the loser. Liveness during a run is the
 ping's job; `Close` only runs at shutdown.
 
-## Fan-out
+## `Run` — one unit, one step at a time
 
-`Build` and `Publish` fan out over the attempt's units via
-[the in-package `multiplexer`](../../engine/multiplexer.go) — a generic `[TIn, TOut]` worker
-that spawns one goroutine per input, collects results index-aligned under a mutex, and
-`WaitGroup`-joins. One unit → one goroutine.
+`engine.NewRun(eng, unit)` is a **single-unit** run. It asks the unit's framework for a
+`Plan`, then exposes a cursor:
 
-Each goroutine calls `Engine.Client(ctx)`, which round-robins the cursor over the
-currently-discovered hosts — so units spread across the fleet. `Build` wraps each unit in
-`context.WithTimeout(ctx, unit.Timeout)`, invokes `unit.Framework.Build`, then `Sync`s the
-container to force the work eagerly. A per-unit failure is captured on that unit's
-`BuildResult.Err`, never aborting its siblings.
+```go
+run := engine.NewRun(eng, unit)
+for run.Next(ctx) { }          // drives exactly one Step per call
+```
 
-`BuildResult` carries the `*dagger.Client` that built its container. The container is
-bound to the engine that produced it, so `Publish` — and any caller that keeps operating
-on the container (preview's tunnel, via `BuildResult.Client()`) — must reuse that same
-client.
+Each `Next` grabs a client (`Engine.Client(ctx)` — round-robin, so concurrent runs spread
+across the fleet), calls `Framework.Execute` for the current `Step` with the previous
+step's container, forces the work eagerly with `.Sync()`, and **times** the step across
+that boundary. `Next` returns false at the end of the plan or on failure; the error is
+reported on the event stream, not by aborting siblings. The whole run is wrapped in
+`context.WithTimeout(ctx, unit.Timeout)`.
 
-## Build vs Publish vs BuildAndPublish
+Clone (repo-prep) and Publish are **engine brackets** around this loop, not framework
+steps — cloning is not any stack's build knowledge, and pushing is the engine's registry
+concern.
 
-Three entrypoints, all reading the engine off the context:
+### One event stream
 
-- **`Build(ctx, attempt)`** — runs every unit, returns `[]BuildResult`. `ErrNoJobs` on an
-  empty attempt.
-- **`Publish(ctx, builds...)`** — pushes every successfully-built container, reusing each
-  build's own client so the registry secret is minted by the engine that owns the
-  container. Skips builds already carrying an `Err`. Returns `[]PublishResult` (adds
-  `ImageName` + `ImageHash`), logging each via `buildlog.Image`.
-- **`BuildAndPublish(ctx, cfg, args, tag)`** — the composed unit: `AttemptFrom(cfg, args,
-  PublishBuild)`, suffix each unit's `ImageName` with `:tag`, `Build`, then `Publish`,
-  returning the `[]PublishResult` (so a driver can record what shipped) plus any
-  per-result errors joined. Reuses the caller's engine rather than opening its own.
+A run reports everything on **one** channel. There is no second channel to synchronize
+against — no separate `Logs()`, no `Updates()`, no snapshot-plus-delta:
 
-### One publish engine, two drivers
+```go
+type Event struct {
+    At   time.Time
+    Unit *BuildUnit
+    Step Step
+    Kind EventKind   // StepStarted | StepDone | Log | Failed
+    Line string      // set on Kind == Log
+    Err  error       // set on Kind == Failed
+}
 
-`BuildAndPublish` is the reusable build+tag+push unit — deliberately in `engine`, not
-trapped in a `cmd/` file — so two front-ends embed the *same* logic:
+func (r *Run) Events() <-chan Event
+```
 
-- **local CLI `publish`** — [`cmd/publish.go`](../../cmd/publish.go) resolves the
-  release name, opens an engine, and calls `BuildAndPublish`. You stand in for the CI
-  server.
-- **tag-watch platform server** — [`srv/builds/runner.go`](../../srv/builds/runner.go)'s claim loop
-  invokes the same unit on each queued tag build and records the returned
-  `[]PublishResult`. The trigger lives only in the server; the CLI never watches.
+Everything else is a **fold** of this stream: a step's elapsed time is
+`StepDone.At − StepStarted.At`; a run's current state is the reduction of its events so
+far. `StepResult`, `Update`, and `Result` types are collapsed into `Event` + fold, and
+`Snapshot`/`Done` are dropped outright — execution moves to a worker that writes events to
+the database and the webui reads them back, so there is no late-joining live observer to
+catch up.
+
+**Log capture rides `Container.Stdout`/`Stderr`, never `WithLogOutput`.** Per-unit
+retrieval is incremental and per-step: each step's output is read as that step finishes,
+with no re-execution (Dagger caches the walk), landing exactly on the `.Sync()` boundary
+`Next` already has — so `Kind == Log` events flush per step on the one stream. It demuxes
+cleanly across units sharing a pooled client, so the client pool is untouched by log
+capture. `WithLogOutput` is the Dagger CLI *subprocess's* stderr pipe — rendered TUI text,
+never demuxable — and is not a capture path.
+
+**`buildlog` is not build-progress.** `internal/buildlog` is platform's own narration of
+what *platform* is doing; the `Event` stream is what the *build* is doing. They coincide
+only on a machine-local CLI run, and must not be merged.
+
+### The built container is hidden
+
+The `*dagger.Container` a run produces is **engine-internal**. It is bound to the client
+that built it, and it is carried so that steps chain and `Publish` can push it — but
+consumers read the event stream, not the container. The lone exception is `preview`, whose
+post-build tunnel genuinely needs the container handle; it gets it by an explicit method.
+That is the one non-event thing a run exposes.
+
+## Fan-out lives at the cmd layer
+
+Multi-unit fan-out is **not** an engine concern. `engine/multiplex` owns it:
+`multiplex.NewRun(eng, units...)` wraps more than one unit, drives a `Run` per unit
+against the one shared `*Engine`, and merges their per-unit events into a single `Event`
+stream (each `Event` carries its `Unit`, so the merge is unambiguous). The generic
+`multiplexer` worker lives here, unexported — it moved out of `engine` proper.
+
+`cmd` instantiates a multiplex run, drives it, and assembles the operator-facing output
+from the merged stream. A per-unit failure surfaces as that unit's `Failed` event and
+never aborts its siblings.
+
+## Publish
+
+`Publish` pushes a successfully-built container, reusing the client that built it so the
+registry secret is minted by the engine that owns the container, and logs the image via
+`buildlog.Image`. `publish` composes the ordinary path — build the units at
+`PublishTarget`, suffix each `ImageName` with the release tag, run, then push — and the
+`[]BuildAttempt` records of what shipped are assembled by `srv`
+([platform-server.md](platform-server.md)), not by the engine.
 
 `release` (cut a tag) and `publish` (build + push) are orthogonal — neither implies the
 other, and there is no `deploy` verb. See
@@ -134,16 +178,16 @@ docker login to ghcr. The env creds are for a server driver with no local docker
 
 ## Arch targets
 
-The unit's `Arch` is resolved at interpret time from the attempt's `Purpose`
+The unit's `Arch` is resolved at interpret time from the `Target` the command declared
 ([`framework/unit.go`](../../framework/unit.go)) — the engine reads the field, never a
 call argument:
 
-| Purpose        | Arch source    | Default             |
-| -------------- | -------------- | ------------------- |
-| `LocalBuild`   | `local_arch`   | `auto` = host arch  |
-| `PublishBuild` | `publish_arch` | `amd64`             |
+| Target          | Arch source    | Default             |
+| --------------- | -------------- | ------------------- |
+| `LocalTarget`   | `local_arch`   | `auto` = host arch  |
+| `PublishTarget` | `publish_arch` | `amd64`             |
 
-`build`/`preview`/`export`/`ls` run `LocalBuild` for fast native iteration; `publish` runs
-`PublishBuild` so an arm laptop never ships an unrunnable image. Bare archs become
+`build`/`preview`/`export`/`ls` run `LocalTarget` for fast native iteration; `publish`
+runs `PublishTarget` so an arm laptop never ships an unrunnable image. Bare archs become
 `linux/<arch>`; `auto` tracks `runtime.GOARCH`. The infra `FROM scratch` manifest image
 carries no executable, so arch is irrelevant to it.

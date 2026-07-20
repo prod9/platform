@@ -1,7 +1,8 @@
 # Frameworks
 
 Status: **design-of-record.** A `Framework` is the **sole owner of a project type** — it
-recognizes itself (`Discover`), scaffolds itself (`Scaffold`), and builds itself (`Build`).
+recognizes itself (`Discover`), scaffolds itself (`Scaffold`), and knows how it is built
+(`Plan` + `Execute`).
 This spec owns the per-stack strategies, stack discovery, and the shared Wolfi base; it
 sits at the `interpret`/`strategies` stages of the pipeline. The
 [architecture spec](architecture.md) frames the pipeline and the two data models,
@@ -12,7 +13,7 @@ mechanism and `cmd/init` orchestration — read [architecture.md](architecture.m
 
 A framework is a stateless value (an empty struct) implementing `framework.Framework`. It
 carries per-stack knowledge and nothing else — no config, no engine handle, no build
-state. Six methods:
+state. Seven methods:
 
 | Method                                            | Returns   | Role                                                      |
 | ------------------------------------------------- | --------- | --------------------------------------------------------- |
@@ -21,13 +22,41 @@ state. Six methods:
 | `Discover(wd string) bool`                        | detect    | True if this stack owns `wd` (scaffold-time only)         |
 | `RequiredScaffoldInputs(wd) []string`             | inputs    | Operator inputs to prompt at init, by name (usually nil)  |
 | `Scaffold(ctx, wd, env, inputs) Spec`             | seed      | The framework's full, **resolved** contribution (below)   |
-| `Build(ctx, client, *BuildUnit)`                  | container | Build the module → a synced `*dagger.Container`           |
+| `Plan(*BuildUnit) []Step`                         | steps     | The ordered steps this unit's build is made of            |
+| `Execute(ctx, client, *BuildUnit, Step, in) (out, error)` | container | Run **one** step: container in → container out    |
 
-`Build` reads a fully-resolved `BuildUnit` (workdir, arch, env, command, asset dirs,
-image name, vars) and returns a synced container. It is handed the raw `*dagger.Client`,
-not the engine — per architecture's consumer-defined-interface rule, the strategy needs
-only a client. `Discover` and `Scaffold` are scaffold-time: the build path reads
-`[modules]` (which pins `Name`), it never re-discovers.
+`Discover` and `Scaffold` are scaffold-time: the build path reads `[modules]` (which pins
+`Name`), it never re-discovers.
+
+`Plan` and `Execute` are handed the raw `*dagger.Client` (on `Execute`) and a
+fully-resolved `BuildUnit` (workdir, arch, env, command, asset dirs, image name, vars) —
+never the engine. Per architecture's consumer-defined-interface rule the strategy needs
+only a client, which is what keeps `framework` from importing `engine`.
+
+## Steps — the framework is dumb, one step at a time
+
+A framework does **not** own the build loop. It answers two questions: *what steps does
+this unit take* and *how do I run one of them*. The engine drives.
+
+```go
+type Step string   // opaque label; Stringer
+```
+
+`Step` is an opaque label, nothing more — no payload, no closure, no `map[Step]opFn`. A
+framework's `Plan` returns its ordered steps; `Execute` switches on the `Step` it is
+given, applies that stage to the incoming container, and returns the outgoing one. The
+first step receives a nil container (it establishes the base); each subsequent step
+receives its predecessor's output. Nothing is stored between calls — the framework holds
+no build state, so a plan can be recomputed at any time and the engine always drives the
+latest one.
+
+🚨 **Step granularity IS log granularity.** The engine times every step and flushes that
+step's captured output at its boundary, so a long step is a long silence with no remedy
+short of cutting it into smaller steps. "Every time-taking step is visible and timed" is
+therefore a **constraint on how `Plan` is authored**, not a UX preference: exec-heavy work
+(dependency fetch, test, compile, image assembly) each earns its own `Step`. Steps with no
+exec at all — the `Infra` framework's pure `WithDirectory` tree write — are still timed,
+they are simply silent.
 
 `Scaffold` is **rich, per-framework** — not an empty seam. It returns the framework's full
 contribution to a fresh repo (`scaffold.Spec`): its `platform.toml` module, the default
@@ -135,9 +164,10 @@ on `PATH`), `RunDir` (`/platform/run`, runtime workdir). Package sets are applie
 
 ## Test-in-build is a hard gate
 
-The Go frameworks run the module's tests **inside the image build**, before the compile
-step: `GoBasic` execs `go test -v ./...`, `GoWorkspace` execs `go test -v` across every
-workspace module. Because Dagger fails the build on a non-zero exec, **green tests are a
+The Go frameworks run the module's tests **inside the image build**, as their own `Step`
+ahead of the compile step: `GoBasic` execs `go test -v ./...`, `GoWorkspace` execs
+`go test -v` across every workspace module. Because Dagger fails the build on a non-zero
+exec, that step fails the run — **green tests are a
 baked-in, non-configurable precondition of a Go image** — a red suite is a failed build,
 and there is no skip-tests opt-out. Full rationale:
 [test-in-build-is-a-hard-gate](../decisions/2026-07-05-test-in-build-is-a-hard-gate.md).
@@ -156,28 +186,35 @@ and there is no skip-tests opt-out. Full rationale:
 
   🚨 **This provisioning is deliberate — never "simplify" it to distro packages.** Never
   `apk add nodejs`/`corepack`. Node, corepack, pnpm, and the distro are four uncoordinated
-  maintainer groups; sourcing Node from the distro adds a party whose repackaging borks the
-  seams downstream (linux-wifi-driver style). Stay closest to the least-magic, most-reliable
-  upstream. pnpm over npm because npm is slow; corepack because it is Node-sanctioned and
-  narrow-jobbed, not a version-juggler like nvm. A cache or build failure in this step is
-  **never** a reason to switch to apk — shed the cache with `platform clean` (first-line
-  diagnostics for any "worked on a fresh checkout but not here" failure) and fix the real
-  cause.
+  maintainer groups; sourcing Node from the distro adds a party whose repackaging borks
+  the seams downstream (linux-wifi-driver style). Stay closest to the least-magic,
+  most-reliable upstream. pnpm over npm because npm is slow; corepack because it is
+  Node-sanctioned and narrow-jobbed, not a version-juggler like nvm. A cache or build
+  failure in this step is **never** a reason to switch to apk — shed the cache with
+  `platform clean` (first-line diagnostics for any "worked on a fresh checkout but not
+  here" failure) and fix the real cause.
 - **Dockerfile** — `host.DockerBuild` on the user's `Dockerfile`; env becomes build args.
   Discouraged: bypasses Wolfi, the apk cache, and package conventions; warns at build
   time.
-- **Infra** — `Build` calls `gitops.Render` in-process (CUE + `.platform` → manifest
-  tree), then writes each file into a `client.Container()` with no `From` (scratch). The
-  published layer is a tar+gzip of exactly those files, which Flux's `OCIRepository`
-  `layerSelector` extracts; kustomize-controller applies the YAML. Infra delivery is the
-  ordinary `publish` verb — see
+- **Infra** — its render step calls `gitops.Render` in-process (CUE + `.platform` →
+  manifest tree), then writes the whole tree into a `client.Container()` with no `From`
+  (scratch) in **one** `WithDirectory` — a per-file `WithNewFile` walk yields a
+  multi-layer image and Flux's source-controller extracts only one layer, so `prune` then
+  wipes the cluster. The published layer is a tar+gzip of exactly those files, which
+  Flux's `OCIRepository` `layerSelector` extracts; kustomize-controller applies the YAML.
+  Infra delivery is the ordinary `publish` verb — see
   [infra-publishes-as-plain-image-retire-oras](../decisions/2026-07-05-infra-publishes-as-plain-image-retire-oras.md).
 
 ## Frameworks and the build model
 
-`AttemptFrom` (in `attempt.go`) turns config into a `BuildAttempt` — one `BuildUnit` per
-selected module, all sharing a `Purpose` (`LocalBuild` | `PublishBuild`) that pins the
-target arch. Each `BuildUnit` is resolved by `unitFromModule`, which calls `FindFramework`
-on the module's `framework` name and stores the resolved `Framework` in `BuildUnit.Framework`
+`framework.Units(cfg, args, target)` turns config into `[]*BuildUnit` — one unit per
+selected module, all sharing a `Target` (`LocalTarget` | `PublishTarget`) that pins the
+build arch. It returns the slice directly: there is no attempt wrapper in the build path,
+because `BuildAttempt` is now an **output** type owned by `srv` (see
+[platform-server.md](platform-server.md)), not an input the engine consumes.
+
+Each `BuildUnit` is resolved by `unitFromModule`, which calls `FindFramework` on the
+module's `framework` name and stores the resolved `Framework` in `BuildUnit.Framework`
 (architecture's "unit carries the resolved framework, not a name"). The engine reads
-`unit.Framework` and calls `Build`; the engine spec owns that execution.
+`unit.Framework`, asks it for a `Plan`, and drives the steps; the
+[engine spec](engine.md) owns that execution.

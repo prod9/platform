@@ -20,30 +20,30 @@ superseded moves to `../scratch/` — `spec/` holds current design only, never h
 ## Index
 
 - [`architecture.md`](architecture.md) — the build pipeline (parse → interpret → engine)
-  and the object model: `BuildAttempt`/`BuildUnit`, package layout, data-vs-behavior rules.
+  and the object model: `BuildUnit`, package layout, data-vs-behavior rules.
 - [`frameworks.md`](frameworks.md) — the framework catalog and order-sensitive discovery,
-  the six-method `Framework` contract, layouts, runtime-shape families, the Wolfi base,
-  Node/pnpm provisioning, and the Go test-in-build gate.
+  the seven-method `Framework` contract, `Step`/`Plan`/`Execute`, layouts, runtime-shape
+  families, the Wolfi base, Node/pnpm provisioning, and the Go test-in-build gate.
 - [`engine.md`](engine.md) — the Dagger execution layer: the `Engine` client pool over
-  discovered runners, `Multiplexer` fan-out, `Build`/`Publish`/`BuildAndPublish`, registry
-  creds, arch targets.
+  discovered runners, `Run` and its single event stream, `engine/multiplex` fan-out,
+  `Publish`, registry creds, arch targets.
 - [`releases.md`](releases.md) — release strategies (semver/datestamp/timestamp/rolling),
   `Generate` vs `Create`, tag-history recovery, and release⊥publish orthogonality.
-- [`scaffolding.md`](scaffolding.md) — `platform init`: the `framework/scaffold` mechanism,
-  the `Infra` framework's unconditional baseline (destination-encoded files, `[vars]`
-  merge), and `cmd/init` orchestration.
+- [`scaffolding.md`](scaffolding.md) — `platform init`: the `framework/scaffold`
+  mechanism, the `Infra` framework's unconditional baseline (destination-encoded files,
+  `[vars]` merge), and `cmd/init` orchestration.
 - [`manifest-patch-dsl.md`](manifest-patch-dsl.md) — the line-oriented DSL for adapting
   foreign Kubernetes manifests: verbs, path grammar, `\(var)` interpolation.
 - [`testing.md`](testing.md) — the two suites (`go test` / `./test.sh`), the smoke
   drift-detector contract and its golden, the per-test timeout.
 - [`config-allocation.md`](config-allocation.md) — one owner per config kind across
   `platform.toml` / `infra/` / `tf/` / OCI / Flux; the no-overlap map.
-- [`platform.md`](platform.md) — the platformv2 vision: an in-cluster build + delivery control
-  plane (components, identity, phases, anchors).
+- [`platform.md`](platform.md) — the platformv2 vision: an in-cluster build + delivery
+  control plane (components, identity, phases, anchors).
 - [`platform-server.md`](platform-server.md) — the `srv/` tag-watch server: GitHub-App
   auth, the `/var/cache` worktree layout, the settled operations table. Route surface +
-  install/boot flow settled; build lifecycle + Flux→srv observability held for a
-  design pass.
+  install/boot flow settled, as is the event-sourced build lifecycle; the cluster view
+  (k8s + Flux state) is held for a design pass.
 - [`installation.md`](installation.md) — the server install model: the installer fragment,
   the `GET /api/install` state surface, boot composition, the org-owner first-install
   gate, the install record, by-hand App creation, and the org-wide GitHub→Flux delivery

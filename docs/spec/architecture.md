@@ -10,17 +10,17 @@ to the next — there is no shared mutable state, no stage reaching back into a 
 one's internals.
 
 ```
-platform.toml ─parse─▶ config model ─interpret─▶ BuildAttempt ─▶ engine.Build ─▶ images
+platform.toml ─parse─▶ config model ─interpret─▶ []*BuildUnit ─▶ engine.Run ─▶ images
 ```
 
 | Stage        | Package      | Responsibility                                                    |
 | ------------ | ------------ | ----------------------------------------------------------------- |
 | parse        | `conf/`   | read `platform.toml` → the **config model**                       |
 | config model | `conf/`   | `Model` / `Module` — parsed, defaulted, inferred config |
-| interpret    | `framework/` | config → a **`BuildAttempt`** (one `BuildUnit` per module)        |
-| build model  | `framework/` | `BuildAttempt` has-many `BuildUnit` — the resolved build def      |
+| interpret    | `framework/` | config → **`[]*BuildUnit`** (one per selected module)             |
+| build model  | `framework/` | `BuildUnit` — the resolved, self-contained build def              |
 | strategies   | `framework/` | the `Framework` implementations — per-stack build knowledge       |
-| engine       | `engine/`    | the Dagger `Engine` + executor — runs the attempt's units         |
+| engine       | `engine/`    | the Dagger `Engine` + `Run` — drives each unit's planned steps    |
 
 ## How to think about it (the durable principle)
 
@@ -36,7 +36,7 @@ This yields three standing rules:
   parameter to carry a fact through several calls, that fact belongs in the struct the
   pipeline already passes. A method growing a long argument list is the smell — stop and
   put the data where it lives. (`BuildUnit` already carries `BuildDir`/`ImageName`; the
-  arch target sits right beside them.) The command declares *intent* once (a `Purpose`:
+  arch target sits right beside them.) The command declares *intent* once (a `Target`:
   local vs publish); interpret resolves intent into concrete `BuildUnit` fields.
 
 - **The unit carries the resolved framework, not a name.** `BuildUnit.Framework` holds the
@@ -54,8 +54,8 @@ This yields three standing rules:
 
 ## Two models, both data
 
-`Model`/`Module` (config) and `BuildAttempt`/`BuildUnit` (resolved) are *both* data —
-the input config and the lower, interpreted model derived from it (source vs IR). The
+`Model`/`Module` (config) and `BuildUnit` (resolved) are *both* data — the input config
+and the lower, interpreted model derived from it (source vs IR). The
 *behavior* lives elsewhere: the `Framework` strategies (per-stack knowledge) and `engine`
 (the runtime that runs them). Keep the two data models distinct — a `BuildUnit` does not
 reach back into the `Model` it came from; it carries denormalized copies of what it
@@ -82,14 +82,14 @@ graph `conf ← framework/scaffold ← framework ← cmd`:
 - `framework/scaffold/` — **the one** files/templating mechanism: render templates with
   data. Generic — no discover, no orchestration, no per-type data; the driver writes
   finished bytes.
-- `framework/` — the `Framework` contract (six methods — [`frameworks.md`](frameworks.md)
-  is canonical), the concrete
-  frameworks, the package-level `Discover(wd)` resolver, the interpret stage (config →
-  `BuildUnit`s), and the per-stack build strategies. **Stack discovery is a scaffold-time
-  concern** — the build path reads `[modules]`, never re-discovers. The `Infra` framework
-  owns its baseline component set, version pins, and destination routing here (bytes in
-  the `framework/skel` collection, alongside the universal launcher), and its
-  `Build` renders `apps/` (CUE + `.platform`) into a `FROM scratch` image (see
+- `framework/` — the `Framework` contract (seven methods — [`frameworks.md`](frameworks.md)
+  is canonical), the concrete frameworks, the package-level `Discover(wd)` resolver, the
+  interpret stage (config → `BuildUnit`s), and the per-stack build strategies. **Stack
+  discovery is a scaffold-time concern** — the build path reads `[modules]`, never
+  re-discovers. The `Infra` framework owns its baseline component set, version pins, and
+  destination routing here (bytes in the `framework/skel` collection, alongside the
+  universal launcher), and its render step turns `apps/` (CUE + `.platform`) into a
+  `FROM scratch` image (see
   [infra-publishes-as-plain-image-retire-oras](../decisions/2026-07-05-infra-publishes-as-plain-image-retire-oras.md)).
 - `cmd/` — `main.go` defers to `cmd.Execute()`. `cmd` holds the root Cobra command
   (persistent `-q`/`-v`, and `-f` for an alt `platform.toml`) plus **one file per
@@ -99,11 +99,15 @@ graph `conf ← framework/scaffold ← framework ← cmd`:
 - `cmd/init` — the human orchestration of `platform init`: gather operator inputs →
   `framework.Discover` → `fw.Scaffold` → confirm → write. No app-vs-infra branch; the
   distinction is pure `Scaffold` polymorphism (`Infra.Scaffold` simply contributes more).
-- `engine/` — the Dagger runtime: discovers the available Dagger **runners** and distributes
-  each attempt's units across them.
+- `engine/` — the Dagger runtime: discovers the available Dagger **runners**, and drives
+  one unit's planned steps per `Run` across them, reporting on a single event stream.
+- `engine/multiplex/` — multi-unit fan-out over one shared `Engine`, merging per-unit
+  events into one stream. Deliberately **outside** `engine`: fan-out is driven from `cmd`,
+  not by the engine itself.
 - `gitops/` — infra **render** only (CUE/`.platform` → manifest `Tree`). Publishing is the
   ordinary `publish` path now that infra is a framework; the oras packer is retired.
-- `gitops/dsl/`, `releases/`, `git/` (formerly `gitctx/`+`gitcmd/`), `internal/` — unchanged in role.
+- `gitops/dsl/`, `releases/`, `git/` (formerly `gitctx/`+`gitcmd/`), `internal/` —
+  unchanged in role.
 
 The former `baseline/` and top-level `scaffold/` packages are **absorbed**, not surviving
 packages: `baseline/`'s templating folds into `framework/scaffold/` and its embedded infra
@@ -112,13 +116,13 @@ folds into `framework/scaffold/`, its discovery into `framework/`, and its orche
 into `cmd/init`.
 
 Command surface: `init  build  configure  exec  export  ls  preview  publish  release
-render  clean  serve  versions  vanity`. `clean` prunes the local Dagger build cache
+render  clean  srv  versions  vanity`. `clean` prunes the local Dagger build cache
 (first-line cache diagnostics — see
 [`../guides/troubleshooting-build-cache.md`](../guides/troubleshooting-build-cache.md));
 `versions` lists the release history. `publish` is uniform (infra is just a framework
-module); `render` emits the `k8s/` tree for the serverless `kubectl apply` path. `serve`
-starts the platform server — **its surface is under active rework and is not settled
-here**; [`platform-server.md`](platform-server.md) is its only spec. No `ops` group; no
+module); `render` emits the `k8s/` tree for the serverless `kubectl apply` path. `srv`
+(alias `serve`) starts the platform server — **its surface is under active rework and is
+not settled here**; [`platform-server.md`](platform-server.md) is its only spec. No `ops` group; no
 `discover` or `bootstrap` — re-run `init` to see detected modules.
 
 ## Arch target (local vs publish)

@@ -4,9 +4,11 @@ Status: **target design — skeleton implemented, rebuild pending.** The **route
 and the **install/boot flow** are now settled — the
 [Operations](#operations-settled-surface) table below teaches the settled surface, and
 [installation.md](installation.md) owns the
-install model (installer fragment, `GET /api/install`, boot composition). Still open, held
-for a design pass: the **build lifecycle** (event-sourced reconciler) and the **Flux→srv
-observability surface**. The implementation blockquote immediately below describes the
+install model (installer fragment, `GET /api/install`, boot composition). The **build
+lifecycle** is settled too — see [Build lifecycle](#build-lifecycle-event-sourced) below.
+Still open, held for a design pass: the **cluster view** (reading k8s + Flux state for
+pods, logs, and rollout continuity after a publish). The implementation blockquote
+immediately below describes the
 **pre-rebuild skeleton as the code stands today** — its routes and setup flow are
 superseded by the settled surface; read the table, not the blockquote, for the target.
 
@@ -59,8 +61,8 @@ renders + publishes the infra artifact, and lets Flux pull it. It owns the GitHu
 DB, and token minting. It is a layer above the **shared packages** (the stateless
 build/render/publish/release machinery: `framework`, `engine`, `gitops`, `releases`, …)
 and consumes them per request — the engine is an `sql.DB`-style, context-carried fleet
-handle (`engine.New(cfg)` once, `engine.Build(ctx, …)` per call) so a long-running server
-can reuse it.
+handle (`engine.New(cfg)` once at boot, a `Run` per unit per request) so a long-running
+server reuses the one engine across every concurrent build.
 
 `srv` ships **in the same binary** as the CLI — `platform srv` starts the process (`platform serve` is a back-compat alias). One
 Go module (`platform.prodigy9.co`); the shared packages, `cmd`, and `srv` are conceptual
@@ -115,9 +117,42 @@ never auto-run at boot** (installer button or `./platform srv data migrate` — 
 [installation.md](installation.md)); the boot-time **requeue-orphans** action is
 **removed**. Boot instead decides the API composition once from `install.GetState()`
 (installer vs product fragments — [installation.md](installation.md)). The continuous
-**build runner** is being redesigned as an event-sourced reconciler (`BuildEvent` fold) —
-**forthcoming**, held for the build-lifecycle design pass; the current skeleton's
-claim-loop is described in the implementation blockquote above.
+**build runner** is an event-sourced reconciler — see below. The current skeleton's
+claim-loop is described in the implementation blockquote above and is superseded.
+
+## Build lifecycle: event-sourced
+
+There is **no stored build `state`.** The primitive is an append-only **`BuildEvent`**
+stream in a `build_events` table — the persisted form of the engine's `Event`
+([engine.md](engine.md)). The worker executes and writes events; the database *is* the
+channel; the webui reads it back. Nothing subscribes to a live in-process stream across
+the process boundary, which is exactly why the engine needs no late-joining observer.
+
+Everything else is a **fold** of that stream:
+
+| Fold                | Computed as                                                           |
+| ------------------- | --------------------------------------------------------------------- |
+| current state       | reduction of the build's events so far                                |
+| an **attempt**      | a `Start`→terminal span within the stream                             |
+| stuck / timed-out   | last-event timestamp vs the build's `platform.toml` timeout           |
+
+**It is still a reconciler** — the difference is only how the to-be state is arrived at:
+`to-be = f(history, timeout)`, then converge (requeue the timed-out, launch the pending).
+This unifies two failures that used to need separate machinery — a dead client and a
+stalled engine are both just "the event stream stopped advancing past the timeout."
+
+`BuildEvent` carries the `Build` prefix deliberately: "event" is already live in this
+domain for GitHub App events and Kubernetes events, and the bare noun would collide.
+
+**`BuildAttempt` is an output type.** It is the srv-side DB model wrapping a finished
+result for display; it is not an input to the build path, and neither `engine` nor
+`engine/multiplex` ever sees one. The pre-rework `AttemptFrom`/`Purpose`/`BuildResult`
+vocabulary is discarded.
+
+Persistence is **display-only** — the engine always re-plans from the current framework
+code rather than replaying a stored plan, so a stored event stream can never pin an
+outdated build definition. Build **hooks** are deliberately deferred; aborting a run is
+itself a hook power, and neither is in this surface yet.
 
 ### No `api/` contract layer (deliberate)
 
@@ -237,9 +272,9 @@ Local and CI runs then take the identical build path; a local run simply has no 
 phase ("you're already in the dir").
 
 ```
-local:  Load(".")                      → AttemptFrom → engine.Build
-CI:     repo-prep: clone url@sha → <wd>      → Load(wd) → AttemptFrom → engine.Build
-                                               └──────── identical from here ────────┘
+local:  Load(".")                      → framework.Units → engine run
+CI:     repo-prep: clone url@sha → <wd>      → Load(wd) → framework.Units → engine run
+                                               └────────── identical from here ──────────┘
 ```
 
 Clones are plain `git` to local fs — no dagger needed for sourcing, so the in-process CUE
