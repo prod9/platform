@@ -2,160 +2,102 @@ package engine
 
 import (
 	"context"
-	"errors"
 
 	"dagger.io/dagger"
-	fxconfig "fx.prodigy9.co/config"
-	"platform.prodigy9.co/conf"
 	"platform.prodigy9.co/framework"
-	"platform.prodigy9.co/internal/buildlog"
 )
 
-var ErrNoJobs = errors.New("engine: empty units list, nothing to do")
+// Run drives one unit's planned steps, one per Next. The engine imposes the sequence and
+// nothing else: what a step does is the framework's business, and the container is only
+// the medium each step hands to the next.
+//
+// It is a cursor rather than a single call because a build's observable structure is its
+// steps — driving them one at a time is what lets each be timed and reported separately.
+//
+//	run := NewRun(eng, unit)
+//	for run.Next(ctx) {
+//	}
+//	container, err := run.Result()
+type Run struct {
+	eng  *Engine
+	unit *framework.BuildUnit
 
-// BuildAndPublish composes Build and Publish over the engine carried by ctx: it builds
-// every module matched by args, tags each image with tag, and publishes it — reusing the
-// caller's engine instead of opening its own. It returns every publish result so a
-// driver can record what shipped; both the local `publish` command and the platform
-// server's build runner drive it.
-func BuildAndPublish(ctx context.Context, cfg *conf.Model, modnames []string, tag string) ([]PublishResult, error) {
-	units, err := framework.Units(cfg, modnames, cfg.PublishArch)
+	steps []framework.Step
+	next  int
+
+	container *dagger.Container
+	client    *dagger.Client
+	err       error
+}
+
+// NewRun asks the unit's framework for its plan. It does no engine work — a client is
+// grabbed at the first Next — so opening a run is free and never dials.
+func NewRun(eng *Engine, unit *framework.BuildUnit) *Run {
+	return &Run{eng: eng, unit: unit, steps: unit.Framework.Plan(unit)}
+}
+
+// Next executes exactly one step and reports whether the run should continue. It returns
+// false at the end of the plan and on the first failure; the error is held on the run
+// rather than aborting anything else, so a caller driving several units loses only the one.
+func (r *Run) Next(ctx context.Context) bool {
+	if r.err != nil || r.next >= len(r.steps) {
+		return false
+	}
+
+	step := r.steps[r.next]
+	r.next++
+
+	client, err := r.dial(ctx)
+	if err != nil {
+		r.err = err
+		return false
+	}
+
+	container, err := r.unit.Framework.Execute(ctx, client, r.unit, step, r.container)
+	if err != nil {
+		r.err = err
+		return false
+	}
+
+	// Force the work here rather than letting it pile up lazily: the step boundary is
+	// where a step's cost is attributable, and a deferred exec would be billed to whichever
+	// later step happened to trigger it.
+	if container != nil {
+		if container, err = container.Sync(ctx); err != nil {
+			r.err = err
+			return false
+		}
+	}
+
+	r.container = container
+	return r.next < len(r.steps)
+}
+
+// dial grabs the run's client on first use and reuses it for every later step: a
+// container is bound to the client that built it, so the steps of one run cannot be spread
+// across the fleet. Round-robin spreads whole runs instead.
+func (r *Run) dial(ctx context.Context) (*dagger.Client, error) {
+	if r.client != nil {
+		return r.client, nil
+	}
+	client, err := r.eng.Client(ctx)
 	if err != nil {
 		return nil, err
 	}
-
-	for _, unit := range units {
-		unit.ImageName = unit.ImageName + ":" + tag
-	}
-
-	builds, err := build(ctx, units)
-	if err != nil {
-		return nil, err
-	}
-	results, err := Publish(ctx, builds...)
-	if err != nil {
-		return nil, err
-	}
-
-	var errs []error
-	for _, result := range results {
-		if result.Err != nil {
-			errs = append(errs, result.Err)
-		}
-	}
-	return results, errors.Join(errs...)
+	r.client = client
+	return client, nil
 }
 
-// Registry credentials for publishing built images, supplied via fx env config.
-var (
-	RegistryConfig         = fxconfig.Str("REGISTRY")
-	RegistryUsernameConfig = fxconfig.Str("REGISTRY_USERNAME")
-	RegistryPasswordConfig = fxconfig.Str("REGISTRY_PASSWORD")
-)
-
-type (
-	BuildResult struct {
-		Unit      *framework.BuildUnit
-		Container *dagger.Container
-		Err       error
-
-		// client is the engine client that built Container. Publish reuses it so the
-		// registry secret comes from the same engine the container belongs to.
-		client *dagger.Client
+// Result is the built container and the run's error, valid once Next has returned false. A
+// failed run yields no container: what it holds is the last step that did succeed, which is
+// a half-built image and never something a caller should publish or shell into.
+func (r *Run) Result() (*dagger.Container, error) {
+	if r.err != nil {
+		return nil, r.err
 	}
-
-	PublishResult struct {
-		BuildResult
-		ImageName string
-		ImageHash string
-	}
-)
-
-// Client returns the engine client that built this result's container. Callers that need to
-// keep operating on the container (e.g. preview's tunnel) must use it, since the container
-// is bound to the engine that produced it.
-func (r BuildResult) Client() *dagger.Client { return r.client }
-
-// Build builds every module matched by modnames (all of them when it is empty) on the
-// engine carried by ctx. It constructs the units itself — resolving the arch from cfg —
-// so callers never name a platform; what they need afterwards they read off
-// BuildResult.Unit.
-func Build(ctx context.Context, cfg *conf.Model, modnames []string) ([]BuildResult, error) {
-	units, err := framework.Units(cfg, modnames, FromContext(ctx).buildArch(cfg))
-	if err != nil {
-		return nil, err
-	}
-	return build(ctx, units)
+	return r.container, nil
 }
 
-// build runs every unit on the engine carried by ctx, fanning out one unit per goroutine
-// and round-robining them across the discovered engine fleet.
-func build(ctx context.Context, units []*framework.BuildUnit) ([]BuildResult, error) {
-	if len(units) == 0 {
-		return nil, ErrNoJobs
-	}
-	eng := FromContext(ctx)
-
-	m := &multiplexer[*framework.BuildUnit, BuildResult]{}
-	m.Reset(units)
-	return m.Start(func(idx int, unit *framework.BuildUnit) BuildResult {
-		unitCtx, cancel := context.WithTimeout(ctx, unit.Timeout)
-		defer cancel()
-
-		run := NewRun(eng, unit)
-		for run.Next(unitCtx) {
-		}
-
-		container, err := run.Result()
-		return BuildResult{Unit: unit, Container: container, Err: err, client: run.Client()}
-	}), nil
-}
-
-// Publish pushes every successfully-built container, reusing each build's own engine client
-// so the registry secret is created by the engine that owns the container.
-func Publish(ctx context.Context, builds ...BuildResult) ([]PublishResult, error) {
-	if len(builds) == 0 {
-		return nil, ErrNoJobs
-	}
-	eng := FromContext(ctx)
-	registry := fxconfig.Get(eng.cfg, RegistryConfig)
-	username := fxconfig.Get(eng.cfg, RegistryUsernameConfig)
-	password := fxconfig.Get(eng.cfg, RegistryPasswordConfig)
-
-	m := &multiplexer[BuildResult, PublishResult]{}
-	m.Reset(builds)
-	return m.Start(func(idx int, build BuildResult) PublishResult {
-		if build.Err != nil {
-			return PublishResult{BuildResult: build}
-		}
-
-		client := build.client
-		if client == nil {
-			c, err := eng.Client(ctx)
-			if err != nil {
-				build.Err = err
-				return PublishResult{BuildResult: build}
-			}
-			client = c
-		}
-
-		container := build.Container
-		if username != "" {
-			secret := client.SetSecret(RegistryPasswordConfig.Name(), password)
-			container = container.WithRegistryAuth(registry, username, secret)
-		}
-
-		hash, err := container.Publish(ctx, build.Unit.ImageName)
-		if err != nil {
-			build.Err = err
-			return PublishResult{BuildResult: build}
-		}
-
-		buildlog.Image("publish", build.Unit.ImageName, hash)
-		return PublishResult{
-			BuildResult: build,
-			ImageName:   build.Unit.ImageName,
-			ImageHash:   hash,
-		}
-	}), nil
-}
+// Client is the engine client that built this run's container. Callers that keep operating
+// on the container (preview's tunnel) must use it, since the container is bound to it.
+func (r *Run) Client() *dagger.Client { return r.client }
