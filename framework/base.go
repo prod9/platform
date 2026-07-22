@@ -1,6 +1,7 @@
 // Package framework defines the sole owners of project types: a Framework recognizes
 // its stack (Discover), scaffolds it (Scaffold), and builds its container image (Build).
-// BuildAttempt/BuildUnit are the resolved work definitions the engine executes.
+// BuildUnit is the resolved work definition the engine executes; Units turns config into
+// one per selected module.
 //
 // # Base image policy
 //

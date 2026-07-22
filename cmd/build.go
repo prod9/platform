@@ -8,7 +8,6 @@ import (
 	"github.com/spf13/cobra"
 	"platform.prodigy9.co/conf"
 	"platform.prodigy9.co/engine"
-	"platform.prodigy9.co/framework"
 	"platform.prodigy9.co/internal/buildlog"
 )
 
@@ -24,16 +23,11 @@ func runBuild(cmd *cobra.Command, args []string) {
 		buildlog.Fatalln(err)
 	}
 
-	attempt, err := framework.AttemptFrom(cfg, args, framework.LocalBuild)
-	if err != nil {
-		buildlog.Fatalln(err)
-	}
-
 	eng := engine.New(fxconfig.Configure())
 	defer eng.Close()
 
 	ctx := engine.NewContext(context.Background(), eng)
-	results, err := engine.Build(ctx, attempt)
+	results, err := engine.Build(ctx, cfg, args)
 	if err != nil {
 		buildlog.Fatalln(err)
 	}

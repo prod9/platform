@@ -8,13 +8,11 @@ import (
 	"strings"
 
 	"dagger.io/dagger"
-	"fx.prodigy9.co/cmd/prompts"
 	fxconfig "fx.prodigy9.co/config"
 	"fx.prodigy9.co/ctrlc"
 	"github.com/spf13/cobra"
 	"platform.prodigy9.co/conf"
 	"platform.prodigy9.co/engine"
-	"platform.prodigy9.co/framework"
 	"platform.prodigy9.co/internal/buildlog"
 )
 
@@ -40,46 +38,16 @@ func runPreview(cmd *cobra.Command, args []string) {
 		buildlog.Fatalln(err)
 	}
 
-	attempt, err := framework.AttemptFrom(cfg, args, framework.LocalBuild)
+	modname, err := promptModule(cfg, args)
 	if err != nil {
 		buildlog.Fatalln(err)
 	}
-
-	if len(attempt.Units) == 0 {
-		buildlog.Fatalln(errors.New("no modules to preview"))
-	}
-
-	preview := attempt.Units[0] // at least 1 by this point
-	if len(attempt.Units) > 1 {
-		var names []string
-		for _, unit := range attempt.Units {
-			names = append(names, unit.Name)
-		}
-
-		p := prompts.New(nil, args)
-		modname := p.List("preview which module?", attempt.Units[0].Name, names)
-
-		for _, unit := range attempt.Units {
-			if unit.Name == modname {
-				preview = unit
-			}
-		}
-	}
-
-	// The frameworks read CommandName during Build, so --exec has to land before it.
-	if custom := strings.TrimSpace(previewCmd); custom != "" {
-		preview.CommandName = custom
-		preview.CommandArgs = nil
-	}
-
-	// build only the selected module
-	attempt = framework.Attempt(attempt.Purpose, preview)
 
 	eng := engine.New(fxconfig.Configure())
 	defer eng.Close()
 
 	ctx := engine.NewContext(context.Background(), eng)
-	results, err := engine.Build(ctx, attempt)
+	results, err := engine.Build(ctx, cfg, []string{modname})
 	if err != nil {
 		buildlog.Fatalln(err)
 	}
@@ -93,8 +61,11 @@ func runPreview(cmd *cobra.Command, args []string) {
 	if err != nil {
 		buildlog.Fatalln(err)
 	}
+	if custom := strings.TrimSpace(previewCmd); custom != "" {
+		startArgs = strings.Fields(custom)
+	}
 
-	fromFlag, fromConfig := previewPort, preview.Port
+	fromFlag, fromConfig := previewPort, result.Unit.Port
 	port := fromFlag
 	if port == 0 {
 		port = fromConfig

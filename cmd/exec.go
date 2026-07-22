@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -12,7 +11,6 @@ import (
 	"github.com/spf13/cobra"
 	"platform.prodigy9.co/conf"
 	"platform.prodigy9.co/engine"
-	"platform.prodigy9.co/framework"
 	"platform.prodigy9.co/internal/buildlog"
 )
 
@@ -30,7 +28,7 @@ func runExec(cmd *cobra.Command, args []string) {
 		buildlog.Fatalln(err)
 	}
 
-	unit, err := selectUnit(cfg, selectors)
+	modname, err := selectModule(cfg, selectors)
 	if err != nil {
 		buildlog.Fatalln(err)
 	}
@@ -39,7 +37,7 @@ func runExec(cmd *cobra.Command, args []string) {
 	defer eng.Close()
 
 	ctx := engine.NewContext(context.Background(), eng)
-	results, err := engine.Build(ctx, framework.Attempt(framework.LocalBuild, unit))
+	results, err := engine.Build(ctx, cfg, []string{modname})
 	if err != nil {
 		buildlog.Fatalln(err)
 	}
@@ -69,29 +67,6 @@ func splitAtDash(cmd *cobra.Command, args []string) (selectors, command []string
 		return args, nil
 	}
 	return args[:dash], args[dash:]
-}
-
-// selectUnit resolves the one module to operate on. Absent a selector it builds the sole
-// module; a multi-module project must name one — this command targets a single container, so
-// ambiguity is an error rather than an interactive prompt (keeps it usable from scripts).
-func selectUnit(cfg *conf.Model, selectors []string) (*framework.BuildUnit, error) {
-	attempt, err := framework.AttemptFrom(cfg, selectors, framework.LocalBuild)
-	if err != nil {
-		return nil, err
-	}
-
-	switch len(attempt.Units) {
-	case 0:
-		return nil, errors.New("no modules to run")
-	case 1:
-		return attempt.Units[0], nil
-	default:
-		var names []string
-		for _, unit := range attempt.Units {
-			names = append(names, unit.Name)
-		}
-		return nil, fmt.Errorf("multiple modules; select one: %s", strings.Join(names, ", "))
-	}
 }
 
 func runInContainer(ctx context.Context, container *dagger.Container, command []string) {

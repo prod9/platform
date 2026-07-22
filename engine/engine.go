@@ -1,6 +1,6 @@
 // Package engine is the Dagger execution layer: an Engine pools clients over the
 // discovered runner endpoints (like sql.DB — dialed lazily, reused, round-robin), and
-// Build/Publish fan an attempt's units out across them. BuildAndPublish is the reusable
+// Build/Publish fan a project's units out across them. BuildAndPublish is the reusable
 // build+tag+push unit shared by the publish command today and a tag-watch server later.
 package engine
 

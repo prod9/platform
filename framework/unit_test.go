@@ -2,10 +2,62 @@ package framework
 
 import (
 	"runtime"
+	"sort"
 	"testing"
 
 	r "github.com/stretchr/testify/require"
+	"platform.prodigy9.co/conf"
 )
+
+func unitsTestModel() *conf.Model {
+	return &conf.Model{
+		ConfigDir: "/repo",
+		Modules: map[string]*conf.Module{
+			"api": {WorkDir: "api", Framework: "go/basic"},
+			"web": {WorkDir: "web", Framework: "go/basic"},
+		},
+	}
+}
+
+// TestUnitsWritesArch pins the arch contract: Units takes the arch its caller already
+// resolved and stamps it on every unit, so the engine reads a field rather than being
+// told a platform through call arguments.
+func TestUnitsWritesArch(t *testing.T) {
+	units, err := Units(unitsTestModel(), nil, "amd64")
+	r.NoError(t, err)
+	r.Len(t, units, 2)
+
+	for _, unit := range units {
+		r.Equal(t, "linux/amd64", unit.Arch)
+	}
+}
+
+func TestUnitsSelectsModules(t *testing.T) {
+	cfg := unitsTestModel()
+
+	all, err := Units(cfg, nil, "auto")
+	r.NoError(t, err)
+	r.ElementsMatch(t, []string{"api", "web"}, unitNames(all))
+
+	some, err := Units(cfg, []string{"web"}, "auto")
+	r.NoError(t, err)
+	r.Equal(t, []string{"web"}, unitNames(some))
+}
+
+func TestUnitsRejectsUnknownModule(t *testing.T) {
+	units, err := Units(unitsTestModel(), []string{"nope"}, "auto")
+	r.ErrorIs(t, err, ErrBadModule)
+	r.Nil(t, units)
+}
+
+func unitNames(units []*BuildUnit) []string {
+	var names []string
+	for _, unit := range units {
+		names = append(names, unit.Name)
+	}
+	sort.Strings(names)
+	return names
+}
 
 func TestResolveArch(t *testing.T) {
 	host := "linux/" + runtime.GOARCH

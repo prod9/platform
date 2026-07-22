@@ -2,6 +2,7 @@ package framework
 
 import (
 	"errors"
+	"fmt"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -48,7 +49,34 @@ func (u *BuildUnit) RepositoryURL() string {
 	return "https://" + u.Repository
 }
 
-func unitFromModule(cfg *conf.Model, name string, mod *conf.Module, purpose Purpose) (*BuildUnit, error) {
+// Units turns config into one BuildUnit per selected module (every module when modnames is
+// empty), all built for arch. The arch arrives already decided by the engine entrypoint
+// about to build them; this layer stamps it onto each unit and never asks what it is for.
+func Units(cfg *conf.Model, modnames []string, arch string) ([]*BuildUnit, error) {
+	if len(modnames) == 0 {
+		for modname := range cfg.Modules {
+			modnames = append(modnames, modname)
+		}
+	}
+
+	var units []*BuildUnit
+	for _, modname := range modnames {
+		mod, ok := cfg.Modules[modname]
+		if !ok {
+			return nil, fmt.Errorf("%s: %w", modname, ErrBadModule)
+		}
+
+		unit, err := unitFromModule(cfg, modname, mod, arch)
+		if err != nil {
+			return nil, err
+		}
+		units = append(units, unit)
+	}
+
+	return units, nil
+}
+
+func unitFromModule(cfg *conf.Model, name string, mod *conf.Module, arch string) (*BuildUnit, error) {
 	fw, err := FindFramework(mod.Framework)
 	if err != nil {
 		return nil, err
@@ -57,15 +85,13 @@ func unitFromModule(cfg *conf.Model, name string, mod *conf.Module, purpose Purp
 	modpath := filepath.Join(cfg.ConfigDir, mod.WorkDir)
 	modpath = filepath.Clean(modpath)
 
-	arch := resolveArch(archFor(cfg, purpose))
-
 	return &BuildUnit{
 		Framework: fw,
 
 		Name:     name,
 		WorkDir:  modpath,
 		Timeout:  mod.Timeout.Duration(),
-		Arch:     arch,
+		Arch:     resolveArch(arch),
 		Excludes: cfg.Excludes,
 
 		Env:         mod.Env,
@@ -81,14 +107,6 @@ func unitFromModule(cfg *conf.Model, name string, mod *conf.Module, purpose Purp
 
 		Vars: cfg.Vars,
 	}, nil
-}
-
-// archFor picks the configured arch for a build's purpose.
-func archFor(cfg *conf.Model, purpose Purpose) string {
-	if purpose == PublishBuild {
-		return cfg.PublishArch
-	}
-	return cfg.LocalArch
 }
 
 // resolveArch turns a configured arch into a concrete dagger platform string.

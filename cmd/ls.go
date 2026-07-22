@@ -27,16 +27,18 @@ func runList(cmd *cobra.Command, args []string) {
 		buildlog.Fatalln(err)
 	}
 
-	attempt, err := framework.AttemptFrom(cfg, args, framework.LocalBuild)
+	// ls is a local debugging view, not a build: it wants the unit before anything runs, so
+	// it assembles one itself at the local arch rather than through an engine entrypoint.
+	units, err := framework.Units(cfg, args, cfg.LocalArch)
 	if err != nil {
 		buildlog.Fatalln(err)
 	}
 
-	if len(attempt.Units) == 0 {
+	if len(units) == 0 {
 		buildlog.Fatalln(errors.New("no modules to preview"))
 	}
 
-	preview := attempt.Units[0] // at least 1 by this point
+	preview := units[0] // at least 1 by this point
 	eng := engine.New(fxconfig.Configure())
 	defer eng.Close()
 
