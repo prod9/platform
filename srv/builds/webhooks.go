@@ -23,8 +23,8 @@ const maxWebhookBody = 1 << 20
 var errBadWebhookSignature = errors.New("builds: invalid webhook signature")
 
 // WebhookCtr ingests GitHub webhook deliveries: it verifies the App webhook
-// signature and records a queued build for each pushed version tag; RunQueued
-// consumes the queue.
+// signature and records a queued build for each pushed version tag; the record is the
+// queue, and a worker peer consumes it.
 type WebhookCtr struct{}
 
 var _ controllers.Interface = WebhookCtr{}

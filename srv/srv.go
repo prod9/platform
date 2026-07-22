@@ -3,8 +3,9 @@
 // embedded web UI at / and gates the API by install state — boot decides the
 // composition once from install.GetState (docs/spec/installation.md): while the server
 // is not completely installed it mounts only the installer fragment; once installed it
-// mounts the product fragments (auth, builds) and starts the build runner. The server
-// always boots — a DB unreachable is an install-state error, not a boot failure — and
+// mounts the product fragments (auth, builds). Executing queued builds belongs to a
+// worker peer, not to this process (docs/spec/platform-server.md). The server always
+// boots — a DB unreachable is an install-state error, not a boot failure — and
 // migrations never auto-run at boot.
 package srv
 
@@ -27,7 +28,6 @@ import (
 	"fx.prodigy9.co/httpserver/render"
 	"github.com/go-chi/chi/v5"
 	"github.com/jmoiron/sqlx"
-	"platform.prodigy9.co/engine"
 	"platform.prodigy9.co/srv/auth"
 	"platform.prodigy9.co/srv/builds"
 	"platform.prodigy9.co/srv/install"
@@ -44,7 +44,7 @@ func Serve() error {
 
 	db := connectOrNil(cfg)
 	if db != nil {
-		defer db.Close() // boot pool doubles as the runner's; AddDataContext owns HTTP's own
+		defer db.Close() // boot pool only — AddDataContext owns HTTP's own
 	}
 
 	entries := install.GetState(config.NewContext(context.Background(), cfg), db, merged)
@@ -62,25 +62,7 @@ func Serve() error {
 
 	listenAddr := config.Get(cfg, httpserver.ListenAddrConfig)
 	server := &http.Server{Addr: listenAddr, Handler: handler}
-
-	// The build runner only matters once installed — there is no product traffic to
-	// queue builds before then, and an uninstalled server may have no reachable DB.
-	if installed {
-		eng := engine.New(cfg)
-		defer eng.Close()
-
-		dataCtx := data.NewContext(context.Background(), db)
-		runnerCtx, stopRunner := context.WithCancel(engine.NewContext(dataCtx, eng))
-		runnerDone := make(chan struct{})
-		go func() {
-			defer close(runnerDone)
-			builds.RunQueued(runnerCtx, cfg)
-		}()
-		defer func() { stopRunner(); <-runnerDone }() // before the db/engine Close defers
-		ctrlc.Do(func() { stopRunner(); server.Close() })
-	} else {
-		ctrlc.Do(func() { server.Close() })
-	}
+	ctrlc.Do(func() { server.Close() })
 
 	fxlog.Log("listening", fxlog.String("addr", listenAddr), fxlog.Bool("installed", installed))
 	if err := server.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
