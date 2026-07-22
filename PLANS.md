@@ -52,7 +52,8 @@ Approve one at a time; each lands as its own commit sequence.
 - **#4 Privilege drops** — pending.
 - **#5 plog → fxlog** — ✅ done (2026-06-24); became a build-log / server-log split, not a
   wholesale swap — see the [log-channel ADR](docs/decisions/2026-06-24-split-build-and-server-log-channels.md).
-- **#6 Wolfi pin** — ✅ done (digest pin + cache buster bump).
+- **#6 Wolfi pin** — ❌ REVERTED (2026-07-22): platform never pins, base image included.
+  Plan body deleted; the rule lives in `docs/spec/frameworks.md` §The shared base.
 - **#7 Version injection** — pending; build provenance for deployed images.
 
 ## Resume hint
@@ -264,34 +265,6 @@ it appears in v0.5+.
 and update expectations.
 
 **Out of scope:** changing which events get logged or at what level.
-
----
-
-## 6. Pin and refresh Wolfi base image
-
-**Current:** `BaseImageName = "cgr.dev/chainguard/wolfi-base"` (untagged, resolves to
-`:latest`). No pinning, no digest, no refresh cadence.
-
-**Plan:**
-1. Resolve current digest:
-   `docker buildx imagetools inspect cgr.dev/chainguard/wolfi-base:latest`. Record the
-   `sha256:...` digest and any human-readable tag.
-2. Pin via digest in `builder/base.go`:
-   `BaseImageName = "cgr.dev/chainguard/wolfi-base@sha256:..."` with the readable tag in
-   an adjacent comment. Digest > tag because Chainguard's `:latest` is a floating ref;
-   reproducibility wins over readability here, and the comment covers the readability gap.
-3. Bump `CacheBuster` to force re-pull across environments.
-4. Verify Dagger pulls the digest-pinned ref (`From` accepts `@sha256:`; no API change
-   needed).
-5. Run `./test.sh` across all six testbeds.
-6. Document a manual refresh cadence (e.g. monthly) in the `builder/base.go` package doc
-   added during the Wolfi audit. No automation this round.
-
-**Risks:** Pinned digest ages → base-layer CVEs require manual bump. `apk update/upgrade`
-in `BaseImageForJob` keeps userland packages fresh, so drift is limited to the base layer
-itself. Cadence doc sets the expectation.
-
-**Out of scope:** automated digest-bump bot, cosign signature verification, SBOM.
 
 ---
 

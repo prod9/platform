@@ -22,23 +22,14 @@ import "dagger.io/dagger"
 const (
 	// SEE: https://edu.chainguard.dev/open-source/wolfi/overview/
 	//
-	// Pinned by digest (the multi-arch index digest — Dagger picks the right
-	// per-platform manifest at build time). Chainguard's :latest is a floating
-	// ref, so reproducibility wins over readability here. Refresh manually on a
-	// monthly cadence to absorb base-layer CVEs; userland is already refreshed
-	// every build via `apk update && apk upgrade` in [BaseImageForUnit].
-	//
-	// To refresh:
-	//   docker buildx imagetools inspect cgr.dev/chainguard/wolfi-base:latest
-	// then update both BaseImageName and CacheBuster (keep them in sync — the
-	// cache buster's hex is the first 8 chars of the digest below).
-	BaseImageName = "cgr.dev/chainguard/wolfi-base@sha256:b78bb982194828b6c9c214230bf34d51944e2102ea8468f01ac21e5f99328efd"
+	// Never pinned — platform names no version, and Wolfi is rolling anyway: the
+	// repository carries exactly one real tag. Userland is refreshed every build
+	// via `apk update && apk upgrade` in [BaseImageForUnit].
+	BaseImageName = "cgr.dev/chainguard/wolfi-base:latest"
 
 	// CacheBuster forces Dagger and Docker to invalidate cached base layers
-	// across all environments. Bumped in lockstep with [BaseImageName] above so
-	// a base-image refresh always re-pulls; can also be bumped on its own if
-	// Chainguard ships a bad image at the same digest (rare).
-	CacheBuster = "cache-buster-b78bb982"
+	// across all environments. Bump it to shed a stale base layer.
+	CacheBuster = "cache-buster-1"
 )
 
 // The platform runtime filesystem convention — a small FHS-style tree every
