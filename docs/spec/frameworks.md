@@ -193,6 +193,19 @@ and there is no skip-tests opt-out. Full rationale:
   failure in this step is **never** a reason to switch to apk — shed the cache with
   `platform clean` (first-line diagnostics for any "worked on a fresh checkout but not
   here" failure) and fix the real cause.
+
+  🚨 **The dependency layer carries `pnpm-workspace.yaml`, not just the two manifests.**
+  From pnpm v10 that file is the *only* place non-auth settings live — `.npmrc` keeps auth
+  and registry alone — and it is where `pnpm approve-builds` records which dependencies may
+  run install scripts (`allowBuilds`; `onlyBuiltDependencies` pre-v11). A dep layer copying
+  only `package.json` + `pnpm-lock.yaml` therefore drops approvals the repo has already
+  committed, and every dependency needing a build script silently goes unbuilt. Build
+  approval is **repo state**: the repo runs `pnpm approve-builds` and commits the result,
+  and platform's job is only to stop hiding the file — no platform config key, no
+  `--dangerously-allow-all-builds`, which would diverge from what the developer gets
+  locally. The basic and static frameworks select the manifests by include-filtering the
+  host directory, so an absent `pnpm-workspace.yaml` is simply not copied; `pnpm/workspace`
+  copies the whole tree and already carries it.
 - **Dockerfile** — `host.DockerBuild` on the user's `Dockerfile`; env becomes build args.
   Discouraged: bypasses Wolfi, the apk cache, and package conventions; warns at build
   time.
