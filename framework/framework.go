@@ -90,6 +90,10 @@ type noScaffoldVars struct{}
 
 func (noScaffoldVars) ScaffoldVars(string) []string { return nil }
 
+// String makes Step a Stringer, so anything reporting a step — logs, an engine Observer —
+// names it without reaching for a conversion.
+func (s Step) String() string { return string(s) }
+
 const (
 	LayoutBasic     Layout = "basic"
 	LayoutWorkspace Layout = "workspace"

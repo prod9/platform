@@ -52,11 +52,11 @@ func (r *Run) Next(ctx context.Context) bool {
 	r.next++
 
 	r.report(func(obs Observer, at time.Time) {
-		obs.StepStarted(r.unit.Name, string(step), at)
+		obs.StepStarted(r.unit.Name, step.String(), at)
 	})
 	container, err := r.execute(ctx, step)
 	r.report(func(obs Observer, at time.Time) {
-		obs.StepDone(r.unit.Name, string(step), at, err)
+		obs.StepDone(r.unit.Name, step.String(), at, err)
 	})
 
 	if err != nil {
