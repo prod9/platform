@@ -167,12 +167,13 @@ func (PlatformInfra) modulePath(wd string, inputs map[string]string) (string, er
 
 // infraDefsModule is the infra-defs CUE dependency the baseline apps import;
 // infraDefsVersion is the version a freshly-init'd infra repo pins into its cue.mod.
-// v0.4.3 adds the Flux defs (#FluxOCIRepo/#FluxKustomization/#FluxReceiver) the flux-sync
-// baseline composes; additive over v0.4.0's #NetworkPolicy access-grant + #pod_labels that
-// platform.cue still needs to lock the engine's TCP port to the dispatcher.
+// v0.4.4 adds parts.#PodMounts #mount_emptydir, which the dagger-engine baseline needs for
+// its disposable cache; additive over v0.4.3's Flux defs
+// (#FluxOCIRepo/#FluxKustomization/#FluxReceiver) and v0.4.0's #NetworkPolicy access-grant +
+// #pod_labels that platform.cue still needs to lock the engine's TCP port to the dispatcher.
 const (
 	infraDefsModule  = "prodigy9.co/defs@v0"
-	infraDefsVersion = "v0.4.3"
+	infraDefsVersion = "v0.4.4"
 )
 
 // infraVars is the baseline's shipped [vars]: the version pins each baseline hook

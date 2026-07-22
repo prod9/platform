@@ -20,7 +20,9 @@ platform: {
 	let engine = defs.#StatefulSet & {
 		parts.#PodSpread
 		parts.#PodMounts & {
-			#claim_templates: cache: {#storage: "50Gi", #path: "/var/lib/dagger"}
+			// Dagger's cache is disposable — a lost engine pod rebuilds it, so it rides
+			// the node instead of a per-pod PVC nobody would ever restore.
+			#mount_emptydir: cache: "/var/lib/dagger"
 		}
 
 		#name: "dagger-engine"
