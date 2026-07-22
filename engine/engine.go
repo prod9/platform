@@ -13,7 +13,6 @@ import (
 	fxconfig "fx.prodigy9.co/config"
 	"platform.prodigy9.co/conf"
 	"platform.prodigy9.co/framework"
-	"platform.prodigy9.co/internal/buildlog"
 )
 
 // Engine is the process-wide handle to the Dagger engine fleet — like sql.DB, a
@@ -242,7 +241,6 @@ func Publish(ctx context.Context, builds ...BuildResult) ([]PublishResult, error
 			return PublishResult{BuildResult: build}
 		}
 
-		buildlog.Image("publish", build.Unit.ImageName, hash)
 		return PublishResult{
 			BuildResult: build,
 			ImageName:   build.Unit.ImageName,

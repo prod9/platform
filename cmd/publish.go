@@ -63,7 +63,13 @@ func runPublish(cmd *cobra.Command, args []string) {
 	defer eng.Close()
 	ctx := engine.NewContext(context.Background(), eng)
 
-	if _, err := engine.BuildAndPublish(ctx, cfg, p.Args(), name, newObserver()); err != nil {
+	results, err := engine.BuildAndPublish(ctx, cfg, p.Args(), name, newObserver())
+	for _, result := range results {
+		if result.Err == nil {
+			buildlog.Image("publish", result.ImageName, result.ImageHash)
+		}
+	}
+	if err != nil {
 		buildlog.Fatalln(err)
 	}
 }
