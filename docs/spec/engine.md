@@ -135,6 +135,46 @@ consumers read the event stream, not the container. The lone exception is `previ
 post-build tunnel genuinely needs the container handle; it gets it by an explicit method.
 That is the one non-event thing a run exposes.
 
+## The execution boundary
+
+Three properties define an engine, and together they fix where it ends:
+
+- **It executes, it does not decide.** Given a unit, it produces an artifact or a failure.
+- **It is capacity.** There are N of them and work is dispatched across them.
+- **It is domain-blind.** It knows nothing of repos, tags, queues, or that this is build
+  #47 triggered by a push. The engine boundary is exactly where domain knowledge stops.
+
+Everything else a CI/CD server does — deciding what should run, finding free capacity,
+recording what happened — is coordination *around* engines.
+
+### Two scheduling decisions, two layers
+
+Scheduling splits in two and the halves must not meet:
+
+| Decision                 | Owner  | Inputs                                   |
+| ------------------------ | ------ | ---------------------------------------- |
+| which build runs next    | worker | pending records, concurrency policy      |
+| which runner executes it | engine | `runners.Hosts()`, client health, cursor |
+
+**The worker never sees a host address.** If one leaks upward the boundary is gone and
+two schedulers begin fighting over the same capacity.
+
+### No dagger verbs outside `engine/`
+
+Callers must never *express container operations*: no `WithExec`, no `WithDirectory`, no
+`Sync`. Each of those is an execution decision, and authoring one outside the engine moves
+part of the build definition out of the layer that owns it. The tell is a dagger
+constructor appearing anywhere outside `engine/`.
+
+This is a rule about **logic, not types**. Go type inference means `c := engine.Build(…)`
+compiles with no dagger import at all, so "does this package import dagger" is the wrong
+test — a caller can hold what a run returns opaquely and still respect the boundary.
+
+The requirement this places is on the engine's API surface, not its return types: it must
+expose domain verbs complete enough that nobody needs to reach past them. **If a caller
+ever has to chain two engine calls with its own container work in between, that gap is a
+missing engine verb** — that is the working test for whether the boundary holds.
+
 ## Fan-out lives at the cmd layer
 
 Multi-unit fan-out is **not** an engine concern. `engine/multiplex` owns it:

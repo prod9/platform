@@ -120,6 +120,52 @@ never auto-run at boot** (installer button or `./platform srv data migrate` — 
 **build runner** is an event-sourced reconciler — see below. The current skeleton's
 claim-loop is described in the implementation blockquote above and is superseded.
 
+## Triggering a build
+
+Four boundaries, each crossable in one direction only:
+
+```
+controller ─▶ recorded intent ─▶ worker ─▶ engine ─▶ events ─▶ derived state
+```
+
+**Every trigger collapses to one domain fact first.** A webui button,
+a GitHub webhook, and a future CLI trigger are the same statement — *someone asked for a
+build of this repo at this commit* — differing only in how they are authorized. The
+controller validates the untrusted signal, authorizes it, and records that fact. If the
+button path and the webhook path diverge past the controller, that is two systems.
+
+**A controller never calls the engine.** An HTTP request's lifetime has nothing to do with
+a build's; the durable record is the handoff.
+
+**The record is the queue.** There is no queue component — a build request is simply a
+record not yet dispatched; "pending" is a property of the record, not a place it lives.
+This is what makes the trigger sources interchangeable: each appends the same fact.
+
+**The record must be complete enough to act on.** The controller serializes full intent
+— repo, sha, which units, which target — so the worker never re-derives *what was
+asked for*. If the worker has to reload `platform.toml` to learn that, the controller
+did not finish its job and the decision has silently moved downstream. Repo preparation is
+different in kind: fetching the tree fulfils a decision rather than making one, so it
+belongs to the worker.
+
+### The worker is a peer of `srv`, not a fragment
+
+**Worker** is the settled name, and it is fx's: `fx.prodigy9.co/worker` already supplies
+the machinery — a `worker.Interface` (`Name`, `Run(ctx) error`), a job registry, and the
+`WORKER_POLL` interval. The build worker is one such job, so it inherits the poll loop
+rather than hand-rolling one. It reads pending records, decides what runs next, asks the
+engine to run it, and writes the resulting events.
+
+Its dependencies are the record store and the engine; it needs nothing from HTTP. So it
+sits beside `srv`, not inside it — `srv` writes records, the worker reads them, and
+neither imports the other. A worker living *inside* an HTTP fragment is the pre-rework mistake
+(`srv/builds/runner.go`), and it is torn out rather than repaired.
+
+**It is not called a "runner."** In CI vocabulary "runner" means the agent that executes
+jobs — which is what an *engine* is here — and `engine/runners` already holds that name
+for Dagger endpoints. Three live concepts, three distinct words: engines execute, runners are
+the endpoints they live at, workers decide what to hand them.
+
 ## Build lifecycle: event-sourced
 
 There is **no stored build `state`.** The primitive is an append-only **`BuildEvent`**

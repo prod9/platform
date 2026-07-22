@@ -30,3 +30,24 @@ commit here is agent-authored" was false and produced an invented vendor-vocabul
 for why the file is named `runners`; the law is amended. The naming collision between
 `engine/runners` (Dagger engine endpoints) and a CI-sense "runner" is still real and still
 worth settling when slice 4 names its queue worker — but the *why* is unestablished.
+
+## Correction 2 (2026-07-22) — the component is a *worker*, not a "dispatcher"
+
+`fx.prodigy9.co/worker` already exists: `worker.Interface` (`Name`, `Run(ctx) error`), a
+job registry, `WORKER_POLL`. chakrit:verbatim: "Note that fx already has built-in worker
+module as well, that's why i called everything a worker." The specs were written with an
+invented word ("dispatcher") and are corrected to `worker` throughout — law 12, checked
+against live concepts only after being told, not before.
+
+Three live concepts, three words, now spec'd: **engines** execute · **runners** are the
+Dagger endpoints they live at · **workers** decide what to hand them.
+
+## Design captured to spec (2026-07-22)
+
+The trigger→build design settled in conversation this session is now in the specs, which
+precede implementation per CLAUDE.md:
+
+- [`engine.md`](../spec/engine.md) §The execution boundary — what defines an engine, the
+  two scheduling decisions, no dagger verbs outside `engine/` (logic not types).
+- [`platform-server.md`](../spec/platform-server.md) §Triggering a build — the four
+  one-way boundaries, the record-is-the-queue rule, worker placement and naming.
