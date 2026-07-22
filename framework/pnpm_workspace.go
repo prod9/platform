@@ -2,11 +2,13 @@ package framework
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"strings"
 
 	"dagger.io/dagger"
 	"fx.prodigy9.co/errutil"
+	"gopkg.in/yaml.v3"
 	"platform.prodigy9.co/framework/scaffold"
 )
 
@@ -17,10 +19,24 @@ var _ Framework = PNPMWorkspace{}
 func (PNPMWorkspace) Name() string   { return "pnpm/workspace" }
 func (PNPMWorkspace) Layout() Layout { return LayoutWorkspace }
 
+// Discover keys on the packages list, never on the file. From pnpm v10 every repo
+// carries pnpm-workspace.yaml — it holds all non-auth settings, including the build
+// approvals a single-package repo must commit — so presence proves nothing. packages
+// is what pnpm itself calls a workspace.
 func (PNPMWorkspace) Discover(wd string) bool {
-	singular := hasFile(wd, "pnpm-workspace.yaml")
-	plural := hasFile(wd, "pnpm-workspaces.yaml")
-	return singular || plural
+	body, err := os.ReadFile(filepath.Join(wd, "pnpm-workspace.yaml"))
+	if err != nil {
+		return false
+	}
+
+	settings := struct {
+		Packages []string `yaml:"packages"`
+	}{}
+	if err := yaml.Unmarshal(body, &settings); err != nil {
+		return false
+	}
+
+	return len(settings.Packages) > 0
 }
 
 func (fw PNPMWorkspace) Scaffold(ctx context.Context, wd string, _ scaffold.Env, _ map[string]string) (scaffold.Spec, error) {
