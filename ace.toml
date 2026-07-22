@@ -9,4 +9,5 @@ skills = [
   "p9-infra",
   "p9-platform",
   "prod9-fx",
+  "smoke",
 ]
