@@ -64,16 +64,27 @@ const (
 )
 
 var (
-	// IMPORTANT: This list is **Order Sensitive** due to Discover() calls on different
-	// frameworks discovering the same subfolder a little differently.
+	// IMPORTANT: This list is **Order Sensitive** — Discover() is first-match-wins and
+	// one directory satisfies several markers at once (a pnpm workspace root also has
+	// pnpm-lock.yaml; any repo may carry a Dockerfile). It runs narrowest marker first,
+	// broadest last; the group markers below say what each tier matches on. Inserting a
+	// framework into the wrong group silently re-routes existing projects, so place it by
+	// how specific its marker is — never alphabetically.
 	knownFrameworks = []Framework{
+		// directory name, not a file: base(wd) contains "infra"
 		PlatformInfra{},
-		GoWorkspace{},
-		PNPMWorkspace{},
-		GoBasic{},
-		PNPMStatic{},
-		PNPMBasic{},
-		Dockerfile{},
+
+		// workspace roots — their members match the single-project markers below
+		GoWorkspace{},   // go.work
+		PNPMWorkspace{}, // pnpm-workspace.yaml, pnpm-workspaces.yaml
+
+		// single-project markers
+		GoBasic{},    // go.mod
+		PNPMStatic{}, // astro.config.mjs
+
+		// broadest — present in every project of their kind
+		PNPMBasic{},  // pnpm-lock.yaml
+		Dockerfile{}, // Dockerfile, in any repo
 	}
 )
 
