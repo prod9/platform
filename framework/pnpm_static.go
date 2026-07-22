@@ -48,11 +48,7 @@ func (PNPMStatic) Build(ctx context.Context, client *dagger.Client, unit *BuildU
 	base = withPNPMBase(base)
 	base = withPNPMPkgCache(client, base)
 	base = withUnitEnv(base, unit)
-	base = base.
-		WithWorkdir(SrcDir).
-		WithFile("package.json", host.File("package.json")).
-		WithFile("pnpm-lock.yaml", host.File("pnpm-lock.yaml")).
-		WithExec([]string{"pnpm", "i"})
+	base = withPNPMDeps(base, host)
 
 	builder := base.
 		WithDirectory(".", host).

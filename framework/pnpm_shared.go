@@ -44,6 +44,22 @@ func withPNPMBase(base *dagger.Container) *dagger.Container {
 
 // withPNPMModuleFix marks the runner's served directory as ESM so bare node treats
 // the pnpm/workspace output as modules. pnpm-specific — no other family needs it.
+// pnpmDepManifests are the files the dependency layer installs from, copied ahead of the
+// source so the layer keys on manifests alone. pnpm-workspace.yaml belongs here because
+// from pnpm v10 it holds every non-auth setting — including the allowBuilds approvals that
+// let a dependency run its install scripts. Drop it and the repo's committed approvals
+// never reach the container, so those dependencies silently go unbuilt.
+var pnpmDepManifests = []string{"package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml"}
+
+// withPNPMDeps installs from the manifests alone. The include filter copies whichever of
+// them the repo actually has, so a project with no pnpm-workspace.yaml is unaffected.
+func withPNPMDeps(base *dagger.Container, host *dagger.Directory) *dagger.Container {
+	return base.
+		WithWorkdir(SrcDir).
+		WithDirectory(".", host, dagger.ContainerWithDirectoryOpts{Include: pnpmDepManifests}).
+		WithExec([]string{"pnpm", "i"})
+}
+
 func withPNPMModuleFix(base *dagger.Container) *dagger.Container {
 	return base.WithNewFile(RunDir+"/package.json", `{"type":"module"}`)
 }
