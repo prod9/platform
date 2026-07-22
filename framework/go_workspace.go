@@ -27,7 +27,7 @@ func (fw GoWorkspace) Scaffold(ctx context.Context, wd string, _ scaffold.Env, _
 }
 
 func (GoWorkspace) Plan(*BuildUnit) []Step {
-	return []Step{StepBase, StepDeps, StepTest, StepBuild, StepRunner}
+	return []Step{StepBase, StepDeps, StepTest, StepBuild, StepBuildRunner}
 }
 
 func (GoWorkspace) Execute(ctx context.Context, client *dagger.Client, unit *BuildUnit, step Step, in *dagger.Container) (container *dagger.Container, err error) {
@@ -85,7 +85,7 @@ func (GoWorkspace) Execute(ctx context.Context, client *dagger.Client, unit *Bui
 		}
 		return in.WithExec([]string{"go", "build", "-v", "-o", BinDir + "/" + outbin, pkg}), nil
 
-	case StepRunner:
+	case StepBuildRunner:
 		runner := withRunnerPkgs(BaseImageForUnit(client, unit))
 		runner = withUnitEnv(runner, unit)
 		runner = runner.WithFile(BinDir+"/"+outbin, in.File(BinDir+"/"+outbin))

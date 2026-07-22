@@ -27,7 +27,7 @@ func (fw GoBasic) Scaffold(ctx context.Context, wd string, _ scaffold.Env, _ map
 }
 
 func (GoBasic) Plan(*BuildUnit) []Step {
-	return []Step{StepBase, StepDeps, StepTest, StepBuild, StepRunner}
+	return []Step{StepBase, StepDeps, StepTest, StepBuild, StepBuildRunner}
 }
 
 func (GoBasic) Execute(ctx context.Context, client *dagger.Client, unit *BuildUnit, step Step, in *dagger.Container) (container *dagger.Container, err error) {
@@ -65,7 +65,7 @@ func (GoBasic) Execute(ctx context.Context, client *dagger.Client, unit *BuildUn
 	case StepBuild:
 		return in.WithExec([]string{"go", "build", "-v", "-o", BinDir + "/" + outbin, unit.PackageName}), nil
 
-	case StepRunner:
+	case StepBuildRunner:
 		// The base is a pure function of (client, unit) and Dagger dedupes it, so the
 		// runner re-derives its own rather than needing the builder's ancestor handed back.
 		runner := withRunnerPkgs(BaseImageForUnit(client, unit))

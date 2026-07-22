@@ -25,7 +25,7 @@ func (fw PNPMBasic) Scaffold(ctx context.Context, wd string, _ scaffold.Env, _ m
 }
 
 func (PNPMBasic) Plan(*BuildUnit) []Step {
-	return []Step{StepBase, StepDeps, StepBuild, StepRunner}
+	return []Step{StepBase, StepDeps, StepBuild, StepBuildRunner}
 }
 
 func (PNPMBasic) Execute(ctx context.Context, client *dagger.Client, unit *BuildUnit, step Step, in *dagger.Container) (container *dagger.Container, err error) {
@@ -43,7 +43,7 @@ func (PNPMBasic) Execute(ctx context.Context, client *dagger.Client, unit *Build
 	case StepBuild:
 		return in.WithDirectory(".", host).WithExec([]string{"pnpm", "build"}), nil
 
-	case StepRunner:
+	case StepBuildRunner:
 		outdir := strings.TrimSpace(unit.BuildDir)
 		if outdir == "" {
 			outdir = defaultBuildDir

@@ -15,11 +15,11 @@ func TestPlanSteps(t *testing.T) {
 		fw    Framework
 		steps []Step
 	}{
-		{GoBasic{}, []Step{StepBase, StepDeps, StepTest, StepBuild, StepRunner}},
-		{GoWorkspace{}, []Step{StepBase, StepDeps, StepTest, StepBuild, StepRunner}},
-		{PNPMBasic{}, []Step{StepBase, StepDeps, StepBuild, StepRunner}},
-		{PNPMStatic{}, []Step{StepBase, StepDeps, StepBuild, StepRunner}},
-		{PNPMWorkspace{}, []Step{StepBase, StepDeps, StepBuild, StepRunner}},
+		{GoBasic{}, []Step{StepBase, StepDeps, StepTest, StepBuild, StepBuildRunner}},
+		{GoWorkspace{}, []Step{StepBase, StepDeps, StepTest, StepBuild, StepBuildRunner}},
+		{PNPMBasic{}, []Step{StepBase, StepDeps, StepBuild, StepBuildRunner}},
+		{PNPMStatic{}, []Step{StepBase, StepDeps, StepBuild, StepBuildRunner}},
+		{PNPMWorkspace{}, []Step{StepBase, StepDeps, StepBuild, StepBuildRunner}},
 		{Dockerfile{}, []Step{StepBuild}},
 		{PlatformInfra{}, []Step{StepDeps, StepBuild}},
 	} {

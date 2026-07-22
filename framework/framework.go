@@ -76,11 +76,11 @@ type (
 // stage names across stacks; a framework with a stage none of these name is free to
 // declare its own.
 const (
-	StepBase   Step = "base"   // establish the base image
-	StepDeps   Step = "deps"   // fetch this stack's dependencies
-	StepTest   Step = "test"   // run the module's tests (a hard gate — a red suite fails the build)
-	StepBuild  Step = "build"  // run the stack's own build command
-	StepRunner Step = "runner" // assemble the runtime image from the build's output
+	StepBase        Step = "base"         // establish the base image
+	StepDeps        Step = "deps"         // fetch this stack's dependencies
+	StepTest        Step = "test"         // run the module's tests (a hard gate — a red suite fails the build)
+	StepBuild       Step = "build"        // run the stack's own build command
+	StepBuildRunner Step = "build-runner" // assemble the runtime image from the build's output
 )
 
 // noScaffoldVars is the default for frameworks that onboard an existing repo: they read
