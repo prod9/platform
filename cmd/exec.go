@@ -37,7 +37,7 @@ func runExec(cmd *cobra.Command, args []string) {
 	defer eng.Close()
 
 	ctx := engine.NewContext(context.Background(), eng)
-	results, err := engine.Build(ctx, cfg, []string{modname})
+	results, err := engine.Build(ctx, cfg, []string{modname}, newProgress())
 	if err != nil {
 		buildlog.Fatalln(err)
 	}

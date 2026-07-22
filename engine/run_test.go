@@ -3,7 +3,9 @@ package engine
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
+	"time"
 
 	"dagger.io/dagger"
 	"github.com/stretchr/testify/require"
@@ -35,9 +37,30 @@ func (*stubFramework) Scaffold(context.Context, string, scaffold.Env, map[string
 
 // newStubRun builds a cursor with its client already in hand, so no test ever dials a
 // Dagger engine: the stub framework ignores the client entirely.
-func newStubRun(fw *stubFramework) *Run {
-	unit := &framework.BuildUnit{Framework: fw}
-	return &Run{unit: unit, steps: fw.Plan(unit), client: &dagger.Client{}}
+func newStubRun(fw *stubFramework, obs Observer) *Run {
+	unit := &framework.BuildUnit{Framework: fw, Name: "stubunit"}
+	return &Run{unit: unit, obs: obs, steps: fw.Plan(unit), client: &dagger.Client{}}
+}
+
+// recorder is an Observer that keeps every callback as a readable line, so a test asserts
+// on the sequence a caller would see rather than on three separate counters.
+type recorder struct {
+	lines []string
+	errs  []error
+}
+
+func (r *recorder) StepStarted(unit, step string, _ time.Time) {
+	r.lines = append(r.lines, "started "+unit+"/"+step)
+}
+
+func (r *recorder) StepDone(unit, step string, _ time.Time, err error) {
+	r.lines = append(r.lines, "done "+unit+"/"+step)
+	r.errs = append(r.errs, err)
+}
+
+func (r *recorder) RunDone(unit string, _ time.Time, err error) {
+	r.lines = append(r.lines, "rundone "+unit)
+	r.errs = append(r.errs, err)
 }
 
 func (f *stubFramework) Execute(_ context.Context, _ *dagger.Client, _ *framework.BuildUnit, step framework.Step, in *dagger.Container) (*dagger.Container, error) {
@@ -50,7 +73,7 @@ func (f *stubFramework) Execute(_ context.Context, _ *dagger.Client, _ *framewor
 
 func TestRunDrivesEveryStepInOrder(t *testing.T) {
 	fw := &stubFramework{steps: []framework.Step{"one", "two", "three"}}
-	run := newStubRun(fw)
+	run := newStubRun(fw, nil)
 
 	for run.Next(context.Background()) {
 	}
@@ -62,7 +85,7 @@ func TestRunDrivesEveryStepInOrder(t *testing.T) {
 
 func TestRunStopsAtTheFailedStep(t *testing.T) {
 	fw := &stubFramework{steps: []framework.Step{"one", "two", "three"}, failAt: "two"}
-	run := newStubRun(fw)
+	run := newStubRun(fw, nil)
 
 	for run.Next(context.Background()) {
 	}
@@ -72,9 +95,53 @@ func TestRunStopsAtTheFailedStep(t *testing.T) {
 	require.Equal(t, []framework.Step{"one", "two"}, fw.seen, "the third step must never run")
 }
 
+func TestRunReportsEveryStepToTheObserver(t *testing.T) {
+	fw := &stubFramework{steps: []framework.Step{"one", "two"}}
+	obs := &recorder{}
+	run := newStubRun(fw, obs)
+
+	for run.Next(context.Background()) {
+	}
+
+	require.Equal(t, []string{
+		"started stubunit/one", "done stubunit/one",
+		"started stubunit/two", "done stubunit/two",
+		"rundone stubunit",
+	}, obs.lines)
+	require.Equal(t, []error{nil, nil, nil}, obs.errs)
+}
+
+func TestRunReportsTheFailureOnTheStepThatFailed(t *testing.T) {
+	fw := &stubFramework{steps: []framework.Step{"one", "two", "three"}, failAt: "two"}
+	obs := &recorder{}
+	run := newStubRun(fw, obs)
+
+	for run.Next(context.Background()) {
+	}
+
+	require.Equal(t, []string{
+		"started stubunit/one", "done stubunit/one",
+		"started stubunit/two", "done stubunit/two",
+		"rundone stubunit",
+	}, obs.lines, "the run ends where the step failed, and says so once")
+	require.Equal(t, []error{nil, errStubStep, errStubStep}, obs.errs)
+}
+
+func TestRunDoneIsReportedOnlyOnce(t *testing.T) {
+	fw := &stubFramework{steps: []framework.Step{"one"}}
+	obs := &recorder{}
+	run := newStubRun(fw, obs)
+
+	for i := 0; i < 5; i++ {
+		run.Next(context.Background())
+	}
+
+	require.Equal(t, 1, strings.Count(strings.Join(obs.lines, "\n"), "rundone"))
+}
+
 func TestRunWithNoStepsIsImmediatelyDone(t *testing.T) {
 	fw := &stubFramework{}
-	run := newStubRun(fw)
+	run := newStubRun(fw, nil)
 
 	require.False(t, run.Next(context.Background()))
 	container, err := run.Result()

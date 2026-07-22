@@ -17,6 +17,14 @@ named so a later scan can recognize the same shape. Append; don't prune.
 4. **Interface methods sit together.** Don't strand one below a pile of package-level data.
    *Broke it:* `Build` at the bottom of `platform_infra.go`, eight declarations away from
    the rest.
+21. **A file earns its name by holding a type or a sizable unit of work — everything else
+    goes in the package-generic file named after the package** (`engine/engine.go`,
+    `cmd/cmd.go`). The test is whether the name denotes something the package *has*, not a
+    topic the code is *about*: `progress.go`, `helpers.go`, `types.go` name topics and are
+    how a package acquires a second grab-bag. Corollary: the file named after a type holds
+    that type — *broke it:* `Run` lived in `engine/cursor.go` while `engine/run.go` held
+    the entrypoints that merely used it, and a 15-line observer was headed for a fresh
+    `cmd/progress.go` instead of `cmd/cmd.go`.
 
 ## Ownership
 

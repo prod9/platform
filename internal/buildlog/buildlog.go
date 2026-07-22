@@ -27,8 +27,11 @@ func SetVerbosity(v int) {
 	logger = nil
 }
 
+// OutputForDagger is where Dagger's own TUI goes. It is a debugging firehose, not a
+// build's progress — that is the step report an engine observer renders — so it stays off
+// until the operator asks for it with -v.
 func OutputForDagger() io.Writer {
-	if verbosity >= 0 {
+	if verbosity > 0 {
 		return out()
 	} else {
 		return io.Discard

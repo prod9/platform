@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"time"
 
 	"dagger.io/dagger"
 	"platform.prodigy9.co/framework"
@@ -14,26 +15,29 @@ import (
 // It is a cursor rather than a single call because a build's observable structure is its
 // steps — driving them one at a time is what lets each be timed and reported separately.
 //
-//	run := NewRun(eng, unit)
+//	run := NewRun(eng, unit, obs)
 //	for run.Next(ctx) {
 //	}
 //	container, err := run.Result()
 type Run struct {
 	eng  *Engine
 	unit *framework.BuildUnit
+	obs  Observer
 
 	steps []framework.Step
 	next  int
+	done  bool
 
 	container *dagger.Container
 	client    *dagger.Client
 	err       error
 }
 
-// NewRun asks the unit's framework for its plan. It does no engine work — a client is
-// grabbed at the first Next — so opening a run is free and never dials.
-func NewRun(eng *Engine, unit *framework.BuildUnit) *Run {
-	return &Run{eng: eng, unit: unit, steps: unit.Framework.Plan(unit)}
+// NewRun asks the unit's framework for its plan and reports every step to obs, which may
+// be nil for a silent run. It does no engine work — a client is grabbed at the first Next
+// — so opening a run is free and never dials.
+func NewRun(eng *Engine, unit *framework.BuildUnit, obs Observer) *Run {
+	return &Run{eng: eng, unit: unit, obs: obs, steps: unit.Framework.Plan(unit)}
 }
 
 // Next executes exactly one step and reports whether the run should continue. It returns
@@ -41,36 +45,70 @@ func NewRun(eng *Engine, unit *framework.BuildUnit) *Run {
 // rather than aborting anything else, so a caller driving several units loses only the one.
 func (r *Run) Next(ctx context.Context) bool {
 	if r.err != nil || r.next >= len(r.steps) {
-		return false
+		return r.finish()
 	}
 
 	step := r.steps[r.next]
 	r.next++
 
-	client, err := r.dial(ctx)
+	r.report(func(obs Observer, at time.Time) {
+		obs.StepStarted(r.unit.Name, string(step), at)
+	})
+	container, err := r.execute(ctx, step)
+	r.report(func(obs Observer, at time.Time) {
+		obs.StepDone(r.unit.Name, string(step), at, err)
+	})
+
 	if err != nil {
 		r.err = err
-		return false
+		return r.finish()
+	}
+
+	r.container = container
+	if r.next >= len(r.steps) {
+		return r.finish()
+	}
+	return true
+}
+
+// execute runs one step to completion on the run's client, so that the step's whole cost
+// — dialing included — lands inside the boundary the observer times.
+func (r *Run) execute(ctx context.Context, step framework.Step) (*dagger.Container, error) {
+	client, err := r.dial(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	container, err := r.unit.Framework.Execute(ctx, client, r.unit, step, r.container)
-	if err != nil {
-		r.err = err
-		return false
+	if err != nil || container == nil {
+		return nil, err
 	}
 
 	// Force the work here rather than letting it pile up lazily: the step boundary is
 	// where a step's cost is attributable, and a deferred exec would be billed to whichever
 	// later step happened to trigger it.
-	if container != nil {
-		if container, err = container.Sync(ctx); err != nil {
-			r.err = err
-			return false
-		}
+	return container.Sync(ctx)
+}
+
+// finish ends the run, reporting it once however the cursor arrived here, and always
+// returns false so every stopping path in Next can end with it.
+func (r *Run) finish() bool {
+	if r.done {
+		return false
 	}
 
-	r.container = container
-	return r.next < len(r.steps)
+	r.done = true
+	r.report(func(obs Observer, at time.Time) { obs.RunDone(r.unit.Name, at, r.err) })
+	return false
+}
+
+// report is the one place a nil observer is skipped, and the one place the callback clock
+// is read — so every report is stamped at the moment it happens.
+func (r *Run) report(emit func(obs Observer, at time.Time)) {
+	if r.obs == nil {
+		return
+	}
+	emit(r.obs, time.Now())
 }
 
 // dial grabs the run's client on first use and reuses it for every later step: a

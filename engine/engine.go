@@ -108,7 +108,7 @@ var ErrNoJobs = errors.New("engine: empty units list, nothing to do")
 // caller's engine instead of opening its own. It returns every publish result so a
 // driver can record what shipped; both the local `publish` command and the platform
 // server's build runner drive it.
-func BuildAndPublish(ctx context.Context, cfg *conf.Model, modnames []string, tag string) ([]PublishResult, error) {
+func BuildAndPublish(ctx context.Context, cfg *conf.Model, modnames []string, tag string, obs Observer) ([]PublishResult, error) {
 	units, err := framework.Units(cfg, modnames, cfg.PublishArch)
 	if err != nil {
 		return nil, err
@@ -118,7 +118,7 @@ func BuildAndPublish(ctx context.Context, cfg *conf.Model, modnames []string, ta
 		unit.ImageName = unit.ImageName + ":" + tag
 	}
 
-	builds, err := build(ctx, units)
+	builds, err := build(ctx, units, obs)
 	if err != nil {
 		return nil, err
 	}
@@ -170,17 +170,18 @@ func (r BuildResult) Client() *dagger.Client { return r.client }
 // engine carried by ctx. It constructs the units itself — resolving the arch from cfg —
 // so callers never name a platform; what they need afterwards they read off
 // BuildResult.Unit.
-func Build(ctx context.Context, cfg *conf.Model, modnames []string) ([]BuildResult, error) {
+func Build(ctx context.Context, cfg *conf.Model, modnames []string, obs Observer) ([]BuildResult, error) {
 	units, err := framework.Units(cfg, modnames, FromContext(ctx).buildArch(cfg))
 	if err != nil {
 		return nil, err
 	}
-	return build(ctx, units)
+	return build(ctx, units, obs)
 }
 
 // build runs every unit on the engine carried by ctx, fanning out one unit per goroutine
-// and round-robining them across the discovered engine fleet.
-func build(ctx context.Context, units []*framework.BuildUnit) ([]BuildResult, error) {
+// and round-robining them across the discovered engine fleet. Every unit reports to the
+// one observer, naming itself in each callback — the fan-in is the observer itself.
+func build(ctx context.Context, units []*framework.BuildUnit, obs Observer) ([]BuildResult, error) {
 	if len(units) == 0 {
 		return nil, ErrNoJobs
 	}
@@ -192,7 +193,7 @@ func build(ctx context.Context, units []*framework.BuildUnit) ([]BuildResult, er
 		unitCtx, cancel := context.WithTimeout(ctx, unit.Timeout)
 		defer cancel()
 
-		run := NewRun(eng, unit)
+		run := NewRun(eng, unit, obs)
 		for run.Next(unitCtx) {
 		}
 
