@@ -89,12 +89,12 @@ named so a later scan can recognize the same shape. Append; don't prune.
 
 ## Conduct
 
-19. **Don't defend code by its provenance, and don't invent it either.** Naming an earlier
-    commit explains nothing. Neither does guessing *why* something is the way it is: this
-    repo is a mix of chakrit's own code and agent-written code, and you cannot tell which
-    from reading it. Asked why a name or shape exists, either read the commit that
-    introduced it or say you don't know. *Broke it:* asked why `engine/runners` is called
-    that, invented a story about a dependency's vocabulary leaking in — chakrit had
-    written the file himself.
+19. **Don't defend code by its provenance, and never invent its history.** Naming an
+    earlier commit explains nothing — almost every line here is agent-written, so "an agent
+    did it" is not a finding. The sharper trap is *why*: asked why a name or shape exists,
+    read the commit that introduced it or say you don't know. Never reach for a cause.
+    *Broke it:* asked why `engine/runners` is called that, invented a story about a
+    dependency's vocabulary leaking into our namespace. chakrit wrote that file — but the
+    invention was the error, and would have been just as wrong had an agent written it.
 20. **Don't rationalize a design under review.** When the shape is called bad, re-derive it —
     don't narrate why the current one was reasonable.
