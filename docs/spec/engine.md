@@ -229,12 +229,15 @@ it:
 | Entrypoint                    | Arch                                    |
 | ----------------------------- | --------------------------------------- |
 | `BuildAndPublish`             | `publish_arch` — pushing *is* the answer |
-| `Build(ctx, cfg, modnames)`   | `local_arch`, or `publish_arch` when `CI` is set |
+| `Build(ctx, cfg, modnames)`   | `local_arch`, or `publish_arch` when `CI` is true |
 
 Engine entrypoints take `cfg` + module names and construct the units themselves; the arch
 rule is engine-internal and unexported, because it is only ever an input to an entrypoint
-that is about to build. Callers never name an arch, and `preview`/`exec` read what they
-need off `BuildResult.Unit` after the build rather than holding a unit before it.
+that is about to build (`CI` is read through fx's own `prompts.CIConfig`, a `config.Bool`
+— there is no second `CI` var). Callers never name an arch, and `preview`/`exec` read what
+they need off `BuildResult.Unit` after the build rather than holding a unit before it. The
+exception is `ls`, a local debugging view that never builds: it assembles its own unit at
+`local_arch` directly, as commands with ad-hoc Dagger access are allowed to.
 
 `framework.Units` receives the resolved arch and writes it into each `BuildUnit`
 ([`framework/unit.go`](../../framework/unit.go)) — the engine then reads the field, never
