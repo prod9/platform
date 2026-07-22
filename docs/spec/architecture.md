@@ -36,8 +36,9 @@ This yields three standing rules:
   parameter to carry a fact through several calls, that fact belongs in the struct the
   pipeline already passes. A method growing a long argument list is the smell — stop and
   put the data where it lives. (`BuildUnit` already carries `BuildDir`/`ImageName`; the
-  arch target sits right beside them.) The command declares *intent* once (a `Target`:
-  local vs publish); interpret resolves intent into concrete `BuildUnit` fields.
+  arch sits right beside them.) Commands declare nothing: they pass `cfg` + module names
+  to an engine entrypoint, which resolves the arch and interprets config into concrete
+  `BuildUnit` fields.
 
 - **The unit carries the resolved framework, not a name.** `BuildUnit.Framework` holds the
   `Framework` value `FindFramework` resolved at interpret time. A `BuildUnit` is an in-memory

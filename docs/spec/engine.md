@@ -191,8 +191,8 @@ never aborts its siblings.
 
 `Publish` pushes a successfully-built container, reusing the client that built it so the
 registry secret is minted by the engine that owns the container, and logs the image via
-`buildlog.Image`. `publish` composes the ordinary path — build the units at
-`PublishTarget`, suffix each `ImageName` with the release tag, run, then push — and the
+`buildlog.Image`. `publish` composes the ordinary path — build the units at the publish
+arch, suffix each `ImageName` with the release tag, run, then push — and the
 `[]BuildAttempt` records of what shipped are assembled by `srv`
 ([platform-server.md](platform-server.md)), not by the engine.
 
@@ -218,16 +218,26 @@ docker login to ghcr. The env creds are for a server driver with no local docker
 
 ## Arch targets
 
-The unit's `Arch` is resolved at interpret time from the `Target` the command declared
-([`framework/unit.go`](../../framework/unit.go)) — the engine reads the field, never a
-call argument:
+**The arch question is not where you are standing, it is whether the image outlives the
+box that built it.** A build whose output is pushed to a registry runs somewhere else and
+must carry that somewhere's arch; a build-and-discard runs here and takes the host arch
+for speed. "Local vs publish" reads as a location and breaks the moment a non-publish
+verb runs on a build-server, where nothing is local — so there is no `Target` type and no
+declared intent. There is a resolved arch string and the engine entrypoint that resolves
+it:
 
-| Target          | Arch source    | Default             |
-| --------------- | -------------- | ------------------- |
-| `LocalTarget`   | `local_arch`   | `auto` = host arch  |
-| `PublishTarget` | `publish_arch` | `amd64`             |
+| Entrypoint                    | Arch                                    |
+| ----------------------------- | --------------------------------------- |
+| `BuildAndPublish`             | `publish_arch` — pushing *is* the answer |
+| `Build(ctx, cfg, modnames)`   | `local_arch`, or `publish_arch` when `CI` is set |
 
-`build`/`preview`/`export`/`ls` run `LocalTarget` for fast native iteration; `publish`
-runs `PublishTarget` so an arm laptop never ships an unrunnable image. Bare archs become
-`linux/<arch>`; `auto` tracks `runtime.GOARCH`. The infra `FROM scratch` manifest image
-carries no executable, so arch is irrelevant to it.
+Engine entrypoints take `cfg` + module names and construct the units themselves; the arch
+rule is engine-internal and unexported, because it is only ever an input to an entrypoint
+that is about to build. Callers never name an arch, and `preview`/`exec` read what they
+need off `BuildResult.Unit` after the build rather than holding a unit before it.
+
+`framework.Units` receives the resolved arch and writes it into each `BuildUnit`
+([`framework/unit.go`](../../framework/unit.go)) — the engine then reads the field, never
+a call argument. Bare archs become `linux/<arch>`; `auto` tracks `runtime.GOARCH`;
+`local_arch` defaults to `auto` and `publish_arch` to `amd64`. The infra `FROM scratch`
+manifest image carries no executable, so arch is irrelevant to it.

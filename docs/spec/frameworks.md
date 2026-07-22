@@ -207,9 +207,11 @@ and there is no skip-tests opt-out. Full rationale:
 
 ## Frameworks and the build model
 
-`framework.Units(cfg, args, target)` turns config into `[]*BuildUnit` — one unit per
-selected module, all sharing a `Target` (`LocalTarget` | `PublishTarget`) that pins the
-build arch. It returns the slice directly: there is no attempt wrapper in the build path,
+`framework.Units(cfg, modnames, arch)` turns config into `[]*BuildUnit` — one unit per
+selected module, all built for the given arch. The arch arrives already resolved by the
+engine entrypoint that is about to build ([engine.md](engine.md) §Arch targets); this
+layer writes it into each unit and never asks what it is for. It returns the slice
+directly: there is no attempt wrapper in the build path,
 because `BuildAttempt` is now an **output** type owned by `srv` (see
 [platform-server.md](platform-server.md)), not an input the engine consumes.
 

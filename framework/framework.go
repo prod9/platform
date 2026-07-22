@@ -67,13 +67,13 @@ var (
 	// IMPORTANT: This list is **Order Sensitive** due to Discover() calls on different
 	// frameworks discovering the same subfolder a little differently.
 	knownFrameworks = []Framework{
-		PlatformInfra{},
-		GoWorkspace{},
-		PNPMWorkspace{},
-		GoBasic{},
-		PNPMStatic{},
-		PNPMBasic{},
 		Dockerfile{},
+		GoBasic{},
+		GoWorkspace{},
+		PlatformInfra{},
+		PNPMBasic{},
+		PNPMStatic{},
+		PNPMWorkspace{},
 	}
 )
 
