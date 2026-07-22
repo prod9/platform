@@ -17,7 +17,6 @@ import (
 	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/cue/load"
 	cueyaml "cuelang.org/go/encoding/yaml"
-	"cuelang.org/go/mod/modconfig"
 	"gopkg.in/yaml.v3"
 	"platform.prodigy9.co/conf"
 	"platform.prodigy9.co/cuemod"
@@ -101,7 +100,7 @@ func exportCue(srcDir string, vars map[string]any) ([]byte, error) {
 	}
 	appsPkg := module + "/" + appsPackage
 
-	registry, err := modconfig.NewRegistry(&modconfig.Config{CUERegistry: cueRegistry()})
+	registry, err := newRegistry()
 	if err != nil {
 		return nil, err
 	}

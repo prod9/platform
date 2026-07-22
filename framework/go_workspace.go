@@ -26,78 +26,78 @@ func (fw GoWorkspace) Scaffold(ctx context.Context, wd string, _ scaffold.Env, _
 	return scaffold.Spec{Module: defaultModule(fw, wd)}, nil
 }
 
-func (GoWorkspace) Build(ctx context.Context, client *dagger.Client, unit *BuildUnit) (container *dagger.Container, err error) {
+func (GoWorkspace) Plan(*BuildUnit) []Step {
+	return []Step{StepBase, StepDeps, StepTest, StepBuild, StepRunner}
+}
+
+func (GoWorkspace) Execute(ctx context.Context, client *dagger.Client, unit *BuildUnit, step Step, in *dagger.Container) (container *dagger.Container, err error) {
 	defer errutil.Wrap("go/workspace", &err)
 
+	// The workspace root, one level up: the workspace file and sibling modules must come
+	// into the build, then the target module is selected by name.
 	wsdir, err := filepath.Abs(filepath.Join(unit.WorkDir, ".."))
 	if err != nil {
 		return nil, err
 	}
 
-	host := client.Host().Directory(wsdir, dagger.HostDirectoryOpts{
-		Exclude: unit.Excludes,
-	})
+	host := hostDir(client, wsdir, unit)
+	outbin := unit.Name
 
-	workfile := filepath.Join(wsdir, "go.work")
-	goversion, workmods, err := gowork.ParseFile(workfile)
+	goversion, workmods, err := gowork.ParseFile(filepath.Join(wsdir, "go.work"))
 	if err != nil {
 		return nil, err
 	}
 
-	// prepare job parameters
-	outbin := unit.Name
+	switch step {
+	case StepBase:
+		builder := withBuildPkgs(BaseImageForUnit(client, unit), "go").WithWorkdir(SrcDir)
+		builder = withGoCaches(client, builder, goversion)
+		return withGoVersion(builder, goversion), nil
 
-	cmd := strings.TrimSpace(unit.CommandName)
-	if cmd == "" {
-		cmd = outbin
+	case StepDeps:
+		builder := in.
+			WithFile("go.work", host.File("go.work")).
+			WithFile("go.work.sum", host.File("go.work.sum"))
+
+		// needs all go.mod of all modules to start dependencies check
+		// otherwise it'll try to fetch them from the internet during build
+		for _, mod := range workmods {
+			builder = builder.
+				WithFile(SrcDir+"/"+mod+"/go.mod", host.File("./"+mod+"/go.mod")).
+				WithFile(SrcDir+"/"+mod+"/go.sum", host.File("./"+mod+"/go.sum"))
+		}
+
+		// NOTE: Users should `go work sync` if mod doesn't match as build logs maybe invisible
+		// or hard to track down for the user.
+		return builder.WithExec([]string{"go", "mod", "download", "-x", "all"}), nil
+
+	case StepTest:
+		testargs := []string{"go", "test", "-v"}
+		for _, mod := range workmods {
+			testargs = append(testargs, "./"+mod+"/...")
+		}
+		return in.WithDirectory(".", host).WithExec(testargs), nil
+
+	case StepBuild:
+		pkg := unit.PackageName
+		if pkg == "" {
+			pkg = "./" + unit.Name
+		}
+		return in.WithExec([]string{"go", "build", "-v", "-o", BinDir + "/" + outbin, pkg}), nil
+
+	case StepRunner:
+		runner := withRunnerPkgs(BaseImageForUnit(client, unit))
+		runner = withUnitEnv(runner, unit)
+		runner = runner.WithFile(BinDir+"/"+outbin, in.File(BinDir+"/"+outbin))
+		runner = withUnitAssets(runner, in, unit)
+
+		cmd := strings.TrimSpace(unit.CommandName)
+		if cmd == "" {
+			cmd = outbin
+		}
+		return runner.WithDefaultArgs(append([]string{cmd}, unit.CommandArgs...)), nil
+
+	default:
+		return nil, unknownStep(step)
 	}
-	args := append([]string{cmd}, unit.CommandArgs...)
-
-	// build
-	base := BaseImageForUnit(client, unit)
-
-	builder := withBuildPkgs(base, "go").WithWorkdir(SrcDir)
-	builder = withGoCaches(client, builder, goversion)
-	builder = withGoVersion(builder, goversion)
-
-	builder = builder.
-		WithFile("go.work", host.File("go.work")).
-		WithFile("go.work.sum", host.File("go.work.sum"))
-
-	// needs all go.mod of all modules to start dependencies check
-	// otherwise it'll try to fetch them from the internet during build
-	for _, mod := range workmods {
-		builder = builder.
-			WithFile(SrcDir+"/"+mod+"/go.mod", host.File("./"+mod+"/go.mod")).
-			WithFile(SrcDir+"/"+mod+"/go.sum", host.File("./"+mod+"/go.sum"))
-	}
-
-	// NOTE: Users should `go work sync` if mod doesn't match as build logs maybe invisible
-	// or hard to track down for the user.
-	builder = builder.
-		WithExec([]string{"go", "mod", "download", "-x", "all"})
-
-	testargs := []string{"go", "test", "-v"}
-	for _, mod := range workmods {
-		testargs = append(testargs, "./"+mod+"/...")
-	}
-
-	pkg := unit.PackageName
-	if pkg == "" {
-		pkg = "./" + unit.Name
-	}
-
-	builder = builder.
-		WithDirectory(".", host).
-		WithExec(testargs).
-		WithExec([]string{"go", "build", "-v", "-o", BinDir + "/" + outbin, pkg})
-
-	// run
-	runner := withRunnerPkgs(base)
-	runner = withUnitEnv(runner, unit)
-	runner = runner.WithFile(BinDir+"/"+outbin, builder.File(BinDir+"/"+outbin))
-	runner = withUnitAssets(runner, builder, unit)
-
-	runner = runner.WithDefaultArgs(args)
-	return runner.Sync(ctx)
 }

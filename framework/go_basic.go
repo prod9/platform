@@ -26,13 +26,14 @@ func (fw GoBasic) Scaffold(ctx context.Context, wd string, _ scaffold.Env, _ map
 	return scaffold.Spec{Module: defaultModule(fw, wd)}, nil
 }
 
-func (GoBasic) Build(ctx context.Context, client *dagger.Client, unit *BuildUnit) (container *dagger.Container, err error) {
-	defer errutil.Wrap("go/basic", &err)
-	host := client.Host().Directory(unit.WorkDir, dagger.HostDirectoryOpts{
-		Exclude: unit.Excludes,
-	})
+func (GoBasic) Plan(*BuildUnit) []Step {
+	return []Step{StepBase, StepDeps, StepTest, StepBuild, StepRunner}
+}
 
-	// prepare job parameters
+func (GoBasic) Execute(ctx context.Context, client *dagger.Client, unit *BuildUnit, step Step, in *dagger.Container) (container *dagger.Container, err error) {
+	defer errutil.Wrap("go/basic", &err)
+
+	host := unitHost(client, unit)
 	outbin := unit.Name
 
 	goversion, _, err := gowork.ParseFile(filepath.Join(unit.WorkDir, "go.mod"))
@@ -40,34 +41,45 @@ func (GoBasic) Build(ctx context.Context, client *dagger.Client, unit *BuildUnit
 		return nil, err
 	}
 
-	cmd := strings.TrimSpace(unit.CommandName)
-	if cmd == "" {
-		cmd = outbin
+	switch step {
+	case StepBase:
+		builder := withBuildPkgs(BaseImageForUnit(client, unit), "go").WithWorkdir(SrcDir)
+		builder = withGoCaches(client, builder, goversion)
+		return withGoVersion(builder, goversion), nil
+
+	case StepDeps:
+		// go.mod/go.sum alone, so the dependency layer keys on the manifests and survives
+		// every source edit.
+		return in.
+			WithFile("go.mod", host.File("go.mod")).
+			WithFile("go.sum", host.File("go.sum")).
+			WithExec([]string{"go", "mod", "download", "-x", "all"}), nil
+
+	case StepTest:
+		// Source lands here: the tests are the first stage that needs it, and Dagger fails
+		// the build on a non-zero exec, which is what makes green tests a precondition.
+		return in.
+			WithDirectory(".", host).
+			WithExec([]string{"go", "test", "-v", "./..."}), nil
+
+	case StepBuild:
+		return in.WithExec([]string{"go", "build", "-v", "-o", BinDir + "/" + outbin, unit.PackageName}), nil
+
+	case StepRunner:
+		// The base is a pure function of (client, unit) and Dagger dedupes it, so the
+		// runner re-derives its own rather than needing the builder's ancestor handed back.
+		runner := withRunnerPkgs(BaseImageForUnit(client, unit))
+		runner = withUnitEnv(runner, unit)
+		runner = runner.WithFile(BinDir+"/"+outbin, in.File(BinDir+"/"+outbin))
+		runner = withUnitAssets(runner, in, unit)
+
+		cmd := strings.TrimSpace(unit.CommandName)
+		if cmd == "" {
+			cmd = outbin
+		}
+		return runner.WithDefaultArgs(append([]string{cmd}, unit.CommandArgs...)), nil
+
+	default:
+		return nil, unknownStep(step)
 	}
-	args := append([]string{cmd}, unit.CommandArgs...)
-
-	// build
-	base := BaseImageForUnit(client, unit)
-	builder := withBuildPkgs(base, "go").WithWorkdir(SrcDir)
-	builder = withGoCaches(client, builder, goversion)
-	builder = withGoVersion(builder, goversion)
-
-	builder = builder.
-		WithFile("go.mod", host.File("go.mod")).
-		WithFile("go.sum", host.File("go.sum")).
-		WithExec([]string{"go", "mod", "download", "-x", "all"})
-
-	builder = builder.
-		WithDirectory(".", host).
-		WithExec([]string{"go", "test", "-v", "./..."}).
-		WithExec([]string{"go", "build", "-v", "-o", BinDir + "/" + outbin, unit.PackageName})
-
-	// run
-	runner := withRunnerPkgs(base)
-	runner = withUnitEnv(runner, unit)
-	runner = runner.WithFile(BinDir+"/"+outbin, builder.File(BinDir+"/"+outbin))
-	runner = withUnitAssets(runner, builder, unit)
-
-	runner = runner.WithDefaultArgs(args)
-	return runner.Sync(ctx)
 }

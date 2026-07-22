@@ -1,5 +1,5 @@
 // Package framework defines the sole owners of project types: a Framework recognizes
-// its stack (Discover), scaffolds it (Scaffold), and builds its container image (Build).
+// its stack (Discover), scaffolds it (Scaffold), and knows how it is built (Plan/Execute).
 // BuildUnit is the resolved work definition the engine executes; Units turns config into
 // one per selected module.
 //
@@ -17,7 +17,11 @@
 // when invoked. Prefer one of the language-specific frameworks whenever possible.
 package framework
 
-import "dagger.io/dagger"
+import (
+	"fmt"
+
+	"dagger.io/dagger"
+)
 
 const (
 	// SEE: https://edu.chainguard.dev/open-source/wolfi/overview/
@@ -60,6 +64,23 @@ func BaseImageForUnit(client *dagger.Client, unit *BuildUnit) *dagger.Container 
 		WithMountedCache("/var/cache/apk", apkCache).
 		WithExec([]string{"apk", "update"}).
 		WithExec([]string{"apk", "upgrade"})
+}
+
+// unitHost is the unit's own directory on the host, minus its excludes. Workspace layouts
+// need the workspace root instead and call hostDir directly.
+func unitHost(client *dagger.Client, unit *BuildUnit) *dagger.Directory {
+	return hostDir(client, unit.WorkDir, unit)
+}
+
+func hostDir(client *dagger.Client, dir string, unit *BuildUnit) *dagger.Directory {
+	return client.Host().Directory(dir, dagger.HostDirectoryOpts{Exclude: unit.Excludes})
+}
+
+// unknownStep guards the Execute switch. It is unreachable while Plan and Execute agree —
+// which is exactly why it must stay loud: a step added to one and not the other is a
+// silently skipped build stage otherwise.
+func unknownStep(step Step) error {
+	return fmt.Errorf("%w: %s", ErrUnknownStep, step)
 }
 
 func withPkgs(base *dagger.Container, pkgs ...string) *dagger.Container {

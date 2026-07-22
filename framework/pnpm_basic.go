@@ -24,42 +24,46 @@ func (fw PNPMBasic) Scaffold(ctx context.Context, wd string, _ scaffold.Env, _ m
 	return scaffold.Spec{Module: defaultModule(fw, wd)}, nil
 }
 
-func (PNPMBasic) Build(ctx context.Context, client *dagger.Client, unit *BuildUnit) (container *dagger.Container, err error) {
+func (PNPMBasic) Plan(*BuildUnit) []Step {
+	return []Step{StepBase, StepDeps, StepBuild, StepRunner}
+}
+
+func (PNPMBasic) Execute(ctx context.Context, client *dagger.Client, unit *BuildUnit, step Step, in *dagger.Container) (container *dagger.Container, err error) {
 	defer errutil.Wrap("pnpm/basic", &err)
 
-	host := client.Host().
-		Directory(unit.WorkDir, dagger.HostDirectoryOpts{Exclude: unit.Excludes})
+	host := unitHost(client, unit)
 
-	// prepare job parameters
-	outdir := strings.TrimSpace(unit.BuildDir)
-	if outdir == "" {
-		outdir = defaultBuildDir
+	switch step {
+	case StepBase:
+		return pnpmBase(client, unit), nil
+
+	case StepDeps:
+		return withPNPMDeps(in, host), nil
+
+	case StepBuild:
+		return in.WithDirectory(".", host).WithExec([]string{"pnpm", "build"}), nil
+
+	case StepRunner:
+		outdir := strings.TrimSpace(unit.BuildDir)
+		if outdir == "" {
+			outdir = defaultBuildDir
+		}
+
+		// The runner descends from the dependency layer, not from a bare base: this is an
+		// interpreted family, so node_modules must be in the image at runtime. Re-derived
+		// rather than threaded, and Dagger dedupes it against the layer StepDeps built.
+		runner := withRunnerPkgs(withPNPMDeps(pnpmBase(client, unit), host)).
+			WithWorkdir(RunDir).
+			WithDirectory(RunDir, in.Directory(outdir))
+		runner = withUnitAssets(runner, in, unit)
+
+		cmd := strings.TrimSpace(unit.CommandName)
+		if cmd == "" {
+			cmd = defaultNodeBin
+		}
+		return runner.WithDefaultArgs(pnpmRunArgs(cmd, unit, ".")), nil
+
+	default:
+		return nil, unknownStep(step)
 	}
-
-	cmd := strings.TrimSpace(unit.CommandName)
-	if cmd == "" {
-		cmd = defaultNodeBin
-	}
-
-	args := pnpmRunArgs(cmd, unit, ".")
-
-	// build
-	base := BaseImageForUnit(client, unit)
-	base = withPNPMBase(base)
-	base = withPNPMPkgCache(client, base)
-	base = withUnitEnv(base, unit)
-	base = withPNPMDeps(base, host)
-
-	builder := base.
-		WithDirectory(".", host).
-		WithExec([]string{"pnpm", "build"})
-
-	// runner
-	runner := withRunnerPkgs(base).
-		WithWorkdir(RunDir).
-		WithDirectory(RunDir, builder.Directory(outdir))
-	runner = withUnitAssets(runner, builder, unit)
-
-	runner = runner.WithDefaultArgs(args)
-	return runner.Sync(ctx)
 }

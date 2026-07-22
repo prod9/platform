@@ -99,24 +99,15 @@ func build(ctx context.Context, units []*framework.BuildUnit) ([]BuildResult, er
 	m := &multiplexer[*framework.BuildUnit, BuildResult]{}
 	m.Reset(units)
 	return m.Start(func(idx int, unit *framework.BuildUnit) BuildResult {
-		client, err := eng.Client(ctx)
-		if err != nil {
-			return BuildResult{Unit: unit, Err: err}
-		}
-
 		unitCtx, cancel := context.WithTimeout(ctx, unit.Timeout)
 		defer cancel()
 
-		container, err := unit.Framework.Build(unitCtx, client, unit)
-		if err != nil {
-			return BuildResult{Unit: unit, Err: err, client: client}
+		run := NewRun(eng, unit)
+		for run.Next(unitCtx) {
 		}
 
-		container, err = container.Sync(unitCtx)
-		if err != nil {
-			return BuildResult{Unit: unit, Err: err, client: client}
-		}
-		return BuildResult{Unit: unit, Container: container, client: client}
+		container, err := run.Result()
+		return BuildResult{Unit: unit, Container: container, Err: err, client: run.Client()}
 	}), nil
 }
 

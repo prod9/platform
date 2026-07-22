@@ -24,43 +24,45 @@ func (fw PNPMStatic) Scaffold(ctx context.Context, wd string, _ scaffold.Env, _ 
 	return scaffold.Spec{Module: defaultModule(fw, wd)}, nil
 }
 
-func (PNPMStatic) Build(ctx context.Context, client *dagger.Client, unit *BuildUnit) (container *dagger.Container, err error) {
+func (PNPMStatic) Plan(*BuildUnit) []Step {
+	return []Step{StepBase, StepDeps, StepBuild, StepRunner}
+}
+
+func (PNPMStatic) Execute(ctx context.Context, client *dagger.Client, unit *BuildUnit, step Step, in *dagger.Container) (container *dagger.Container, err error) {
 	defer errutil.Wrap("pnpm/static", &err)
 
-	host := client.Host().
-		Directory(unit.WorkDir, dagger.HostDirectoryOpts{Exclude: unit.Excludes})
+	host := unitHost(client, unit)
 
-	// prepare job parameters
-	outdir := strings.TrimSpace(unit.BuildDir)
-	if outdir == "" {
-		outdir = defaultBuildDir
+	switch step {
+	case StepBase:
+		return pnpmBase(client, unit), nil
+
+	case StepDeps:
+		return withPNPMDeps(in, host), nil
+
+	case StepBuild:
+		return in.WithDirectory(".", host).WithExec([]string{"pnpm", "build"}), nil
+
+	case StepRunner:
+		outdir := strings.TrimSpace(unit.BuildDir)
+		if outdir == "" {
+			outdir = defaultBuildDir
+		}
+
+		// Static family: only the built bundle and a webserver ship, no language runtime.
+		runner := withRunnerPkgs(withPNPMDeps(pnpmBase(client, unit), host))
+		runner = withCaddyServer(runner).
+			WithWorkdir(RunDir).
+			WithDirectory(RunDir, in.Directory(outdir))
+		runner = withUnitAssets(runner, in, unit)
+
+		cmd := strings.TrimSpace(unit.CommandName)
+		if cmd == "" {
+			cmd = "caddy"
+		}
+		return runner.WithDefaultArgs(pnpmRunArgs(cmd, unit, "file-server", "-l", "0.0.0.0:3000")), nil
+
+	default:
+		return nil, unknownStep(step)
 	}
-
-	cmd := strings.TrimSpace(unit.CommandName)
-	if cmd == "" {
-		cmd = "caddy"
-	}
-
-	args := pnpmRunArgs(cmd, unit, "file-server", "-l", "0.0.0.0:3000")
-
-	// build
-	base := BaseImageForUnit(client, unit)
-	base = withPNPMBase(base)
-	base = withPNPMPkgCache(client, base)
-	base = withUnitEnv(base, unit)
-	base = withPNPMDeps(base, host)
-
-	builder := base.
-		WithDirectory(".", host).
-		WithExec([]string{"pnpm", "build"})
-
-	// runner
-	runner := withRunnerPkgs(base)
-	runner = withCaddyServer(runner).
-		WithWorkdir(RunDir).
-		WithDirectory(RunDir, builder.Directory(outdir))
-	runner = withUnitAssets(runner, builder, unit)
-
-	runner = runner.WithDefaultArgs(args)
-	return runner.Sync(ctx)
 }

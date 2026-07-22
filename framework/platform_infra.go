@@ -82,27 +82,46 @@ func (PlatformInfra) ScaffoldVars(wd string) []string {
 	return []string{"CUE_MOD_PREFIX"}
 }
 
-func (i PlatformInfra) Build(ctx context.Context, client *dagger.Client, unit *BuildUnit) (container *dagger.Container, err error) {
+// Plan splits the render's one network-bound stage off from its evaluation. Neither step
+// runs an exec — the render happens in-process and the image is a pure tree write — so both
+// are silent, but they are timed apart, which is the whole point: fetching the CUE modules
+// is the part that reaches the network and can stall.
+func (PlatformInfra) Plan(*BuildUnit) []Step {
+	return []Step{StepDeps, StepBuild}
+}
+
+func (PlatformInfra) Execute(ctx context.Context, client *dagger.Client, unit *BuildUnit, step Step, in *dagger.Container) (container *dagger.Container, err error) {
 	defer errutil.Wrap("platform/infra", &err)
 
-	tree, err := gitops.Render(unit.WorkDir, gitops.RenderOptions{Vars: unit.Vars})
-	if err != nil {
-		return nil, err
-	}
+	switch step {
+	case StepDeps:
+		// Host-side work: it warms the CUE module cache the render then resolves through.
+		// A step is under no obligation to touch the container, so this one passes its
+		// input straight along — here that is the nil the first step always receives.
+		return in, gitops.FetchDeps(ctx, unit.WorkDir)
 
-	// client.Container() with no From is an empty (scratch) image. The whole rendered
-	// tree is staged as one Directory and mounted in a single WithDirectory, so the
-	// pushed manifest carries exactly one tar+gzip layer holding every
-	// <component>/<filename> — per-file WithNewFile calls would emit one layer each,
-	// and Flux extracts only the first.
-	dir := client.Directory()
-	for _, path := range tree.Paths() {
-		dir = dir.WithNewFile(path, string(tree[path]))
+	case StepBuild:
+		tree, err := gitops.Render(unit.WorkDir, gitops.RenderOptions{Vars: unit.Vars})
+		if err != nil {
+			return nil, err
+		}
+
+		// client.Container() with no From is an empty (scratch) image. The whole rendered
+		// tree is staged as one Directory and mounted in a single WithDirectory, so the
+		// pushed manifest carries exactly one tar+gzip layer holding every
+		// <component>/<filename> — per-file WithNewFile calls would emit one layer each,
+		// and Flux extracts only the first.
+		dir := client.Directory()
+		for _, path := range tree.Paths() {
+			dir = dir.WithNewFile(path, string(tree[path]))
+		}
+		return client.Container(dagger.ContainerOpts{Platform: dagger.Platform(unit.Arch)}).
+			WithLabel("org.opencontainers.image.source", unit.RepositoryURL()).
+			WithDirectory("/", dir), nil
+
+	default:
+		return nil, unknownStep(step)
 	}
-	c := client.Container(dagger.ContainerOpts{Platform: dagger.Platform(unit.Arch)}).
-		WithLabel("org.opencontainers.image.source", unit.RepositoryURL()).
-		WithDirectory("/", dir)
-	return c.Sync(ctx)
 }
 
 // scaffoldData builds the baseline's template data: the CUE module path (from an existing

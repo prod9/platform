@@ -25,17 +25,25 @@ func (fw Dockerfile) Scaffold(ctx context.Context, wd string, _ scaffold.Env, _ 
 	return scaffold.Spec{Module: defaultModule(fw, wd)}, nil
 }
 
-func (Dockerfile) Build(ctx context.Context, client *dagger.Client, unit *BuildUnit) (container *dagger.Container, err error) {
+// Plan is one step: the user's Dockerfile is opaque to us, so there is nothing to cut it
+// into. Its whole build is one silence, which is part of why the framework is discouraged.
+func (Dockerfile) Plan(*BuildUnit) []Step {
+	return []Step{StepBuild}
+}
+
+func (Dockerfile) Execute(ctx context.Context, client *dagger.Client, unit *BuildUnit, step Step, _ *dagger.Container) (container *dagger.Container, err error) {
 	defer errutil.Wrap("dockerfile", &err)
+
+	if step != StepBuild {
+		return nil, unknownStep(step)
+	}
 
 	buildlog.Logger().Warn("dockerfile framework bypasses the Wolfi base image and platform package conventions; prefer a language-specific framework (go/basic, go/workspace, pnpm/basic, pnpm/static, pnpm/workspace) when possible",
 		"module", unit.Name,
 		"workdir", unit.WorkDir,
 	)
 
-	host := client.Host().Directory(unit.WorkDir, dagger.HostDirectoryOpts{
-		Exclude: unit.Excludes,
-	})
+	host := unitHost(client, unit)
 
 	cmd := strings.TrimSpace(unit.CommandName)
 	var args []string
@@ -64,5 +72,5 @@ func (Dockerfile) Build(ctx context.Context, client *dagger.Client, unit *BuildU
 		builder = builder.WithDefaultArgs(args)
 	}
 
-	return builder.Sync(ctx)
+	return builder, nil
 }

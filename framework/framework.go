@@ -16,14 +16,24 @@ import (
 var (
 	ErrBadFramework = errors.New("framework: invalid framework")
 	ErrNoFramework  = errors.New("framework: no compatible framework detected")
+	ErrUnknownStep  = errors.New("framework: unknown step")
 )
 
 type (
 	Layout string
 
+	// Step is an opaque label for one stage of a unit's build — no payload, no closure.
+	// Plan returns the ordered steps; Execute switches on the one it is handed.
+	//
+	// Step granularity is log granularity: a step is the unit the engine times and, once
+	// build events land, the unit whose output is flushed. A long step is therefore a long
+	// silence with no remedy short of cutting it up, which makes "every time-taking stage
+	// earns its own Step" a constraint on how Plan is authored, not a preference.
+	Step string
+
 	// Framework is the sole owner of a project type: it recognizes itself (Discover),
-	// scaffolds itself (Scaffold), and builds itself (Build). A framework is a stateless
-	// value carrying per-stack knowledge and nothing else.
+	// scaffolds itself (Scaffold), and knows how it is built (Plan + Execute). A framework
+	// is a stateless value carrying per-stack knowledge and nothing else.
 	Framework interface {
 		Name() string
 		Layout() Layout
@@ -47,8 +57,30 @@ type (
 		// the operator's answers to ScaffoldVars. The driver just writes what it gets.
 		Scaffold(ctx context.Context, wd string, env scaffold.Env, inputs map[string]string) (scaffold.Spec, error)
 
-		Build(ctx context.Context, client *dagger.Client, unit *BuildUnit) (*dagger.Container, error)
+		// Plan returns the ordered steps this unit's build is made of. It is pure — the
+		// framework stores nothing between calls, so a plan can be recomputed at any time
+		// and the engine always drives the latest one.
+		Plan(unit *BuildUnit) []Step
+
+		// Execute runs exactly one step: it receives the previous step's container and
+		// returns the next one. The first step receives nil and establishes the base. The
+		// container is the chaining medium between steps, not an obligation — a step that
+		// does host-side work only (PlatformInfra's dep fetch) passes its input straight
+		// through. How a step does its work is entirely the framework's business; the
+		// engine imposes the sequence and nothing else.
+		Execute(ctx context.Context, client *dagger.Client, unit *BuildUnit, step Step, in *dagger.Container) (*dagger.Container, error)
 	}
+)
+
+// The shared step vocabulary. Frameworks reuse these labels so an operator reads the same
+// stage names across stacks; a framework with a stage none of these name is free to
+// declare its own.
+const (
+	StepBase   Step = "base"   // establish the base image
+	StepDeps   Step = "deps"   // fetch this stack's dependencies
+	StepTest   Step = "test"   // run the module's tests (a hard gate — a red suite fails the build)
+	StepBuild  Step = "build"  // run the stack's own build command
+	StepRunner Step = "runner" // assemble the runtime image from the build's output
 )
 
 // noScaffoldVars is the default for frameworks that onboard an existing repo: they read

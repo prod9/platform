@@ -43,52 +43,57 @@ func (fw PNPMWorkspace) Scaffold(ctx context.Context, wd string, _ scaffold.Env,
 	return scaffold.Spec{Module: defaultModule(fw, wd)}, nil
 }
 
-func (PNPMWorkspace) Build(ctx context.Context, client *dagger.Client, unit *BuildUnit) (container *dagger.Container, err error) {
+func (PNPMWorkspace) Plan(*BuildUnit) []Step {
+	return []Step{StepBase, StepDeps, StepBuild, StepRunner}
+}
+
+func (PNPMWorkspace) Execute(ctx context.Context, client *dagger.Client, unit *BuildUnit, step Step, in *dagger.Container) (container *dagger.Container, err error) {
 	defer errutil.Wrap("pnpm/workspace", &err)
 
+	// The workspace root, one level up: pnpm-workspace.yaml and the sibling packages must
+	// come into the build; the target module is selected by name below.
 	wsdir, err := filepath.Abs(filepath.Join(unit.WorkDir, ".."))
 	if err != nil {
 		return nil, err
 	}
 
-	host := client.Host().Directory(wsdir, dagger.HostDirectoryOpts{
-		Exclude: unit.Excludes,
-	})
+	host := hostDir(client, wsdir, unit)
 
-	// prepare job parameters
-	outdir := strings.TrimSpace(unit.BuildDir)
-	if outdir == "" {
-		outdir = defaultBuildDir
+	switch step {
+	case StepBase:
+		return pnpmBase(client, unit).WithWorkdir(SrcDir), nil
+
+	case StepDeps:
+		// A workspace installs from the whole tree, not from filtered manifests: pnpm
+		// resolves the members' interdependencies, so the sources must already be there.
+		return withBuildPkgs(in).
+			WithDirectory(".", host).
+			WithExec([]string{"pnpm", "-r", "install"}), nil
+
+	case StepBuild:
+		return in.WithExec([]string{"pnpm", "-r", "build"}), nil
+
+	case StepRunner:
+		outdir := strings.TrimSpace(unit.BuildDir)
+		if outdir == "" {
+			outdir = defaultBuildDir
+		}
+
+		runner := withRunnerPkgs(pnpmBase(client, unit).WithWorkdir(SrcDir)).
+			WithWorkdir(RunDir).
+			WithDirectory(RunDir, in.Directory(unit.Name+"/"+outdir)).
+			WithDirectory(RunDir+"/node_modules", in.Directory(unit.Name+"/node_modules"))
+
+		runner = withPNPMModuleFix(runner)
+		runner = withUnitAssets(runner, in, unit)
+
+		cmd := strings.TrimSpace(unit.CommandName)
+		if cmd == "" {
+			cmd = defaultNodeBin
+		}
+		return runner.WithDefaultArgs(pnpmRunArgs(cmd, unit, ".")), nil
+
+	default:
+		return nil, unknownStep(step)
 	}
-
-	cmd := strings.TrimSpace(unit.CommandName)
-	if cmd == "" {
-		cmd = defaultNodeBin
-	}
-
-	args := pnpmRunArgs(cmd, unit, ".")
-
-	// build
-	base := BaseImageForUnit(client, unit)
-	base = withPNPMBase(base)
-	base = withPNPMPkgCache(client, base)
-	base = withUnitEnv(base, unit)
-	base = base.WithWorkdir(SrcDir)
-
-	builder := withBuildPkgs(base).
-		WithDirectory(".", host).
-		WithExec([]string{"pnpm", "-r", "install"}).
-		WithExec([]string{"pnpm", "-r", "build"})
-
-	// run
-	runner := withRunnerPkgs(base).
-		WithWorkdir(RunDir).
-		WithDirectory(RunDir, builder.Directory(unit.Name+"/"+outdir)).
-		WithDirectory(RunDir+"/node_modules", builder.Directory(unit.Name+"/node_modules"))
-
-	runner = withPNPMModuleFix(runner)
-	runner = withUnitAssets(runner, builder, unit)
-
-	runner = runner.WithDefaultArgs(args)
-	return runner.Sync(ctx)
 }

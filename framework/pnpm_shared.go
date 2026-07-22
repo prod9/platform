@@ -46,6 +46,17 @@ func withPNPMBase(base *dagger.Container) *dagger.Container {
 // never reach the container, so those dependencies silently go unbuilt.
 var pnpmDepManifests = []string{"package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml"}
 
+// pnpmBase is the provisioning every pnpm framework shares: the Wolfi base, Node and
+// corepack, the pnpm store cache, and the unit's env. It is a pure function of
+// (client, unit) and Dagger dedupes it, so a later step re-derives it rather than being
+// handed its own ancestor back.
+func pnpmBase(client *dagger.Client, unit *BuildUnit) *dagger.Container {
+	base := BaseImageForUnit(client, unit)
+	base = withPNPMBase(base)
+	base = withPNPMPkgCache(client, base)
+	return withUnitEnv(base, unit)
+}
+
 // withPNPMDeps installs from the manifests alone. The include filter copies whichever of
 // them the repo actually has, so a project with no pnpm-workspace.yaml is unaffected.
 func withPNPMDeps(base *dagger.Container, host *dagger.Directory) *dagger.Container {
