@@ -26,7 +26,7 @@ func runExport(cmd *cobra.Command, args []string) {
 	defer eng.Close()
 
 	ctx := engine.NewContext(context.Background(), eng)
-	results, err := engine.Build(ctx, cfg, args, newProgress())
+	results, err := engine.Build(ctx, cfg, args, newObserver())
 	if err != nil {
 		buildlog.Fatalln(err)
 	}
