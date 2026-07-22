@@ -31,6 +31,14 @@ So a green run (`UNCHANGED`) means "nothing drifted," not "behavior is correct."
 (`CHANGED`, exit 1) means output moved off the golden — a prompt to **review the diff and
 decide**, not a failed assertion.
 
+🚨 **Read that backwards and it is the red.** Smoke is where a blackbox slice earns
+`general-coding`'s red: a slice that changes observable behavior **must** move the golden,
+so `CHANGED` is the red and reviewing the diff is how it goes green. `UNCHANGED` after a
+deliberate behavior change is therefore a **failure signal** — either the change does not
+do what it claims, or no testbed exercises it. Grow the fixture until the behavior is
+load-bearing in some testbed; never conclude "smoke can't test this" from an `UNCHANGED`
+run, because that run *is* the finding.
+
 - Intended drift → re-record with `./test.sh --commit`.
 - Unintended → a regression to fix at the source.
 - Never `--commit` a CHANGED lock unread, and never massage code just to force output back
