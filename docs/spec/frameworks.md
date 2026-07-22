@@ -144,16 +144,15 @@ Every framework except `Dockerfile` (own `FROM`) and `Infra` (`FROM scratch`) st
 `BaseImageForUnit` — Chainguard's Wolfi base (`cgr.dev/chainguard/wolfi-base`), small,
 glibc-free, regularly patched, shared across all language stacks.
 
-- **Pinned by digest.** `BaseImageName` pins the multi-arch index digest; Dagger picks the
-  per-platform manifest at build time. Chainguard `:latest` floats, so reproducibility
-  wins. Refresh manually on a monthly cadence to absorb base-layer CVEs; userland is
-  refreshed every build via `apk update && apk upgrade`.
+- **Never pinned.** `BaseImageName` is `cgr.dev/chainguard/wolfi-base:latest` — a floating
+  tag, resolved at build time, never a digest. Wolfi is rolling and the repository carries
+  exactly one real tag (`latest`), so there is no version to track even if we wanted one.
+  Userland is refreshed every build via `apk update && apk upgrade`.
 - **apk cache mount.** `/var/cache/apk` mounts the persistent `platform-apk-cache` volume
   so package pulls survive across builds.
 - **`CacheBuster`.** A const written into the image (`/<CacheBuster>`) to force Dagger and
-  Docker to invalidate cached base layers across all environments. Bumped in lockstep with
-  `BaseImageName` (its hex is the first 8 chars of the digest) so a base refresh always
-  re-pulls; can be bumped alone if Chainguard ships a bad image at the same digest.
+  Docker to invalidate cached base layers across all environments. Bump it to shed a stale
+  base layer.
 
 The base lays down a fixed FHS-style tree so an operator shelling in always finds things
 in the same place: `SrcDir` (`/platform/src`, build workspace), `BinDir` (`/platform/bin`,
@@ -179,10 +178,17 @@ and there is no skip-tests opt-out. Full rationale:
   go.sum (and every member's in workspace) are copied and `go mod download`-ed before the
   full source, so the dependency layer keys on manifests alone. Runner carries only the
   compiled binary.
-- **pnpm** — Node comes from nodejs.org via `tj/n` (pinned `NodeVersion`), pnpm via Node's
-  corepack (pinned `PNPMVersion`). `pnpm/basic` and `pnpm/workspace` serve via bare `node`;
-  `pnpm/static` serves the built bundle with Caddy `file-server`. Workspace runner marks
-  `RunDir` as ESM (`withPNPMModuleFix`).
+- **pnpm** — Node comes from nodejs.org via `tj/n` (`n install lts`), pnpm via Node's
+  corepack. `pnpm/basic` and `pnpm/workspace` serve via bare `node`; `pnpm/static` serves
+  the built bundle with Caddy `file-server`. Workspace runner marks `RunDir` as ESM
+  (`withPNPMModuleFix`).
+
+  🚨 **Platform names no toolchain version, anywhere — never pin.** Node is whatever `n`
+  calls `lts`; pnpm is whatever the repo's `package.json` `packageManager` field says, which
+  corepack resolves per-project. Platform declares no Node or pnpm version of its own, and a
+  repo without `packageManager` is simply not built — platform is opinionated about how each
+  stack builds, and the way is to always declare it. This is the same rule as the Wolfi base
+  above: nothing in platform is version-pinned.
 
   🚨 **This provisioning is deliberate — never "simplify" it to distro packages.** Never
   `apk add nodejs`/`corepack`. Node, corepack, pnpm, and the distro are four uncoordinated
