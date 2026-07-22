@@ -7,7 +7,6 @@ import (
 	"dagger.io/dagger"
 	"fx.prodigy9.co/errutil"
 	"platform.prodigy9.co/framework/scaffold"
-	"platform.prodigy9.co/internal/buildlog"
 )
 
 type Dockerfile struct{ noScaffoldVars }
@@ -37,11 +36,6 @@ func (Dockerfile) Execute(ctx context.Context, client *dagger.Client, unit *Buil
 	if step != StepBuild {
 		return nil, unknownStep(step)
 	}
-
-	buildlog.Logger().Warn("dockerfile framework bypasses the Wolfi base image and platform package conventions; prefer a language-specific framework (go/basic, go/workspace, pnpm/basic, pnpm/static, pnpm/workspace) when possible",
-		"module", unit.Name,
-		"workdir", unit.WorkDir,
-	)
 
 	host := unitHost(client, unit)
 
