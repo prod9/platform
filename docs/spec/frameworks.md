@@ -116,7 +116,7 @@ Order and detection rules:
 | - | --------------- | ---------------- | ----------- | ------------- | --------------------------------------------- |
 | 1 | `Infra`         | `platform/infra` | `basic`     | `custom`      | Dir name contains `infra` (glob, not a file)  |
 | 2 | `GoWorkspace`   | `go/workspace`   | `workspace` | `native`      | `go.work`                                     |
-| 3 | `PNPMWorkspace` | `pnpm/workspace` | `workspace` | `interpreted` | `pnpm-workspace.yaml` / `pnpm-workspaces.yaml`|
+| 3 | `PNPMWorkspace` | `pnpm/workspace` | `workspace` | `interpreted` | `packages:` key in `pnpm-workspace.yaml`      |
 | 4 | `GoBasic`       | `go/basic`       | `basic`     | `native`      | `go.mod`                                      |
 | 5 | `PNPMStatic`    | `pnpm/static`    | `basic`     | `static`      | `astro.config.mjs`                            |
 | 6 | `PNPMBasic`     | `pnpm/basic`     | `basic`     | `interpreted` | `pnpm-lock.yaml`                              |
@@ -131,6 +131,11 @@ Why the order holds:
 - **Workspace before basic** (2 before 4, 3 before 6) — a Go workspace repo also holds
   `go.mod` files; a pnpm workspace also holds a `pnpm-lock.yaml`. The workspace marker is
   the broader truth, so it must win before the basic marker it would also trip.
+- **A pnpm workspace is the `packages:` key, never the file.** From pnpm v10 every repo
+  carries `pnpm-workspace.yaml` — it is where all non-auth settings live, including the
+  `allowBuilds` approvals a single-package repo must commit. Presence therefore says
+  nothing; `packages:` is what pnpm itself defines a workspace by, so discovery reads the
+  file and keys on that. Detecting on existence makes every modern pnpm repo a workspace.
 - **Static before basic** (5 before 6) — an Astro project carries `pnpm-lock.yaml` too;
   the `astro.config.mjs` signal is the more specific one and must be checked first, else
   every Astro repo detects as `pnpm/basic`.
