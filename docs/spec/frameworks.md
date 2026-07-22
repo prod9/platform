@@ -207,6 +207,13 @@ and there is no skip-tests opt-out. Full rationale:
 
 ## Frameworks and the build model
 
+**The way to get a build running is an `engine` entrypoint — `cfg` + module names in,
+results out.** Reaching into `framework` to assemble units by hand is not the normal path:
+it means naming an arch the engine is there to decide, and holding a unit before a build
+that would hand it back on `BuildResult.Unit` anyway. Do it only when a caller genuinely
+needs something no entrypoint exposes, and treat that need as a missing engine verb
+([engine.md](engine.md) §No dagger verbs outside `engine/`).
+
 `framework.Units(cfg, modnames, arch)` turns config into `[]*BuildUnit` — one unit per
 selected module, all built for the given arch. The arch arrives already resolved by the
 engine entrypoint that is about to build ([engine.md](engine.md) §Arch targets); this
