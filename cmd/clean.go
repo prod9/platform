@@ -19,9 +19,8 @@ func runCleanCmd(cmd *cobra.Command, args []string) {
 	eng := engine.New(fxconfig.Configure())
 	defer eng.Close()
 
-	buildlog.Event("pruning dagger build cache")
 	if err := eng.Clean(context.Background()); err != nil {
 		buildlog.Fatalln(err)
 	}
-	buildlog.Event("cache pruned")
+	buildlog.Event("dagger-cache", "cleaned")
 }

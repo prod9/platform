@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"sync"
 	"time"
 
 	"platform.prodigy9.co/internal/buildlog"
@@ -12,50 +11,25 @@ import (
 // build` shows named steps instead of Dagger's TUI.
 //
 // Every command that builds passes one; nothing else in the CLI observes a run.
-type observer struct {
-	mtx     sync.Mutex
-	started map[string]time.Time
+type observer struct{}
+
+func newObserver() observer { return observer{} }
+
+func (observer) StepStarted(unit, step string, _ time.Time) {
+	buildlog.Event(unit+"/"+step, "started")
 }
 
-func newObserver() *observer {
-	return &observer{started: map[string]time.Time{}}
-}
-
-func (o *observer) StepStarted(unit, step string, at time.Time) {
-	o.mtx.Lock()
-	defer o.mtx.Unlock()
-
-	if _, ok := o.started[unit]; !ok {
-		o.started[unit] = at
+func (observer) StepDone(unit, step string, _ time.Time, err error) {
+	if err != nil {
+		buildlog.Error(err)
+		return
 	}
-
-	o.started[unit+"/"+step] = at
-	buildlog.StepStart(unit, step)
+	buildlog.Event(unit+"/"+step, "done")
 }
 
-func (o *observer) StepDone(unit, step string, at time.Time, err error) {
-	o.mtx.Lock()
-	defer o.mtx.Unlock()
-
-	buildlog.StepDone(unit, step, o.since(unit+"/"+step, at), err)
-}
-
-func (o *observer) RunDone(unit string, at time.Time, err error) {
-	o.mtx.Lock()
-	defer o.mtx.Unlock()
-
-	buildlog.BuildDone(unit, o.since(unit, at), err)
-}
-
-// since is the elapsed time of a key opened earlier, consuming it. A run's own key is
-// opened by its first step, so a unit is timed from when it started doing work rather
-// than from when its goroutine happened to be scheduled.
-func (o *observer) since(key string, at time.Time) time.Duration {
-	start, ok := o.started[key]
-	if !ok {
-		return 0
+func (observer) RunDone(unit string, _ time.Time, err error) {
+	if err != nil {
+		return
 	}
-
-	delete(o.started, key)
-	return at.Sub(start)
+	buildlog.Event(unit, "built")
 }

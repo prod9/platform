@@ -6,7 +6,7 @@ import (
 )
 
 func main() {
-	defer buildlog.Event("exited")
+	defer buildlog.Event("main", "done")
 	if err := cmd.Execute(); err != nil {
 		buildlog.Fatalln(err)
 	}
