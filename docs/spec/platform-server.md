@@ -169,8 +169,9 @@ the endpoints they live at, workers decide what to hand them.
 ## Build lifecycle: event-sourced
 
 There is **no stored build `state`.** The primitive is an append-only **`BuildEvent`**
-stream in a `build_events` table — the persisted form of the engine's `Event`
-([engine.md](engine.md)). The worker executes and writes events; the database *is* the
+stream in a `build_events` table. The worker is the engine's `Observer`
+([engine.md](engine.md)): each callback it receives becomes a row, so `BuildEvent` is the
+persisted form of a report the engine itself never serializes. The database *is* the
 channel; the webui reads it back. Nothing subscribes to a live in-process stream across
 the process boundary, which is exactly why the engine needs no late-joining observer.
 

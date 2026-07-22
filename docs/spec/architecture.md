@@ -97,13 +97,17 @@ graph `conf ← framework/scaffold ← framework ← cmd`:
   single-file subcommand**. A subcommand only earns its own subpackage (exporting `Cmd`)
   once it grows a file cluster — today `cmd/init` alone (package `initcmd`; Go reserves
   `init`). Single-file subcommands stay flat in `package cmd`. All read the config first.
+  **A file here is a command; anything package-generic goes in `cmd/cmd.go`** — the Go
+  convention of naming the package-level file after the package. Never invent a
+  topic-named third kind of file (`progress.go`, `helpers.go`).
 - `cmd/init` — the human orchestration of `platform init`: gather operator inputs →
   `framework.Discover` → `fw.Scaffold` → confirm → write. No app-vs-infra branch; the
   distinction is pure `Scaffold` polymorphism (`Infra.Scaffold` simply contributes more).
 - `engine/` — the Dagger runtime: discovers the available Dagger **runners**, and drives
-  one unit's planned steps per `Run` across them, reporting on a single event stream.
-- `engine/multiplex/` — multi-unit fan-out over one shared `Engine`, merging per-unit
-  events into one stream. Deliberately **outside** `engine`: fan-out is driven from `cmd`,
+  one unit's planned steps per `Run` across them, reporting to a caller-supplied
+  `Observer`.
+- `engine/multiplex/` — multi-unit fan-out over one shared `Engine`, every unit reporting
+  to the one observer. Deliberately **outside** `engine`: fan-out is driven from `cmd`,
   not by the engine itself.
 - `gitops/` — infra **render** only (CUE/`.platform` → manifest `Tree`). Publishing is the
   ordinary `publish` path now that infra is a framework; the oras packer is retired.

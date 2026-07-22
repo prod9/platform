@@ -44,9 +44,15 @@ type Step string   // opaque label; Stringer
 
 `Step` is an opaque label, nothing more — no payload, no closure, no `map[Step]opFn`. A
 framework's `Plan` returns its ordered steps; `Execute` switches on the `Step` it is
-given, applies that stage to the incoming container, and returns the outgoing one. The
+given, does that stage's work, and returns the container the next step should receive. The
 first step receives a nil container (it establishes the base); each subsequent step
-receives its predecessor's output. Nothing is stored between calls — the framework holds
+receives its predecessor's output.
+
+**The container is the chaining medium, not the contract.** A step is not obliged to
+transform what it is handed: `Infra`'s `deps` step fetches CUE dependencies on the *host*
+and passes its input straight through, which is a legitimate step, not a degenerate one.
+What every step owes is a container for its successor — nothing about where its work
+happens. Nothing is stored between calls — the framework holds
 no build state, so a plan can be recomputed at any time and the engine always drives the
 latest one.
 

@@ -71,69 +71,89 @@ ping's job; `Close` only runs at shutdown.
 
 ## `Run` — one unit, one step at a time
 
-`engine.NewRun(eng, unit)` is a **single-unit** run. It asks the unit's framework for a
-`Plan`, then exposes a cursor:
+`engine.NewRun(eng, unit, obs)` is a **single-unit** run. It asks the unit's framework for
+a `Plan`, then exposes a cursor:
 
 ```go
-run := engine.NewRun(eng, unit)
+run := engine.NewRun(eng, unit, obs)
 for run.Next(ctx) { }          // drives exactly one Step per call
 ```
 
-Each `Next` grabs a client (`Engine.Client(ctx)` — round-robin, so concurrent runs spread
-across the fleet), calls `Framework.Execute` for the current `Step` with the previous
-step's container, forces the work eagerly with `.Sync()`, and **times** the step across
-that boundary. `Next` returns false at the end of the plan or on failure; the error is
-reported on the event stream, not by aborting siblings. The whole run is wrapped in
+The **first** `Next` grabs the run's client (`Engine.Client(ctx)`) and every later step
+reuses it: a container is bound to the client that built it, so one run's steps can never
+be spread across the fleet. Round-robin spreads whole *runs*, not steps.
+
+Each `Next` calls `Framework.Execute` for the current `Step` with the previous step's
+container, forces the work eagerly with `.Sync()`, and **times** the step across that
+boundary. `Next` returns false at the end of the plan or on failure; the error is held on
+the run and reported to the observer, not by aborting siblings. The whole run is wrapped in
 `context.WithTimeout(ctx, unit.Timeout)`.
 
 Clone (repo-prep) and Publish are **engine brackets** around this loop, not framework
 steps — cloning is not any stack's build knowledge, and pushing is the engine's registry
 concern.
 
-### One event stream
+### One observer, three callbacks
 
-A run reports everything on **one** channel. There is no second channel to synchronize
-against — no separate `Logs()`, no `Updates()`, no snapshot-plus-delta:
+A run reports everything to **one** `Observer`, supplied by whoever opens the run. There is
+no channel to close, no `Events()` getter, no snapshot-plus-delta:
 
 ```go
-type Event struct {
-    At   time.Time
-    Unit *BuildUnit
-    Step Step
-    Kind EventKind   // StepStarted | StepDone | Log | Failed
-    Line string      // set on Kind == Log
-    Err  error       // set on Kind == Failed
+type Observer interface {
+    StepStarted(unit, step string, at time.Time)
+    StepDone(unit, step string, at time.Time, err error)
+    RunDone(unit string, at time.Time, err error)
 }
-
-func (r *Run) Events() <-chan Event
 ```
 
-Everything else is a **fold** of this stream: a step's elapsed time is
-`StepDone.At − StepStarted.At`; a run's current state is the reduction of its events so
-far. `StepResult`, `Update`, and `Result` types are collapsed into `Event` + fold, and
-`Snapshot`/`Done` are dropped outright — execution moves to a worker that writes events to
-the database and the webui reads them back, so there is no late-joining live observer to
-catch up.
+A **nil observer is a guarded skip**, so a caller that wants nothing reports nothing.
+`RunDone` fires **exactly once** per run, whichever way the cursor ends, which makes the
+report self-terminating: a consumer needs no out-of-band done signal.
+
+Signatures carry **scalars only, never engine or framework types**. Go interfaces are
+structural, so an implementation then needs no platform import at all — that is what lets
+the leaf `internal/buildlog` and, later, `srv` satisfy the same three methods without
+importing the engine or each other.
+
+Everything else is a **fold** of these callbacks: a step's elapsed time is
+`StepDone.at − StepStarted.at`; a run's current state is the reduction of what it has
+reported so far. Failure is the `err` on the callback that ends the step or the run —
+there is deliberately no separate failure callback, and no `Event`/`EventKind` type.
+`StepResult`, `Update`, and `Result` are collapsed into the fold; `Snapshot`/`Done` are
+dropped outright — execution moves to a worker that writes to the database and the webui
+reads it back, so there is no late-joining live observer to catch up.
+
+Callbacks fire on the **multiplexer's per-unit goroutine**, so an implementation serializes
+itself; the engine adds no lock on a caller's behalf.
+
+**Channels arrive with srv's websocket, not before.** A channel-pushing `Observer` is the
+adapter that introduces them, and the wire format lives in `srv` — so the engine never owns
+a serialization format.
 
 **Log capture rides `Container.Stdout`/`Stderr`, never `WithLogOutput`.** Per-unit
 retrieval is incremental and per-step: each step's output is read as that step finishes,
 with no re-execution (Dagger caches the walk), landing exactly on the `.Sync()` boundary
-`Next` already has — so `Kind == Log` events flush per step on the one stream. It demuxes
-cleanly across units sharing a pooled client, so the client pool is untouched by log
-capture. `WithLogOutput` is the Dagger CLI *subprocess's* stderr pipe — rendered TUI text,
-never demuxable — and is not a capture path.
+`Next` already has — so captured output flushes per step, as a fourth callback added when
+capture lands. It demuxes cleanly across units sharing a pooled client, so the client pool
+is untouched by log capture. `WithLogOutput` is the Dagger CLI *subprocess's* stderr pipe —
+rendered TUI text, never demuxable — and is not a capture path.
 
 **`buildlog` is not build-progress.** `internal/buildlog` is platform's own narration of
-what *platform* is doing; the `Event` stream is what the *build* is doing. They coincide
-only on a machine-local CLI run, and must not be merged.
+what *platform* is doing; what an observer reports is what the *build* is doing. They
+coincide only on a machine-local CLI run, and must not be merged: `cmd` owns the
+progress-rendering observer and calls `buildlog` as its sink.
+
+**The default CLI shows steps, not Dagger.** Dagger's own `WithLogOutput` TUI is a
+debugging firehose gated behind `-v`; at default verbosity a build's visible progress is
+exactly the observer's step reports.
 
 ### The built container is hidden
 
 The `*dagger.Container` a run produces is **engine-internal**. It is bound to the client
 that built it, and it is carried so that steps chain and `Publish` can push it — but
-consumers read the event stream, not the container. The lone exception is `preview`, whose
-post-build tunnel genuinely needs the container handle; it gets it by an explicit method.
-That is the one non-event thing a run exposes.
+consumers read what the observer reports, not the container. The lone exception is
+`preview`, whose post-build tunnel genuinely needs the container handle; it gets it by an
+explicit method. That is the one thing a run exposes beyond its report.
 
 ## The execution boundary
 
@@ -178,14 +198,13 @@ missing engine verb** — that is the working test for whether the boundary hold
 ## Fan-out lives at the cmd layer
 
 Multi-unit fan-out is **not** an engine concern. `engine/multiplex` owns it:
-`multiplex.NewRun(eng, units...)` wraps more than one unit, drives a `Run` per unit
-against the one shared `*Engine`, and merges their per-unit events into a single `Event`
-stream (each `Event` carries its `Unit`, so the merge is unambiguous). The generic
-`multiplexer` worker lives here, unexported — it moved out of `engine` proper.
+`multiplex.NewRun(eng, obs, units...)` wraps more than one unit and drives a `Run` per unit
+against the one shared `*Engine`. There is nothing to merge — every unit reports to the
+same observer and names itself in each callback, so the fan-in is the observer itself. The
+generic `multiplexer` worker lives here, unexported — it moved out of `engine` proper.
 
-`cmd` instantiates a multiplex run, drives it, and assembles the operator-facing output
-from the merged stream. A per-unit failure surfaces as that unit's `Failed` event and
-never aborts its siblings.
+`cmd` supplies the observer, instantiates a multiplex run, and drives it. A per-unit
+failure surfaces as the `err` on that unit's `RunDone` and never aborts its siblings.
 
 ## Publish
 

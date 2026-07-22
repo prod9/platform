@@ -25,7 +25,7 @@ superseded moves to `../scratch/` — `spec/` holds current design only, never h
   the seven-method `Framework` contract, `Step`/`Plan`/`Execute`, layouts, runtime-shape
   families, the Wolfi base, Node/pnpm provisioning, and the Go test-in-build gate.
 - [`engine.md`](engine.md) — the Dagger execution layer: the `Engine` client pool over
-  discovered runners, `Run` and its single event stream, `engine/multiplex` fan-out,
+  discovered runners, `Run` and its `Observer` report, `engine/multiplex` fan-out,
   `Publish`, registry creds, arch targets.
 - [`releases.md`](releases.md) — release strategies (semver/datestamp/timestamp/rolling),
   `Generate` vs `Create`, tag-history recovery, and release⊥publish orthogonality.
