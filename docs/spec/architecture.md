@@ -66,7 +66,7 @@ needs (`Excludes`, `Repository`), so the build stage stays self-contained.
 
 Every package is named for a responsibility. `core/`, `util/`, `common/`, `helpers/`,
 `misc/` are banned (general-coding) — they absorb anything vaguely shareable and rot.
-Domain packages live at the top level by their own name: `framework/`, `gitops/`,
+Domain packages live at the top level by their own name: `framework/`, `dsl/`,
 `engine/` — never nested under a `core/` catch-all.
 
 ## Package layout (target)
@@ -92,6 +92,10 @@ graph `conf ← framework/scaffold ← framework ← cmd`:
   universal launcher), and its render step turns `apps/` (CUE + `.platform`) into a
   `FROM scratch` image (see
   [infra-publishes-as-plain-image-retire-oras](../decisions/2026-07-05-infra-publishes-as-plain-image-retire-oras.md)).
+- `framework/gitops/` — the Infra framework's **render** machinery (CUE/`.platform` →
+  manifest `Tree`), consumed by `Infra.Build` and the `render` command — nested under
+  `framework/` like `gowork`, its stack-specific companion. Publishing is the ordinary
+  `publish` path now that infra is a framework; the oras packer is retired.
 - `cmd/` — `main.go` defers to `cmd.Execute()`. `cmd` holds the root Cobra command
   (persistent `-q`/`-v`, and `-f` for an alt `platform.toml`) plus **one file per
   single-file subcommand**. A subcommand only earns its own subpackage (exporting `Cmd`)
@@ -109,10 +113,10 @@ graph `conf ← framework/scaffold ← framework ← cmd`:
 - `engine/multiplex/` — multi-unit fan-out over one shared `Engine`, every unit reporting
   to the one observer. Deliberately **outside** `engine`: fan-out is driven from `cmd`,
   not by the engine itself.
-- `gitops/` — infra **render** only (CUE/`.platform` → manifest `Tree`). Publishing is the
-  ordinary `publish` path now that infra is a framework; the oras packer is retired.
-- `gitops/dsl/`, `releases/`, `git/` (formerly `gitctx/`+`gitcmd/`), `internal/` —
-  unchanged in role.
+- `dsl/` — the manifest-patch DSL (lexer, directive parser, in-buffer verbs), a
+  self-contained language at the top level, peer of `cuemod/`. Consumed by
+  `framework/gitops` render; extracted from it so the language stands on its own.
+- `releases/`, `git/` (formerly `gitctx/`+`gitcmd/`), `internal/` — unchanged in role.
 
 The former `baseline/` and top-level `scaffold/` packages are **absorbed**, not surviving
 packages: `baseline/`'s templating folds into `framework/scaffold/` and its embedded infra
