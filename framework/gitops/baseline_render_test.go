@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"platform.prodigy9.co/gitops"
+	"platform.prodigy9.co/framework/gitops"
 )
 
 // writeBaseline lays down .platform directive files under apps/, co-located with the

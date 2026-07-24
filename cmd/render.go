@@ -7,7 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"platform.prodigy9.co/conf"
-	"platform.prodigy9.co/gitops"
+	"platform.prodigy9.co/framework/gitops"
 	"platform.prodigy9.co/internal/buildlog"
 )
 

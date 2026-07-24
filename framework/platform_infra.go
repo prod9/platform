@@ -14,7 +14,7 @@ import (
 	"platform.prodigy9.co/cuemod"
 	"platform.prodigy9.co/framework/scaffold"
 	"platform.prodigy9.co/framework/skel"
-	"platform.prodigy9.co/gitops"
+	"platform.prodigy9.co/framework/gitops"
 )
 
 // PlatformInfra builds an infra repo's delivery image: it renders the repo's apps/ (CUE +
