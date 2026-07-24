@@ -59,7 +59,7 @@ applies. The infra repo's git history is the deployment record.
 - [`docs/guides/authoring-platform-dsl.md`](docs/guides/authoring-platform-dsl.md) —
   writing `.platform` manifest-patch files, including
   [editor setup](docs/guides/authoring-platform-dsl.md#editor-setup) (Vim/Neovim files
-  ship in [`editor/nvim/`](editor/nvim/)).
+  ship in [`docs/guides/nvim/`](docs/guides/nvim/)).
 - [`docs/decisions/`](docs/decisions/) — dated design rulings.
 
 ## Testing

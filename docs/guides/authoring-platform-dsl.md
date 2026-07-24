@@ -6,7 +6,7 @@ spec: [`../spec/manifest-patch-dsl.md`](../spec/manifest-patch-dsl.md).
 
 ## Editor setup
 
-Vim/Neovim support ships in [`/editor/nvim/`](../../editor/nvim/):
+Vim/Neovim support ships in [`docs/guides/nvim/`](nvim/):
 `syntax/platform-dsl.vim` (verbs, paths, strings, `\(var)` interpolation) and
 `ftdetect/platform-dsl.vim` (associates `*.platform`). Copy or symlink both into your
 runtimepath (`~/.config/nvim/`). Scaffolded `.platform` files also carry a
