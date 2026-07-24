@@ -49,7 +49,7 @@ values — YAML output keeps them strings).
 | `append PATH V`        | always (creates the list if missing)  | —                 |
 | `append-if-absent PATH V` | V not already in the list          | **target** state  |
 
-In the implementation (`gitops/dsl/parse.go`, the `exec` switch) each verb is a small
+In the implementation (`dsl/parse.go`, the `exec` switch) each verb is a small
 closure over the shared `execValueEdit` walk — `set-if-absent` is literally `set` behind
 a `Get` check on the target path.
 

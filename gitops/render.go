@@ -20,7 +20,7 @@ import (
 	"gopkg.in/yaml.v3"
 	"platform.prodigy9.co/conf"
 	"platform.prodigy9.co/cuemod"
-	"platform.prodigy9.co/gitops/dsl"
+	"platform.prodigy9.co/dsl"
 )
 
 // DefaultRegistry maps the infra-defs module prefix to its OCI host for
