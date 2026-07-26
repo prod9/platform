@@ -109,10 +109,10 @@ graph `conf ← framework/scaffold ← framework ← cmd`:
   distinction is pure `Scaffold` polymorphism (`Infra.Scaffold` simply contributes more).
 - `engine/` — the Dagger runtime: discovers the available Dagger **runners**, and drives
   one unit's planned steps per `Run` across them, reporting to a caller-supplied
-  `Observer`.
-- `engine/multiplex/` — multi-unit fan-out over one shared `Engine`, every unit reporting
-  to the one observer. Deliberately **outside** `engine`: fan-out is driven from `cmd`,
-  not by the engine itself.
+  `Observer`. Multi-unit fan-out lives **here**, behind domain verbs (`Build`, `Publish`,
+  `BuildAndPublish`) over one shared `Engine` — fanning out resolved units is parallel
+  execution, which is the engine's own job; its `multiplexer` is unexported and no caller
+  drives a `Run` directly.
 - `dsl/` — the manifest-patch DSL (lexer, directive parser, in-buffer verbs), a
   self-contained language at the top level, peer of `cuemod/`. Consumed by
   `framework/gitops` render; extracted from it so the language stands on its own.

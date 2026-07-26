@@ -192,9 +192,14 @@ stalled engine are both just "the event stream stopped advancing past the timeou
 domain for GitHub App events and Kubernetes events, and the bare noun would collide.
 
 **`BuildAttempt` is an output type.** It is the srv-side DB model wrapping a finished
-result for display; it is not an input to the build path, and neither `engine` nor
-`engine/multiplex` ever sees one. The pre-rework `AttemptFrom`/`Purpose`/`BuildResult`
-vocabulary is discarded.
+result for display; it is not an input to the build path, and the `engine` never sees one.
+The pre-rework `AttemptFrom`/`Purpose` vocabulary is discarded.
+
+`BuildResult` is **engine-side only**, and it does not cross this boundary. It survives
+there as the engine's result type ([engine.md](engine.md)) because half of it is a live
+`*dagger.Container` that could never reach a database anyway; its other half — the scalar
+fold — is the very thing the worker persists as `build_events`. So srv reads the fold, not
+the struct, and nothing srv-side is typed in terms of it.
 
 Persistence is **display-only** — the engine always re-plans from the current framework
 code rather than replaying a stored plan, so a stored event stream can never pin an

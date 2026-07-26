@@ -71,12 +71,13 @@ ping's job; `Close` only runs at shutdown.
 
 ## `Run` — one unit, one step at a time
 
-`engine.NewRun(eng, unit, obs)` is a **single-unit** run. It asks the unit's framework for
-a `Plan`, then exposes a cursor:
+`NewRun(eng, unit, obs)` is a **single-unit** run, and it is **engine-internal** — the
+domain verbs below open runs, no caller does. It asks the unit's framework for a `Plan`,
+then exposes a cursor:
 
 ```go
-run := engine.NewRun(eng, unit, obs)
-for run.Next(ctx) { }          // drives exactly one Step per call
+run := NewRun(eng, unit, obs)   // obs is already composed: acc, or Tee(acc, caller)
+for run.Next(ctx) { }           // drives exactly one Step per call
 ```
 
 The **first** `Next` grabs the run's client (`Engine.Client(ctx)`) and every later step
@@ -93,7 +94,7 @@ Clone (repo-prep) and Publish are **engine brackets** around this loop, not fram
 steps — cloning is not any stack's build knowledge, and pushing is the engine's registry
 concern.
 
-### One observer, three callbacks
+### One observer, five callbacks
 
 A run reports everything to **one** `Observer`, supplied by whoever opens the run. There is
 no channel to close, no `Events()` getter, no snapshot-plus-delta:
@@ -102,26 +103,60 @@ no channel to close, no `Events()` getter, no snapshot-plus-delta:
 type Observer interface {
     StepStarted(unit, step string, at time.Time)
     StepDone(unit, step string, at time.Time, err error)
+    ImageBuilt(unit, image string, at time.Time)
+    Published(unit, image, hash string, at time.Time)
     RunDone(unit string, at time.Time, err error)
 }
 ```
 
-A **nil observer is a guarded skip**, so a caller that wants nothing reports nothing.
+Three callbacks are **lifecycle**, two are **output**. The output pair mirrors the
+build⊥publish orthogonality
+([delivery-verbs-are-orthogonal](../decisions/2026-07-05-delivery-verbs-are-orthogonal.md)):
+`ImageBuilt` is the common path — every successful build fires it, and four of the five
+commands that build (`build`, `export`, `exec`, `preview`) never publish — while
+`Published` fires only on the publish path and is the only place a registry hash exists.
+One callback per event kind; nothing is inferred from a shared method with a mode flag.
+
+The kernel stays at these five until a capability actually arrives: the per-step
+log-capture callback below is added when capture lands, not front-loaded.
+
 `RunDone` fires **exactly once** per run, whichever way the cursor ends, which makes the
 report self-terminating: a consumer needs no out-of-band done signal.
 
 Signatures carry **scalars only, never engine or framework types**. Go interfaces are
 structural, so an implementation then needs no platform import at all — that is what lets
-the leaf `internal/buildlog` and, later, `srv` satisfy the same three methods without
-importing the engine or each other.
+the leaf `internal/buildlog` and, later, `srv` satisfy the same methods without importing
+the engine or each other.
 
 Everything else is a **fold** of these callbacks: a step's elapsed time is
-`StepDone.at − StepStarted.at`; a run's current state is the reduction of what it has
-reported so far. Failure is the `err` on the callback that ends the step or the run —
-there is deliberately no separate failure callback, and no `Event`/`EventKind` type.
-`StepResult`, `Update`, and `Result` are collapsed into the fold; `Snapshot`/`Done` are
-dropped outright — execution moves to a worker that writes to the database and the webui
-reads it back, so there is no late-joining live observer to catch up.
+`StepDone.at − StepStarted.at`; a run's current state, and its scalar outcome, are the
+reduction of what it has reported so far. Failure is the `err` on the callback that ends
+the step or the run — there is deliberately no separate failure callback, and no
+`Event`/`EventKind` type. `StepResult`, `Update`, and `Result` are collapsed into the fold;
+`Snapshot`/`Done` are dropped outright — execution moves to a worker that writes to the
+database and the webui reads it back, so there is no late-joining live observer to catch up.
+
+#### `AccObserver` and `TeeObserver`
+
+A run's observer is **never nil**. The engine force-injects an **`AccObserver`** — a
+stateful fold of the callbacks — into every run, and that accumulator is the **sole
+minter** of the run's scalar outcome (unit, ok/err, image, hash). A caller's observer, when
+there is one, is composed alongside it by **`TeeObserver`**: `Tee(obs ...Observer)
+Observer` forwards each callback to every child.
+
+Nil is eliminated **once, at the wrap site**, so no downstream code carries a guard:
+
+```go
+obs := acc
+if caller != nil { obs = Tee(acc, caller) }   // Tee never sees a nil child
+```
+
+`Tee`'s contract is **non-nil children only**, and the run's report path has no nil check
+at all. A caller that wants nothing simply passes nothing — the fold still happens, because
+the result depends on it.
+
+The name is `AccObserver`, not `Recorder`: "record" is already taken by the DB vocabulary
+(`BuildEvent` records) and by test helpers.
 
 Callbacks fire on the **multiplexer's per-unit goroutine**, so an implementation serializes
 itself; the engine adds no lock on a caller's behalf.
@@ -133,7 +168,7 @@ a serialization format.
 **Log capture rides `Container.Stdout`/`Stderr`, never `WithLogOutput`.** Per-unit
 retrieval is incremental and per-step: each step's output is read as that step finishes,
 with no re-execution (Dagger caches the walk), landing exactly on the `.Sync()` boundary
-`Next` already has — so captured output flushes per step, as a fourth callback added when
+`Next` already has — so captured output flushes per step, as a sixth callback added when
 capture lands. It demuxes cleanly across units sharing a pooled client, so the client pool
 is untouched by log capture. `WithLogOutput` is the Dagger CLI *subprocess's* stderr pipe —
 rendered TUI text, never demuxable — and is not a capture path.
@@ -154,6 +189,21 @@ that built it, and it is carried so that steps chain and `Publish` can push it �
 consumers read what the observer reports, not the container. The lone exception is
 `preview`, whose post-build tunnel genuinely needs the container handle; it gets it by an
 explicit method. That is the one thing a run exposes beyond its report.
+
+### `Run.Result()` — consistent by construction
+
+`Run.Result()` returns a **`BuildResult`**: the join of the injected `AccObserver`'s scalar
+fold (unit, ok/err, image, hash) with the live container the run itself owns. The two
+halves are joined at exactly **one site**, because they can only come from there — the
+scalars are *derived* from the event stream rather than authored anywhere, and the
+container never leaves the run that holds it. There is no hand-packed result assembled at a
+call site, so an inconsistent `BuildResult` — a success with no image, a hash from a build
+that never published — is unconstructable rather than merely discouraged.
+
+That split is also why the container cannot ride the observer: a `*dagger.Container` is
+bound to a client and cannot cross a process boundary, while the scalar half is identical
+in-process (a `BuildResult` handed back to `cmd`) and in-database (the same fold, persisted
+as `build_events` by the worker — see [platform-server.md](platform-server.md)).
 
 ## The execution boundary
 
@@ -195,16 +245,33 @@ expose domain verbs complete enough that nobody needs to reach past them. **If a
 ever has to chain two engine calls with its own container work in between, that gap is a
 missing engine verb** — that is the working test for whether the boundary holds.
 
-## Fan-out lives at the cmd layer
+## Fan-out lives inside the engine
 
-Multi-unit fan-out is **not** an engine concern. `engine/multiplex` owns it:
-`multiplex.NewRun(eng, obs, units...)` wraps more than one unit and drives a `Run` per unit
-against the one shared `*Engine`. There is nothing to merge — every unit reports to the
-same observer and names itself in each callback, so the fan-in is the observer itself. The
-generic `multiplexer` worker lives here, unexported — it moved out of `engine` proper.
+Fanning out over already-resolved units is **parallel execution, not coordination** — and
+parallel execution is exactly what "the engine is capacity" means. So multi-unit fan-out
+stays **inside `engine/`**, behind domain verbs. Callers name what they want done, hand
+over an observer, and read results:
 
-`cmd` supplies the observer, instantiates a multiplex run, and drives it. A per-unit
-failure surfaces as the `err` on that unit's `RunDone` and never aborts its siblings.
+```go
+engine.Build(ctx, cfg, modnames, obs)            // []BuildResult
+engine.Publish(ctx, builds...)                   // []PublishResult
+engine.BuildAndPublish(ctx, cfg, modnames, obs)  // []PublishResult
+```
+
+The generic `multiplexer` is **unexported**. It provides orchestration and synchronization
+only and **owns no build method** — it drives the same single-unit path the engine already
+has, one `Run` per unit against the one shared `*Engine`. Nothing outside `engine/`
+constructs a multiplexer or touches a `Run`.
+
+There is nothing to merge on the reporting side: every unit reports to the same observer
+and names itself in each callback, so the fan-in *is* the observer. A per-unit failure
+surfaces as the `err` on that unit's `RunDone` and never aborts its siblings.
+
+`cmd` and the srv worker call the **same verbs** and differ only in the observer they pass
+— a progress renderer on the CLI, a `build_events` writer in the worker. The worker issues
+one verb call per record; the per-unit goroutines live in the engine's multiplexer, never
+in the worker. This does not move the scheduling boundary above: *which build runs next*
+remains the worker's, and it still never sees a host address.
 
 ## Publish
 
