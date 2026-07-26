@@ -13,18 +13,17 @@ non-fungible resource. Naming the session is the fix; the lifetime bug falls out
 
 | file | holds |
 |-----------------|--------------------------------------------------------------|
-| `runners.go`    | the fleet as a stateless roster: `Hosts`, `Dial`, and the resolver seam |
-| `session.go`    | `NewSession`, `Session` — the lifetime — plus `Build`, `BuildAndPublish`, `Clean` |
-| `results.go`    | `BuildResult`, `PublishResult` — pure data                    |
+| `engine.go`     | `NewSession`, `Session`, `Build`, `BuildAndPublish`, `Clean`, the roster (`Hosts`, `Dial`, `cfgFrom`, resolver seam), and `BuildResult`/`PublishResult` — where they already live |
 | `run.go`        | `Run`, unchanged but for taking a `*Session`                  |
 | `observer.go`, `multiplexer.go`, `arch.go` | unchanged (`buildArch` moves to `*Session`) |
 
-`engine.go` disappears: `Engine`, the `clients` pool, the round-robin cursor, and
-`NewContext`/`FromContext` all go with it. The engine was being smuggled through `context`
-and type-asserted (`engine.go:100-102`); with a `Session` the caller holds, that hidden
-dependency evaporates.
+**No new files.** `engine.go` stays and absorbs the change; `clients.go` and `runners.go` are
+deleted. What goes away is the *type* `Engine`, the client pool, the round-robin cursor, and
+`NewContext`/`FromContext` — the engine was being smuggled through `context` and type-asserted
+(`engine.go:100-102`), and with a `Session` the caller holds, that hidden dependency
+evaporates.
 
-## `runners.go`
+## The roster
 
 The `runners` **type is deleted**, not converted: once `Hosts` reads cfg, the struct's only
 remaining job was the injected `lookup` seam, and `dns`/`port` were cfg reads it cached for
@@ -60,7 +59,7 @@ func Hosts(ctx context.Context) ([]string, error)
 func Dial(ctx context.Context) (*dagger.Client, error)
 ```
 
-## `session.go`
+## The session
 
 ```go
 // Session is the span during which containers are usable. Every container is a handle into
@@ -160,7 +159,7 @@ func (s *Session) build(ctx context.Context, units []*framework.BuildUnit, obs O
 }
 ```
 
-## `results.go`
+## Results
 
 ```go
 // BuildResult is what a run leaves behind: scalars minted from the observed stream, plus

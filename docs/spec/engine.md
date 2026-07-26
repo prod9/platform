@@ -17,10 +17,16 @@ pool is the right abstraction for a fungible resource and the wrong one here; ap
 was what let a session's lifetime get attached to whatever scope happened to be nearby.
 Instead there are two things, and only one of them has a lifetime:
 
-- **runners** ([`runners.go`](../../engine/runners.go)) — a **stateless roster**: which
-  endpoints exist, and how to dial one. It caches nothing and holds nothing between calls.
-- **`Session`** ([`session.go`](../../engine/session.go)) — the **lifetime**: the span during
-  which the containers it produced are usable.
+- a **stateless roster** — which endpoints exist, and how to dial one. It caches nothing and
+  holds nothing between calls.
+- **`Session`** — the **lifetime**: the span during which the containers it produced are
+  usable.
+
+Both live in [`engine.go`](../../engine/engine.go). `clients.go` and `runners.go` are
+**deleted**, not rewritten: the client pool is the abstraction this design rejects, and the
+`runners` struct was a config-holder whose only real job was a test seam. Nothing earns a new
+file — a package with one concept per file is not a goal, and `session.go`/`pool.go`/
+`roster.go` would each name a fragment of the one thing `engine.go` already is.
 
 ### `Session` — the unit of lifetime
 

@@ -82,11 +82,13 @@ default is one word, one concept.
 It is taken anyway because the word is not ours to choose: `dagger.Connect` opens a session,
 and the entire ruling above is the observation that this thing **is** a session rather than a
 connection. Renaming it to avoid the clash would re-hide the exact fact the change exists to
-surface. The lexicon's own test — do the two uses meet on one surface? — is satisfied by
-qualification rather than renaming: they share no code, no lifetime, and no table, and the
-one file where both appear ([`../spec/platform-server.md`](../spec/platform-server.md)) now
-carries a disambiguation note. **Rule: never a bare `Session` identifier outside `engine/`,
-never a bare "session" in `srv` prose.**
+surface.
+
+**The clash itself is deferred, not settled** — chakrit:verbatim "srv->let's rethink that
+later in the srv slice". Until then both words stand and every use is qualified;
+[`../spec/platform-server.md`](../spec/platform-server.md), the one file where both appear,
+carries that note. Whether the login session gives ground is the srv slice's call, not this
+decision's.
 
 ## Left open
 
