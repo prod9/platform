@@ -153,10 +153,10 @@ type (
 		// registry secret comes from the same engine the container belongs to.
 		client *dagger.Client
 
-		// acc and obs are the run's report, carried past the run so a later publish
+		// out and obs are the run's report, carried past the run so a later publish
 		// continues the same stream and mints its scalars from the same fold. Only
 		// Run.Result fills them in — a BuildResult is never assembled anywhere else.
-		acc *AccObserver
+		out *outcome
 		obs Observer
 	}
 
@@ -249,8 +249,8 @@ func Publish(ctx context.Context, builds ...BuildResult) ([]PublishResult, error
 		build.obs.Published(build.Unit.Name, build.Unit.ImageName, hash, time.Now())
 		return PublishResult{
 			BuildResult: build,
-			ImageName:   build.acc.Image(),
-			ImageHash:   build.acc.Hash(),
+			ImageName:   build.out.image,
+			ImageHash:   build.out.hash,
 		}
 	}), nil
 }

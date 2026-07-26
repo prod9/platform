@@ -22,7 +22,7 @@ import (
 type Run struct {
 	eng  *Engine
 	unit *framework.BuildUnit
-	acc  *AccObserver
+	out  *outcome
 	obs  Observer
 
 	steps []framework.Step
@@ -35,19 +35,12 @@ type Run struct {
 }
 
 // NewRun asks the unit's framework for its plan and reports every step to an accumulator it
-// injects, plus caller when there is one. This is the one site a nil observer is eliminated:
-// a caller wanting nothing passes nothing, and the fold still happens because Result depends
-// on it. It does no engine work — a client is grabbed at the first Next — so opening a run
-// is free and never dials.
+// injects, plus caller when there is one. The fold is run-owned because Result mints its
+// scalars from it. It does no engine work — a client is grabbed at the first Next — so
+// opening a run is free and never dials.
 func NewRun(eng *Engine, unit *framework.BuildUnit, caller Observer) *Run {
-	acc := &AccObserver{}
-
-	obs := Observer(acc)
-	if caller != nil {
-		obs = Tee(acc, caller)
-	}
-
-	return &Run{eng: eng, unit: unit, acc: acc, obs: obs, steps: unit.Framework.Plan(unit)}
+	obs, out := accumulate(caller)
+	return &Run{eng: eng, unit: unit, out: out, obs: obs, steps: unit.Framework.Plan(unit)}
 }
 
 // Next executes exactly one step and reports whether the run should continue. It returns
@@ -148,16 +141,16 @@ func (r *Run) dial(ctx context.Context) (*dagger.Client, error) {
 // is a half-built image and never something a caller should publish or shell into.
 func (r *Run) Result() BuildResult {
 	container := r.container
-	if r.acc.Err() != nil {
+	if r.out.err != nil {
 		container = nil
 	}
 
 	return BuildResult{
 		Unit:      r.unit,
 		Container: container,
-		Err:       r.acc.Err(),
+		Err:       r.out.err,
 		client:    r.client,
-		acc:       r.acc,
+		out:       r.out,
 		obs:       r.obs,
 	}
 }

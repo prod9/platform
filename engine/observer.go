@@ -32,47 +32,66 @@ type Observer interface {
 	RunDone(unit string, at time.Time, err error)
 }
 
-// AccObserver folds the callbacks into a run's scalar outcome. The engine injects one into
-// every run and it is the sole minter of that outcome, so what a result says is derived from
-// what the run actually reported rather than authored at a call site — which is what makes
-// an inconsistent result unconstructable instead of merely discouraged.
-type AccObserver struct {
+// outcome is what a run's stream folds down to: the scalars a result is minted from. It is
+// data and nothing else, which is what keeps the observer that writes it out of every field
+// that only wants the scalars.
+type outcome struct {
 	image string
 	hash  string
 	err   error
 }
 
-func (*AccObserver) StepStarted(unit, step string, at time.Time) {}
-
-func (a *AccObserver) StepDone(unit, step string, at time.Time, err error) {
-	a.fail(err)
+// fail keeps the first failure reported: the step that broke is the cause, and the run's own
+// terminal error is that same error arriving a second time.
+func (o *outcome) fail(err error) {
+	if o.err == nil {
+		o.err = err
+	}
 }
 
-func (a *AccObserver) ImageBuilt(unit, image string, at time.Time) {
-	a.image = image
+// accumulate composes the observer a run reports to and hands back the fold that observer
+// writes. Both come from one call because they are one decision — a run always folds, and
+// composing the caller in is the same act — and a caller gets an Observer plus an *outcome,
+// never the accumulator's own type.
+//
+// This is where nil is eliminated: a nil caller yields the bare accumulator, so Tee never
+// sees a nil child and no downstream report path carries a guard.
+func accumulate(caller Observer) (Observer, *outcome) {
+	out := &outcome{}
+
+	obs := Observer(&accObserver{out})
+	if caller != nil {
+		obs = Tee(obs, caller)
+	}
+
+	return obs, out
+}
+
+// accObserver folds the callbacks into a run's outcome. The engine injects one into every
+// run and it is the sole minter of that outcome, so what a result says is derived from what
+// the run actually reported rather than authored at a call site — which is what makes an
+// inconsistent result unconstructable instead of merely discouraged.
+type accObserver struct{ out *outcome }
+
+func (*accObserver) StepStarted(unit, step string, at time.Time) {}
+
+func (a *accObserver) StepDone(unit, step string, at time.Time, err error) {
+	a.out.fail(err)
+}
+
+func (a *accObserver) ImageBuilt(unit, image string, at time.Time) {
+	a.out.image = image
 }
 
 // Published overwrites the image because pushing renames it: the tag a run built under is
 // not the ref that ended up in the registry.
-func (a *AccObserver) Published(unit, image, hash string, at time.Time) {
-	a.image, a.hash = image, hash
+func (a *accObserver) Published(unit, image, hash string, at time.Time) {
+	a.out.image, a.out.hash = image, hash
 }
 
-func (a *AccObserver) RunDone(unit string, at time.Time, err error) {
-	a.fail(err)
+func (a *accObserver) RunDone(unit string, at time.Time, err error) {
+	a.out.fail(err)
 }
-
-// fail keeps the first failure reported: the step that broke is the cause, and the run's own
-// terminal error is that same error arriving a second time.
-func (a *AccObserver) fail(err error) {
-	if a.err == nil {
-		a.err = err
-	}
-}
-
-func (a *AccObserver) Image() string { return a.image }
-func (a *AccObserver) Hash() string  { return a.hash }
-func (a *AccObserver) Err() error    { return a.err }
 
 // TeeObserver forwards every callback to each of its children. Its contract is non-nil
 // children only — nil is eliminated once, where the tee is composed, so nothing downstream
