@@ -136,29 +136,40 @@ the step or the run — there is deliberately no separate failure callback, and 
 `Snapshot`/`Done` are dropped outright — execution moves to a worker that writes to the
 database and the webui reads it back, so there is no late-joining live observer to catch up.
 
-#### `AccObserver` and `TeeObserver`
+#### The accumulator and `TeeObserver`
 
-A run's observer is **never nil**. The engine force-injects an **`AccObserver`** — a
+A run's observer is **never nil**. The engine force-injects an accumulating observer — a
 stateful fold of the callbacks — into every run, and that accumulator is the **sole
 minter** of the run's scalar outcome (ok/err, image, hash). A caller's observer, when
 there is one, is composed alongside it by **`TeeObserver`**: `Tee(obs ...Observer)
 Observer` forwards each callback to every child.
 
-The wrap site is `NewRun` — the acc has to be **run-owned**, because `Run.Result()` mints
-its scalars from that fold. Nil is eliminated **once, there**, so no downstream code carries
-a guard:
+**The fold is a type of its own, and the observer that writes it is unexported.** The
+accumulator is only a writer; what the rest of the engine wants is the accumulated scalars.
+So `outcome` — the three-field fold — is the type `Run` and `BuildResult` hold, and no field
+anywhere is typed as a concrete `Observer` implementation. Composition and the fold are
+handed over together by one constructor:
 
 ```go
-obs := acc
-if caller != nil { obs = Tee(acc, caller) }   // Tee never sees a nil child
+func accumulate(caller Observer) (Observer, *outcome)
 ```
+
+Nothing outside the engine names the accumulator; nothing inside it names one either beyond
+that constructor. **Observer-typed fields stay `Observer`** — specializing one to an
+implementation is what this shape exists to prevent.
+
+The wrap site is `NewRun` — the fold has to be **run-owned**, because `Run.Result()` mints
+its scalars from it. Nil is eliminated **once, there**, so no downstream code carries a
+guard: `accumulate` returns the bare accumulator when `caller` is nil and `Tee(acc, caller)`
+otherwise.
 
 `Tee`'s contract is **non-nil children only**, and the run's report path has no nil check
 at all. A caller that wants nothing simply passes nothing — the fold still happens, because
 the result depends on it.
 
-The name is `AccObserver`, not `Recorder`: "record" is already taken by the DB vocabulary
-(`BuildEvent` records) and by test helpers.
+The accumulator is named for accumulating, never `Recorder`: "record" is already taken by
+the DB vocabulary (`BuildEvent` records) and by test helpers. `outcome` names the data;
+"fold" stays the verb for what the accumulator does to the stream.
 
 Callbacks fire on the **multiplexer's per-unit goroutine**, so an implementation serializes
 itself; the engine adds no lock on a caller's behalf.
@@ -194,7 +205,7 @@ explicit method. That is the one thing a run exposes beyond its report.
 
 ### `Run.Result()` — consistent by construction
 
-`Run.Result()` returns a **`BuildResult`**: the join of the injected `AccObserver`'s scalar
+`Run.Result()` returns a **`BuildResult`**: the join of the injected accumulator's scalar
 fold (ok/err, image, hash) with the unit and the live container the run itself owns — the
 unit rides the run as its `*framework.BuildUnit`, so the accumulator never restates it. The
 two halves are joined at exactly **one site**, because they can only come from there — the
