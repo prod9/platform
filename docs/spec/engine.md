@@ -140,7 +140,7 @@ database and the webui reads it back, so there is no late-joining live observer 
 
 A run's observer is **never nil**. The engine force-injects an **`AccObserver`** — a
 stateful fold of the callbacks — into every run, and that accumulator is the **sole
-minter** of the run's scalar outcome (unit, ok/err, image, hash). A caller's observer, when
+minter** of the run's scalar outcome (ok/err, image, hash). A caller's observer, when
 there is one, is composed alongside it by **`TeeObserver`**: `Tee(obs ...Observer)
 Observer` forwards each callback to every child.
 
@@ -195,8 +195,9 @@ explicit method. That is the one thing a run exposes beyond its report.
 ### `Run.Result()` — consistent by construction
 
 `Run.Result()` returns a **`BuildResult`**: the join of the injected `AccObserver`'s scalar
-fold (unit, ok/err, image, hash) with the live container the run itself owns. The two
-halves are joined at exactly **one site**, because they can only come from there — the
+fold (ok/err, image, hash) with the unit and the live container the run itself owns — the
+unit rides the run as its `*framework.BuildUnit`, so the accumulator never restates it. The
+two halves are joined at exactly **one site**, because they can only come from there — the
 scalars are *derived* from the event stream rather than authored anywhere, and the
 container never leaves the run that holds it. There is no hand-packed result assembled at a
 call site, so an inconsistent `BuildResult` — a success with no image, a hash from a build
