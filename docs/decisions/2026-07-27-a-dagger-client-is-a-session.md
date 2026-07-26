@@ -72,6 +72,22 @@ which is the question that dissolves it.
   are indistinguishable at a callsite, and carrying the engine on a context is what hid its
   lifetime in the first place.
 
+## The name collides, and we took it anyway
+
+`session` was already live in `srv/auth`: the `sessions` table, the `platform_session`
+cookie, `auth.SessionCtr`, `GET /api/session` — a user's *login* session. Taking the word a
+second time goes against the [terminology lexicon](2026-07-11-terminology-lexicon.md), whose
+default is one word, one concept.
+
+It is taken anyway because the word is not ours to choose: `dagger.Connect` opens a session,
+and the entire ruling above is the observation that this thing **is** a session rather than a
+connection. Renaming it to avoid the clash would re-hide the exact fact the change exists to
+surface. The lexicon's own test — do the two uses meet on one surface? — is satisfied by
+qualification rather than renaming: they share no code, no lifetime, and no table, and the
+one file where both appear ([`../spec/platform-server.md`](../spec/platform-server.md)) now
+carries a disambiguation note. **Rule: never a bare `Session` identifier outside `engine/`,
+never a bare "session" in `srv` prose.**
+
 ## Left open
 
 Whether a long-lived `srv` session needs liveness handling as engine pods come and go, or

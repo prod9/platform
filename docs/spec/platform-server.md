@@ -68,6 +68,14 @@ a days-long session needs liveness handling for engine pods that come and go, or
 one session per build instead, is open — see [engine.md](engine.md), §`Session` — the unit of
 lifetime.
 
+🚨 **Two "sessions" meet in this file — always qualify.** A **login session** is a user's
+authenticated session: the `sessions` table, the `platform_session` cookie, `auth.SessionCtr`,
+`GET /api/session`. An **engine session** is `engine.Session`, the span a built container
+stays usable for ([engine.md](engine.md)). They share no code, no lifetime and no table.
+Dagger's own vocabulary is what makes the engine one non-negotiable, so the fix is the
+adjective: never write a bare "session" in `srv` prose or a bare `Session` identifier outside
+`engine/`.
+
 `srv` ships **in the same binary** as the CLI — `platform srv` starts the process (`platform serve` is a back-compat alias). One
 Go module (`platform.prodigy9.co`); the shared packages, `cmd`, and `srv` are conceptual
 layers (flat packages at the repo root — no `core/` grab-bag, see
