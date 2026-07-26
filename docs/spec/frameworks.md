@@ -169,8 +169,11 @@ The base lays down a fixed FHS-style tree so an operator shelling in always find
 in the same place: `SrcDir` (`/platform/src`, build workspace), `BinDir` (`/platform/bin`,
 on `PATH`), `RunDir` (`/platform/run`, runtime workdir). Package sets are applied via
 `withBuildPkgs` (`build-base git curl bash` + extras) for the build stage and
-`withRunnerPkgs` (`ca-certificates curl netcat-openbsd tzdata` + extras) for the runner;
-`withCaddyServer` adds Caddy for the static family.
+`withRunnerPkgs` (`ca-certificates curl mailcap netcat-openbsd tzdata` + extras) for the
+runner; `withCaddyServer` adds Caddy for the static family. `mailcap` is carried only to
+lay down `/etc/mime.types` — Alpine ships no MIME table, and a server without one falls
+back to a built-in list that misses modern types (`.woff2` among them), so assets go out
+with the wrong `Content-Type`. It belongs to every runner, not just the static family.
 
 ## Test-in-build is a hard gate
 
