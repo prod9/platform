@@ -26,9 +26,10 @@ superseded by the settled surface; read the table, not the blockquote, for the t
 > mirror under a per-repo flock, resolves the sha, and adds the per-build worktree
 > (§Repo preparation below); `RemoveWorkTree` is the post-build cleanup; cache root via
 > `CACHE_DIR` (default `/var/cache/platform`). Engine wiring is implemented
-> (`srv/builds/builds.go` + `srv/builds/runner.go`): `Serve` opens one `engine.New` per process and a
+> (`srv/builds/builds.go` + `srv/builds/runner.go`): `Serve` opens one `engine.NewSession` per
+> process and a
 > claim loop consumes queued builds — `ClaimBuild` (`FOR UPDATE SKIP LOCKED`, oldest
-> first) → repo-prep → `conf.Load` → `engine.BuildAndPublish` under the build's tag →
+> first) → repo-prep → `conf.Load` → `sess.BuildAndPublish` under the build's tag →
 > `FinishBuild`/`FailBuild` records the outcome (2s poll tick when the queue is empty).
 > GitHub login is implemented (`srv/auth/auth.go`): `/api/auth/github` +
 > `/api/auth/github/callback` run the App's user-OAuth flow, find-or-create
@@ -60,9 +61,12 @@ superseded by the settled surface; read the table, not the blockquote, for the t
 renders + publishes the infra artifact, and lets Flux pull it. It owns the GitHub App, the
 DB, and token minting. It is a layer above the **shared packages** (the stateless
 build/render/publish/release machinery: `framework`, `engine`, `gitops`, `releases`, …)
-and consumes them per request — the engine is an `sql.DB`-style, context-carried fleet
-handle (`engine.New(cfg)` once at boot, a `Run` per unit per request) so a long-running
-server reuses the one engine across every concurrent build.
+and consumes them per request — the engine layer hands out a `Session`, the span its
+containers stay usable for (`engine.NewSession(ctx)` once at boot, a `Run` per unit per
+request), so a long-running server reuses one session across every concurrent build. Whether
+a days-long session needs liveness handling for engine pods that come and go, or `srv` opens
+one session per build instead, is open — see
+[engine.md](engine.md#session--the-unit-of-lifetime).
 
 `srv` ships **in the same binary** as the CLI — `platform srv` starts the process (`platform serve` is a back-compat alias). One
 Go module (`platform.prodigy9.co`); the shared packages, `cmd`, and `srv` are conceptual

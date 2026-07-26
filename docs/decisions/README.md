@@ -65,6 +65,7 @@ the part that prevents re-litigation.
 
 Newest first.
 
+- [2026-07-27 — A `*dagger.Client` is a session, not a poolable connection](2026-07-27-a-dagger-client-is-a-session.md)
 - [2026-07-16 — The scaffolded baseline is provider-neutral; cloud wiring is the infra repo's edit](2026-07-16-baseline-is-provider-neutral.md)
 - [2026-07-16 — The v0.9 line is platformv2; v2 cuts are patch releases](2026-07-16-v0.9-line-is-platformv2.md)
 - [2026-07-12 — CUE module path is a scaffold input read from cue.mod, not the repository](2026-07-12-cue-module-path-is-a-scaffold-input.md)

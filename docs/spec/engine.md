@@ -4,36 +4,66 @@ Status: **design-of-record.** The `engine/` package — the Dagger execution lay
 a unit's planned steps and pushes the resulting images. Sits at the tail of the pipeline
 ([`architecture.md`](architecture.md)): `[]*BuildUnit ─▶ engine.Run ─▶ images`.
 
-## What the Engine is
+## A `*dagger.Client` is a session, not a connection
 
-`Engine` is a process-wide handle to a fleet of Dagger runners — shaped like `sql.DB`: a
-concurrency-safe connection pool, dialed lazily and reused, built once from config and
-shared across the process. It orchestrates two single-purpose units:
+This is the fact the whole package is shaped around. `dagger.Connect` opens a **session**,
+and every container is a handle *into* that session — not a value you hold independently of
+it. Sessions are therefore **not fungible**: you cannot take one, use it, hand it back, and
+keep using what it produced. Swapping one for another silently invalidates every container
+in flight, and closing one invalidates every container built on it.
 
-- **runners** ([`runners.go`](../../engine/runners.go)) — which endpoints exist.
-- **clients** ([`clients.go`](../../engine/clients.go)) — one reused, ping-checked
-  `*dagger.Client` per endpoint.
+So the package does **not** pool clients the way `sql.DB` pools connections. A connection
+pool is the right abstraction for a fungible resource and the wrong one here; applying it
+was what let a session's lifetime get attached to whatever scope happened to be nearby.
+Instead there are two things, and only one of them has a lifetime:
 
-`Engine` itself holds no lock — only an atomic round-robin `cursor`. The happy path is
-discover → pick → get.
+- **runners** ([`runners.go`](../../engine/runners.go)) — a **stateless roster**: which
+  endpoints exist, and how to dial one. It caches nothing and holds nothing between calls.
+- **`Session`** ([`session.go`](../../engine/session.go)) — the **lifetime**: the span during
+  which the containers it produced are usable.
 
-### Lifecycle
+### `Session` — the unit of lifetime
 
-| Call                       | Role                                                              |
-| -------------------------- | ---------------------------------------------------------------- |
-| `New(cfg)`                 | build the handle from an fx config source; dials nothing yet     |
-| `NewContext(ctx, eng)`     | carry `eng` on a context so runs resolve it                       |
-| `FromContext(ctx)`         | Must-style fetch; panics if absent (engine is a precondition)    |
-| `LookupFromContext(ctx)`   | comma-ok fetch                                                    |
-| `Client(ctx)`              | next endpoint round-robin → a live client (ad-hoc: `ls` only)     |
-| `Clean(ctx)`               | prune every fleet engine's local cache (drives `platform clean`) |
-| `Close()`                  | tear down every dialed connection; call once at shutdown         |
+```go
+type Session struct {
+	ctx   context.Context   // carries both the lifetime and the config
+	mu    sync.Mutex
+	conns []*dagger.Client
+}
+```
 
-Commands open **one** engine, defer `Close`, and stash it on the context via `NewContext`;
-downstream runs pull it back with `FromContext`. Mirrors fx/data's request-scoped
-`*sqlx.DB`. One shared `*Engine` serves every concurrent run — it is concurrency-safe via
-the atomic round-robin cursor, and `NewRun` does no engine work at all (a client is
-grabbed at the first `Next`), so there is never a reason to open a second.
+| Call                        | Role                                                             |
+| --------------------------- | ---------------------------------------------------------------- |
+| `NewSession(ctx)`           | open a session; dials nothing                                     |
+| `Build(ctx, cfg, mods, obs)`| build every matched unit, one run each                            |
+| `BuildAndPublish(…, tag, …)`| build and push each image as its run finishes                     |
+| `Clean(ctx)`                | prune every fleet engine's local cache (drives `platform clean`)  |
+| `Unsafe()`                  | one raw connection for an ad-hoc caller (`ls` only)               |
+| `Close()`                   | end every connection it opened, and every container built on one  |
+
+A session opens **as many connections as its work needs** — `connect()` dials one more and
+remembers it — and closes them together. One run uses one connection for all its steps,
+because a container is bound to the connection that built it; a session driving many runs
+dials many, and *that* is what spreads runs across the fleet.
+
+Commands open **one** session and defer `Close`. It is safe for concurrent use, and
+`NewRun` does no dialing at all (a connection is taken at the first `Next`), so there is
+never a reason to open a second.
+
+🚨 **A session's context is the session's own — no caller's cancellation reaches it.**
+Every connection is dialed into `Session.ctx`, a process scope. `Build` gives each unit a
+`context.WithTimeout(ctx, unit.Timeout)` and cancels it when the unit ends; that timeout
+bounds the unit's **steps** and must never reach a dial, because a unit finishing would
+otherwise close a session whose containers the caller still holds. Only `Close` ends a
+session.
+
+🚨 **Data may ride in the context; resources may not.** `cfg` travels via
+`config.NewContext`/`FromContext` because it is inert and has no lifetime — the roster reads
+it with a nil-check fallback to `Configure()`. A `Session` owns connections and has a
+`Close`, so it is passed explicitly and never stashed on a context. The two look identical
+at a callsite, which is exactly why the rule is written down: an earlier design carried the
+engine on the context and type-asserted it back, and that hidden dependency is what made
+its lifetime impossible to see.
 
 ## Runner discovery
 
@@ -44,63 +74,55 @@ grabbed at the first `Next`), so there is never a reason to open a second.
 | `DAGGER_ENGINE`      | unset   | headless-Service DNS of the engine pool                     |
 | `DAGGER_ENGINE_PORT` | `1234`  | engine pod port (mirrors `apps/dagger-engine.cue`)          |
 
-`Hosts(ctx)` looks up the DNS name and returns one `tcp://<addr>:<port>` per resolved pod,
-sorted for stable round-robin. It reports **only what it finds**:
+`Hosts(ctx)` looks up the DNS name and returns one `tcp://<addr>:<port>` per resolved pod.
+It reports **only what it finds**:
 
 - `DAGGER_ENGINE` unset → empty slice, no lookup.
 - DNS resolves to nothing → empty slice.
 - lookup failure → a real error, surfaced.
 
-Falling back to a local engine is **not** the runner's decision — it reports emptiness and
-the core decides. `Engine.resolveHosts` maps an empty result to a single empty-string
-host, and `dialEngine` reads an empty host as "let Dagger auto-provision and reuse the
-local engine." So unset `DAGGER_ENGINE` is an explicit operator choice for local, never
-inferred.
+Falling back to a local engine is **not** `Hosts`' decision — it reports emptiness and
+`Dial` decides, reading an empty roster as "let Dagger auto-provision and reuse the local
+engine." So unset `DAGGER_ENGINE` is an explicit operator choice for local, never inferred.
+
+`Dial(ctx)` picks **uniformly at random** among the resolved hosts. Random replaces the old
+round-robin cursor: the distribution over a run of picks is the same, and it needs no state
+kept between calls — which is what lets the roster stay a roster.
 
 The resolver caches per the DNS record TTL, so a new pod becomes selectable as soon as DNS
-reflects it — no restart.
-
-### Client pool
-
-`clients` caches one `*dagger.Client` per host. `Get` validates a cached client with a
-cheap `Version()` ping and redials when the engine has gone (graceful DNS removal or a
-crash), so callers always receive a live client — no separate prune step, nothing closed
-mid-build. The lock is held only around map reads/writes, never across a dial or ping;
-concurrent dial races keep one winner and close the loser. Liveness during a run is the
-ping's job; `Close` only runs at shutdown.
-
-🚨 **A dial never inherits the caller's cancellation** — `Get` dials under
-`context.WithoutCancel`, so values still cross but deadlines and cancels do not. A pooled
-client outlives whoever happened to dial it, and Dagger binds the *session* to the dial
-context: let a caller's ctx through and that caller's cancel tears down the session every
-later user of the client is still holding. `Build` gives each unit its own timeout ctx and
-cancels it when the unit ends, so the pool would otherwise be poisoned by the first unit to
-finish. Only `Close` ends a session.
+reflects it — no restart. Nothing else is remembered: two calls a second apart may
+legitimately see different engines as pods come and go, and that is the point.
 
 ## `Run` — one unit, one step at a time
 
-`NewRun(eng, unit, caller)` is a **single-unit** run, and it is **engine-internal** — the
+`NewRun(sess, unit, caller)` is a **single-unit** run, and it is **engine-internal** — the
 domain verbs below open runs, no caller does. It asks the unit's framework for a `Plan`,
 then exposes a cursor:
 
 ```go
-run := NewRun(eng, unit, caller)   // caller may be nil; the run injects its own acc
+run := NewRun(sess, unit, caller)  // caller may be nil; the run injects its own acc
 for run.Next(ctx) { }              // drives exactly one Step per call
 ```
 
-The **first** `Next` grabs the run's client (`Engine.Client(ctx)`) and every later step
-reuses it: a container is bound to the client that built it, so one run's steps can never
-be spread across the fleet. Round-robin spreads whole *runs*, not steps.
+The **first** `Next` takes the run's connection (`Session.connect()`) and every later step
+reuses it: a container is bound to the connection that built it, so one run's steps can
+never be spread across the fleet. The session spreads whole *runs*, not steps.
 
 Each `Next` calls `Framework.Execute` for the current `Step` with the previous step's
 container, forces the work eagerly with `.Sync()`, and **times** the step across that
 boundary. `Next` returns false at the end of the plan or on failure; the error is held on
-the run and reported to the observer, not by aborting siblings. The whole run is wrapped in
-`context.WithTimeout(ctx, unit.Timeout)`.
+the run and reported to the observer, not by aborting siblings.
+
+`unit.Timeout` bounds a run's **steps** — `Build` wraps the step loop in
+`context.WithTimeout(ctx, unit.Timeout)` and cancels it when the unit ends. It bounds
+nothing else: it never reaches a dial, and it does not limit how long the container it
+produced stays usable. That is the session's business, not the timeout's.
 
 Clone (repo-prep) and Publish are **engine brackets** around this loop, not framework
 steps — cloning is not any stack's build knowledge, and pushing is the engine's registry
-concern.
+concern. Publish being a bracket is load-bearing rather than descriptive: it runs while the
+run's connection is still a local variable, which is what lets the registry secret be minted
+on the same session as the container it authenticates.
 
 ### One observer, five callbacks
 
@@ -209,9 +231,9 @@ exactly the observer's step reports.
 
 ### The built container is hidden behind one unsafe door
 
-The `*dagger.Container` a run produces is **engine-internal**. It is bound to the client
-that built it, and it is carried so that steps chain and `Publish` can push it — but
-consumers read what the observer reports, not the container.
+The `*dagger.Container` a run produces is **engine-internal**. It is bound to the connection
+that built it, and it is carried so that steps chain and the publish bracket can push it —
+but consumers read what the observer reports, not the container.
 
 Three commands genuinely operate on the container and cannot be served by the report:
 `preview` (tunnel a port at the built image), `export` (write the image to a file), and
@@ -221,15 +243,22 @@ in preview/exec for now" — so the machinery is handed over instead, through ex
 method whose name is the warning:
 
 ```go
-func (r BuildResult) UnsafeDagger() (*dagger.Container, *dagger.Client)
+func (r BuildResult) UnsafeContainer() *dagger.Container
 ```
 
-Both halves come from one call because they are inseparable: a container is bound to the
-client that built it, and operating on one without the other is the bug the pairing
-prevents. `Unsafe` is the whole point of the name — a caller reaching past the engine's
-report says so at the callsite, and a reviewer greps one word to find every such caller.
-It is **not** `Must`, which this spec already spends on panic-style fetches
-(`FromContext`).
+One half, not two: the container carries its own client internally, so every container
+operation — `Export`, `WithExec`, `Publish`, a tunnel — works from the container alone. The
+only thing that ever needed a raw client was minting a `*dagger.Secret`, and the publish
+bracket does that where the connection is still in scope. `Session.Unsafe()` exists for the
+one caller that wants a connection without building at all (`ls`).
+
+**The container is valid only while its session is open.** That is the whole contract, and
+it is why `Close` is deferred by whoever opened the session rather than reached by any
+inner scope.
+
+`Unsafe` is the whole point of the name — a caller reaching past the engine's report says so
+at the callsite, and a reviewer greps one word to find every such caller. It is **not**
+`Must`, which the engine lexicon spends on panic-style fetches.
 
 So `BuildResult` carries no exported dagger field and the engine exposes no other dagger
 handle. The three callers do express container operations, which
@@ -273,7 +302,7 @@ Scheduling splits in two and the halves must not meet:
 | Decision                 | Owner  | Inputs                                   |
 | ------------------------ | ------ | ---------------------------------------- |
 | which build runs next    | worker | pending records, concurrency policy      |
-| which runner executes it | engine | `runners.Hosts()`, client health, cursor |
+| which runner executes it | engine | `Hosts()`, uniform choice at dial |
 
 **The worker never sees a host address.** If one leaks upward the boundary is gone and
 two schedulers begin fighting over the same capacity.
@@ -285,7 +314,7 @@ Callers must never *express container operations*: no `WithExec`, no `WithDirect
 part of the build definition out of the layer that owns it. The tell is a dagger
 constructor appearing anywhere outside `engine/`.
 
-This is a rule about **logic, not types**. Go type inference means `c := engine.Build(…)`
+This is a rule about **logic, not types**. Go type inference means `c := sess.Build(…)`
 compiles with no dagger import at all, so "does this package import dagger" is the wrong
 test — a caller can hold what a run returns opaquely and still respect the boundary.
 
@@ -302,14 +331,19 @@ stays **inside `engine/`**, behind domain verbs. Callers name what they want don
 over an observer, and read results:
 
 ```go
-engine.Build(ctx, cfg, modnames, obs)            // []BuildResult
-engine.Publish(ctx, builds...)                   // []PublishResult
-engine.BuildAndPublish(ctx, cfg, modnames, obs)  // []PublishResult
+sess.Build(ctx, cfg, modnames, obs)                 // []BuildResult
+sess.BuildAndPublish(ctx, cfg, modnames, tag, obs)  // []PublishResult
 ```
+
+**There is no standalone `Publish` verb.** Its only possible argument is a `BuildResult`,
+which only `Run.Result` can mint, so holding one means you already built in that session —
+there is no reachable state where publishing without a build makes sense. "Publish something
+built earlier" is a registry-to-registry copy: no container, no engine, not this package.
+Publishing is a bracket inside the run, not a second pass over results.
 
 The generic `multiplexer` is **unexported**. It provides orchestration and synchronization
 only and **owns no build method** — it drives the same single-unit path the engine already
-has, one `Run` per unit against the one shared `*Engine`. Nothing outside `engine/`
+has, one `Run` per unit against the one open `*Session`. Nothing outside `engine/`
 constructs a multiplexer or touches a `Run`.
 
 There is nothing to merge on the reporting side: every unit reports to the same observer
@@ -324,10 +358,10 @@ remains the worker's, and it still never sees a host address.
 
 ## Publish
 
-`Publish` pushes a successfully-built container, reusing the client that built it so the
-registry secret is minted by the engine that owns the container, and logs the image via
-`buildlog.Image`. `publish` composes the ordinary path — build the units at the publish
-arch, suffix each `ImageName` with the release tag, run, then push — and the
+The publish bracket pushes a successfully-built container on the connection that built it,
+so the registry secret is minted by the same session that owns the container, and logs the
+image via `buildlog.Image`. `publish` composes the ordinary path — build the units at the
+publish arch, suffix each `ImageName` with the release tag, run, then push — and the
 `[]BuildAttempt` records of what shipped are assembled by `srv`
 ([platform-server.md](platform-server.md)), not by the engine.
 
@@ -338,7 +372,7 @@ for the full rationale.
 
 ## Registry credentials
 
-`Publish` reads three fx env-config values off the engine's config source:
+The publish bracket reads three fx env-config values off the session's config source:
 
 | Config              | Role                          |
 | ------------------- | ----------------------------- |
@@ -346,7 +380,7 @@ for the full rationale.
 | `REGISTRY_USERNAME` | registry user                 |
 | `REGISTRY_PASSWORD` | registry secret (set via `client.SetSecret`, never inlined) |
 
-When `REGISTRY_USERNAME` is empty, `Publish` skips `WithRegistryAuth` entirely — Dagger
+When `REGISTRY_USERNAME` is empty, the bracket skips `WithRegistryAuth` entirely — Dagger
 then pushes with the **local docker credentials** (osxkeychain). That is the local-publish
 path: a `platform publish` on a laptop needs no `REGISTRY_USERNAME`/`PASSWORD`, only a
 docker login to ghcr. The env creds are for a server driver with no local docker config.
@@ -361,12 +395,12 @@ verb runs on a build-server, where nothing is local — so there is no `Target` 
 declared intent. There is a resolved arch string and the engine entrypoint that resolves
 it:
 
-| Entrypoint                    | Arch                                    |
-| ----------------------------- | --------------------------------------- |
-| `BuildAndPublish`             | `publish_arch` — pushing *is* the answer |
-| `Build(ctx, cfg, modnames)`   | `local_arch`, or `publish_arch` when `CI` is true |
+| Entrypoint                        | Arch                                    |
+| --------------------------------- | --------------------------------------- |
+| `sess.BuildAndPublish`            | `publish_arch` — pushing *is* the answer |
+| `sess.Build(ctx, cfg, modnames)`  | `local_arch`, or `publish_arch` when `CI` is true |
 
-Engine entrypoints take `cfg` + module names and construct the units themselves; the arch
+Session entrypoints take `cfg` + module names and construct the units themselves; the arch
 rule is engine-internal and unexported, because it is only ever an input to an entrypoint
 that is about to build (`CI` is read through fx's own `prompts.CIConfig`, a `config.Bool`
 — there is no second `CI` var). Callers never name an arch, and `preview`/`exec` read what
