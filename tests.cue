@@ -66,6 +66,19 @@ let testbeds = [...{name: string, dir: string}] &
 			}
 		},
 		{
+			// The only smoke case that touches a built container after its run ends — the
+			// path a session-scoped connection breaks first (a closed session 502s here long
+			// before it shows up in a plain build). The tarball is binary and unstable, so
+			// the file check is its existence, not its contents.
+			name: "Export"
+			checks: ["exitcode"]
+			commands: [
+				"rm -f testbeds/gobasic/gobasic.docker",
+				"./testbed.sh gobasic -q export",
+				"test -f testbeds/gobasic/gobasic.docker",
+			]
+		},
+		{
 			// infra init generates the whole baseline into a fresh (git-ignored) dir. The
 			// module path comes from the CUE_MOD_PREFIX scaffold input (example.com) — the 4th
 			// positional arg — NOT the bare, non-domain repository `prod9/infra-new`, which CUE

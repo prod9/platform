@@ -39,11 +39,11 @@ func runList(cmd *cobra.Command, args []string) {
 	}
 
 	preview := units[0] // at least 1 by this point
-	eng := engine.New(fxconfig.Configure())
-	defer eng.Close()
+	ctx := fxconfig.NewContext(context.Background(), fxconfig.Configure())
+	sess := engine.NewSession(ctx)
+	defer sess.Close()
 
-	ctx := context.Background()
-	client, err := eng.Client(ctx)
+	client, err := sess.Unsafe()
 	if err != nil {
 		buildlog.Fatalln(err)
 	}

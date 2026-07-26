@@ -3,7 +3,6 @@ package engine
 import (
 	"testing"
 
-	fxconfig "fx.prodigy9.co/config"
 	r "github.com/stretchr/testify/require"
 	"platform.prodigy9.co/conf"
 )
@@ -13,11 +12,11 @@ import (
 // publish arch even though the verb is a plain build.
 func TestBuildArch(t *testing.T) {
 	cfg := &conf.Model{LocalArch: "auto", PublishArch: "amd64"}
-	eng := New(fxconfig.Configure())
+	sess := NewSession(rosterCtx())
 
 	t.Setenv("CI", "")
-	r.Equal(t, "auto", eng.buildArch(cfg))
+	r.Equal(t, "auto", sess.buildArch(cfg))
 
 	t.Setenv("CI", "true")
-	r.Equal(t, "amd64", eng.buildArch(cfg))
+	r.Equal(t, "amd64", sess.buildArch(cfg))
 }

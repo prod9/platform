@@ -23,11 +23,11 @@ func runBuild(cmd *cobra.Command, args []string) {
 		buildlog.Fatalln(err)
 	}
 
-	eng := engine.New(fxconfig.Configure())
-	defer eng.Close()
+	ctx := fxconfig.NewContext(context.Background(), fxconfig.Configure())
+	sess := engine.NewSession(ctx)
+	defer sess.Close()
 
-	ctx := engine.NewContext(context.Background(), eng)
-	results, err := engine.Build(ctx, cfg, args, newObserver())
+	results, err := sess.Build(ctx, cfg, args, newObserver())
 	if err != nil {
 		buildlog.Fatalln(err)
 	}

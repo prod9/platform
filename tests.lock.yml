@@ -235,6 +235,23 @@
         - name: exitcode
           data:
             - "0"
+- name: Platform \ Export
+  commands:
+    - command: rm -f testbeds/gobasic/gobasic.docker
+      checks:
+        - name: exitcode
+          data:
+            - "0"
+    - command: ./testbed.sh gobasic -q export
+      checks:
+        - name: exitcode
+          data:
+            - "0"
+    - command: test -f testbeds/gobasic/gobasic.docker
+      checks:
+        - name: exitcode
+          data:
+            - "0"
 - name: Platform \ Infra Init
   commands:
     - command: rm -rf testbeds/infra-init/apps testbeds/infra-init/defaults testbeds/infra-init/cue.mod testbeds/infra-init/platform.toml testbeds/infra-init/platform testbeds/infra-init/k8s

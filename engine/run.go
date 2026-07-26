@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"dagger.io/dagger"
+	fxconfig "fx.prodigy9.co/config"
 	"platform.prodigy9.co/framework"
 )
 
@@ -15,12 +16,12 @@ import (
 // It is a cursor rather than a single call because a build's observable structure is its
 // steps — driving them one at a time is what lets each be timed and reported separately.
 //
-//	run := NewRun(eng, unit, caller)
+//	run := NewRun(sess, unit, caller)
 //	for run.Next(ctx) {
 //	}
 //	result := run.Result()
 type Run struct {
-	eng  *Engine
+	sess *Session
 	unit *framework.BuildUnit
 	out  *outcome
 	obs  Observer
@@ -36,11 +37,11 @@ type Run struct {
 
 // NewRun asks the unit's framework for its plan and reports every step to an accumulator it
 // injects, plus caller when there is one. The fold is run-owned because Result mints its
-// scalars from it. It does no engine work — a client is grabbed at the first Next — so
+// scalars from it. It does no engine work — a connection is taken at the first Next — so
 // opening a run is free and never dials.
-func NewRun(eng *Engine, unit *framework.BuildUnit, caller Observer) *Run {
+func NewRun(sess *Session, unit *framework.BuildUnit, caller Observer) *Run {
 	obs, out := accumulate(caller)
-	return &Run{eng: eng, unit: unit, out: out, obs: obs, steps: unit.Framework.Plan(unit)}
+	return &Run{sess: sess, unit: unit, out: out, obs: obs, steps: unit.Framework.Plan(unit)}
 }
 
 // Next executes exactly one step and reports whether the run should continue. It returns
@@ -74,10 +75,10 @@ func (r *Run) Next(ctx context.Context) bool {
 	return true
 }
 
-// execute runs one step to completion on the run's client, so that the step's whole cost
-// — dialing included — lands inside the boundary the observer times.
+// execute runs one step to completion on the run's connection, so that the step's whole
+// cost — dialing included — lands inside the boundary the observer times.
 func (r *Run) execute(ctx context.Context, step framework.Step) (*dagger.Container, error) {
-	client, err := r.dial(ctx)
+	client, err := r.connect()
 	if err != nil {
 		return nil, err
 	}
@@ -117,17 +118,22 @@ func (r *Run) report(emit func(obs Observer, at time.Time)) {
 	emit(r.obs, time.Now())
 }
 
-// dial grabs the run's client on first use and reuses it for every later step: a
-// container is bound to the client that built it, so the steps of one run cannot be spread
-// across the fleet. Round-robin spreads whole runs instead.
-func (r *Run) dial(ctx context.Context) (*dagger.Client, error) {
+// connect takes the run's connection from its session on first use and reuses it for every
+// later step: a container is bound to the connection that built it, so the steps of one run
+// cannot be spread across the fleet. The session spreads whole runs instead.
+//
+// It takes no context: the connection is dialed into the session's lifetime, never the
+// step timeout that happens to be current when the first step runs.
+func (r *Run) connect() (*dagger.Client, error) {
 	if r.client != nil {
 		return r.client, nil
 	}
-	client, err := r.eng.Client(ctx)
+
+	client, err := r.sess.connect()
 	if err != nil {
 		return nil, err
 	}
+
 	r.client = client
 	return client, nil
 }
@@ -152,5 +158,58 @@ func (r *Run) Result() BuildResult {
 		client:    r.client,
 		out:       r.out,
 		obs:       r.obs,
+	}
+}
+
+// Registry credentials for publishing built images, supplied via fx env config.
+var (
+	RegistryConfig         = fxconfig.Str("REGISTRY")
+	RegistryUsernameConfig = fxconfig.Str("REGISTRY_USERNAME")
+	RegistryPasswordConfig = fxconfig.Str("REGISTRY_PASSWORD")
+)
+
+// registryCreds is what the publish bracket needs from config, read once per verb rather
+// than once per unit. An empty username means no auth is attached at all, and dagger pushes
+// with the local docker credentials — that is the laptop path.
+type registryCreds struct{ registry, username, password string }
+
+func registryCredsFrom(cfg *fxconfig.Source) registryCreds {
+	return registryCreds{
+		registry: fxconfig.Get(cfg, RegistryConfig),
+		username: fxconfig.Get(cfg, RegistryUsernameConfig),
+		password: fxconfig.Get(cfg, RegistryPasswordConfig),
+	}
+}
+
+// publish pushes what this run built, on the run's own connection — which is what lets the
+// registry secret be minted by the session that owns the container it authenticates. It is a
+// bracket around the step loop rather than a second pass over results: pushing is the
+// engine's registry concern and no stack's build knowledge, and there is no reachable state
+// where the container is in hand and its connection is not.
+func (r *Run) publish(ctx context.Context, creds registryCreds) PublishResult {
+	result := r.Result()
+	if result.Err != nil {
+		return PublishResult{BuildResult: result}
+	}
+
+	container := result.container
+	if creds.username != "" {
+		secret := r.client.SetSecret(RegistryPasswordConfig.Name(), creds.password)
+		container = container.WithRegistryAuth(creds.registry, creds.username, secret)
+	}
+
+	hash, err := container.Publish(ctx, r.unit.ImageName)
+	if err != nil {
+		result.Err = err
+		return PublishResult{BuildResult: result}
+	}
+
+	r.report(func(obs Observer, at time.Time) {
+		obs.Published(r.unit.Name, r.unit.ImageName, hash, at)
+	})
+	return PublishResult{
+		BuildResult: result,
+		ImageName:   r.out.image,
+		ImageHash:   r.out.hash,
 	}
 }

@@ -33,11 +33,11 @@ func runExec(cmd *cobra.Command, args []string) {
 		buildlog.Fatalln(err)
 	}
 
-	eng := engine.New(fxconfig.Configure())
-	defer eng.Close()
+	ctx := fxconfig.NewContext(context.Background(), fxconfig.Configure())
+	sess := engine.NewSession(ctx)
+	defer sess.Close()
 
-	ctx := engine.NewContext(context.Background(), eng)
-	results, err := engine.Build(ctx, cfg, []string{modname}, newObserver())
+	results, err := sess.Build(ctx, cfg, []string{modname}, newObserver())
 	if err != nil {
 		buildlog.Fatalln(err)
 	}
@@ -49,7 +49,7 @@ func runExec(cmd *cobra.Command, args []string) {
 
 	// A given command runs non-interactively (scriptable, smoke-friendly); a bare invocation
 	// opens a shell for a human, or prints an inspectable summary when stdout isn't a terminal.
-	container, _ := result.UnsafeDagger()
+	container := result.UnsafeContainer()
 	switch {
 	case len(command) > 0:
 		runInContainer(ctx, container, command)

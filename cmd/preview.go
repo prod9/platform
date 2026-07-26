@@ -43,11 +43,11 @@ func runPreview(cmd *cobra.Command, args []string) {
 		buildlog.Fatalln(err)
 	}
 
-	eng := engine.New(fxconfig.Configure())
-	defer eng.Close()
+	ctx := fxconfig.NewContext(context.Background(), fxconfig.Configure())
+	sess := engine.NewSession(ctx)
+	defer sess.Close()
 
-	ctx := engine.NewContext(context.Background(), eng)
-	results, err := engine.Build(ctx, cfg, []string{modname}, newObserver())
+	results, err := sess.Build(ctx, cfg, []string{modname}, newObserver())
 	if err != nil {
 		buildlog.Fatalln(err)
 	}
@@ -57,7 +57,7 @@ func runPreview(cmd *cobra.Command, args []string) {
 		buildlog.Fatalln(result.Err)
 	}
 
-	container, client := result.UnsafeDagger()
+	container := result.UnsafeContainer()
 
 	startArgs, err := container.DefaultArgs(ctx)
 	if err != nil {
@@ -84,27 +84,14 @@ func runPreview(cmd *cobra.Command, args []string) {
 		WithExec(startArgs).
 		AsService()
 
-	tunnel := client.Host().Tunnel(service, dagger.HostTunnelOpts{
-		Native: true,
-	})
+	ctrlc.Do(func() { os.Exit(0) })
 
-	ctrlc.Do(func() {
-		if _, err := tunnel.Stop(ctx); err != nil {
-			buildlog.Fatalln(err)
-		}
-		os.Exit(0)
-	})
-	tunnel, err = tunnel.Start(ctx)
-	if err != nil {
+	// Up forwards the host port from the service itself and blocks until interrupted, so the
+	// address is known before it is serving rather than read back off a tunnel handle.
+	buildlog.HTTPServing(fmt.Sprintf("http://localhost:%d", port))
+	if err := service.Up(ctx, dagger.ServiceUpOpts{
+		Ports: []dagger.PortForward{{Frontend: port, Backend: port}},
+	}); err != nil {
 		buildlog.Fatalln(err)
 	}
-
-	addr, err := tunnel.Endpoint(ctx, dagger.ServiceEndpointOpts{
-		Port: previewPort,
-	})
-	if err != nil {
-		buildlog.Fatalln(err)
-	}
-
-	buildlog.HTTPServing(addr)
 }

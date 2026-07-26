@@ -59,11 +59,11 @@ func runPublish(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	eng := engine.New(fxconfig.Configure())
-	defer eng.Close()
-	ctx := engine.NewContext(context.Background(), eng)
+	ctx := fxconfig.NewContext(context.Background(), fxconfig.Configure())
+	sess := engine.NewSession(ctx)
+	defer sess.Close()
 
-	_, err = engine.BuildAndPublish(ctx, cfg, p.Args(), name, newObserver())
+	_, err = sess.BuildAndPublish(ctx, cfg, p.Args(), name, newObserver())
 	if err != nil {
 		buildlog.Fatalln(err)
 	}

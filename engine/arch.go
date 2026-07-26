@@ -10,8 +10,8 @@ import (
 // built it? A plain build is discarded here and takes the host arch for speed — except
 // under CI, where the build exists to be pushed and must carry the servers' arch. The rule
 // is unexported because it is only ever an input to an entrypoint that is about to build.
-func (e *Engine) buildArch(cfg *conf.Model) string {
-	if fxconfig.Get(e.cfg, prompts.CIConfig) {
+func (s *Session) buildArch(cfg *conf.Model) string {
+	if fxconfig.Get(cfgFrom(s.ctx), prompts.CIConfig) {
 		return cfg.PublishArch
 	}
 	return cfg.LocalArch

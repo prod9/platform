@@ -1,162 +1,123 @@
-// Package engine is the Dagger execution layer: an Engine pools clients over the
-// discovered runner endpoints (like sql.DB — dialed lazily, reused, round-robin), and
-// Build/Publish fan a project's units out across them. BuildAndPublish is the reusable
-// build+tag+push unit shared by the publish command today and a tag-watch server later.
+// Package engine is the Dagger execution layer. It has two pieces and only one of them
+// carries a lifetime: the roster in this file — which engine endpoints exist and how to dial
+// one — and Session (session.go), the span during which the containers a build produced are
+// usable. There is deliberately no client pool: a *dagger.Client is a session rather than a
+// fungible connection, so pooling one is the abstraction this package rejects.
 package engine
 
 import (
 	"context"
 	"errors"
-	"sync/atomic"
-	"time"
+	"fmt"
+	"math/rand/v2"
+	"net"
+	"sort"
 
 	"dagger.io/dagger"
 	fxconfig "fx.prodigy9.co/config"
-	"platform.prodigy9.co/conf"
 	"platform.prodigy9.co/framework"
+	"platform.prodigy9.co/internal/buildlog"
 )
 
-// Engine is the process-wide handle to the Dagger engine fleet — like sql.DB, a
-// concurrency-safe set of connections dialed lazily and reused. Build one from config,
-// share it across the process, and carry it on a context with NewContext.
-//
-// It orchestrates two single-purpose units: runners (which endpoints exist) and clients
-// (one reused, ping-checked client per endpoint). Engine itself holds no lock — only a
-// round-robin cursor — so the good path is obvious: discover, pick, get.
-type Engine struct {
-	cfg     *fxconfig.Source
-	runners *runners
-	clients *clients
-	cursor  atomic.Uint64
-}
+var (
+	// DaggerEngineConfig is the headless-Service DNS name of the Dagger engine pool, e.g.
+	// dagger-engine.platform.svc.cluster.local. Unset means no remote engines are configured
+	// and the roster falls back to a local auto-provisioned one — an explicit operator choice,
+	// never inferred from the environment.
+	DaggerEngineConfig = fxconfig.Str("DAGGER_ENGINE")
+	// DaggerEnginePortConfig is the engine pod port; the default mirrors apps/dagger-engine.cue.
+	DaggerEnginePortConfig = fxconfig.IntDef("DAGGER_ENGINE_PORT", 1234)
+)
 
-func New(cfg *fxconfig.Source) *Engine {
-	return &Engine{
-		cfg:     cfg,
-		runners: newRunners(cfg),
-		clients: newClients(),
-	}
-}
-
-// Close tears down every dialed engine connection. Call once at process/server shutdown.
-func (e *Engine) Close() error { return e.clients.Close() }
-
-// Client picks the next endpoint round-robin over the currently-discovered set and returns
-// a live client for it. Build/Publish use it per unit; commands that need ad-hoc Dagger
-// access (ls, preview) call it directly.
-func (e *Engine) Client(ctx context.Context) (*dagger.Client, error) {
-	hosts, err := e.resolveHosts(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	next := e.cursor.Add(1) - 1
-	host := hosts[int(next%uint64(len(hosts)))]
-	return e.clients.Get(ctx, host)
-}
-
-// Clean prunes the build cache of every engine in the fleet, forcing subsequent builds to
-// run cold. It sheds stale or poisoned cache entries a fresh checkout would not carry.
-func (e *Engine) Clean(ctx context.Context) error {
-	hosts, err := e.resolveHosts(ctx)
-	if err != nil {
-		return err
-	}
-
-	for _, host := range hosts {
-		client, err := e.clients.Get(ctx, host)
-		if err != nil {
-			return err
-		}
-		if err := client.Engine().LocalCache().Prune(ctx); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// resolveHosts returns the discovered engine endpoints, or a single empty host — meaning
-// the local engine — when none are discovered.
-func (e *Engine) resolveHosts(ctx context.Context) ([]string, error) {
-	hosts, err := e.runners.Hosts(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if len(hosts) == 0 {
-		return []string{""}, nil
-	}
-	return hosts, nil
-}
-
-type engineContextKey struct{}
-
-// NewContext returns a context carrying eng, so downstream Build/Publish resolve it via
-// FromContext — the same shape as fx/data's request-scoped *sqlx.DB.
-func NewContext(ctx context.Context, eng *Engine) context.Context {
-	return context.WithValue(ctx, engineContextKey{}, eng)
-}
-
-// FromContext returns the engine carried by ctx, panicking if none is present. Use it where the engine is a precondition.
-func FromContext(ctx context.Context) *Engine {
-	return ctx.Value(engineContextKey{}).(*Engine)
-}
+// lookupHost is the resolver seam: swapped in tests, never at runtime.
+var lookupHost = net.DefaultResolver.LookupHost
 
 var ErrNoJobs = errors.New("engine: empty units list, nothing to do")
 
-// BuildAndPublish composes Build and Publish over the engine carried by ctx: it builds
-// every module matched by args, tags each image with tag, and publishes it — reusing the
-// caller's engine instead of opening its own. It returns every publish result so a
-// driver can record what shipped; both the local `publish` command and the platform
-// server's build runner drive it.
-func BuildAndPublish(ctx context.Context, cfg *conf.Model, modnames []string, tag string, obs Observer) ([]PublishResult, error) {
-	units, err := framework.Units(cfg, modnames, cfg.PublishArch)
-	if err != nil {
-		return nil, err
+// cfgFrom takes the config off ctx, falling back to a fresh Configure() when the caller
+// seeded none — the same value a command would have built, with no env read at call time.
+// Config may ride a context because it is inert and has no lifetime; a Session owns
+// connections and so is always passed explicitly.
+func cfgFrom(ctx context.Context) *fxconfig.Source {
+	if cfg := fxconfig.FromContext(ctx); cfg != nil {
+		return cfg
 	}
-
-	for _, unit := range units {
-		unit.ImageName = unit.ImageName + ":" + tag
-	}
-
-	builds, err := build(ctx, units, obs)
-	if err != nil {
-		return nil, err
-	}
-	results, err := Publish(ctx, builds...)
-	if err != nil {
-		return nil, err
-	}
-
-	var errs []error
-	for _, result := range results {
-		if result.Err != nil {
-			errs = append(errs, result.Err)
-		}
-	}
-	return results, errors.Join(errs...)
+	return fxconfig.Configure()
 }
 
-// Registry credentials for publishing built images, supplied via fx env config.
-var (
-	RegistryConfig         = fxconfig.Str("REGISTRY")
-	RegistryUsernameConfig = fxconfig.Str("REGISTRY_USERNAME")
-	RegistryPasswordConfig = fxconfig.Str("REGISTRY_PASSWORD")
-)
+// Hosts resolves the configured engine endpoints via DNS — no k8s API, no RBAC — and
+// reports only what it finds: an empty slice when DAGGER_ENGINE is unset or resolves to
+// nothing, and a real error when the lookup itself fails. Falling back to a local engine is
+// not its decision. The resolver caches per the record TTL, so a new pod becomes selectable
+// as soon as DNS reflects it; nothing else is remembered, and two calls a second apart may
+// legitimately see different engines as pods come and go.
+func Hosts(ctx context.Context) ([]string, error) {
+	cfg := cfgFrom(ctx)
+	dns := fxconfig.Get(cfg, DaggerEngineConfig)
+	if dns == "" {
+		return nil, nil
+	}
+
+	addrs, err := lookupHost(ctx, dns)
+	if err != nil {
+		return nil, fmt.Errorf("resolving dagger engines at %s: %w", dns, err)
+	}
+
+	port := fxconfig.Get(cfg, DaggerEnginePortConfig)
+	hosts := make([]string, 0, len(addrs))
+	for _, addr := range addrs {
+		hosts = append(hosts, fmt.Sprintf("tcp://%s:%d", addr, port))
+	}
+
+	sort.Strings(hosts)
+	return hosts, nil
+}
+
+// pick chooses one endpoint uniformly at random, or the empty host — the local engine — when
+// none are configured. Random replaces the round-robin cursor: the distribution over a run
+// of picks is the same and it keeps no state between calls, which is what lets the roster
+// stay a roster.
+func pick(hosts []string) string {
+	if len(hosts) == 0 {
+		return ""
+	}
+	return hosts[rand.IntN(len(hosts))]
+}
+
+// Dial connects to one uniformly-chosen endpoint, or to a local auto-provisioned engine when
+// none are configured.
+func Dial(ctx context.Context) (*dagger.Client, error) {
+	hosts, err := Hosts(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return dial(ctx, pick(hosts))
+}
+
+// dial connects to the engine at host. An empty host carries no runner host, so dagger
+// auto-provisions and reuses the local engine — that is how the roster asks for "local".
+func dial(ctx context.Context, host string) (*dagger.Client, error) {
+	opts := []dagger.ClientOpt{dagger.WithLogOutput(buildlog.OutputForDagger())}
+	if host != "" {
+		opts = append(opts, dagger.WithRunnerHost(host))
+	}
+	return dagger.Connect(ctx, opts...)
+}
 
 type (
 	BuildResult struct {
 		Unit *framework.BuildUnit
 		Err  error
 
-		// container is the image this run produced and client is the engine that built it.
-		// Publish reuses the client so the registry secret comes from the same engine the
-		// container belongs to. Both leave the package only through UnsafeDagger.
+		// container is the image this run produced; it leaves the package only through
+		// UnsafeContainer and is valid only while the session that built it is open. client
+		// is the connection it is bound to.
 		container *dagger.Container
 		client    *dagger.Client
 
-		// out and obs are the run's report, carried past the run so a later publish
-		// continues the same stream and mints its scalars from the same fold. Only
-		// Run.Result fills them in — a BuildResult is never assembled anywhere else.
+		// out and obs are the run's report, carried past the run so a publish continues the
+		// same stream and mints its scalars from the same fold. Only Run.Result fills them
+		// in — a BuildResult is never assembled anywhere else.
 		out *outcome
 		obs Observer
 	}
@@ -168,98 +129,12 @@ type (
 	}
 )
 
-// UnsafeDagger hands over the run's dagger machinery, and the name is the warning: past
-// here a caller expresses container operations, which the engine otherwise owns exclusively.
-// The three commands that operate on a built image — preview's tunnel, export's file, exec's
-// command and shell — reach through it until the engine grows verbs of its own for them; no
-// new caller joins them.
+// UnsafeContainer hands over the built image, and the name is the warning: past here a
+// caller expresses container operations, which the engine otherwise owns exclusively.
+// export's file, exec's shell and preview's tunnel reach through it until the engine grows
+// verbs of its own for them; no new caller joins them.
 //
-// Both halves come from one call because they are inseparable: a container is bound to the
-// client that built it, so operating on one without the other is the bug the pairing rules
-// out. A failed run yields neither.
-func (r BuildResult) UnsafeDagger() (*dagger.Container, *dagger.Client) {
-	return r.container, r.client
-}
-
-// Build builds every module matched by modnames (all of them when it is empty) on the
-// engine carried by ctx. It constructs the units itself — resolving the arch from cfg —
-// so callers never name a platform; what they need afterwards they read off
-// BuildResult.Unit.
-func Build(ctx context.Context, cfg *conf.Model, modnames []string, obs Observer) ([]BuildResult, error) {
-	units, err := framework.Units(cfg, modnames, FromContext(ctx).buildArch(cfg))
-	if err != nil {
-		return nil, err
-	}
-	return build(ctx, units, obs)
-}
-
-// build runs every unit on the engine carried by ctx, fanning out one unit per goroutine
-// and round-robining them across the discovered engine fleet. Every unit reports to the
-// one observer, naming itself in each callback — the fan-in is the observer itself.
-func build(ctx context.Context, units []*framework.BuildUnit, obs Observer) ([]BuildResult, error) {
-	if len(units) == 0 {
-		return nil, ErrNoJobs
-	}
-	eng := FromContext(ctx)
-
-	m := &multiplexer[*framework.BuildUnit, BuildResult]{}
-	m.Reset(units)
-	return m.Start(func(idx int, unit *framework.BuildUnit) BuildResult {
-		unitCtx, cancel := context.WithTimeout(ctx, unit.Timeout)
-		defer cancel()
-
-		run := NewRun(eng, unit, obs)
-		for run.Next(unitCtx) {
-		}
-		return run.Result()
-	}), nil
-}
-
-// Publish pushes every successfully-built container, reusing each build's own engine client
-// so the registry secret is created by the engine that owns the container.
-func Publish(ctx context.Context, builds ...BuildResult) ([]PublishResult, error) {
-	if len(builds) == 0 {
-		return nil, ErrNoJobs
-	}
-	eng := FromContext(ctx)
-	registry := fxconfig.Get(eng.cfg, RegistryConfig)
-	username := fxconfig.Get(eng.cfg, RegistryUsernameConfig)
-	password := fxconfig.Get(eng.cfg, RegistryPasswordConfig)
-
-	m := &multiplexer[BuildResult, PublishResult]{}
-	m.Reset(builds)
-	return m.Start(func(idx int, build BuildResult) PublishResult {
-		if build.Err != nil {
-			return PublishResult{BuildResult: build}
-		}
-
-		client := build.client
-		if client == nil {
-			c, err := eng.Client(ctx)
-			if err != nil {
-				build.Err = err
-				return PublishResult{BuildResult: build}
-			}
-			client = c
-		}
-
-		container := build.container
-		if username != "" {
-			secret := client.SetSecret(RegistryPasswordConfig.Name(), password)
-			container = container.WithRegistryAuth(registry, username, secret)
-		}
-
-		hash, err := container.Publish(ctx, build.Unit.ImageName)
-		if err != nil {
-			build.Err = err
-			return PublishResult{BuildResult: build}
-		}
-
-		build.obs.Published(build.Unit.Name, build.Unit.ImageName, hash, time.Now())
-		return PublishResult{
-			BuildResult: build,
-			ImageName:   build.out.image,
-			ImageHash:   build.out.hash,
-		}
-	}), nil
-}
+// The container carries its own client internally, so a container operation needs nothing
+// else. It is valid only while the session that built it is open, and a failed run yields
+// none.
+func (r BuildResult) UnsafeContainer() *dagger.Container { return r.container }

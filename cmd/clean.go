@@ -16,10 +16,11 @@ var CleanCmd = &cobra.Command{
 }
 
 func runCleanCmd(cmd *cobra.Command, args []string) {
-	eng := engine.New(fxconfig.Configure())
-	defer eng.Close()
+	ctx := fxconfig.NewContext(context.Background(), fxconfig.Configure())
+	sess := engine.NewSession(ctx)
+	defer sess.Close()
 
-	if err := eng.Clean(context.Background()); err != nil {
+	if err := sess.Clean(ctx); err != nil {
 		buildlog.Fatalln(err)
 	}
 	buildlog.Event("dagger-cache", "cleaned")
