@@ -69,6 +69,14 @@ mid-build. The lock is held only around map reads/writes, never across a dial or
 concurrent dial races keep one winner and close the loser. Liveness during a run is the
 ping's job; `Close` only runs at shutdown.
 
+🚨 **A dial never inherits the caller's cancellation** — `Get` dials under
+`context.WithoutCancel`, so values still cross but deadlines and cancels do not. A pooled
+client outlives whoever happened to dial it, and Dagger binds the *session* to the dial
+context: let a caller's ctx through and that caller's cancel tears down the session every
+later user of the client is still holding. `Build` gives each unit its own timeout ctx and
+cancels it when the unit ends, so the pool would otherwise be poisoned by the first unit to
+finish. Only `Close` ends a session.
+
 ## `Run` — one unit, one step at a time
 
 `NewRun(eng, unit, caller)` is a **single-unit** run, and it is **engine-internal** — the
