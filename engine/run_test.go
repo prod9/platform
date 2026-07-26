@@ -38,12 +38,14 @@ func (*stubFramework) Scaffold(context.Context, string, scaffold.Env, map[string
 // newStubRun builds a cursor with its client already in hand, so no test ever dials a
 // Dagger engine: the stub framework ignores the client entirely.
 func newStubRun(fw *stubFramework, obs Observer) *Run {
-	unit := &framework.BuildUnit{Framework: fw, Name: "stubunit"}
-	return &Run{unit: unit, obs: obs, steps: fw.Plan(unit), client: &dagger.Client{}}
+	unit := &framework.BuildUnit{Framework: fw, Name: "stubunit", ImageName: "stubimage"}
+	run := NewRun(nil, unit, obs)
+	run.client = &dagger.Client{}
+	return run
 }
 
 // recorder is an Observer that keeps every callback as a readable line, so a test asserts
-// on the sequence a caller would see rather than on three separate counters.
+// on the sequence a caller would see rather than on five separate counters.
 type recorder struct {
 	lines []string
 	errs  []error
@@ -56,6 +58,14 @@ func (r *recorder) StepStarted(unit, step string, _ time.Time) {
 func (r *recorder) StepDone(unit, step string, _ time.Time, err error) {
 	r.lines = append(r.lines, "done "+unit+"/"+step)
 	r.errs = append(r.errs, err)
+}
+
+func (r *recorder) ImageBuilt(unit, image string, _ time.Time) {
+	r.lines = append(r.lines, "built "+unit+"/"+image)
+}
+
+func (r *recorder) Published(unit, image, hash string, _ time.Time) {
+	r.lines = append(r.lines, "published "+unit+"/"+image+"/"+hash)
 }
 
 func (r *recorder) RunDone(unit string, _ time.Time, err error) {
@@ -78,8 +88,7 @@ func TestRunDrivesEveryStepInOrder(t *testing.T) {
 	for run.Next(context.Background()) {
 	}
 
-	_, err := run.Result()
-	require.NoError(t, err)
+	require.NoError(t, run.Result().Err)
 	require.Equal(t, fw.steps, fw.seen)
 }
 
@@ -90,8 +99,9 @@ func TestRunStopsAtTheFailedStep(t *testing.T) {
 	for run.Next(context.Background()) {
 	}
 
-	_, err := run.Result()
-	require.ErrorIs(t, err, errStubStep)
+	result := run.Result()
+	require.ErrorIs(t, result.Err, errStubStep)
+	require.Nil(t, result.Container, "a failed run yields no container")
 	require.Equal(t, []framework.Step{"one", "two"}, fw.seen, "the third step must never run")
 }
 
@@ -106,8 +116,9 @@ func TestRunReportsEveryStepToTheObserver(t *testing.T) {
 	require.Equal(t, []string{
 		"started stubunit/one", "done stubunit/one",
 		"started stubunit/two", "done stubunit/two",
+		"built stubunit/stubimage",
 		"rundone stubunit",
-	}, obs.lines)
+	}, obs.lines, "the image is announced before the run that produced it ends")
 	require.Equal(t, []error{nil, nil, nil}, obs.errs)
 }
 
@@ -123,7 +134,7 @@ func TestRunReportsTheFailureOnTheStepThatFailed(t *testing.T) {
 		"started stubunit/one", "done stubunit/one",
 		"started stubunit/two", "done stubunit/two",
 		"rundone stubunit",
-	}, obs.lines, "the run ends where the step failed, and says so once")
+	}, obs.lines, "a failed run built no image, so it announces none")
 	require.Equal(t, []error{nil, errStubStep, errStubStep}, obs.errs)
 }
 
@@ -144,7 +155,7 @@ func TestRunWithNoStepsIsImmediatelyDone(t *testing.T) {
 	run := newStubRun(fw, nil)
 
 	require.False(t, run.Next(context.Background()))
-	container, err := run.Result()
-	require.NoError(t, err)
-	require.Nil(t, container)
+	result := run.Result()
+	require.NoError(t, result.Err)
+	require.Nil(t, result.Container)
 }

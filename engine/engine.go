@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"sync/atomic"
+	"time"
 
 	"dagger.io/dagger"
 	fxconfig "fx.prodigy9.co/config"
@@ -151,6 +152,12 @@ type (
 		// client is the engine client that built Container. Publish reuses it so the
 		// registry secret comes from the same engine the container belongs to.
 		client *dagger.Client
+
+		// acc and obs are the run's report, carried past the run so a later publish
+		// continues the same stream and mints its scalars from the same fold. Only
+		// Run.Result fills them in — a BuildResult is never assembled anywhere else.
+		acc *AccObserver
+		obs Observer
 	}
 
 	PublishResult struct {
@@ -195,9 +202,7 @@ func build(ctx context.Context, units []*framework.BuildUnit, obs Observer) ([]B
 		run := NewRun(eng, unit, obs)
 		for run.Next(unitCtx) {
 		}
-
-		container, err := run.Result()
-		return BuildResult{Unit: unit, Container: container, Err: err, client: run.Client()}
+		return run.Result()
 	}), nil
 }
 
@@ -241,10 +246,11 @@ func Publish(ctx context.Context, builds ...BuildResult) ([]PublishResult, error
 			return PublishResult{BuildResult: build}
 		}
 
+		build.obs.Published(build.Unit.Name, build.Unit.ImageName, hash, time.Now())
 		return PublishResult{
 			BuildResult: build,
-			ImageName:   build.Unit.ImageName,
-			ImageHash:   hash,
+			ImageName:   build.acc.Image(),
+			ImageHash:   build.acc.Hash(),
 		}
 	}), nil
 }

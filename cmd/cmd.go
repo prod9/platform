@@ -27,9 +27,14 @@ func (observer) StepDone(unit, step string, _ time.Time, err error) {
 	buildlog.Event(unit+"/"+step, "done")
 }
 
-func (observer) RunDone(unit string, _ time.Time, err error) {
-	if err != nil {
-		return
-	}
+func (observer) ImageBuilt(unit, _ string, _ time.Time) {
 	buildlog.Event(unit, "built")
 }
+
+func (observer) Published(_, image, hash string, _ time.Time) {
+	buildlog.Image("publish", image, hash)
+}
+
+// RunDone renders nothing: a failure was already shown by the step that failed, and a
+// success by the image it produced. The CLI's report is what happened, not that it ended.
+func (observer) RunDone(string, time.Time, error) {}

@@ -15,13 +15,14 @@ import (
 // It is a cursor rather than a single call because a build's observable structure is its
 // steps — driving them one at a time is what lets each be timed and reported separately.
 //
-//	run := NewRun(eng, unit, obs)
+//	run := NewRun(eng, unit, caller)
 //	for run.Next(ctx) {
 //	}
-//	container, err := run.Result()
+//	result := run.Result()
 type Run struct {
 	eng  *Engine
 	unit *framework.BuildUnit
+	acc  *AccObserver
 	obs  Observer
 
 	steps []framework.Step
@@ -33,11 +34,20 @@ type Run struct {
 	err       error
 }
 
-// NewRun asks the unit's framework for its plan and reports every step to obs, which may
-// be nil for a silent run. It does no engine work — a client is grabbed at the first Next
-// — so opening a run is free and never dials.
-func NewRun(eng *Engine, unit *framework.BuildUnit, obs Observer) *Run {
-	return &Run{eng: eng, unit: unit, obs: obs, steps: unit.Framework.Plan(unit)}
+// NewRun asks the unit's framework for its plan and reports every step to an accumulator it
+// injects, plus caller when there is one. This is the one site a nil observer is eliminated:
+// a caller wanting nothing passes nothing, and the fold still happens because Result depends
+// on it. It does no engine work — a client is grabbed at the first Next — so opening a run
+// is free and never dials.
+func NewRun(eng *Engine, unit *framework.BuildUnit, caller Observer) *Run {
+	acc := &AccObserver{}
+
+	obs := Observer(acc)
+	if caller != nil {
+		obs = Tee(acc, caller)
+	}
+
+	return &Run{eng: eng, unit: unit, acc: acc, obs: obs, steps: unit.Framework.Plan(unit)}
 }
 
 // Next executes exactly one step and reports whether the run should continue. It returns
@@ -98,16 +108,19 @@ func (r *Run) finish() bool {
 	}
 
 	r.done = true
+	if r.err == nil {
+		r.report(func(obs Observer, at time.Time) {
+			obs.ImageBuilt(r.unit.Name, r.unit.ImageName, at)
+		})
+	}
+
 	r.report(func(obs Observer, at time.Time) { obs.RunDone(r.unit.Name, at, r.err) })
 	return false
 }
 
-// report is the one place a nil observer is skipped, and the one place the callback clock
-// is read — so every report is stamped at the moment it happens.
+// report is the one place the callback clock is read, so every report is stamped at the
+// moment it happens. There is no nil check: NewRun guarantees an observer.
 func (r *Run) report(emit func(obs Observer, at time.Time)) {
-	if r.obs == nil {
-		return
-	}
 	emit(r.obs, time.Now())
 }
 
@@ -126,14 +139,27 @@ func (r *Run) dial(ctx context.Context) (*dagger.Client, error) {
 	return client, nil
 }
 
-// Result is the built container and the run's error, valid once Next has returned false. A
-// failed run yields no container: what it holds is the last step that did succeed, which is
-// a half-built image and never something a caller should publish or shell into.
-func (r *Run) Result() (*dagger.Container, error) {
-	if r.err != nil {
-		return nil, r.err
+// Result joins the accumulator's fold with the live container this run owns, and is valid
+// once Next has returned false. It is the only site those two halves meet — the scalars can
+// only come from the stream and the container never leaves the run — so a result that claims
+// a success with no image, or a hash from a build that never published, cannot be built.
+//
+// A failed run yields no container: what it holds is the last step that did succeed, which
+// is a half-built image and never something a caller should publish or shell into.
+func (r *Run) Result() BuildResult {
+	container := r.container
+	if r.acc.Err() != nil {
+		container = nil
 	}
-	return r.container, nil
+
+	return BuildResult{
+		Unit:      r.unit,
+		Container: container,
+		Err:       r.acc.Err(),
+		client:    r.client,
+		acc:       r.acc,
+		obs:       r.obs,
+	}
 }
 
 // Client is the engine client that built this run's container. Callers that keep operating
