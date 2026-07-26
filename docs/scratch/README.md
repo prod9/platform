@@ -40,11 +40,6 @@ Newest first. Scratch is disposable, so this list may lag — the directory is t
 
 **Live** — committed work in flight:
 
-- [2026-07-26 — Session layer code preview](2026-07-26-session-layer-preview.md) — the
-  shape to build: `pool`/roster, `Session`, `BuildResult` as pure data, call sites, and the
-  three questions left open. Spec'd at
-  [`../spec/engine.md`](../spec/engine.md); ruling at
-  [`../decisions/2026-07-27-a-dagger-client-is-a-session.md`](../decisions/2026-07-27-a-dagger-client-is-a-session.md).
 - [2026-07-26 — session lifetime options](2026-07-26-session-lifetime-options.md) — the
   rejected A–D menu, kept for the failure analysis of the `export` 502 and why each option
   missed the missing layer

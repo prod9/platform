@@ -252,11 +252,16 @@ method whose name is the warning:
 func (r BuildResult) UnsafeContainer() *dagger.Container
 ```
 
-One half, not two: the container carries its own client internally, so every container
-operation — `Export`, `WithExec`, `Publish`, a tunnel — works from the container alone. The
-only thing that ever needed a raw client was minting a `*dagger.Secret`, and the publish
-bracket does that where the connection is still in scope. `Session.Unsafe()` exists for the
-one caller that wants a connection without building at all (`ls`).
+One half, not two: `Export`, `WithExec` and `Publish` are container operations and work from
+the container alone. A tunnel is not — `Tunnel` hangs off `*Host`, so it is reached through a
+client, and no SDK type hands one back (there is no `*Container`/`*Service` accessor for it).
+The container-only path for a tunnel is **`Service.Up`**, which forwards host ports from the
+service itself, and that is what `preview` uses. The freeze above is lifted for exactly that
+call and nothing else: `exec`'s and `export`'s dagger calls stand unchanged.
+
+The only remaining thing that needs a raw client is minting a `*dagger.Secret`, and the
+publish bracket does that where the connection is still in scope. `Session.Unsafe()` exists
+for the one caller that wants a connection without building at all (`ls`).
 
 **The container is valid only while its session is open.** That is the whole contract, and
 it is why `Close` is deferred by whoever opened the session rather than reached by any
