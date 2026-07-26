@@ -136,13 +136,17 @@ the step or the run — there is deliberately no separate failure callback, and 
 `Snapshot`/`Done` are dropped outright — execution moves to a worker that writes to the
 database and the webui reads it back, so there is no late-joining live observer to catch up.
 
-#### The accumulator and `TeeObserver`
+#### The accumulator and the tee
 
 A run's observer is **never nil**. The engine force-injects an accumulating observer — a
 stateful fold of the callbacks — into every run, and that accumulator is the **sole
 minter** of the run's scalar outcome (ok/err, image, hash). A caller's observer, when
-there is one, is composed alongside it by **`TeeObserver`**: `Tee(obs ...Observer)
-Observer` forwards each callback to every child.
+there is one, is composed alongside it by a tee: **`Tee(obs ...Observer) Observer`**
+forwards each callback to every child.
+
+**`Tee` is the whole surface — the type behind it is unexported**, like the accumulator.
+Both are `Observer` implementations, and an implementation is never something a caller
+names.
 
 **The fold is a type of its own, and the observer that writes it is unexported.** The
 accumulator is only a writer; what the rest of the engine wants is the accumulated scalars.
