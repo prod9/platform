@@ -13,6 +13,11 @@ import (
 // redials when the engine has gone (graceful DNS removal or an outright crash), so callers
 // always receive a live client — there is no separate prune step and nothing is ever closed
 // mid-build. The lock is held only around map reads/writes, never across a dial or ping.
+//
+// A pooled client outlives the caller that dialed it, and Dagger binds the session to the
+// dial context — so Get dials under [context.WithoutCancel]. Values still cross; deadlines
+// and cancels do not. Without that, the per-unit timeout ctx Build cancels at the end of
+// each unit would close the session every later caller is still holding.
 type clients struct {
 	dial func(ctx context.Context, host string) (*dagger.Client, error)
 
@@ -54,7 +59,7 @@ func (c *clients) Get(ctx context.Context, host string) (*dagger.Client, error) 
 		c.mu.Unlock()
 	}
 
-	client, err := c.dial(ctx, host)
+	client, err := c.dial(context.WithoutCancel(ctx), host)
 	if err != nil {
 		return nil, err
 	}
