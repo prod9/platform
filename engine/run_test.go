@@ -101,7 +101,7 @@ func TestRunStopsAtTheFailedStep(t *testing.T) {
 
 	result := run.Result()
 	require.ErrorIs(t, result.Err, errStubStep)
-	require.Nil(t, result.Container, "a failed run yields no container")
+	require.Nil(t, result.container, "a failed run yields no container")
 	require.Equal(t, []framework.Step{"one", "two"}, fw.seen, "the third step must never run")
 }
 
@@ -157,5 +157,5 @@ func TestRunWithNoStepsIsImmediatelyDone(t *testing.T) {
 	require.False(t, run.Next(context.Background()))
 	result := run.Result()
 	require.NoError(t, result.Err)
-	require.Nil(t, result.Container)
+	require.Nil(t, result.container)
 }

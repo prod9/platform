@@ -145,13 +145,14 @@ var (
 
 type (
 	BuildResult struct {
-		Unit      *framework.BuildUnit
-		Container *dagger.Container
-		Err       error
+		Unit *framework.BuildUnit
+		Err  error
 
-		// client is the engine client that built Container. Publish reuses it so the
-		// registry secret comes from the same engine the container belongs to.
-		client *dagger.Client
+		// container is the image this run produced and client is the engine that built it.
+		// Publish reuses the client so the registry secret comes from the same engine the
+		// container belongs to. Both leave the package only through UnsafeDagger.
+		container *dagger.Container
+		client    *dagger.Client
 
 		// out and obs are the run's report, carried past the run so a later publish
 		// continues the same stream and mints its scalars from the same fold. Only
@@ -167,10 +168,18 @@ type (
 	}
 )
 
-// Client returns the engine client that built this result's container. Callers that need to
-// keep operating on the container (e.g. preview's tunnel) must use it, since the container
-// is bound to the engine that produced it.
-func (r BuildResult) Client() *dagger.Client { return r.client }
+// UnsafeDagger hands over the run's dagger machinery, and the name is the warning: past
+// here a caller expresses container operations, which the engine otherwise owns exclusively.
+// The three commands that operate on a built image — preview's tunnel, export's file, exec's
+// command and shell — reach through it until the engine grows verbs of its own for them; no
+// new caller joins them.
+//
+// Both halves come from one call because they are inseparable: a container is bound to the
+// client that built it, so operating on one without the other is the bug the pairing rules
+// out. A failed run yields neither.
+func (r BuildResult) UnsafeDagger() (*dagger.Container, *dagger.Client) {
+	return r.container, r.client
+}
 
 // Build builds every module matched by modnames (all of them when it is empty) on the
 // engine carried by ctx. It constructs the units itself — resolving the arch from cfg —
@@ -234,7 +243,7 @@ func Publish(ctx context.Context, builds ...BuildResult) ([]PublishResult, error
 			client = c
 		}
 
-		container := build.Container
+		container := build.container
 		if username != "" {
 			secret := client.SetSecret(RegistryPasswordConfig.Name(), password)
 			container = container.WithRegistryAuth(registry, username, secret)

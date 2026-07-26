@@ -49,7 +49,7 @@ func runExec(cmd *cobra.Command, args []string) {
 
 	// A given command runs non-interactively (scriptable, smoke-friendly); a bare invocation
 	// opens a shell for a human, or prints an inspectable summary when stdout isn't a terminal.
-	container := result.Container
+	container, _ := result.UnsafeDagger()
 	switch {
 	case len(command) > 0:
 		runInContainer(ctx, container, command)

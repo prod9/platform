@@ -37,7 +37,8 @@ func runExport(cmd *cobra.Command, args []string) {
 			continue
 		}
 
-		id, err := result.Container.ID(ctx)
+		container, _ := result.UnsafeDagger()
+		id, err := container.ID(ctx)
 		if err != nil {
 			buildlog.Fatalln(err)
 		}
@@ -46,7 +47,7 @@ func runExport(cmd *cobra.Command, args []string) {
 		}
 
 		outname := result.Unit.Name + ".docker"
-		if _, err := result.Container.Export(ctx, outname); err != nil {
+		if _, err := container.Export(ctx, outname); err != nil {
 			buildlog.Fatalln(err)
 		}
 		buildlog.Image("export", outname, string(id))

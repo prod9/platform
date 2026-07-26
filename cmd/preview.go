@@ -57,7 +57,9 @@ func runPreview(cmd *cobra.Command, args []string) {
 		buildlog.Fatalln(result.Err)
 	}
 
-	startArgs, err := result.Container.DefaultArgs(ctx)
+	container, client := result.UnsafeDagger()
+
+	startArgs, err := container.DefaultArgs(ctx)
 	if err != nil {
 		buildlog.Fatalln(err)
 	}
@@ -77,12 +79,12 @@ func runPreview(cmd *cobra.Command, args []string) {
 		buildlog.Fatalln(fmt.Errorf("preview port %d is reserved; use a port >= 1000", port))
 	}
 
-	container := result.Container.
+	service := container.
 		WithExposedPort(port).
 		WithExec(startArgs).
 		AsService()
 
-	tunnel := result.Client().Host().Tunnel(container, dagger.HostTunnelOpts{
+	tunnel := client.Host().Tunnel(service, dagger.HostTunnelOpts{
 		Native: true,
 	})
 

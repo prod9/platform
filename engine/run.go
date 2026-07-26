@@ -147,14 +147,10 @@ func (r *Run) Result() BuildResult {
 
 	return BuildResult{
 		Unit:      r.unit,
-		Container: container,
 		Err:       r.out.err,
+		container: container,
 		client:    r.client,
 		out:       r.out,
 		obs:       r.obs,
 	}
 }
-
-// Client is the engine client that built this run's container. Callers that keep operating
-// on the container (preview's tunnel) must use it, since the container is bound to it.
-func (r *Run) Client() *dagger.Client { return r.client }
