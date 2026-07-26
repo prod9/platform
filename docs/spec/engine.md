@@ -199,13 +199,27 @@ progress-rendering observer and calls `buildlog` as its sink.
 debugging firehose gated behind `-v`; at default verbosity a build's visible progress is
 exactly the observer's step reports.
 
-### The built container is hidden
+### The built container is hidden, minus three commands
 
 The `*dagger.Container` a run produces is **engine-internal**. It is bound to the client
 that built it, and it is carried so that steps chain and `Publish` can push it — but
-consumers read what the observer reports, not the container. The lone exception is
-`preview`, whose post-build tunnel genuinely needs the container handle; it gets it by an
-explicit method. That is the one thing a run exposes beyond its report.
+consumers read what the observer reports, not the container.
+
+**Three commands are the standing exception, and today they take the handle directly.**
+`BuildResult.Container` is an exported field, read by `preview` (tunnel a port at the
+built image), `export` (write the image to a file), and `exec` (run a command or a shell
+in it). Each genuinely operates on the container and none can be served by the report, so
+the exception is surface deliberately *carried*, not a leak to plug by hiding the field —
+hiding it with nowhere for those three needs to go only moves the same coupling.
+
+That somewhere is the engine's own verbs for those operations, and they are
+**deliberately unbuilt** — chakrit:verbatim "Settle nothing. Keep the same dagger calls
+in preview/exec for now." Until they exist the exported field is the spec'd state, not
+drift, and `Client()` is the companion access those callers need since the container is
+bound to the engine that built it. Those three therefore express container operations,
+which [§No dagger verbs outside `engine/`](#no-dagger-verbs-outside-engine) otherwise
+forbids: they are the known, bounded set of that, and no new caller joins it. Reconcile
+this section, never the code, when the verbs land.
 
 ### `Run.Result()` — consistent by construction
 
