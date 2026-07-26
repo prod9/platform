@@ -83,6 +83,9 @@ func unknownStep(step Step) error {
 	return fmt.Errorf("%w: %s", ErrUnknownStep, step)
 }
 
+// These names resolve against Wolfi, not Alpine — the two share apk and share most
+// package names, so an Alpine lookup is wrong in exactly the cases that matter. Check a
+// name against the image itself: docs/vendor/wolfi.md.
 func withPkgs(base *dagger.Container, pkgs ...string) *dagger.Container {
 	return base.WithExec(append([]string{"apk", "add"}, pkgs...))
 }
