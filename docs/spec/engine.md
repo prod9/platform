@@ -199,27 +199,36 @@ progress-rendering observer and calls `buildlog` as its sink.
 debugging firehose gated behind `-v`; at default verbosity a build's visible progress is
 exactly the observer's step reports.
 
-### The built container is hidden, minus three commands
+### The built container is hidden behind one unsafe door
 
 The `*dagger.Container` a run produces is **engine-internal**. It is bound to the client
 that built it, and it is carried so that steps chain and `Publish` can push it — but
 consumers read what the observer reports, not the container.
 
-**Three commands are the standing exception, and today they take the handle directly.**
-`BuildResult.Container` is an exported field, read by `preview` (tunnel a port at the
-built image), `export` (write the image to a file), and `exec` (run a command or a shell
-in it). Each genuinely operates on the container and none can be served by the report, so
-the exception is surface deliberately *carried*, not a leak to plug by hiding the field —
-hiding it with nowhere for those three needs to go only moves the same coupling.
-
-That somewhere is the engine's own verbs for those operations, and they are
+Three commands genuinely operate on the container and cannot be served by the report:
+`preview` (tunnel a port at the built image), `export` (write the image to a file), and
+`exec` (run a command or a shell in it). The engine's own verbs for those operations are
 **deliberately unbuilt** — chakrit:verbatim "Settle nothing. Keep the same dagger calls
-in preview/exec for now." Until they exist the exported field is the spec'd state, not
-drift, and `Client()` is the companion access those callers need since the container is
-bound to the engine that built it. Those three therefore express container operations,
-which [§No dagger verbs outside `engine/`](#no-dagger-verbs-outside-engine) otherwise
-forbids: they are the known, bounded set of that, and no new caller joins it. Reconcile
-this section, never the code, when the verbs land.
+in preview/exec for now" — so the machinery is handed over instead, through exactly one
+method whose name is the warning:
+
+```go
+func (r BuildResult) UnsafeDagger() (*dagger.Container, *dagger.Client)
+```
+
+Both halves come from one call because they are inseparable: a container is bound to the
+client that built it, and operating on one without the other is the bug the pairing
+prevents. `Unsafe` is the whole point of the name — a caller reaching past the engine's
+report says so at the callsite, and a reviewer greps one word to find every such caller.
+It is **not** `Must`, which this spec already spends on panic-style fetches
+(`FromContext`).
+
+So `BuildResult` carries no exported dagger field and the engine exposes no other dagger
+handle. The three callers do express container operations, which
+[§No dagger verbs outside `engine/`](#no-dagger-verbs-outside-engine) otherwise forbids:
+they are the known, bounded set of that, they announce it in one word, and no new caller
+joins them. When the verbs land, they replace these callers and the door closes —
+reconcile this section then, never the code before then.
 
 ### `Run.Result()` — consistent by construction
 
