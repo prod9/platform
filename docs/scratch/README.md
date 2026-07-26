@@ -40,6 +40,8 @@ Newest first. Scratch is disposable, so this list may lag — the directory is t
 
 **Live** — committed work in flight:
 
+- [2026-07-24 — slice 3 plan](2026-07-24-slice3-plan.md) — multiplex + observer/result
+  redesign; graduated to `spec/engine.md` + `architecture.md`, delete once the impl lands
 - [2026-07-17 — trail fix plan](2026-07-17-trail-fix-plan.md) — why the state trail split
   from the journal (schema, provenance, disciplines)
 - [2026-07-17 — srv API/architecture 1-by-1](2026-07-17-srv-1by1.md) — frozen context for
