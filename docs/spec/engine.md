@@ -25,7 +25,7 @@ discover → pick → get.
 | `NewContext(ctx, eng)`     | carry `eng` on a context so runs resolve it                       |
 | `FromContext(ctx)`         | Must-style fetch; panics if absent (engine is a precondition)    |
 | `LookupFromContext(ctx)`   | comma-ok fetch                                                    |
-| `Client(ctx)`              | next endpoint round-robin → a live client (ad-hoc: `ls`/preview) |
+| `Client(ctx)`              | next endpoint round-robin → a live client (ad-hoc: `ls` only)     |
 | `Clean(ctx)`               | prune every fleet engine's local cache (drives `platform clean`) |
 | `Close()`                  | tear down every dialed connection; call once at shutdown         |
 
