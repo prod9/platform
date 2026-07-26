@@ -93,7 +93,7 @@ func withBuildPkgs(base *dagger.Container, pkgs ...string) *dagger.Container {
 }
 
 func withRunnerPkgs(base *dagger.Container, pkgs ...string) *dagger.Container {
-	set := []string{"ca-certificates", "curl", "netcat-openbsd", "tzdata"}
+	set := []string{"ca-certificates", "curl", "mailcap", "netcat-openbsd", "tzdata"}
 	return withPkgs(base, append(set, pkgs...)...)
 }
 
