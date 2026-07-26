@@ -178,9 +178,7 @@ not just the static family.
 
 🚨 **The base is Wolfi, not Alpine — never resolve a package against Alpine's index.** Both
 use `apk` and the names often coincide, which is exactly what makes the wrong lookup pass
-review. Verify against Wolfi (`apk add` in `cgr.dev/chainguard/wolfi-base:latest`, or the
-`wolfi-dev/os` package list); an Alpine `pkgs.alpinelinux.org` citation is not evidence
-about this image.
+review. How to resolve one properly: [`../vendor/wolfi.md`](../vendor/wolfi.md).
 
 ## Test-in-build is a hard gate
 

@@ -64,6 +64,9 @@ corepack) is deliberate; see the Node/pnpm note in
 [`../../CLAUDE.md`](../../CLAUDE.md). A cache or build failure is never a reason to change
 where Node comes from. **Shed the cache with `platform clean`, then fix the real cause.**
 
+(The `apk` here is Wolfi's, not Alpine's — see [`../vendor/wolfi.md`](../vendor/wolfi.md)
+before reasoning about what any package name provides.)
+
 ## Known caveat: cold pnpm build
 
 `platform clean` recovers from the poison, but a **cold** pnpm build (empty cache) has

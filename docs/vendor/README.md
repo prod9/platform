@@ -31,6 +31,8 @@ tables and lists; keep entries skimmable.
 - [`dagger-engine.md`](dagger-engine.md) — Dagger engine capabilities & deployment: SDK pin,
   the connect call, the single-engine/many-sessions model, runtime requirements, deployment
   topologies, and the load-balancer pitfall.
+- [`wolfi.md`](wolfi.md) — our base image's distro: why an Alpine package lookup is not
+  evidence here, how to resolve a package against the image, and the packages we've verified.
 - [`nginx-gateway-fabric-install.md`](nginx-gateway-fabric-install.md) — the NGF / Gateway API
   install recipe: upstream URLs, the firewall-annotation patch, the serverTokens workaround,
   and the string-forcing constraint.
