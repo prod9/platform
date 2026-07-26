@@ -153,7 +153,12 @@ Why the order holds:
 
 Every framework except `Dockerfile` (own `FROM`) and `Infra` (`FROM scratch`) starts from
 `BaseImageForUnit` — Chainguard's Wolfi base (`cgr.dev/chainguard/wolfi-base`), small,
-glibc-free, regularly patched, shared across all language stacks.
+regularly patched, shared across all language stacks.
+
+**Wolfi is glibc-based** (`glibc` is installed in the bare base; there is no musl). That is
+the answer to every "will this prebuilt binary run?" question here — stock Linux binaries
+and CGO builds work unmodified, and nothing needs a musl variant. Do not describe this base
+as musl or "glibc-free"; it is neither.
 
 - **Never pinned.** `BaseImageName` is `cgr.dev/chainguard/wolfi-base:latest` — a floating
   tag, resolved at build time, never a digest. Wolfi is rolling and the repository carries
