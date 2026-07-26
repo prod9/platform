@@ -7,8 +7,11 @@
 //
 // Every framework in this package starts from Chainguard's Wolfi base image
 // (cgr.dev/chainguard/wolfi-base) via [BaseImageForUnit]. This is the standard
-// and gives us a small, regularly-patched, glibc-free base shared across all
-// language stacks (Go native, Go workspace, pnpm basic/static/workspace).
+// and gives us a small, regularly-patched base shared across all language
+// stacks (Go native, Go workspace, pnpm basic/static/workspace).
+//
+// Wolfi is glibc-based, not musl — stock Linux binaries and CGO builds run
+// unmodified, and no package here ever wants a musl variant.
 //
 // The sole exception is the [Dockerfile] framework, which by definition uses the
 // user-supplied Dockerfile's FROM line. That framework is intentionally
