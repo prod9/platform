@@ -13,8 +13,8 @@ non-fungible resource. Naming the session is the fix; the lifetime bug falls out
 
 | file | holds |
 |-----------------|--------------------------------------------------------------|
-| `pool.go`       | the fleet as a stateless roster: `Hosts`, `Dial`, `NewSession` |
-| `session.go`    | `Session` — the lifetime — plus `Build`, `BuildAndPublish`, `Clean` |
+| `runners.go`    | the fleet as a stateless roster: `Hosts`, `Dial`, and the resolver seam |
+| `session.go`    | `NewSession`, `Session` — the lifetime — plus `Build`, `BuildAndPublish`, `Clean` |
 | `results.go`    | `BuildResult`, `PublishResult` — pure data                    |
 | `run.go`        | `Run`, unchanged but for taking a `*Session`                  |
 | `observer.go`, `multiplexer.go`, `arch.go` | unchanged (`buildArch` moves to `*Session`) |
@@ -24,29 +24,40 @@ non-fungible resource. Naming the session is the fix; the lifetime bug falls out
 and type-asserted (`engine.go:100-102`); with a `Session` the caller holds, that hidden
 dependency evaporates.
 
-## `pool.go`
+## `runners.go`
+
+The `runners` **type is deleted**, not converted: once `Hosts` reads cfg, the struct's only
+remaining job was the injected `lookup` seam, and `dns`/`port` were cfg reads it cached for
+no reason. Free functions plus one package-level seam replace it. Package-level *state* was
+rejected — `cfg` is built per caller (`fxconfig.Configure()` per command, `srv` its own), so
+a global roster would need init-order coupling and would make two sessions share a roster
+neither owns, and parallel tests would lose the isolation they get free today.
 
 ```go
-// The pool is a roster, not a cache: it resolves endpoints on demand and dials them, and
-// holds nothing between calls. Two calls a second apart may see different engines as pods
-// come and go — that is the point, not a defect.
+// The roster is not a cache: it resolves endpoints on demand and dials them, and holds
+// nothing between calls. Two calls a second apart may see different engines as pods come
+// and go — that is the point, not a defect.
 
-// NewSession opens a session on the fleet. It dials nothing: connections are made as runs
-// need them, so opening is free and a session that never builds never touches an engine.
-// ctx is the lifetime every connection will be dialed into — a process scope, never a
-// request or per-unit one.
-func NewSession(ctx context.Context, cfg *fxconfig.Source) *Session {
-	return &Session{ctx: ctx, cfg: cfg}
+var lookupHost = net.DefaultResolver.LookupHost   // swapped in tests, never at runtime
+
+// cfgFrom takes the config off the context, falling back to a fresh Configure() when the
+// caller seeded none. Configure() is NewSource(defaultSource.provider, defaultSource.vars)
+// — the same value a command would have built, with no env read at call time.
+func cfgFrom(ctx context.Context) *fxconfig.Source {
+	if cfg := fxconfig.FromContext(ctx); cfg != nil {
+		return cfg
+	}
+	return fxconfig.Configure()
 }
 
 // Hosts resolves the configured engine endpoints via DNS — no k8s API, no RBAC. An empty
 // result means none are configured, which is the caller's cue to fall back to local.
-func Hosts(ctx context.Context, cfg *fxconfig.Source) ([]string, error)
+func Hosts(ctx context.Context) ([]string, error)
 
 // Dial connects to one uniformly-chosen endpoint, or to a local auto-provisioned engine
 // when none are configured. Uniform choice replaces the round-robin cursor: the same
 // distribution over a run of picks, with no state kept between calls.
-func Dial(ctx context.Context, cfg *fxconfig.Source) (*dagger.Client, error)
+func Dial(ctx context.Context) (*dagger.Client, error)
 ```
 
 ## `session.go`
@@ -62,11 +73,18 @@ func Dial(ctx context.Context, cfg *fxconfig.Source) (*dagger.Client, error)
 // A session opens as many connections as its work needs and closes them together. It is
 // safe for concurrent use.
 type Session struct {
-	ctx context.Context
-	cfg *fxconfig.Source
+	ctx context.Context   // carries both the lifetime and the config
 
 	mu    sync.Mutex
 	conns []*dagger.Client
+}
+
+// NewSession opens a session on the fleet. It dials nothing: connections are made as runs
+// need them, so opening is free and a session that never builds never touches an engine.
+// ctx is the lifetime every connection will be dialed into — a process scope, never a
+// request or per-unit one — and it carries the config the roster reads.
+func NewSession(ctx context.Context) *Session {
+	return &Session{ctx: ctx}
 }
 
 // connect adds one connection to the session and hands it over. A run calls this once and
@@ -74,7 +92,7 @@ type Session struct {
 // session driving many runs calls it many times, and that is what spreads runs across the
 // fleet.
 func (s *Session) connect() (*dagger.Client, error) {
-	client, err := Dial(s.ctx, s.cfg)
+	client, err := Dial(s.ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -92,6 +110,8 @@ func (s *Session) Close() error
 // Build builds every module matched by modnames (all of them when empty), one run per unit,
 // each on its own connection. Results are data: they outlive the run but not the session.
 func (s *Session) Build(ctx context.Context, cfg *conf.Model, modnames []string, obs Observer) ([]BuildResult, error) {
+	// buildArch moves off *Engine onto *Session; it reads CI through cfgFrom(s.ctx), not a
+	// stored config field.
 	units, err := framework.Units(cfg, modnames, s.buildArch(cfg))
 	if err != nil {
 		return nil, err
@@ -177,7 +197,8 @@ is a registry-to-registry copy — no container, no engine, not this function.
 
 ```go
 // cmd/export.go — and build, exec, preview, publish, clean, ls all take this shape.
-sess := engine.NewSession(context.Background(), fxconfig.Configure())
+ctx := fxconfig.NewContext(context.Background(), fxconfig.Configure())
+sess := engine.NewSession(ctx)
 defer sess.Close()
 
 results, err := sess.Build(ctx, cfg, args, newObserver())
