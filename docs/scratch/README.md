@@ -40,6 +40,14 @@ Newest first. Scratch is disposable, so this list may lag — the directory is t
 
 **Live** — committed work in flight:
 
+- [2026-07-26 — Session layer code preview](2026-07-26-session-layer-preview.md) — the
+  shape to build: `pool`/roster, `Session`, `BuildResult` as pure data, call sites, and the
+  three questions left open. Spec'd at
+  [`../spec/engine.md`](../spec/engine.md); ruling at
+  [`../decisions/2026-07-27-a-dagger-client-is-a-session.md`](../decisions/2026-07-27-a-dagger-client-is-a-session.md).
+- [2026-07-26 — session lifetime options](2026-07-26-session-lifetime-options.md) — the
+  rejected A–D menu, kept for the failure analysis of the `export` 502 and why each option
+  missed the missing layer
 - [2026-07-17 — trail fix plan](2026-07-17-trail-fix-plan.md) — why the state trail split
   from the journal (schema, provenance, disciplines)
 - [2026-07-17 — srv API/architecture 1-by-1](2026-07-17-srv-1by1.md) — frozen context for

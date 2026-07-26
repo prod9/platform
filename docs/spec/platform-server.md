@@ -65,8 +65,8 @@ and consumes them per request — the engine layer hands out a `Session`, the sp
 containers stay usable for (`engine.NewSession(ctx)` once at boot, a `Run` per unit per
 request), so a long-running server reuses one session across every concurrent build. Whether
 a days-long session needs liveness handling for engine pods that come and go, or `srv` opens
-one session per build instead, is open — see
-[engine.md](engine.md#session--the-unit-of-lifetime).
+one session per build instead, is open — see [engine.md](engine.md), §`Session` — the unit of
+lifetime.
 
 `srv` ships **in the same binary** as the CLI — `platform srv` starts the process (`platform serve` is a back-compat alias). One
 Go module (`platform.prodigy9.co`); the shared packages, `cmd`, and `srv` are conceptual

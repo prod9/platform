@@ -24,9 +24,10 @@ superseded moves to `../scratch/` — `spec/` holds current design only, never h
 - [`frameworks.md`](frameworks.md) — the framework catalog and order-sensitive discovery,
   the seven-method `Framework` contract, `Step`/`Plan`/`Execute`, layouts, runtime-shape
   families, the Wolfi base, Node/pnpm provisioning, and the Go test-in-build gate.
-- [`engine.md`](engine.md) — the Dagger execution layer: the `Engine` client pool over
-  discovered runners, `Run` and its `Observer` report, engine-internal fan-out behind the
-  domain verbs, `Publish`, registry creds, arch targets.
+- [`engine.md`](engine.md) — the Dagger execution layer: why a `*dagger.Client` is a session
+  rather than a poolable connection, `Session` as the unit of lifetime over a stateless
+  runner roster, `Run` and its `Observer` report, engine-internal fan-out behind the domain
+  verbs, publishing as a run bracket, registry creds, arch targets.
 - [`releases.md`](releases.md) — release strategies (semver/datestamp/timestamp/rolling),
   `Generate` vs `Create`, tag-history recovery, and release⊥publish orthogonality.
 - [`scaffolding.md`](scaffolding.md) — `platform init`: the `framework/scaffold`

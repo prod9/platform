@@ -20,7 +20,7 @@ platform.toml ─parse─▶ config model ─interpret─▶ []*BuildUnit ─▶
 | interpret    | `framework/` | config → **`[]*BuildUnit`** (one per selected module)             |
 | build model  | `framework/` | `BuildUnit` — the resolved, self-contained build def              |
 | strategies   | `framework/` | the `Framework` implementations — per-stack build knowledge       |
-| engine       | `engine/`    | the Dagger `Engine` + `Run` — drives each unit's planned steps    |
+| engine       | `engine/`    | the Dagger `Session` + `Run` — drives each unit's planned steps    |
 
 ## How to think about it (the durable principle)
 
@@ -109,10 +109,11 @@ graph `conf ← framework/scaffold ← framework ← cmd`:
   distinction is pure `Scaffold` polymorphism (`Infra.Scaffold` simply contributes more).
 - `engine/` — the Dagger runtime: discovers the available Dagger **runners**, and drives
   one unit's planned steps per `Run` across them, reporting to a caller-supplied
-  `Observer`. Multi-unit fan-out lives **here**, behind domain verbs (`Build`, `Publish`,
-  `BuildAndPublish`) over one shared `Engine` — fanning out resolved units is parallel
+  `Observer`. Multi-unit fan-out lives **here**, behind domain verbs (`Build`,
+  `BuildAndPublish`) on one open `Session` — fanning out resolved units is parallel
   execution, which is the engine's own job; its `multiplexer` is unexported and no caller
-  drives a `Run` directly.
+  drives a `Run` directly. A `Session` is the span its containers stay usable for; see
+  [`engine.md`](engine.md).
 - `dsl/` — the manifest-patch DSL (lexer, directive parser, in-buffer verbs), a
   self-contained language at the top level, peer of `cuemod/`. Consumed by
   `framework/gitops` render; extracted from it so the language stands on its own.

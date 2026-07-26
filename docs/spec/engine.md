@@ -216,8 +216,8 @@ a serialization format.
 retrieval is incremental and per-step: each step's output is read as that step finishes,
 with no re-execution (Dagger caches the walk), landing exactly on the `.Sync()` boundary
 `Next` already has — so captured output flushes per step, as a sixth callback added when
-capture lands. It demuxes cleanly across units sharing a pooled client, so the client pool
-is untouched by log capture. `WithLogOutput` is the Dagger CLI *subprocess's* stderr pipe —
+capture lands. It demuxes cleanly across units sharing a session, so the session layer is
+untouched by log capture. `WithLogOutput` is the Dagger CLI *subprocess's* stderr pipe —
 rendered TUI text, never demuxable — and is not a capture path.
 
 **`buildlog` is not build-progress.** `internal/buildlog` is platform's own narration of
@@ -356,7 +356,7 @@ one verb call per record; the per-unit goroutines live in the engine's multiplex
 in the worker. This does not move the scheduling boundary above: *which build runs next*
 remains the worker's, and it still never sees a host address.
 
-## Publish
+## Publishing
 
 The publish bracket pushes a successfully-built container on the connection that built it,
 so the registry secret is minted by the same session that owns the container, and logs the

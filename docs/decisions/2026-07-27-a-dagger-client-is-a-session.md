@@ -60,7 +60,11 @@ which is the question that dissolves it.
 - **`unit.Timeout` bounds steps, nothing else.** It no longer reaches a dial and does not
   limit how long a container stays usable.
 - **Round-robin becomes uniform random choice at dial.** Same distribution, no state, so the
-  roster stays a roster.
+  roster stays a roster. This narrows the *mechanism* named in
+  [2026-06-21 — Dagger engine StatefulSet + TCP](2026-06-21-dagger-engine-statefulset-tcp.md);
+  that decision's topology (headless Service, pod-IP resolution, one engine per job via
+  `dagger.WithRunnerHost`, job-granularity spreading) is unchanged and still accepted. Only
+  "a round-robin cursor" becomes "a uniform random pick".
 - **`ls` stops being a special case.** It reaches `Session.Unsafe()` like any ad-hoc caller,
   closing the open item recorded in the engine-opacity work.
 - **Data may ride in the context; resources may not.** `cfg` travels via
