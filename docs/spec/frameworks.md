@@ -171,9 +171,16 @@ on `PATH`), `RunDir` (`/platform/run`, runtime workdir). Package sets are applie
 `withBuildPkgs` (`build-base git curl bash` + extras) for the build stage and
 `withRunnerPkgs` (`ca-certificates curl mailcap netcat-openbsd tzdata` + extras) for the
 runner; `withCaddyServer` adds Caddy for the static family. `mailcap` is carried only to
-lay down `/etc/mime.types` — Alpine ships no MIME table, and a server without one falls
-back to a built-in list that misses modern types (`.woff2` among them), so assets go out
-with the wrong `Content-Type`. It belongs to every runner, not just the static family.
+lay down `/etc/mime.types` — the Wolfi base ships neither that file nor `/etc/mailcap`, and
+a server without the table falls back to a built-in list that misses modern types (`.woff2`
+among them), so assets go out with the wrong `Content-Type`. It belongs to every runner,
+not just the static family.
+
+🚨 **The base is Wolfi, not Alpine — never resolve a package against Alpine's index.** Both
+use `apk` and the names often coincide, which is exactly what makes the wrong lookup pass
+review. Verify against Wolfi (`apk add` in `cgr.dev/chainguard/wolfi-base:latest`, or the
+`wolfi-dev/os` package list); an Alpine `pkgs.alpinelinux.org` citation is not evidence
+about this image.
 
 ## Test-in-build is a hard gate
 
