@@ -71,13 +71,13 @@ ping's job; `Close` only runs at shutdown.
 
 ## `Run` — one unit, one step at a time
 
-`NewRun(eng, unit, obs)` is a **single-unit** run, and it is **engine-internal** — the
+`NewRun(eng, unit, caller)` is a **single-unit** run, and it is **engine-internal** — the
 domain verbs below open runs, no caller does. It asks the unit's framework for a `Plan`,
 then exposes a cursor:
 
 ```go
-run := NewRun(eng, unit, obs)   // obs is already composed: acc, or Tee(acc, caller)
-for run.Next(ctx) { }           // drives exactly one Step per call
+run := NewRun(eng, unit, caller)   // caller may be nil; the run injects its own acc
+for run.Next(ctx) { }              // drives exactly one Step per call
 ```
 
 The **first** `Next` grabs the run's client (`Engine.Client(ctx)`) and every later step
@@ -144,7 +144,9 @@ minter** of the run's scalar outcome (unit, ok/err, image, hash). A caller's obs
 there is one, is composed alongside it by **`TeeObserver`**: `Tee(obs ...Observer)
 Observer` forwards each callback to every child.
 
-Nil is eliminated **once, at the wrap site**, so no downstream code carries a guard:
+The wrap site is `NewRun` — the acc has to be **run-owned**, because `Run.Result()` mints
+its scalars from that fold. Nil is eliminated **once, there**, so no downstream code carries
+a guard:
 
 ```go
 obs := acc
