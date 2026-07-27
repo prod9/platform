@@ -216,3 +216,17 @@ timeout: [`docs/spec/testing.md`](docs/spec/testing.md).
 Command output is compacted by [lowfat](https://github.com/zdk/lowfat) via a user-scope
 hook — no prefix needed; output passes through unchanged when no filter matches. Project
 config lives in [`.lowfat`](.lowfat); re-sync pantry filters with the `/lowfat-pantry` skill.
+
+**A trimmed stream says so on its last line, and only there.** The banner reads
+`[lowfat] +N lines dropped (level=full) -- output truncated, re-run raw for the full list`.
+Anything consuming the stream instead of showing it destroys that line: `| wc -l` counts it
+as one more row, `| head`/`| tail` cut it off, and the number that survives reads like a
+complete answer. So a filtered command is captured to a file and the file is read — the
+last line first. Never call a filter silent; reproduce it in a file and read the tail
+before reporting one as broken.
+
+**Only the first command on a shell line is wrapped.** `rg … | wc -l; …; rg … | wc -l`
+filters the first `rg` and leaves the second alone, so two counts on one line disagree for
+a reason that has nothing to do with the data — and a redirect on a line *starting* with a
+filtered command still captures the trimmed stream, which is what "no `lowfat` on the
+capture itself" is guarding against.
