@@ -51,7 +51,7 @@ func (PNPMStatic) Execute(ctx context.Context, client *dagger.Client, unit *Buil
 
 		// Static family: only the built bundle and a webserver ship, no language runtime.
 		runner := withRunnerPkgs(withPNPMDeps(pnpmBase(client, unit), host))
-		runner = withCaddyServer(runner).
+		runner = withCaddyServer(runner, unit).
 			WithWorkdir(RunDir).
 			WithDirectory(RunDir, in.Directory(outdir))
 		runner = withUnitAssets(runner, in, unit)
@@ -60,7 +60,7 @@ func (PNPMStatic) Execute(ctx context.Context, client *dagger.Client, unit *Buil
 		if cmd == "" {
 			cmd = "caddy"
 		}
-		return runner.WithDefaultArgs(pnpmRunArgs(cmd, unit, "file-server", "-l", "0.0.0.0:3000")), nil
+		return runner.WithDefaultArgs(pnpmRunArgs(cmd, unit, caddyRunArgs()...)), nil
 
 	default:
 		return nil, unknownStep(step)

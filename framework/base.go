@@ -103,10 +103,6 @@ func withRunnerPkgs(base *dagger.Container, pkgs ...string) *dagger.Container {
 	return withPkgs(base, append(set, pkgs...)...)
 }
 
-func withCaddyServer(base *dagger.Container) *dagger.Container {
-	return withPkgs(base, "caddy")
-}
-
 func withUnitEnv(base *dagger.Container, unit *BuildUnit) *dagger.Container {
 	for key, value := range unit.Env {
 		base = base.WithEnvVariable(key, value)
