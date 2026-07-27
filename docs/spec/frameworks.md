@@ -259,6 +259,13 @@ and there is no skip-tests opt-out. Full rationale:
   the built bundle with Caddy under the HTTP surface above. Workspace runner marks `RunDir`
   as ESM (`withPNPMModuleFix`).
 
+  **Which base a runner descends from follows the family, and is where image size is won or
+  lost.** The interpreted runners descend from the pnpm base because `node_modules` and Node
+  itself must be in the running image. The `static` runner must not: it descends from the
+  bare base like the Go runners do, so Node, corepack, the build packages and `node_modules`
+  stay in the build. Getting this wrong is invisible in every test — the site serves
+  identically either way — and cost a 1.13GB image where 96MB serves the same bytes.
+
   🚨 **Platform names no toolchain version, anywhere — never pin.** Node is whatever `n`
   calls `lts`; pnpm is whatever the repo's `package.json` `packageManager` field says, which
   corepack resolves per-project. Platform declares no Node or pnpm version of its own, and a
