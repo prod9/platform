@@ -110,6 +110,20 @@ reason, presented and approved before any edit.
 
 ## Conventions
 
+**Container build steps read top-to-bottom, one call per line.** Our helpers take the
+container in the argument position, so nesting them (`withRunnerPkgs(withDeps(withBase(x)))`)
+grows rightward and hides the order. Each helper gets its own `x = helper(x)` line; native
+Dagger `.WithX()` calls chain freely, including off a helper that heads the chain. Compose in
+the framework's own build step — never build a composite helper that chains our helpers
+together outside framework code (that is how `pnpmBase` came to sit one letter from
+`withPNPMBase` and mean something else). Group the lines by what invalidates together, and
+keep each runner's provisioning prefix identical to its `StepBase` so Dagger dedupes it
+instead of installing the toolchain twice.
+
+**Name the package manager, never the runtime underneath.** It is `withPNPM`, `pnpm build`,
+`pnpm run` — never `withNode`, never a bare `node` invocation. pnpm is the thing platform
+drives; Node is an implementation detail of pnpm arriving.
+
 Commit messages **(per-repo Law)**: `area: Capitalized description`. Prefix is a code
 component/topic (`deps:`, `docs:`, `tooling:`, `cmd:`, `kubectl:`), not a skill or tool
 name. Capitalize the description; put clarifiers in parens at the end; never a `(scope)` in
