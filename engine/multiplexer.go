@@ -22,13 +22,13 @@ func (m *multiplexer[TIn, TOut]) Reset(inputs []TIn) {
 	m.outputs = nil
 }
 
-func (m *multiplexer[TIn, TOut]) Start(work func(idx int, input TIn) TOut) []TOut {
+func (m *multiplexer[TIn, TOut]) Start(work func(input TIn) TOut) []TOut {
 	wg := sync.WaitGroup{}
 	for idx, job := range m.inputs {
 		wg.Add(1)
 		go func(idx int, job TIn) {
 			defer wg.Done()
-			result := work(idx, job)
+			result := work(job)
 			m.setOutput(idx, result)
 		}(idx, job)
 	}

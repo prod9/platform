@@ -71,7 +71,7 @@ func (s *Session) Build(ctx context.Context, cfg *conf.Model, modnames []string,
 
 	m := &multiplexer[*framework.BuildUnit, BuildResult]{}
 	m.Reset(units)
-	return m.Start(func(idx int, unit *framework.BuildUnit) BuildResult {
+	return m.Start(func(unit *framework.BuildUnit) BuildResult {
 		return s.runUnit(ctx, unit, obs).Result()
 	}), nil
 }
@@ -96,7 +96,7 @@ func (s *Session) BuildAndPublish(ctx context.Context, cfg *conf.Model, modnames
 
 	m := &multiplexer[*framework.BuildUnit, PublishResult]{}
 	m.Reset(units)
-	results := m.Start(func(idx int, unit *framework.BuildUnit) PublishResult {
+	results := m.Start(func(unit *framework.BuildUnit) PublishResult {
 		return s.runUnit(ctx, unit, obs).publish(ctx, creds)
 	})
 
@@ -113,16 +113,16 @@ func (s *Session) BuildAndPublish(ctx context.Context, cfg *conf.Model, modnames
 // cold. It sheds stale or poisoned cache entries a fresh checkout would not carry, so it
 // dials each engine by name rather than picking one.
 func (s *Session) Clean(ctx context.Context) error {
-	hosts, err := Hosts(s.ctx)
+	endpoints, err := hosts(s.ctx)
 	if err != nil {
 		return err
 	}
-	if len(hosts) == 0 {
-		hosts = []string{""} // the local engine is the whole fleet
+	if len(endpoints) == 0 {
+		endpoints = []string{""} // the local engine is the whole fleet
 	}
 
-	for _, host := range hosts {
-		client, err := dial(s.ctx, host)
+	for _, host := range endpoints {
+		client, err := dialHost(s.ctx, host)
 		if err != nil {
 			return err
 		}
@@ -154,7 +154,7 @@ func (s *Session) runUnit(ctx context.Context, unit *framework.BuildUnit, obs ob
 // session driving many runs calls it many times, and that is what spreads runs across the
 // fleet.
 func (s *Session) connect() (*dagger.Client, error) {
-	client, err := Dial(s.ctx)
+	client, err := dial(s.ctx)
 	if err != nil {
 		return nil, err
 	}

@@ -20,7 +20,7 @@ func TestHostsResolvesAndSorts(t *testing.T) {
 		return []string{"10.0.0.2", "10.0.0.1"}, nil
 	})
 
-	got, err := Hosts(rosterCtx())
+	got, err := hosts(rosterCtx())
 	r.NoError(t, err)
 	r.Equal(t, "dagger-engine.platform.svc.cluster.local", asked)
 	r.Equal(t, []string{"tcp://10.0.0.1:1234", "tcp://10.0.0.2:1234"}, got)
@@ -35,7 +35,7 @@ func TestHostsEmptyWhenUnconfigured(t *testing.T) {
 		return nil, nil
 	})
 
-	got, err := Hosts(rosterCtx())
+	got, err := hosts(rosterCtx())
 	r.NoError(t, err)
 	r.Empty(t, got)
 	r.False(t, called, "resolved DNS while unconfigured")
@@ -48,7 +48,7 @@ func TestHostsErrorsOnLookupFailure(t *testing.T) {
 		return nil, errors.New("nxdomain")
 	})
 
-	_, err := Hosts(rosterCtx())
+	_, err := hosts(rosterCtx())
 	r.Error(t, err)
 }
 

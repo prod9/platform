@@ -73,13 +73,13 @@ type (
 // while the session that built it is open, and a failed run yields none.
 func (r BuildResult) UnsafeContainer() *dagger.Container { return r.container }
 
-// Hosts resolves the configured engine endpoints via DNS — no k8s API, no RBAC — and
+// hosts resolves the configured engine endpoints via DNS — no k8s API, no RBAC — and
 // reports only what it finds: an empty slice when DAGGER_ENGINE is unset or resolves to
 // nothing, and a real error when the lookup itself fails. Falling back to a local engine is
 // not its decision. The resolver caches per the record TTL, so a new pod becomes selectable
 // as soon as DNS reflects it; nothing else is remembered, and two calls a second apart may
 // legitimately see different engines as pods come and go.
-func Hosts(ctx context.Context) ([]string, error) {
+func hosts(ctx context.Context) ([]string, error) {
 	cfg := cfgFrom(ctx)
 	dns := fxconfig.Get(cfg, DaggerEngineConfig)
 	if dns == "" {
@@ -92,39 +92,39 @@ func Hosts(ctx context.Context) ([]string, error) {
 	}
 
 	port := fxconfig.Get(cfg, DaggerEnginePortConfig)
-	hosts := make([]string, 0, len(addrs))
+	endpoints := make([]string, 0, len(addrs))
 	for _, addr := range addrs {
-		hosts = append(hosts, fmt.Sprintf("tcp://%s:%d", addr, port))
+		endpoints = append(endpoints, fmt.Sprintf("tcp://%s:%d", addr, port))
 	}
 
-	sort.Strings(hosts)
-	return hosts, nil
+	sort.Strings(endpoints)
+	return endpoints, nil
 }
 
-// Dial connects to one uniformly-chosen endpoint, or to a local auto-provisioned engine when
+// dial connects to one uniformly-chosen endpoint, or to a local auto-provisioned engine when
 // none are configured.
-func Dial(ctx context.Context) (*dagger.Client, error) {
-	hosts, err := Hosts(ctx)
+func dial(ctx context.Context) (*dagger.Client, error) {
+	endpoints, err := hosts(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return dial(ctx, pick(hosts))
+	return dialHost(ctx, pick(endpoints))
 }
 
 // pick chooses one endpoint uniformly at random, or the empty host — the local engine — when
 // none are configured. Random replaces the round-robin cursor: the distribution over a run
 // of picks is the same and it keeps no state between calls, which is what lets the roster
 // stay a roster.
-func pick(hosts []string) string {
-	if len(hosts) == 0 {
+func pick(endpoints []string) string {
+	if len(endpoints) == 0 {
 		return ""
 	}
-	return hosts[rand.IntN(len(hosts))]
+	return endpoints[rand.IntN(len(endpoints))]
 }
 
-// dial connects to the engine at host. An empty host carries no runner host, so dagger
+// dialHost connects to the engine at host. An empty host carries no runner host, so dagger
 // auto-provisions and reuses the local engine — that is how the roster asks for "local".
-func dial(ctx context.Context, host string) (*dagger.Client, error) {
+func dialHost(ctx context.Context, host string) (*dagger.Client, error) {
 	opts := []dagger.ClientOpt{dagger.WithLogOutput(buildlog.OutputForDagger())}
 	if host != "" {
 		opts = append(opts, dagger.WithRunnerHost(host))
