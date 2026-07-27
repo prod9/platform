@@ -139,6 +139,14 @@ the run and reported to the observer, not by aborting siblings.
 nothing else: it never reaches a dial, and it does not limit how long the container it
 produced stays usable. That is the session's business, not the timeout's.
 
+🚨 **An empty plan is a failed run, not an empty success.** A framework that returns no
+steps has produced nothing, so a run over it must not report an image or hand back a
+result claiming one — `Result` says a success with no container cannot be constructed, and
+that claim is only true if the empty plan is rejected. The run fails at open with
+`ErrEmptyPlan` and executes nothing. This is `unknownStep`'s twin: that one is unreachable
+while `Plan` and `Execute` agree, this one while `Plan` returns anything at all, and both
+stay loud precisely because a silent version of either is a build stage that vanished.
+
 Clone (repo-prep) and Publish are **engine brackets** around this loop, not framework
 steps — cloning is not any stack's build knowledge, and pushing is the engine's registry
 concern. Publish being a bracket is load-bearing rather than descriptive: it runs while the
