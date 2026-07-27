@@ -1,6 +1,10 @@
 package framework
 
-import "dagger.io/dagger"
+import (
+	"fmt"
+
+	"dagger.io/dagger"
+)
 
 // caddyfilePath is Caddy's own packaged config path, and deliberately outside RunDir: the
 // served root serves everything in it, a config file included.
@@ -8,10 +12,12 @@ const caddyfilePath = "/etc/caddy/Caddyfile"
 
 // caddyfile is the static family's HTTP surface. Response headers, cache policy, error
 // pages, trusted proxies and the admin endpoint have no `caddy file-server` flags, which
-// is why the subcommand is not an alternative. A constant: nothing in it is derived from
-// the project being built. Spec: docs/spec/frameworks.md, "The static family's HTTP
-// surface".
-const caddyfile = `{
+// is why the subcommand is not an alternative. Still a constant in the sense that matters:
+// the only thing interpolated is RunDir, platform's own path, never anything from the
+// project being built. Spelling that path out a second time here is how it goes stale the
+// day the FHS tree moves. Spec: docs/spec/frameworks.md, "The static family's HTTP
+// surface"; Caddy's own behavior: docs/vendor/caddy.md.
+var caddyfile = fmt.Sprintf(`{
 	admin off
 	servers {
 		trusted_proxies static private_ranges
@@ -19,7 +25,7 @@ const caddyfile = `{
 }
 
 :3000 {
-	root * /platform/run
+	root * %s
 	encode zstd gzip
 
 	header X-Content-Type-Options nosniff
@@ -37,7 +43,7 @@ const caddyfile = `{
 		format json
 	}
 }
-`
+`, RunDir)
 
 func withCaddyServer(base *dagger.Container) *dagger.Container {
 	return withPkgs(base, "caddy").WithNewFile(caddyfilePath, caddyfile)
