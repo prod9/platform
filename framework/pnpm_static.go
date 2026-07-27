@@ -58,9 +58,9 @@ func (PNPMStatic) Execute(ctx context.Context, client *dagger.Client, unit *Buil
 
 		cmd := strings.TrimSpace(unit.CommandName)
 		if cmd == "" {
-			cmd = "caddy"
+			cmd = caddyBin
 		}
-		return runner.WithDefaultArgs(pnpmRunArgs(cmd, unit, caddyRunArgs()...)), nil
+		return runner.WithDefaultArgs(pnpmRunArgs(cmd, unit, caddyArgs("run")...)), nil
 
 	default:
 		return nil, unknownStep(step)

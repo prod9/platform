@@ -11,6 +11,9 @@ const (
 	// the served root serves everything in it, a config file included.
 	CaddyfilePath = "/etc/caddy/Caddyfile"
 
+	// caddyBin is argv[0] for the runner, and what the module's `cmd` key replaces.
+	caddyBin = "caddy"
+
 	// DefaultHTTPPort is where a static runner listens when the module names no `port`.
 	DefaultHTTPPort = 3000
 
@@ -61,16 +64,22 @@ const (
 // withCaddyServer installs Caddy and lays down the config it serves under. Both halves
 // belong to one call: Caddy without this config is the packaged default, which serves a
 // placeholder page from a directory the build never writes.
+//
+// The config is validated in the build, by the same Caddy that will run it. An invalid
+// Caddyfile is otherwise a container that builds, publishes, deploys, and only then exits
+// — the same reason the Go frameworks run their tests here.
 func withCaddyServer(base *dagger.Container, unit *BuildUnit) *dagger.Container {
 	return withPkgs(base, "caddy").
 		WithNewFile(CaddyfilePath, caddyfile(unit)).
+		WithExec(append([]string{caddyBin}, caddyArgs("validate")...)).
 		WithExposedPort(httpPort(unit))
 }
 
-// caddyRunArgs starts Caddy against that config. The `file-server` subcommand is not an
-// alternative — it takes no config at all.
-func caddyRunArgs() []string {
-	return []string{"run", "--config", CaddyfilePath, "--adapter", "caddyfile"}
+// caddyArgs runs a Caddy subcommand against our config, argv[0] excluded — the runner's
+// comes from the module's `cmd` key. The `file-server` subcommand is not an alternative to
+// `run`: it takes no config at all.
+func caddyArgs(subcommand string) []string {
+	return []string{subcommand, "--config", CaddyfilePath, "--adapter", "caddyfile"}
 }
 
 func caddyfile(unit *BuildUnit) string {
