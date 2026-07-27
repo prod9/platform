@@ -6,6 +6,7 @@ import (
 
 	"dagger.io/dagger"
 	fxconfig "fx.prodigy9.co/config"
+	"platform.prodigy9.co/engine/observer"
 	"platform.prodigy9.co/framework"
 )
 
@@ -23,8 +24,8 @@ import (
 type Run struct {
 	sess *Session
 	unit *framework.BuildUnit
-	out  *outcome
-	obs  Observer
+	out  *observer.Outcome
+	obs  observer.Observer
 
 	steps []framework.Step
 	next  int
@@ -39,8 +40,8 @@ type Run struct {
 // injects, plus caller when there is one. The fold is run-owned because Result mints its
 // scalars from it. It does no engine work — a connection is taken at the first Next — so
 // opening a run is free and never dials.
-func NewRun(sess *Session, unit *framework.BuildUnit, caller Observer) *Run {
-	obs, out := accumulate(caller)
+func NewRun(sess *Session, unit *framework.BuildUnit, caller observer.Observer) *Run {
+	obs, out := observer.Accumulate(caller)
 	return &Run{sess: sess, unit: unit, out: out, obs: obs, steps: unit.Framework.Plan(unit)}
 }
 
@@ -55,11 +56,11 @@ func (r *Run) Next(ctx context.Context) bool {
 	step := r.steps[r.next]
 	r.next++
 
-	r.report(func(obs Observer, at time.Time) {
+	r.report(func(obs observer.Observer, at time.Time) {
 		obs.StepStarted(r.unit.Name, step.String(), at)
 	})
 	container, err := r.execute(ctx, step)
-	r.report(func(obs Observer, at time.Time) {
+	r.report(func(obs observer.Observer, at time.Time) {
 		obs.StepDone(r.unit.Name, step.String(), at, err)
 	})
 
@@ -103,18 +104,18 @@ func (r *Run) finish() bool {
 
 	r.done = true
 	if r.err == nil {
-		r.report(func(obs Observer, at time.Time) {
+		r.report(func(obs observer.Observer, at time.Time) {
 			obs.ImageBuilt(r.unit.Name, r.unit.ImageName, at)
 		})
 	}
 
-	r.report(func(obs Observer, at time.Time) { obs.RunDone(r.unit.Name, at, r.err) })
+	r.report(func(obs observer.Observer, at time.Time) { obs.RunDone(r.unit.Name, at, r.err) })
 	return false
 }
 
 // report is the one place the callback clock is read, so every report is stamped at the
 // moment it happens. There is no nil check: NewRun guarantees an observer.
-func (r *Run) report(emit func(obs Observer, at time.Time)) {
+func (r *Run) report(emit func(obs observer.Observer, at time.Time)) {
 	emit(r.obs, time.Now())
 }
 
@@ -147,13 +148,13 @@ func (r *Run) connect() (*dagger.Client, error) {
 // is a half-built image and never something a caller should publish or shell into.
 func (r *Run) Result() BuildResult {
 	container := r.container
-	if r.out.err != nil {
+	if r.out.Err != nil {
 		container = nil
 	}
 
 	return BuildResult{
 		Unit:      r.unit,
-		Err:       r.out.err,
+		Err:       r.out.Err,
 		container: container,
 		client:    r.client,
 		out:       r.out,
@@ -204,12 +205,12 @@ func (r *Run) publish(ctx context.Context, creds registryCreds) PublishResult {
 		return PublishResult{BuildResult: result}
 	}
 
-	r.report(func(obs Observer, at time.Time) {
+	r.report(func(obs observer.Observer, at time.Time) {
 		obs.Published(r.unit.Name, r.unit.ImageName, hash, at)
 	})
 	return PublishResult{
 		BuildResult: result,
-		ImageName:   r.out.image,
-		ImageHash:   r.out.hash,
+		ImageName:   r.out.Image,
+		ImageHash:   r.out.Hash,
 	}
 }

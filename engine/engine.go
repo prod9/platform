@@ -17,6 +17,7 @@ import (
 	"fx.prodigy9.co/cmd/prompts"
 	fxconfig "fx.prodigy9.co/config"
 	"platform.prodigy9.co/conf"
+	"platform.prodigy9.co/engine/observer"
 	"platform.prodigy9.co/framework"
 	"platform.prodigy9.co/internal/buildlog"
 )
@@ -120,8 +121,8 @@ type (
 		// out and obs are the run's report, carried past the run so a publish continues the
 		// same stream and mints its scalars from the same fold. Only Run.Result fills them
 		// in — a BuildResult is never assembled anywhere else.
-		out *outcome
-		obs Observer
+		out *observer.Outcome
+		obs observer.Observer
 	}
 
 	PublishResult struct {

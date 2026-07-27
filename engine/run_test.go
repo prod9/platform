@@ -9,6 +9,7 @@ import (
 
 	"dagger.io/dagger"
 	"github.com/stretchr/testify/require"
+	"platform.prodigy9.co/engine/observer"
 	"platform.prodigy9.co/framework"
 	"platform.prodigy9.co/framework/scaffold"
 )
@@ -37,7 +38,7 @@ func (*stubFramework) Scaffold(context.Context, string, scaffold.Env, map[string
 
 // newStubRun builds a cursor with its client already in hand, so no test ever dials a
 // Dagger engine: the stub framework ignores the client entirely.
-func newStubRun(fw *stubFramework, obs Observer) *Run {
+func newStubRun(fw *stubFramework, obs observer.Observer) *Run {
 	unit := &framework.BuildUnit{Framework: fw, Name: "stubunit", ImageName: "stubimage"}
 	run := NewRun(nil, unit, obs)
 	run.client = &dagger.Client{}

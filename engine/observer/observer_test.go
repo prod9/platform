@@ -1,4 +1,4 @@
-package engine
+package observer
 
 import (
 	"errors"
@@ -10,8 +10,37 @@ import (
 
 var errFold = errors.New("fold failed")
 
+// recorder keeps every callback as a readable line, so a test asserts on the sequence a
+// caller would see rather than on five separate counters.
+type recorder struct {
+	lines []string
+	errs  []error
+}
+
+func (r *recorder) StepStarted(unit, step string, _ time.Time) {
+	r.lines = append(r.lines, "started "+unit+"/"+step)
+}
+
+func (r *recorder) StepDone(unit, step string, _ time.Time, err error) {
+	r.lines = append(r.lines, "done "+unit+"/"+step)
+	r.errs = append(r.errs, err)
+}
+
+func (r *recorder) ImageBuilt(unit, image string, _ time.Time) {
+	r.lines = append(r.lines, "built "+unit+"/"+image)
+}
+
+func (r *recorder) Published(unit, image, hash string, _ time.Time) {
+	r.lines = append(r.lines, "published "+unit+"/"+image+"/"+hash)
+}
+
+func (r *recorder) RunDone(unit string, _ time.Time, err error) {
+	r.lines = append(r.lines, "rundone "+unit)
+	r.errs = append(r.errs, err)
+}
+
 func TestAccMintsTheOutcomeFromTheStream(t *testing.T) {
-	acc, out := accumulate(nil)
+	acc, out := Accumulate(nil)
 	at := time.Now()
 
 	acc.StepStarted("web", "build", at)
@@ -19,44 +48,44 @@ func TestAccMintsTheOutcomeFromTheStream(t *testing.T) {
 	acc.ImageBuilt("web", "ghcr.io/p9/web", at)
 	acc.RunDone("web", at, nil)
 
-	require.Equal(t, "ghcr.io/p9/web", out.image)
-	require.Empty(t, out.hash, "a build that never published has no hash")
-	require.NoError(t, out.err)
+	require.Equal(t, "ghcr.io/p9/web", out.Image)
+	require.Empty(t, out.Hash, "a build that never published has no hash")
+	require.NoError(t, out.Err)
 }
 
 func TestAccKeepsTheFailureThatEndedTheRun(t *testing.T) {
-	acc, out := accumulate(nil)
+	acc, out := Accumulate(nil)
 	at := time.Now()
 
 	acc.StepDone("web", "build", at, errFold)
 	acc.RunDone("web", at, errFold)
 
-	require.ErrorIs(t, out.err, errFold)
-	require.Empty(t, out.image, "a failed run built no image")
+	require.ErrorIs(t, out.Err, errFold)
+	require.Empty(t, out.Image, "a failed run built no image")
 }
 
 func TestAccTakesTheHashFromThePublish(t *testing.T) {
-	acc, out := accumulate(nil)
+	acc, out := Accumulate(nil)
 	at := time.Now()
 
 	acc.ImageBuilt("web", "ghcr.io/p9/web", at)
 	acc.RunDone("web", at, nil)
 	acc.Published("web", "ghcr.io/p9/web:v1", "sha256:abc", at)
 
-	require.Equal(t, "ghcr.io/p9/web:v1", out.image, "publishing renames the image")
-	require.Equal(t, "sha256:abc", out.hash)
+	require.Equal(t, "ghcr.io/p9/web:v1", out.Image, "publishing renames the image")
+	require.Equal(t, "sha256:abc", out.Hash)
 }
 
 func TestAccFoldsWhileAlsoFeedingTheCaller(t *testing.T) {
 	caller := &recorder{}
-	acc, out := accumulate(caller)
+	acc, out := Accumulate(caller)
 	at := time.Now()
 
 	acc.ImageBuilt("web", "ghcr.io/p9/web", at)
 	acc.RunDone("web", at, errFold)
 
-	require.Equal(t, "ghcr.io/p9/web", out.image, "composing a caller must not drop the fold")
-	require.ErrorIs(t, out.err, errFold)
+	require.Equal(t, "ghcr.io/p9/web", out.Image, "composing a caller must not drop the fold")
+	require.ErrorIs(t, out.Err, errFold)
 	require.Equal(t, []string{"built web/ghcr.io/p9/web", "rundone web"}, caller.lines)
 }
 

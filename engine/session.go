@@ -7,6 +7,7 @@ import (
 
 	"dagger.io/dagger"
 	"platform.prodigy9.co/conf"
+	"platform.prodigy9.co/engine/observer"
 	"platform.prodigy9.co/framework"
 )
 
@@ -59,7 +60,7 @@ func (s *Session) Unsafe() (*dagger.Client, error) { return s.connect() }
 // unit, each on its own connection. It constructs the units itself — resolving the arch from
 // cfg — so callers never name a platform; what they need afterwards they read off
 // BuildResult.Unit.
-func (s *Session) Build(ctx context.Context, cfg *conf.Model, modnames []string, obs Observer) ([]BuildResult, error) {
+func (s *Session) Build(ctx context.Context, cfg *conf.Model, modnames []string, obs observer.Observer) ([]BuildResult, error) {
 	units, err := framework.Units(cfg, modnames, s.buildArch(cfg))
 	if err != nil {
 		return nil, err
@@ -79,7 +80,7 @@ func (s *Session) Build(ctx context.Context, cfg *conf.Model, modnames []string,
 // its own run finishes. Publishing is a bracket around the run rather than a second pass
 // over results: the connection that built the container is still in hand, so the registry
 // secret is minted by the session that owns the container it authenticates.
-func (s *Session) BuildAndPublish(ctx context.Context, cfg *conf.Model, modnames []string, tag string, obs Observer) ([]PublishResult, error) {
+func (s *Session) BuildAndPublish(ctx context.Context, cfg *conf.Model, modnames []string, tag string, obs observer.Observer) ([]PublishResult, error) {
 	units, err := framework.Units(cfg, modnames, cfg.PublishArch)
 	if err != nil {
 		return nil, err
@@ -138,7 +139,7 @@ func (s *Session) Clean(ctx context.Context) error {
 // the connection its container is bound to. The timeout bounds the unit's steps and nothing
 // else — it is never the context a connection is dialed into, so a unit ending cannot close
 // a session whose containers the caller still holds.
-func (s *Session) runUnit(ctx context.Context, unit *framework.BuildUnit, obs Observer) *Run {
+func (s *Session) runUnit(ctx context.Context, unit *framework.BuildUnit, obs observer.Observer) *Run {
 	unitCtx, cancel := context.WithTimeout(ctx, unit.Timeout)
 	defer cancel()
 

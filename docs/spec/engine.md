@@ -134,8 +134,8 @@ on the same session as the container it authenticates.
 
 A run reports everything to **one** `Observer`, supplied by whoever opens the run. The
 contract, the tee and the accumulator are their own package —
-[`engine/observer/`](../../engine/observer/observer.go) — so `engine` imports the reporting
-vocabulary rather than declaring it. There is no channel to close, no `Events()` getter, no
+[`engine/observer/`](../../engine/observer/), a file each — so `engine` imports the
+reporting vocabulary rather than declaring it. There is no channel to close, no `Events()` getter, no
 snapshot-plus-delta:
 
 ```go
