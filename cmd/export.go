@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"os"
 
 	fxconfig "fx.prodigy9.co/config"
 	"github.com/spf13/cobra"
@@ -31,9 +32,11 @@ func runExport(cmd *cobra.Command, args []string) {
 		buildlog.Fatalln(err)
 	}
 
+	anyerr := false
 	for _, result := range results {
 		if result.Err != nil {
 			buildlog.Error(result.Err)
+			anyerr = true
 			continue
 		}
 
@@ -51,5 +54,8 @@ func runExport(cmd *cobra.Command, args []string) {
 			buildlog.Fatalln(err)
 		}
 		buildlog.Image("export", outname, string(id))
+	}
+	if anyerr {
+		os.Exit(1)
 	}
 }
