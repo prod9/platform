@@ -218,6 +218,10 @@ served root is a config file the world can download.
   `Last-Modified` then make the common case a 304. `_astro` is Astro's default output for
   hashed bundles ([`build.assets`](https://docs.astro.build/en/reference/configuration-reference/)),
   and Astro is what the static family discovers on.
+- **The config is validated in the build**, by the same Caddy that will run it
+  (`caddy validate`, its own step in the runner stage). An invalid Caddyfile is otherwise a
+  container that builds, publishes, deploys, and only then exits — so it fails the build
+  instead, for the same reason the Go frameworks run their tests there.
 - **Error pages keep their status.** `handle_errors` rewrites to the status-named page and
   re-runs `file_server`; the response carries the original code, so a missing page is a real
   404 with a real body. A project that ships no `404.html` gets a bodiless 404, which is the
