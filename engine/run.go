@@ -10,6 +10,13 @@ import (
 	"platform.prodigy9.co/framework"
 )
 
+// Registry credentials for publishing built images, supplied via fx env config.
+var (
+	RegistryConfig         = fxconfig.Str("REGISTRY")
+	RegistryUsernameConfig = fxconfig.Str("REGISTRY_USERNAME")
+	RegistryPasswordConfig = fxconfig.Str("REGISTRY_PASSWORD")
+)
+
 // Run drives one unit's planned steps, one per Next. The engine imposes the sequence and
 // nothing else: what a step does is the framework's business, and the container is only
 // the medium each step hands to the next.
@@ -95,30 +102,6 @@ func (r *Run) execute(ctx context.Context, step framework.Step) (*dagger.Contain
 	return container.Sync(ctx)
 }
 
-// finish ends the run, reporting it once however the cursor arrived here, and always
-// returns false so every stopping path in Next can end with it.
-func (r *Run) finish() bool {
-	if r.done {
-		return false
-	}
-
-	r.done = true
-	if r.err == nil {
-		r.report(func(obs observer.Observer, at time.Time) {
-			obs.ImageBuilt(r.unit.Name, r.unit.ImageName, at)
-		})
-	}
-
-	r.report(func(obs observer.Observer, at time.Time) { obs.RunDone(r.unit.Name, at, r.err) })
-	return false
-}
-
-// report is the one place the callback clock is read, so every report is stamped at the
-// moment it happens. There is no nil check: NewRun guarantees an observer.
-func (r *Run) report(emit func(obs observer.Observer, at time.Time)) {
-	emit(r.obs, time.Now())
-}
-
 // connect takes the run's connection from its session on first use and reuses it for every
 // later step: a container is bound to the connection that built it, so the steps of one run
 // cannot be spread across the fleet. The session spreads whole runs instead.
@@ -137,6 +120,24 @@ func (r *Run) connect() (*dagger.Client, error) {
 
 	r.client = client
 	return client, nil
+}
+
+// finish ends the run, reporting it once however the cursor arrived here, and always
+// returns false so every stopping path in Next can end with it.
+func (r *Run) finish() bool {
+	if r.done {
+		return false
+	}
+
+	r.done = true
+	if r.err == nil {
+		r.report(func(obs observer.Observer, at time.Time) {
+			obs.ImageBuilt(r.unit.Name, r.unit.ImageName, at)
+		})
+	}
+
+	r.report(func(obs observer.Observer, at time.Time) { obs.RunDone(r.unit.Name, at, r.err) })
+	return false
 }
 
 // Result joins the accumulator's fold with the live container this run owns, and is valid
@@ -161,13 +162,6 @@ func (r *Run) Result() BuildResult {
 		obs:       r.obs,
 	}
 }
-
-// Registry credentials for publishing built images, supplied via fx env config.
-var (
-	RegistryConfig         = fxconfig.Str("REGISTRY")
-	RegistryUsernameConfig = fxconfig.Str("REGISTRY_USERNAME")
-	RegistryPasswordConfig = fxconfig.Str("REGISTRY_PASSWORD")
-)
 
 // registryCreds is what the publish bracket needs from config, read once per verb rather
 // than once per unit. An empty username means no auth is attached at all, and dagger pushes
@@ -213,4 +207,10 @@ func (r *Run) publish(ctx context.Context, creds registryCreds) PublishResult {
 		ImageName:   r.out.Image,
 		ImageHash:   r.out.Hash,
 	}
+}
+
+// report is the one place the callback clock is read, so every report is stamped at the
+// moment it happens. There is no nil check: NewRun guarantees an observer.
+func (r *Run) report(emit func(obs observer.Observer, at time.Time)) {
+	emit(r.obs, time.Now())
 }

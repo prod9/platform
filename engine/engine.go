@@ -30,23 +30,48 @@ var (
 	DaggerEngineConfig = fxconfig.Str("DAGGER_ENGINE")
 	// DaggerEnginePortConfig is the engine pod port; the default mirrors apps/dagger-engine.cue.
 	DaggerEnginePortConfig = fxconfig.IntDef("DAGGER_ENGINE_PORT", 1234)
+
+	ErrNoJobs = errors.New("engine: empty units list, nothing to do")
+
+	// lookupHost is the resolver seam: swapped in tests, never at runtime.
+	lookupHost = net.DefaultResolver.LookupHost
 )
 
-// lookupHost is the resolver seam: swapped in tests, never at runtime.
-var lookupHost = net.DefaultResolver.LookupHost
+type (
+	BuildResult struct {
+		Unit *framework.BuildUnit
+		Err  error
 
-var ErrNoJobs = errors.New("engine: empty units list, nothing to do")
+		// container is the image this run produced; it leaves the package only through
+		// UnsafeContainer and is valid only while the session that built it is open. client
+		// is the connection it is bound to.
+		container *dagger.Container
+		client    *dagger.Client
 
-// cfgFrom takes the config off ctx, falling back to a fresh Configure() when the caller
-// seeded none — the same value a command would have built, with no env read at call time.
-// Config may ride a context because it is inert and has no lifetime; a Session owns
-// connections and so is always passed explicitly.
-func cfgFrom(ctx context.Context) *fxconfig.Source {
-	if cfg := fxconfig.FromContext(ctx); cfg != nil {
-		return cfg
+		// out and obs are the run's report, carried past the run so a publish continues the
+		// same stream and mints its scalars from the same fold. Only Run.Result fills them
+		// in — a BuildResult is never assembled anywhere else.
+		out *observer.Outcome
+		obs observer.Observer
 	}
-	return fxconfig.Configure()
-}
+
+	PublishResult struct {
+		BuildResult
+		ImageName string
+		ImageHash string
+	}
+)
+
+// UnsafeContainer hands over the built image, and the name is the warning: past here a
+// caller expresses container operations, which the engine otherwise owns exclusively.
+// export's file, exec's shell and preview's tunnel reach through it until the engine grows
+// verbs of its own for them; no new caller joins them.
+//
+// The container carries its own client internally, so Export, WithExec and Publish need
+// nothing else. A tunnel is not a container operation — Host().Tunnel needs a client this
+// door does not hand over, so preview forwards its port with Service.Up instead. Valid only
+// while the session that built it is open, and a failed run yields none.
+func (r BuildResult) UnsafeContainer() *dagger.Container { return r.container }
 
 // Hosts resolves the configured engine endpoints via DNS — no k8s API, no RBAC — and
 // reports only what it finds: an empty slice when DAGGER_ENGINE is unset or resolves to
@@ -76,6 +101,16 @@ func Hosts(ctx context.Context) ([]string, error) {
 	return hosts, nil
 }
 
+// Dial connects to one uniformly-chosen endpoint, or to a local auto-provisioned engine when
+// none are configured.
+func Dial(ctx context.Context) (*dagger.Client, error) {
+	hosts, err := Hosts(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return dial(ctx, pick(hosts))
+}
+
 // pick chooses one endpoint uniformly at random, or the empty host — the local engine — when
 // none are configured. Random replaces the round-robin cursor: the distribution over a run
 // of picks is the same and it keeps no state between calls, which is what lets the roster
@@ -85,16 +120,6 @@ func pick(hosts []string) string {
 		return ""
 	}
 	return hosts[rand.IntN(len(hosts))]
-}
-
-// Dial connects to one uniformly-chosen endpoint, or to a local auto-provisioned engine when
-// none are configured.
-func Dial(ctx context.Context) (*dagger.Client, error) {
-	hosts, err := Hosts(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return dial(ctx, pick(hosts))
 }
 
 // dial connects to the engine at host. An empty host carries no runner host, so dagger
@@ -107,30 +132,16 @@ func dial(ctx context.Context, host string) (*dagger.Client, error) {
 	return dagger.Connect(ctx, opts...)
 }
 
-type (
-	BuildResult struct {
-		Unit *framework.BuildUnit
-		Err  error
-
-		// container is the image this run produced; it leaves the package only through
-		// UnsafeContainer and is valid only while the session that built it is open. client
-		// is the connection it is bound to.
-		container *dagger.Container
-		client    *dagger.Client
-
-		// out and obs are the run's report, carried past the run so a publish continues the
-		// same stream and mints its scalars from the same fold. Only Run.Result fills them
-		// in — a BuildResult is never assembled anywhere else.
-		out *observer.Outcome
-		obs observer.Observer
+// cfgFrom takes the config off ctx, falling back to a fresh Configure() when the caller
+// seeded none — the same value a command would have built, with no env read at call time.
+// Config may ride a context because it is inert and has no lifetime; a Session owns
+// connections and so is always passed explicitly.
+func cfgFrom(ctx context.Context) *fxconfig.Source {
+	if cfg := fxconfig.FromContext(ctx); cfg != nil {
+		return cfg
 	}
-
-	PublishResult struct {
-		BuildResult
-		ImageName string
-		ImageHash string
-	}
-)
+	return fxconfig.Configure()
+}
 
 // buildArch answers the only arch question there is: does this image outlive the box that
 // built it? A plain build is discarded here and takes the host arch for speed — except
@@ -142,13 +153,3 @@ func (s *Session) buildArch(cfg *conf.Model) string {
 	}
 	return cfg.LocalArch
 }
-
-// UnsafeContainer hands over the built image, and the name is the warning: past here a
-// caller expresses container operations, which the engine otherwise owns exclusively.
-// export's file, exec's shell and preview's tunnel reach through it until the engine grows
-// verbs of its own for them; no new caller joins them.
-//
-// The container carries its own client internally, so a container operation needs nothing
-// else. It is valid only while the session that built it is open, and a failed run yields
-// none.
-func (r BuildResult) UnsafeContainer() *dagger.Container { return r.container }

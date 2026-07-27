@@ -12,14 +12,6 @@ type Outcome struct {
 	Err   error
 }
 
-// fail keeps the first failure reported: the step that broke is the cause, and the run's own
-// terminal error is that same error arriving a second time.
-func (o *Outcome) fail(err error) {
-	if o.Err == nil {
-		o.Err = err
-	}
-}
-
 // Accumulate composes the observer a run reports to and hands back the fold that observer
 // writes. Both come from one call because they are one decision — a run always folds, and
 // composing the caller in is the same act — and a caller gets an Observer plus an *Outcome,
@@ -62,4 +54,12 @@ func (a *accObserver) Published(unit, image, hash string, at time.Time) {
 
 func (a *accObserver) RunDone(unit string, at time.Time, err error) {
 	a.out.fail(err)
+}
+
+// fail keeps the first failure reported: the step that broke is the cause, and the run's own
+// terminal error is that same error arriving a second time.
+func (o *Outcome) fail(err error) {
+	if o.Err == nil {
+		o.Err = err
+	}
 }

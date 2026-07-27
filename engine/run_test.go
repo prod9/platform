@@ -14,6 +14,8 @@ import (
 	"platform.prodigy9.co/framework/scaffold"
 )
 
+var errStubStep = errors.New("stub step failed")
+
 // stubFramework records the steps it is asked to execute, so a test can assert the engine
 // drives the plan in order and stops where it should. It never touches dagger — the cursor's
 // sequencing is what is under test, not the container work.
@@ -22,8 +24,6 @@ type stubFramework struct {
 	seen   []framework.Step
 	failAt framework.Step
 }
-
-var errStubStep = errors.New("stub step failed")
 
 func (*stubFramework) Name() string                 { return "stub" }
 func (*stubFramework) Layout() framework.Layout     { return framework.LayoutBasic }
@@ -36,13 +36,12 @@ func (*stubFramework) Scaffold(context.Context, string, scaffold.Env, map[string
 	return scaffold.Spec{}, nil
 }
 
-// newStubRun builds a cursor with its client already in hand, so no test ever dials a
-// Dagger engine: the stub framework ignores the client entirely.
-func newStubRun(fw *stubFramework, obs observer.Observer) *Run {
-	unit := &framework.BuildUnit{Framework: fw, Name: "stubunit", ImageName: "stubimage"}
-	run := NewRun(nil, unit, obs)
-	run.client = &dagger.Client{}
-	return run
+func (f *stubFramework) Execute(_ context.Context, _ *dagger.Client, _ *framework.BuildUnit, step framework.Step, in *dagger.Container) (*dagger.Container, error) {
+	f.seen = append(f.seen, step)
+	if step == f.failAt {
+		return nil, errStubStep
+	}
+	return in, nil
 }
 
 // recorder is an Observer that keeps every callback as a readable line, so a test asserts
@@ -72,14 +71,6 @@ func (r *recorder) Published(unit, image, hash string, _ time.Time) {
 func (r *recorder) RunDone(unit string, _ time.Time, err error) {
 	r.lines = append(r.lines, "rundone "+unit)
 	r.errs = append(r.errs, err)
-}
-
-func (f *stubFramework) Execute(_ context.Context, _ *dagger.Client, _ *framework.BuildUnit, step framework.Step, in *dagger.Container) (*dagger.Container, error) {
-	f.seen = append(f.seen, step)
-	if step == f.failAt {
-		return nil, errStubStep
-	}
-	return in, nil
 }
 
 func TestRunDrivesEveryStepInOrder(t *testing.T) {
@@ -159,4 +150,13 @@ func TestRunWithNoStepsIsImmediatelyDone(t *testing.T) {
 	result := run.Result()
 	require.NoError(t, result.Err)
 	require.Nil(t, result.container)
+}
+
+// newStubRun builds a cursor with its client already in hand, so no test ever dials a
+// Dagger engine: the stub framework ignores the client entirely.
+func newStubRun(fw *stubFramework, obs observer.Observer) *Run {
+	unit := &framework.BuildUnit{Framework: fw, Name: "stubunit", ImageName: "stubimage"}
+	run := NewRun(nil, unit, obs)
+	run.client = &dagger.Client{}
+	return run
 }

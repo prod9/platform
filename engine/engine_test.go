@@ -10,21 +10,6 @@ import (
 	"platform.prodigy9.co/conf"
 )
 
-// rosterCtx seeds a context with a freshly-read config, which is where the roster takes
-// DAGGER_ENGINE from — the same shape a command hands to NewSession.
-func rosterCtx() context.Context {
-	return fxconfig.NewContext(context.Background(), fxconfig.Configure())
-}
-
-// stubLookup swaps the resolver seam for one test, so no roster test touches DNS.
-func stubLookup(t *testing.T, fn func(ctx context.Context, host string) ([]string, error)) {
-	t.Helper()
-
-	previous := lookupHost
-	lookupHost = fn
-	t.Cleanup(func() { lookupHost = previous })
-}
-
 func TestHostsResolvesAndSorts(t *testing.T) {
 	t.Setenv("DAGGER_ENGINE", "dagger-engine.platform.svc.cluster.local")
 	t.Setenv("DAGGER_ENGINE_PORT", "1234")
@@ -98,4 +83,19 @@ func TestPickReachesEveryHost(t *testing.T) {
 	}
 
 	r.Len(t, seen, len(hosts))
+}
+
+// rosterCtx seeds a context with a freshly-read config, which is where the roster takes
+// DAGGER_ENGINE from — the same shape a command hands to NewSession.
+func rosterCtx() context.Context {
+	return fxconfig.NewContext(context.Background(), fxconfig.Configure())
+}
+
+// stubLookup swaps the resolver seam for one test, so no roster test touches DNS.
+func stubLookup(t *testing.T, fn func(ctx context.Context, host string) ([]string, error)) {
+	t.Helper()
+
+	previous := lookupHost
+	lookupHost = fn
+	t.Cleanup(func() { lookupHost = previous })
 }
