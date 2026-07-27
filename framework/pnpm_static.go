@@ -35,7 +35,9 @@ func (PNPMStatic) Execute(ctx context.Context, client *dagger.Client, unit *Buil
 
 	switch step {
 	case StepBase:
-		return pnpmBase(client, unit), nil
+		builder := withBuildPkgs(BaseImageForUnit(client, unit))
+		builder = withPNPMPkgCache(client, withPNPM(builder))
+		return withUnitEnv(builder, unit), nil
 
 	case StepDeps:
 		return withPNPMDeps(in, host), nil
@@ -49,8 +51,11 @@ func (PNPMStatic) Execute(ctx context.Context, client *dagger.Client, unit *Buil
 			outdir = defaultBuildDir
 		}
 
-		// Static family: only the built bundle and a webserver ship, no language runtime.
-		runner := withRunnerPkgs(withPNPMDeps(pnpmBase(client, unit), host))
+		// Static family: only the built bundle and a webserver ship. The runner starts from
+		// the bare base, not the pnpm one — Node, corepack, the build packages and
+		// node_modules all belong to the build and nothing serves files with them.
+		runner := withRunnerPkgs(BaseImageForUnit(client, unit))
+		runner = withUnitEnv(runner, unit)
 		runner = withCaddyServer(runner).
 			WithWorkdir(RunDir).
 			WithDirectory(RunDir, in.Directory(outdir))

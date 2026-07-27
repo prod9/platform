@@ -35,7 +35,9 @@ func (PNPMBasic) Execute(ctx context.Context, client *dagger.Client, unit *Build
 
 	switch step {
 	case StepBase:
-		return pnpmBase(client, unit), nil
+		builder := withBuildPkgs(BaseImageForUnit(client, unit))
+		builder = withPNPMPkgCache(client, withPNPM(builder))
+		return withUnitEnv(builder, unit), nil
 
 	case StepDeps:
 		return withPNPMDeps(in, host), nil
@@ -52,7 +54,9 @@ func (PNPMBasic) Execute(ctx context.Context, client *dagger.Client, unit *Build
 		// The runner descends from the dependency layer, not from a bare base: this is an
 		// interpreted family, so node_modules must be in the image at runtime. Re-derived
 		// rather than threaded, and Dagger dedupes it against the layer StepDeps built.
-		runner := withRunnerPkgs(withPNPMDeps(pnpmBase(client, unit), host)).
+		runner := withBuildPkgs(BaseImageForUnit(client, unit))
+		runner = withPNPMPkgCache(client, withPNPM(runner))
+		runner = withRunnerPkgs(withPNPMDeps(withUnitEnv(runner, unit), host)).
 			WithWorkdir(RunDir).
 			WithDirectory(RunDir, in.Directory(outdir))
 		runner = withUnitAssets(runner, in, unit)

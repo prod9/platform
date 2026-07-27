@@ -61,7 +61,9 @@ func (PNPMWorkspace) Execute(ctx context.Context, client *dagger.Client, unit *B
 
 	switch step {
 	case StepBase:
-		return pnpmBase(client, unit).WithWorkdir(SrcDir), nil
+		builder := withBuildPkgs(BaseImageForUnit(client, unit))
+		builder = withPNPMPkgCache(client, withPNPM(builder))
+		return withUnitEnv(builder, unit).WithWorkdir(SrcDir), nil
 
 	case StepDeps:
 		// A workspace installs from the whole tree, not from filtered manifests: pnpm
@@ -79,7 +81,9 @@ func (PNPMWorkspace) Execute(ctx context.Context, client *dagger.Client, unit *B
 			outdir = defaultBuildDir
 		}
 
-		runner := withRunnerPkgs(pnpmBase(client, unit).WithWorkdir(SrcDir)).
+		runner := withBuildPkgs(BaseImageForUnit(client, unit))
+		runner = withPNPMPkgCache(client, withPNPM(runner))
+		runner = withRunnerPkgs(withUnitEnv(runner, unit).WithWorkdir(SrcDir)).
 			WithWorkdir(RunDir).
 			WithDirectory(RunDir, in.Directory(unit.Name+"/"+outdir)).
 			WithDirectory(RunDir+"/node_modules", in.Directory(unit.Name+"/node_modules"))
