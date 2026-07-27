@@ -116,9 +116,16 @@ grows rightward and hides the order. Each helper gets its own `x = helper(x)` li
 Dagger `.WithX()` calls chain freely, including off a helper that heads the chain. Compose in
 the framework's own build step — never build a composite helper that chains our helpers
 together outside framework code (that is how `pnpmBase` came to sit one letter from
-`withPNPMBase` and mean something else). Group the lines by what invalidates together, and
-keep each runner's provisioning prefix identical to its `StepBase` so Dagger dedupes it
-instead of installing the toolchain twice.
+`withPNPMBase` and mean something else). Group the lines by what invalidates together.
+
+**A runner either repeats `StepBase`'s prefix exactly or sheds it entirely — never
+almost.** A runner that keeps the build toolchain must re-derive `StepBase`'s calls in the
+same order, so Dagger dedupes the identical prefix instead of installing the toolchain
+twice; that is the interpreted families (`pnpm/basic`, `pnpm/workspace`). A runner that
+does not need the toolchain starts from the bare base instead and shares no prefix at all
+— `pnpm/static` and the Go runners. Both are correct; the failure is a prefix that
+*nearly* matches, which dedupes nothing and reads as if it should. Which family a runner
+is in: `docs/spec/frameworks.md`, "Which base a runner descends from".
 
 **Name the package manager, never the runtime underneath.** It is `withPNPM`, `pnpm build`,
 `pnpm run` — never `withNode`, never a bare `node` invocation. pnpm is the thing platform

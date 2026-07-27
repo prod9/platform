@@ -33,6 +33,8 @@ tables and lists; keep entries skimmable.
   topologies, and the load-balancer pitfall.
 - [`wolfi.md`](wolfi.md) — our base image's distro: why an Alpine package lookup is not
   evidence here, how to resolve a package against the image, and the packages we've verified.
+- [`caddy.md`](caddy.md) — the static family's webserver: where `Content-Type` comes from,
+  the `encode` defaults, and what `handle_errors` does to the response status.
 - [`nginx-gateway-fabric-install.md`](nginx-gateway-fabric-install.md) — the NGF / Gateway API
   install recipe: upstream URLs, the firewall-annotation patch, the serverTokens workaround,
   and the string-forcing constraint.

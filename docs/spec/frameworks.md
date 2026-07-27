@@ -15,15 +15,15 @@ A framework is a stateless value (an empty struct) implementing `framework.Frame
 carries per-stack knowledge and nothing else — no config, no engine handle, no build
 state. Seven methods:
 
-| Method                                            | Returns   | Role                                                      |
-| ------------------------------------------------- | --------- | --------------------------------------------------------- |
-| `Name() string`                                   | id        | Stable id (`go/basic`, `pnpm/static`, …); `[modules]` key |
-| `Layout() Layout`                                 | shape     | `basic` \| `workspace` — module topology                  |
-| `Discover(wd string) bool`                        | detect    | True if this stack owns `wd` (scaffold-time only)         |
-| `RequiredScaffoldInputs(wd) []string`             | inputs    | Operator inputs to prompt at init, by name (usually nil)  |
-| `Scaffold(ctx, wd, env, inputs) Spec`             | seed      | The framework's full, **resolved** contribution (below)   |
-| `Plan(*BuildUnit) []Step`                         | steps     | The ordered steps this unit's build is made of            |
-| `Execute(ctx, client, *BuildUnit, Step, in) (out, error)` | container | Run **one** step: container in → container out    |
+| Method                                                    | Returns   | Role                                                      |
+|-----------------------------------------------------------|-----------|-----------------------------------------------------------|
+| `Name() string`                                           | id        | Stable id (`go/basic`, `pnpm/static`, …); `[modules]` key |
+| `Layout() Layout`                                         | shape     | `basic` \| `workspace` — module topology                  |
+| `Discover(wd string) bool`                                | detect    | True if this stack owns `wd` (scaffold-time only)         |
+| `RequiredScaffoldInputs(wd) []string`                     | inputs    | Operator inputs to prompt at init, by name (usually nil)  |
+| `Scaffold(ctx, wd, env, inputs) Spec`                     | seed      | The framework's full, **resolved** contribution (below)   |
+| `Plan(*BuildUnit) []Step`                                 | steps     | The ordered steps this unit's build is made of            |
+| `Execute(ctx, client, *BuildUnit, Step, in) (out, error)` | container | Run **one** step: container in → container out            |
 
 `Discover` and `Scaffold` are scaffold-time: the build path reads `[modules]` (which pins
 `Name`), it never re-discovers.
@@ -79,10 +79,10 @@ shapes and the resolve mechanism live in [scaffolding](scaffolding.md).
 
 The module's topology on disk. Selects how `Build` roots the Dagger host directory.
 
-| Layout      | Meaning                                              | Marker                            |
-| ----------- | ---------------------------------------------------- | --------------------------------- |
-| `basic`     | Single self-contained module; `WorkDir` is the root  | `go.mod`, `pnpm-lock.yaml`, …     |
-| `workspace` | Module is one member of a multi-module workspace     | `go.work`, `pnpm-workspace.yaml`  |
+| Layout      | Meaning                                             | Marker                           |
+|-------------|-----------------------------------------------------|----------------------------------|
+| `basic`     | Single self-contained module; `WorkDir` is the root | `go.mod`, `pnpm-lock.yaml`, …    |
+| `workspace` | Module is one member of a multi-module workspace    | `go.work`, `pnpm-workspace.yaml` |
 
 Workspace frameworks root the host directory one level **up** from the module
 (`filepath.Join(unit.WorkDir, "..")`) so the workspace file and sibling modules come into
@@ -94,13 +94,13 @@ A **descriptive taxonomy, not a contract method** — the family names what has 
 in the runtime container to run the artifact. Orthogonal to the build language; it
 describes what a framework's runner stage lays down.
 
-| Family        | Produces                            | Runtime needs                  | Examples          |
-| ------------- | ----------------------------------- | ------------------------------ | ----------------- |
-| `native`      | Machine-native binary               | Nothing but the binary         | Go, Rust          |
-| `bytecode`    | Non-native binary                   | A VM/runtime                   | Java, Erlang, Elixir |
-| `interpreted` | Bundled/packaged sources (no build artifact) | Same toolchain as buildtime | Node, Rails       |
-| `static`      | Static asset bundle                 | A webserver only, no runtime   | Astro, Hugo, HTML |
-| `custom`      | Anything; escapes the taxonomy      | Whatever the build defines     | Dockerfile, Infra |
+| Family        | Produces                                     | Runtime needs                | Examples             |
+|---------------|----------------------------------------------|------------------------------|----------------------|
+| `native`      | Machine-native binary                        | Nothing but the binary       | Go, Rust             |
+| `bytecode`    | Non-native binary                            | A VM/runtime                 | Java, Erlang, Elixir |
+| `interpreted` | Bundled/packaged sources (no build artifact) | Same toolchain as buildtime  | Node, Rails          |
+| `static`      | Static asset bundle                          | A webserver only, no runtime | Astro, Hugo, HTML    |
+| `custom`      | Anything; escapes the taxonomy               | Whatever the build defines   | Dockerfile, Infra    |
 
 `native` copies just the compiled binary into a lean runner. `interpreted` carries build
 output plus `node_modules`. `static` drops in Caddy and the built bundle with no language
@@ -118,15 +118,15 @@ match must be checked before the one it would also satisfy.
 
 Order and detection rules:
 
-| # | Framework       | Name             | Layout      | Family        | Detects on                                    |
-| - | --------------- | ---------------- | ----------- | ------------- | --------------------------------------------- |
-| 1 | `Infra`         | `platform/infra` | `basic`     | `custom`      | Dir name contains `infra` (glob, not a file)  |
-| 2 | `GoWorkspace`   | `go/workspace`   | `workspace` | `native`      | `go.work`                                     |
-| 3 | `PNPMWorkspace` | `pnpm/workspace` | `workspace` | `interpreted` | `packages:` key in `pnpm-workspace.yaml`      |
-| 4 | `GoBasic`       | `go/basic`       | `basic`     | `native`      | `go.mod`                                      |
-| 5 | `PNPMStatic`    | `pnpm/static`    | `basic`     | `static`      | `astro.config.mjs`                            |
-| 6 | `PNPMBasic`     | `pnpm/basic`     | `basic`     | `interpreted` | `pnpm-lock.yaml`                              |
-| 7 | `Dockerfile`    | `dockerfile`     | `basic`     | `custom`      | `Dockerfile`                                  |
+| # | Framework       | Name             | Layout      | Family        | Detects on                                   |
+|---|-----------------|------------------|-------------|---------------|----------------------------------------------|
+| 1 | `Infra`         | `platform/infra` | `basic`     | `custom`      | Dir name contains `infra` (glob, not a file) |
+| 2 | `GoWorkspace`   | `go/workspace`   | `workspace` | `native`      | `go.work`                                    |
+| 3 | `PNPMWorkspace` | `pnpm/workspace` | `workspace` | `interpreted` | `packages:` key in `pnpm-workspace.yaml`     |
+| 4 | `GoBasic`       | `go/basic`       | `basic`     | `native`      | `go.mod`                                     |
+| 5 | `PNPMStatic`    | `pnpm/static`    | `basic`     | `static`      | `astro.config.mjs`                           |
+| 6 | `PNPMBasic`     | `pnpm/basic`     | `basic`     | `interpreted` | `pnpm-lock.yaml`                             |
+| 7 | `Dockerfile`    | `dockerfile`     | `basic`     | `custom`      | `Dockerfile`                                 |
 
 Why the order holds:
 
@@ -202,20 +202,29 @@ served root, the port and every header are the same bytes in every static image,
 framework's only input contract is the one output directory it copies to `RunDir`. Exactly
 one Caddy invocation exists anywhere in platform: the runner's default args.
 
-| Concern | Rule |
-| ---------------- | ---------------------------------------------------------------------- |
-| Listen           | `:3000`                                                                 |
-| `Content-Type`   | Go's `mime.TypeByExtension` over `/etc/mime.types`, plus `nosniff`      |
-| Compression      | `encode zstd gzip` — responses ≥512 bytes of a compressible type        |
-| Caching          | `public, max-age=0, must-revalidate` on every response                  |
-| Errors           | `handle_errors` serves `/{err.status_code}.html` at the error's status  |
-| Access log       | JSON on stdout; `trusted_proxies private_ranges` for the real client IP |
+**The served root is written from `RunDir`, never spelled out.** `RunDir` is platform's
+own constant and the directory the framework has just copied the bundle into; a second
+literal of the same path in the config is a copy that goes stale silently the day the FHS
+tree moves. Deriving the root from the constant is not deriving it from the project, so
+the Caddyfile stays a constant in the sense the ruling means.
 
-- **The MIME table is the whole Content-Type story.** Caddy's `file_server` sets
-  `Content-Type` from `mime.TypeByExtension` alone and sends *no* header when the extension
-  is unknown. It has no MIME map of its own, so a type missing from `/etc/mime.types` can
-  only be forced per-path with a `header` rule — the table is the mechanism, and `mailcap`
-  supplying it (above) is what makes this correct for free.
+| Concern        | Rule                                                                    |
+|----------------|-------------------------------------------------------------------------|
+| Listen         | `:3000`                                                                 |
+| Served root    | `RunDir`                                                                |
+| `Content-Type` | Go's `mime.TypeByExtension` over `/etc/mime.types`, plus `nosniff`      |
+| Compression    | `encode zstd gzip` — responses ≥512 bytes of a compressible type        |
+| Caching        | `public, max-age=0, must-revalidate` on every response                  |
+| Errors         | `handle_errors` serves `/{err.status_code}.html` at the error's status  |
+| Access log     | JSON on stdout; `trusted_proxies private_ranges` for the real client IP |
+
+Caddy's own behavior behind these rules — where `Content-Type` comes from, what `encode`
+defaults to, what `handle_errors` does to the status — is
+[`../vendor/caddy.md`](../vendor/caddy.md). What we choose given that behavior:
+
+- **The MIME table is the whole Content-Type story**, so `mailcap` supplying
+  `/etc/mime.types` (above) is what makes types correct for free, and a type missing from
+  it can only be forced per-path with a `header` rule.
   `X-Content-Type-Options: nosniff` follows from it: having got the type right, forbid the
   browser from guessing otherwise.
 - **One cache tier, because platform cannot know which files are content-addressed.** An
@@ -223,9 +232,9 @@ one Caddy invocation exists anywhere in platform: the runner's default args.
   the framework is handed a directory, not a bundler's manifest — a wrong guess serves a
   stale asset for a year. So everything revalidates, and `ETag`/`Last-Modified` make the
   common case a 304.
-- **Error pages keep their status.** `handle_errors` rewrites to the status-named page and
-  re-runs `file_server`; the response carries the original code, so a missing page is a real
-  404 with a real body. A project that ships no `404.html` gets a bodiless 404.
+- **Error pages keep their status.** The rewrite to the status-named page does not reset
+  the code, so a missing page is a real 404 with a real body. A project that ships no
+  `404.html` gets a bodiless 404.
 
 The container's own port is the container's business. Platform writes `:3000` and stops
 there: it does not read the module's `port` into the image, declare an exposed port, or
@@ -258,6 +267,22 @@ and there is no skip-tests opt-out. Full rationale:
   corepack. `pnpm/basic` and `pnpm/workspace` serve via bare `node`; `pnpm/static` serves
   the built bundle with Caddy under the HTTP surface above. Workspace runner marks `RunDir`
   as ESM (`withPNPMModuleFix`).
+
+  **The default build directory follows the family's own bundler, not one house value.**
+  A module's `build_dir` overrides it; unset, each pnpm framework falls back to what the
+  toolchain it discovers actually emits:
+
+  | Framework        | Default | Because                                                                                |
+  |------------------|---------|----------------------------------------------------------------------------------------|
+  | `pnpm/basic`     | `build` | SvelteKit `adapter-node` defaults its `out` to `build`                                 |
+  | `pnpm/workspace` | `build` | same                                                                                   |
+  | `pnpm/static`    | `dist`  | `pnpm/static` discovers on `astro.config.mjs`, and Astro defaults `outDir` to `./dist` |
+
+  One shared default across the three would be wrong for at least one of them, and wrong
+  in the way that costs the most: the runner copies a directory that was never emitted, so
+  the failure lands at the copy rather than at the misconfiguration. A testbed that sets
+  the bundler's output to match platform's default hides exactly this — each testbed
+  therefore leaves its bundler at *its* default, and platform is what meets it.
 
   **Which base a runner descends from follows the family, and is where image size is won or
   lost.** The interpreted runners descend from the pnpm base because `node_modules` and Node

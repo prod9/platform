@@ -13,14 +13,14 @@ one's internals.
 platform.toml ─parse─▶ config model ─interpret─▶ []*BuildUnit ─▶ engine.Run ─▶ images
 ```
 
-| Stage        | Package      | Responsibility                                                    |
-| ------------ | ------------ | ----------------------------------------------------------------- |
-| parse        | `conf/`   | read `platform.toml` → the **config model**                       |
-| config model | `conf/`   | `Model` / `Module` — parsed, defaulted, inferred config |
-| interpret    | `framework/` | config → **`[]*BuildUnit`** (one per selected module)             |
-| build model  | `framework/` | `BuildUnit` — the resolved, self-contained build def              |
-| strategies   | `framework/` | the `Framework` implementations — per-stack build knowledge       |
-| engine       | `engine/`    | the Dagger `Session` + `Run` — drives each unit's planned steps    |
+| Stage        | Package      | Responsibility                                              |
+|--------------|--------------|-------------------------------------------------------------|
+| parse        | `conf/`      | read `platform.toml` → the **config model**                 |
+| config model | `conf/`      | `Model` / `Module` — parsed, defaulted, inferred config     |
+| interpret    | `framework/` | config → **`[]*BuildUnit`** (one per selected module)       |
+| build model  | `framework/` | `BuildUnit` — the resolved, self-contained build def        |
+| strategies   | `framework/` | the `Framework` implementations — per-stack build knowledge |
+| engine       | `engine/`    | the Dagger `Session` + `Run` — drives each unit's steps     |
 
 ## How to think about it (the durable principle)
 
@@ -134,6 +134,14 @@ module); `render` emits the `k8s/` tree for the serverless `kubectl apply` path.
 (alias `serve`) starts the platform server — **its surface is under active rework and is
 not settled here**; [`platform-server.md`](platform-server.md) is its only spec. No `ops` group; no
 `discover` or `bootstrap` — re-run `init` to see detected modules.
+
+**A multi-module verb finishes every module, then fails once.** `build`, `export` and
+`publish` fan out, and the engine already hands back one result per unit rather than
+stopping at the first bad one — so the command walks all of them, does the work each
+successful unit earned, and returns the failures joined. Bailing on the first failure
+would throw away units that had already built and would report a module count that
+depends on which goroutine finished first. The exit code says whether *anything* failed;
+the log says which.
 
 ## Arch target (local vs publish)
 

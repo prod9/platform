@@ -38,14 +38,14 @@ type Session struct {
 }
 ```
 
-| Call                        | Role                                                             |
-| --------------------------- | ---------------------------------------------------------------- |
-| `NewSession(ctx)`           | open a session; dials nothing                                     |
-| `Build(ctx, cfg, mods, obs)`| build every matched unit, one run each                            |
-| `BuildAndPublish(…, tag, …)`| build and push each image as its run finishes                     |
-| `Clean(ctx)`                | prune every fleet engine's local cache (drives `platform clean`)  |
-| `Unsafe()`                  | one raw connection for an ad-hoc caller (`ls` only)               |
-| `Close()`                   | end every connection it opened, and every container built on one  |
+| Call                         | Role                                                             |
+|------------------------------|------------------------------------------------------------------|
+| `NewSession(ctx)`            | open a session; dials nothing                                    |
+| `Build(ctx, cfg, mods, obs)` | build every matched unit, one run each                           |
+| `BuildAndPublish(…, tag, …)` | build and push each image as its run finishes                    |
+| `Clean(ctx)`                 | prune every fleet engine's local cache (drives `platform clean`) |
+| `Unsafe()`                   | one raw connection for an ad-hoc caller (`ls` only)              |
+| `Close()`                    | end every connection it opened, and every container built on one |
 
 A session opens **as many connections as its work needs** — `connect()` dials one more and
 remembers it — and closes them together. One run uses one connection for all its steps,
@@ -55,6 +55,15 @@ dials many, and *that* is what spreads runs across the fleet.
 Commands open **one** session and defer `Close`. It is safe for concurrent use, and
 `NewRun` does no dialing at all (a connection is taken at the first `Next`), so there is
 never a reason to open a second.
+
+🚨 **A command that holds a session returns its errors; it never exits from inside.**
+`os.Exit` runs no deferred function, so a command that reaches `buildlog.Fatalln` on a
+failure path abandons every connection the session opened — the one case where the
+deferred `Close` above is a promise the code does not keep, and it is the failure paths
+where an engine is most likely to be left holding state. Session-holding commands are
+therefore Cobra `RunE`: they return, `main` reports and exits once, and `Close` runs on
+the way out. Commands that open no session keep `Run` — the rule follows the session, not
+tidiness.
 
 🚨 **A session's context is the session's own — no caller's cancellation reaches it.**
 Every connection is dialed into `Session.ctx`, a process scope. `Build` gives each unit a
@@ -73,27 +82,33 @@ its lifetime impossible to see.
 
 ## Runner discovery
 
-`runners` resolves the configured Dagger endpoints via DNS — no k8s API, no RBAC:
+The roster resolves the configured Dagger endpoints via DNS — no k8s API, no RBAC:
 
-| Config               | Default | Meaning                                                     |
-| -------------------- | ------- | ----------------------------------------------------------- |
-| `DAGGER_ENGINE`      | unset   | headless-Service DNS of the engine pool                     |
-| `DAGGER_ENGINE_PORT` | `1234`  | engine pod port (mirrors `apps/dagger-engine.cue`)          |
+| Config               | Default | Meaning                                            |
+|----------------------|---------|----------------------------------------------------|
+| `DAGGER_ENGINE`      | unset   | headless-Service DNS of the engine pool            |
+| `DAGGER_ENGINE_PORT` | `1234`  | engine pod port (mirrors `apps/dagger-engine.cue`) |
 
-`Hosts(ctx)` looks up the DNS name and returns one `tcp://<addr>:<port>` per resolved pod.
+`hosts(ctx)` looks up the DNS name and returns one `tcp://<addr>:<port>` per resolved pod.
 It reports **only what it finds**:
 
 - `DAGGER_ENGINE` unset → empty slice, no lookup.
 - DNS resolves to nothing → empty slice.
 - lookup failure → a real error, surfaced.
 
-Falling back to a local engine is **not** `Hosts`' decision — it reports emptiness and
-`Dial` decides, reading an empty roster as "let Dagger auto-provision and reuse the local
+Falling back to a local engine is **not** `hosts`' decision — it reports emptiness and
+`dial` decides, reading an empty roster as "let Dagger auto-provision and reuse the local
 engine." So unset `DAGGER_ENGINE` is an explicit operator choice for local, never inferred.
 
-`Dial(ctx)` picks **uniformly at random** among the resolved hosts. Random replaces the old
-round-robin cursor: the distribution over a run of picks is the same, and it needs no state
-kept between calls — which is what lets the roster stay a roster.
+**The roster is unexported in full.** `hosts` and `dial` are reached only through
+`Session`, which is the package's whole public surface for engine work; nothing outside
+`engine/` has ever needed an endpoint list, and exporting one invites a caller to dial
+around the session that would own the result. A future consumer exports them the day it
+exists, not before.
+
+`dial(ctx)` picks **uniformly at random** among the resolved hosts. Random replaces the
+old round-robin cursor: the distribution over a run of picks is the same, and it needs
+no state kept between calls — which is what lets the roster stay a roster.
 
 The resolver caches per the DNS record TTL, so a new pod becomes selectable as soon as DNS
 reflects it — no restart. Nothing else is remembered: two calls a second apart may
@@ -315,10 +330,10 @@ recording what happened — is coordination *around* engines.
 
 Scheduling splits in two and the halves must not meet:
 
-| Decision                 | Owner  | Inputs                                   |
-| ------------------------ | ------ | ---------------------------------------- |
-| which build runs next    | worker | pending records, concurrency policy      |
-| which runner executes it | engine | `Hosts()`, uniform choice at dial |
+| Decision                 | Owner  | Inputs                              |
+|--------------------------|--------|-------------------------------------|
+| which build runs next    | worker | pending records, concurrency policy |
+| which runner executes it | engine | the roster, uniform choice at dial  |
 
 **The worker never sees a host address.** If one leaks upward the boundary is gone and
 two schedulers begin fighting over the same capacity.
@@ -390,10 +405,10 @@ for the full rationale.
 
 The publish bracket reads three fx env-config values off the session's config source:
 
-| Config              | Role                          |
-| ------------------- | ----------------------------- |
-| `REGISTRY`          | registry host for auth        |
-| `REGISTRY_USERNAME` | registry user                 |
+| Config              | Role                                                        |
+|---------------------|-------------------------------------------------------------|
+| `REGISTRY`          | registry host for auth                                      |
+| `REGISTRY_USERNAME` | registry user                                               |
 | `REGISTRY_PASSWORD` | registry secret (set via `client.SetSecret`, never inlined) |
 
 When `REGISTRY_USERNAME` is empty, the bracket skips `WithRegistryAuth` entirely — Dagger
@@ -411,10 +426,10 @@ verb runs on a build-server, where nothing is local — so there is no `Target` 
 declared intent. There is a resolved arch string and the engine entrypoint that resolves
 it:
 
-| Entrypoint                        | Arch                                    |
-| --------------------------------- | --------------------------------------- |
-| `sess.BuildAndPublish`            | `publish_arch` — pushing *is* the answer |
-| `sess.Build(ctx, cfg, modnames)`  | `local_arch`, or `publish_arch` when `CI` is true |
+| Entrypoint                       | Arch                                              |
+|----------------------------------|---------------------------------------------------|
+| `sess.BuildAndPublish`           | `publish_arch` — pushing *is* the answer          |
+| `sess.Build(ctx, cfg, modnames)` | `local_arch`, or `publish_arch` when `CI` is true |
 
 Session entrypoints take `cfg` + module names and construct the units themselves; the arch
 rule is engine-internal and unexported, because it is only ever an input to an entrypoint
