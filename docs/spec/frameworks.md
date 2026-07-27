@@ -196,14 +196,18 @@ through a Caddyfile, so the file is the contract and the subcommand is not an al
 The config lives at Caddy's own packaged path, outside `RunDir` — a config file under the
 served root is a config file the world can download.
 
+**The Caddyfile is a constant.** Nothing in it is derived from the project being built — the
+served root, the port and every header are the same bytes in every static image, because the
+framework's only input contract is the one output directory it copies to `RunDir`. Exactly
+one Caddy invocation exists anywhere in platform: the runner's default args.
+
 | Concern | Rule |
-| ---------------- | -------------------------------------------------------------------- |
-| Listen           | the module's `port` (default `3000`), also the image's exposed port    |
-| `Content-Type`   | Go's `mime.TypeByExtension` over `/etc/mime.types`, plus `nosniff`     |
-| Compression      | `encode zstd gzip` — responses ≥512 bytes of a compressible type       |
-| Hashed assets    | `/_astro/*` → `public, max-age=31536000, immutable`                    |
-| Everything else  | `public, max-age=0, must-revalidate`                                   |
-| Errors           | `handle_errors` serves `/{err.status_code}.html` at the error's status |
+| ---------------- | ---------------------------------------------------------------------- |
+| Listen           | `:3000`                                                                 |
+| `Content-Type`   | Go's `mime.TypeByExtension` over `/etc/mime.types`, plus `nosniff`      |
+| Compression      | `encode zstd gzip` — responses ≥512 bytes of a compressible type        |
+| Caching          | `public, max-age=0, must-revalidate` on every response                  |
+| Errors           | `handle_errors` serves `/{err.status_code}.html` at the error's status  |
 | Access log       | JSON on stdout; `trusted_proxies private_ranges` for the real client IP |
 
 - **The MIME table is the whole Content-Type story.** Caddy's `file_server` sets
@@ -212,26 +216,24 @@ served root is a config file the world can download.
   `/etc/mime.types` cannot be patched in the Caddyfile. That is why `mailcap` is a runner
   package (above) and not a static-family one. `X-Content-Type-Options: nosniff` is set for
   the same reason: having got the type right, forbid the browser from guessing otherwise.
-- **Two cache tiers, split on content-addressing.** A hashed filename can never change
-  meaning, so it is cached for a year and never revalidated. Everything else is republished
-  in place under a stable name, so it must revalidate on every use — `ETag` and
-  `Last-Modified` then make the common case a 304. `_astro` is Astro's default output for
-  hashed bundles ([`build.assets`](https://docs.astro.build/en/reference/configuration-reference/)),
-  and Astro is what the static family discovers on.
-- **The config is validated in the build**, by the same Caddy that will run it
-  (`caddy validate`, its own step in the runner stage). An invalid Caddyfile is otherwise a
-  container that builds, publishes, deploys, and only then exits — so it fails the build
-  instead, for the same reason the Go frameworks run their tests there.
+- **One cache tier, because platform cannot know which files are content-addressed.** An
+  immutable, year-long tier is only safe over filenames that change with their contents, and
+  the framework is handed a directory, not a bundler's manifest — a wrong guess serves a
+  stale asset for a year. So everything revalidates, and `ETag`/`Last-Modified` make the
+  common case a 304.
 - **Error pages keep their status.** `handle_errors` rewrites to the status-named page and
   re-runs `file_server`; the response carries the original code, so a missing page is a real
-  404 with a real body. A project that ships no `404.html` gets a bodiless 404, which is the
-  same thing it got before.
+  404 with a real body. A project that ships no `404.html` gets a bodiless 404.
+
+The container's own port is the container's business. Platform writes `:3000` and stops
+there: it does not read the module's `port` into the image, declare an exposed port, or
+otherwise reach inside. `port` is `preview`'s forwarding input and nothing else.
 
 Deliberately absent, by convention rather than config: CSP, HSTS, and `X-Frame-Options`
 (per-app policy the origin cannot know, and the gateway's ground), precompressed sidecars
 (nothing in the build emits them, and searching for them costs three stats per request),
-SPA fallback (`static` is multi-page; Astro's `build.format` already emits real
-directories), h2c (TLS terminates at the gateway), and directory browsing.
+SPA fallback (`static` is multi-page), h2c (TLS terminates at the gateway), and directory
+browsing.
 
 ## Test-in-build is a hard gate
 
