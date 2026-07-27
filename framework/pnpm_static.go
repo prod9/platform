@@ -2,12 +2,15 @@ package framework
 
 import (
 	"context"
-	"strings"
 
 	"dagger.io/dagger"
 	"fx.prodigy9.co/errutil"
 	"platform.prodigy9.co/framework/scaffold"
 )
+
+// astroBuildDir is Astro's own default outDir, and Discover keys on astro.config.mjs — so
+// a project that names no build_dir is an Astro project taking Astro's default.
+const astroBuildDir = "dist"
 
 type PNPMStatic struct{ noScaffoldVars }
 
@@ -50,10 +53,7 @@ func (PNPMStatic) Execute(ctx context.Context, client *dagger.Client, unit *Buil
 		return in.WithDirectory(".", host).WithExec([]string{"pnpm", "build"}), nil
 
 	case StepBuildRunner:
-		outdir := strings.TrimSpace(unit.BuildDir)
-		if outdir == "" {
-			outdir = defaultBuildDir
-		}
+		outdir := buildDir(unit, astroBuildDir)
 
 		// Static family: only the built bundle and a webserver ship. Off the bare base, never
 		// the pnpm one — the runtime, corepack, the build packages and node_modules all
@@ -66,11 +66,7 @@ func (PNPMStatic) Execute(ctx context.Context, client *dagger.Client, unit *Buil
 			WithDirectory(RunDir, in.Directory(outdir))
 		runner = withUnitAssets(runner, in, unit)
 
-		cmd := strings.TrimSpace(unit.CommandName)
-		if cmd == "" {
-			cmd = "caddy"
-		}
-		return runner.WithDefaultArgs(pnpmRunArgs(cmd, unit, "run", "--config", caddyfilePath)), nil
+		return runner.WithDefaultArgs(runArgs(unit, "caddy", "run", "--config", caddyfilePath)), nil
 
 	default:
 		return nil, unknownStep(step)

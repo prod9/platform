@@ -7,8 +7,11 @@ import (
 )
 
 const (
-	defaultBuildDir = "build"               // pnpm output dir when BuildDir is unset
-	defaultNodeBin  = "/usr/local/bin/node" // run command for non-static pnpm builds
+	// sveltekitBuildDir is what SvelteKit's adapter-node defaults its `out` to, and both
+	// interpreted pnpm frameworks discover SvelteKit projects. `pnpm/static` is Astro and
+	// defaults elsewhere — see astroBuildDir.
+	sveltekitBuildDir = "build"
+	defaultNodeBin    = "/usr/local/bin/node" // run command for non-static pnpm builds
 )
 
 // nInstallScript installs the Node runtime pnpm rides on, from nodejs.org via tj/n.
@@ -59,14 +62,4 @@ func withPNPMDeps(base *dagger.Container, host *dagger.Directory) *dagger.Contai
 // pnpm/workspace output as modules. pnpm-specific — no other family needs it.
 func withPNPMModuleFix(base *dagger.Container) *dagger.Container {
 	return base.WithNewFile(RunDir+"/package.json", `{"type":"module"}`)
-}
-
-// pnpmRunArgs builds a pnpm runner's default args: the resolved command followed by
-// the operator's CommandArgs, or the framework's fallback args when none are given.
-func pnpmRunArgs(cmd string, unit *BuildUnit, fallback ...string) []string {
-	args := []string{cmd}
-	if len(unit.CommandArgs) > 0 {
-		return append(args, unit.CommandArgs...)
-	}
-	return append(args, fallback...)
 }

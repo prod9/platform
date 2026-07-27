@@ -4,7 +4,6 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"dagger.io/dagger"
 	"fx.prodigy9.co/errutil"
@@ -73,7 +72,9 @@ func (PNPMWorkspace) Execute(ctx context.Context, client *dagger.Client, unit *B
 	case StepDeps:
 		// A workspace installs from the whole tree, not from filtered manifests: pnpm
 		// resolves the members' interdependencies, so the sources must already be there.
-		return withBuildPkgs(in).
+		// The build packages are already on `in` from StepBase; adding them again here is a
+		// second `apk add` layer that installs nothing.
+		return in.
 			WithDirectory(".", host).
 			WithExec([]string{"pnpm", "-r", "install"}), nil
 
@@ -81,10 +82,7 @@ func (PNPMWorkspace) Execute(ctx context.Context, client *dagger.Client, unit *B
 		return in.WithExec([]string{"pnpm", "-r", "build"}), nil
 
 	case StepBuildRunner:
-		outdir := strings.TrimSpace(unit.BuildDir)
-		if outdir == "" {
-			outdir = defaultBuildDir
-		}
+		outdir := buildDir(unit, sveltekitBuildDir)
 
 		// StepBase's provisioning, repeated in the same order so Dagger dedupes the identical
 		// prefix instead of installing pnpm a second time.
@@ -102,11 +100,7 @@ func (PNPMWorkspace) Execute(ctx context.Context, client *dagger.Client, unit *B
 		runner = withPNPMModuleFix(runner)
 		runner = withUnitAssets(runner, in, unit)
 
-		cmd := strings.TrimSpace(unit.CommandName)
-		if cmd == "" {
-			cmd = defaultNodeBin
-		}
-		return runner.WithDefaultArgs(pnpmRunArgs(cmd, unit, ".")), nil
+		return runner.WithDefaultArgs(runArgs(unit, defaultNodeBin, ".")), nil
 
 	default:
 		return nil, unknownStep(step)

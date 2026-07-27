@@ -22,6 +22,7 @@ package framework
 
 import (
 	"fmt"
+	"strings"
 
 	"dagger.io/dagger"
 )
@@ -116,4 +117,32 @@ func withUnitAssets(runner, builder *dagger.Container, unit *BuildUnit) *dagger.
 		runner = runner.WithDirectory(dir, builder.Directory(dir))
 	}
 	return runner
+}
+
+// buildDir is the directory the runner copies out of the builder. bundlerDefault is what
+// the framework's own toolchain emits when the module names no build_dir — it is per
+// framework rather than one house value, because a shared default is necessarily wrong for
+// some family, and wrong in the way that costs most: the copy fails on a directory nothing
+// ever wrote.
+func buildDir(unit *BuildUnit, bundlerDefault string) string {
+	if dir := strings.TrimSpace(unit.BuildDir); dir != "" {
+		return dir
+	}
+	return bundlerDefault
+}
+
+// runArgs builds a runner's default args: the module's command name or the framework's own,
+// then the operator's CommandArgs or the framework's fallback. Nothing here is pnpm's — the
+// static runner's argv[0] is Caddy — so the name says run, not pnpm.
+func runArgs(unit *BuildUnit, defaultCmd string, fallback ...string) []string {
+	cmd := strings.TrimSpace(unit.CommandName)
+	if cmd == "" {
+		cmd = defaultCmd
+	}
+
+	args := []string{cmd}
+	if len(unit.CommandArgs) > 0 {
+		return append(args, unit.CommandArgs...)
+	}
+	return append(args, fallback...)
 }

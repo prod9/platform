@@ -2,7 +2,6 @@ package framework
 
 import (
 	"context"
-	"strings"
 
 	"dagger.io/dagger"
 	"fx.prodigy9.co/errutil"
@@ -50,10 +49,7 @@ func (PNPMBasic) Execute(ctx context.Context, client *dagger.Client, unit *Build
 		return in.WithDirectory(".", host).WithExec([]string{"pnpm", "build"}), nil
 
 	case StepBuildRunner:
-		outdir := strings.TrimSpace(unit.BuildDir)
-		if outdir == "" {
-			outdir = defaultBuildDir
-		}
+		outdir := buildDir(unit, sveltekitBuildDir)
 
 		// StepBase's provisioning, repeated in the same order so Dagger dedupes the identical
 		// prefix instead of installing pnpm a second time. Re-derived rather than threaded.
@@ -72,11 +68,7 @@ func (PNPMBasic) Execute(ctx context.Context, client *dagger.Client, unit *Build
 			WithDirectory(RunDir, in.Directory(outdir))
 		runner = withUnitAssets(runner, in, unit)
 
-		cmd := strings.TrimSpace(unit.CommandName)
-		if cmd == "" {
-			cmd = defaultNodeBin
-		}
-		return runner.WithDefaultArgs(pnpmRunArgs(cmd, unit, ".")), nil
+		return runner.WithDefaultArgs(runArgs(unit, defaultNodeBin, ".")), nil
 
 	default:
 		return nil, unknownStep(step)
