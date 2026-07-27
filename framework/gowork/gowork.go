@@ -10,8 +10,8 @@ import (
 
 var ErrBadGoWork = errors.New("malformed go.work file")
 
-// dumb scanning parser should suffice since go.work file should be pretty small and we
-// only need the module path names
+// A go.work file is small and only its module paths are wanted, so this scans lines
+// rather than linking Go's own parser.
 func ParseFile(filename string) (string, []string, error) {
 	workfile, err := os.Open(filename)
 	if err != nil {

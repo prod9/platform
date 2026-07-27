@@ -39,7 +39,6 @@ const caddyfile = `{
 }
 `
 
-// withCaddyServer installs Caddy and lays down the config it serves under.
 func withCaddyServer(base *dagger.Container) *dagger.Container {
 	return withPkgs(base, "caddy").WithNewFile(caddyfilePath, caddyfile)
 }

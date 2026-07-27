@@ -4,8 +4,9 @@ import (
 	"sync"
 )
 
-// multiplexer is for embedding into another struct to provide a simple way to multiplex
-// work process and collect results.
+// multiplexer runs one goroutine per input and blocks until all of them finish. Results
+// come back index-aligned with the inputs, so a caller reads a result back off the
+// position of the input that produced it rather than correlating by content.
 type multiplexer[TIn any, TOut any] struct {
 	sync.Mutex // prevent simultaneous write to results
 

@@ -63,7 +63,8 @@ func BaseImageForUnit(client *dagger.Client, unit *BuildUnit) *dagger.Container 
 		WithWorkdir(RunDir).
 		WithNewFile("/"+CacheBuster, CacheBuster).
 
-		// optimize dnf
+		// The apk cache persists across builds, so the refresh below re-downloads only
+		// what actually moved in Wolfi since the last one.
 		WithMountedCache("/var/cache/apk", apkCache).
 		WithExec([]string{"apk", "update"}).
 		WithExec([]string{"apk", "upgrade"})

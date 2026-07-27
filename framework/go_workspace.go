@@ -70,8 +70,9 @@ func (GoWorkspace) Execute(ctx context.Context, client *dagger.Client, unit *Bui
 				WithFile(SrcDir+"/"+mod+"/go.sum", host.File("./"+mod+"/go.sum"))
 		}
 
-		// NOTE: Users should `go work sync` if mod doesn't match as build logs maybe invisible
-		// or hard to track down for the user.
+		// A go.work whose members' go.mod files have drifted fails the download here, and
+		// the failure reads as an ordinary module resolution error rather than as drift.
+		// `go work sync` in the repo is the fix.
 		return builder.WithExec([]string{"go", "mod", "download", "-x", "all"}), nil
 
 	case StepTest:

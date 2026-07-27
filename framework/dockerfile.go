@@ -48,8 +48,9 @@ func (Dockerfile) Execute(ctx context.Context, client *dagger.Client, unit *Buil
 		args = append(args, unit.CommandArgs...)
 	}
 
-	// not using BaseImageForUnit because, well, dockerfiles have their own bases
-	// this framework should be discouraged
+	// The Dockerfile's own FROM line is the base, so BaseImageForUnit has no say here —
+	// and with it go the apk cache mount and the withBuildPkgs/withRunnerPkgs conventions
+	// every other framework shares.
 	opts := dagger.DirectoryDockerBuildOpts{
 		Platform: dagger.Platform(unit.Arch),
 	}

@@ -12,6 +12,9 @@ var (
 	PlatformFilename    = "platform.toml"
 )
 
+// ResolvePath locates the platform.toml governing wd: a wd naming a file is taken as the
+// config itself, a directory is searched and then each parent up to the filesystem root.
+// Walking up is what lets any command run from a module subdirectory of the project.
 func ResolvePath(wd string) (string, error) {
 	if !filepath.IsAbs(wd) {
 		wd_, err := filepath.Abs(wd)
@@ -26,28 +29,24 @@ func ResolvePath(wd string) (string, error) {
 		return "", err
 	}
 
-	if !info.IsDir() { // found a file
+	if !info.IsDir() {
 		return wd, nil
 	}
 
-	// try looking in current folder
 	filename := filepath.Join(wd, PlatformFilename)
 	info, err = os.Stat(filename)
 	if err == nil && !info.IsDir() {
-		// we found the file
 		return filename, err
 	}
 
+	// Only an absent platform.toml continues the walk; a stat that failed for any other
+	// reason is a real filesystem fault and stops here rather than climbing past it.
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return "", err
 	}
-	// keep looking in parent folder if:
-	//   * err == nil && info.IsDir()
-	//   * err != nil && errors.Is(err, fs.ErrNotExist)
 
 	parent := filepath.Dir(wd)
 	if parent == wd {
-		// no more parents :(
 		return "", ErrNoPlatformConfig
 	}
 

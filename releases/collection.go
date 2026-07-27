@@ -14,8 +14,9 @@ import (
 	"platform.prodigy9.co/releases/timeref"
 )
 
-// Collection is a collection of names of release irrespective of which naming strategy is
-// used. It encodes git operations required to list, create, and recover releases.
+// Collection holds every release name a repo carries, mixed strategies included — a repo
+// that migrated from semver to datestamps keeps both shapes in its tags, and compareNames
+// is what orders one list across them.
 type Collection struct {
 	cfg   *conf.Model
 	names []string

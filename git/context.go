@@ -43,7 +43,8 @@ func New(proj *conf.Model) *Context {
 
 func (ctx *Context) MainRemoteName() (string, error) { return ctx.mainRemote() }
 
-// IsClean checks if the working directory is clean (no uncommitted changes)
+// IsClean reports a dirty tree as ErrDirtyWorkdir rather than a bool, so a caller that
+// only wants to abort on one propagates it without a branch of its own.
 func (ctx *Context) IsClean() error {
 	status, err := ctx.run("status", "--porcelain")
 	if err != nil {
@@ -55,7 +56,6 @@ func (ctx *Context) IsClean() error {
 	return nil
 }
 
-// UpdateAllTags fetches all version tags from remote
 func (ctx *Context) UpdateAllTags() error {
 	remote, err := ctx.MainRemoteName()
 	if err != nil {
@@ -65,12 +65,10 @@ func (ctx *Context) UpdateAllTags() error {
 	return err
 }
 
-// SetVersionTag creates an annotated version tag with message
 func (ctx *Context) SetVersionTag(tagname, message string) (string, error) {
 	return ctx.run("tag", "-a", "-m", message, tagname)
 }
 
-// PushVersionTag pushes a version tag to remote
 func (ctx *Context) PushVersionTag(tagname string) error {
 	remote, err := ctx.MainRemoteName()
 	if err != nil {
@@ -80,22 +78,20 @@ func (ctx *Context) PushVersionTag(tagname string) error {
 	return err
 }
 
-// ListTags lists tags matching the given pattern
 func (ctx *Context) ListTags(pattern string) (string, error) {
 	return ctx.run("tag", "-l", pattern)
 }
 
-// GetTagMessage retrieves the message of an annotated tag
 func (ctx *Context) GetTagMessage(tagname string) (string, error) {
 	return ctx.run("tag", "-l", "--format=%(contents)", tagname)
 }
 
-// RecentCommits returns recent commit history for changelog generation
+// RecentCommits and CommitsSinceTag emit `<short-hash> <subject>` lines, the one shape
+// releases.parseLogOutput scans.
 func (ctx *Context) RecentCommits() (string, error) {
 	return ctx.run("log", "--pretty=%h %s")
 }
 
-// CommitsSinceTag returns commit history since a specific tag
 func (ctx *Context) CommitsSinceTag(tagname string) (string, error) {
 	return ctx.run("log", "--pretty=%h %s", tagname+"..HEAD")
 }

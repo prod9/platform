@@ -47,7 +47,7 @@ type (
 	}
 
 	Module struct {
-		WorkDir   string           `toml:"workdir,omitempty"` // the directory we'll be working in
+		WorkDir   string           `toml:"workdir,omitempty"` // relative to platform.toml; "." when unset
 		Timeout   timeouts.Timeout `toml:"timeout,omitempty"`
 		Framework string           `toml:"framework,omitempty"`
 

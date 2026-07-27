@@ -104,9 +104,9 @@ func Generate(cfg *conf.Model, g *git.Context, opts *Options) (*Release, error) 
 }
 
 func Create(cfg *conf.Model, g *git.Context, rel *Release) error {
-	// always fetch remote tags before making changes because someone else might have
-	// pushed a tag since we last fetched (or you yourself might have pushed a tag from
-	// another machine and forgot)
+	// The remote is the authority on which names are taken. A tag cut from another
+	// machine since the last fetch is invisible locally, and the local view is what
+	// picked the name about to be tagged here.
 	if err := g.UpdateAllTags(); err != nil {
 		return err
 	}
