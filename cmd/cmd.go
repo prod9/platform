@@ -1,10 +1,34 @@
 package cmd
 
 import (
+	"errors"
+	"fmt"
 	"time"
 
+	"platform.prodigy9.co/engine"
 	"platform.prodigy9.co/internal/buildlog"
 )
+
+// exitError carries a child process's status out of a command, so a command that must
+// reproduce that status still returns — leaving its deferred session Close to run — rather
+// than calling os.Exit from inside a session. Execute unwraps it into the process's code.
+type exitError struct{ code int }
+
+func (e exitError) Error() string { return fmt.Sprintf("exit status %d", e.code) }
+
+// failedUnits joins whatever the fanned-out units failed with, so a multi-module verb can
+// finish every module and fail once. The observer has already shown each failure as it
+// happened; what the joined error decides is the exit code, not the report. Returning nil
+// when every unit succeeded is what lets a command end with this line.
+func failedUnits(results []engine.BuildResult) error {
+	var errs []error
+	for _, result := range results {
+		if result.Err != nil {
+			errs = append(errs, result.Err)
+		}
+	}
+	return errors.Join(errs...)
+}
 
 // observer renders a build's steps for the operator. It is where the CLI decides what a
 // build looks like — buildlog is only the sink — and it is the reason a default `platform

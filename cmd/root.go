@@ -4,6 +4,7 @@
 package cmd
 
 import (
+	"errors"
 	"runtime/debug"
 
 	fxcmd "fx.prodigy9.co/cmd"
@@ -17,6 +18,11 @@ var rootCmd = &cobra.Command{
 	Use:     "platform",
 	Short:   "PRODIGY9 platform swiss army knife",
 	Version: versionString(debug.ReadBuildInfo()),
+
+	// Execute is the one reporter of a failure, and usage text is for a malformed
+	// invocation rather than for a build that failed on its tenth step.
+	SilenceErrors: true,
+	SilenceUsage:  true,
 }
 
 var (
@@ -56,7 +62,24 @@ func init() {
 	)
 }
 
-// Execute runs the root command; main defers to it.
-func Execute() error {
-	return rootCmd.Execute()
+// Execute runs the root command and reports the process's exit code, having already
+// reported whatever went wrong. It is the single place a platform invocation decides how it
+// ended: commands return, so their deferred cleanup — an engine session above all — runs
+// before the process goes anywhere near os.Exit.
+//
+// A command that must reproduce a child's status returns an exitError saying so; everything
+// else that fails is a plain 1.
+func Execute() int {
+	err := rootCmd.Execute()
+	if err == nil {
+		return 0
+	}
+
+	var exit exitError
+	if errors.As(err, &exit) {
+		return exit.code
+	}
+
+	buildlog.Error(err)
+	return 1
 }

@@ -19,7 +19,7 @@ import (
 var PreviewCmd = &cobra.Command{
 	Use:   "preview [modules...]",
 	Short: "Builds and starts up the container",
-	Run:   runPreview,
+	RunE:  runPreview,
 }
 
 var (
@@ -32,15 +32,15 @@ func init() {
 	PreviewCmd.Flags().StringVarP(&previewCmd, "exec", "e", "", "Specify custom command to run")
 }
 
-func runPreview(cmd *cobra.Command, args []string) {
+func runPreview(cmd *cobra.Command, args []string) error {
 	cfg, err := conf.Load(".")
 	if err != nil {
-		buildlog.Fatalln(err)
+		return err
 	}
 
 	modname, err := promptModule(cfg, args)
 	if err != nil {
-		buildlog.Fatalln(err)
+		return err
 	}
 
 	ctx := fxconfig.NewContext(context.Background(), fxconfig.Configure())
@@ -49,19 +49,19 @@ func runPreview(cmd *cobra.Command, args []string) {
 
 	results, err := sess.Build(ctx, cfg, []string{modname}, newObserver())
 	if err != nil {
-		buildlog.Fatalln(err)
+		return err
 	}
 
 	result := results[0]
 	if result.Err != nil {
-		buildlog.Fatalln(result.Err)
+		return result.Err
 	}
 
 	container := result.UnsafeContainer()
 
 	startArgs, err := container.DefaultArgs(ctx)
 	if err != nil {
-		buildlog.Fatalln(err)
+		return err
 	}
 	if custom := strings.TrimSpace(previewCmd); custom != "" {
 		startArgs = strings.Fields(custom)
@@ -73,10 +73,10 @@ func runPreview(cmd *cobra.Command, args []string) {
 		port = fromConfig
 	}
 	if port == 0 {
-		buildlog.Fatalln(errors.New("specify preview port with --port or port= key in platform.toml"))
+		return errors.New("specify preview port with --port or port= key in platform.toml")
 	}
 	if port < 1000 {
-		buildlog.Fatalln(fmt.Errorf("preview port %d is reserved; use a port >= 1000", port))
+		return fmt.Errorf("preview port %d is reserved; use a port >= 1000", port)
 	}
 
 	service := container.
@@ -89,9 +89,7 @@ func runPreview(cmd *cobra.Command, args []string) {
 	// Up forwards the host port from the service itself and blocks until interrupted, so the
 	// address is known before it is serving rather than read back off a tunnel handle.
 	buildlog.HTTPServing(fmt.Sprintf("http://localhost:%d", port))
-	if err := service.Up(ctx, dagger.ServiceUpOpts{
+	return service.Up(ctx, dagger.ServiceUpOpts{
 		Ports: []dagger.PortForward{{Frontend: port, Backend: port}},
-	}); err != nil {
-		buildlog.Fatalln(err)
-	}
+	})
 }

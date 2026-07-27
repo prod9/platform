@@ -11,25 +11,24 @@ import (
 	"platform.prodigy9.co/conf"
 	"platform.prodigy9.co/engine"
 	"platform.prodigy9.co/git"
-	"platform.prodigy9.co/internal/buildlog"
 	"platform.prodigy9.co/releases"
 )
 
 var PublishCmd = &cobra.Command{
 	Use:   "publish [modules...]",
 	Short: "Builds current directory and publish as a release",
-	Run:   runPublish,
+	RunE:  runPublish,
 }
 
-func runPublish(cmd *cobra.Command, args []string) {
+func runPublish(cmd *cobra.Command, args []string) error {
 	cfg, err := conf.Load(".")
 	if err != nil {
-		buildlog.Fatalln(err)
+		return err
 	}
 
 	strat, err := releases.FindStrategy(cfg.Strategy)
 	if err != nil {
-		buildlog.Fatalln(err)
+		return err
 	}
 
 	// Versioned strategies publish the latest git-tagged release; a non-versioned one
@@ -40,23 +39,23 @@ func runPublish(cmd *cobra.Command, args []string) {
 		g := git.New(cfg)
 		collection, err := releases.Recover(cfg, g)
 		if err != nil {
-			buildlog.Fatalln(err)
+			return err
 		}
 		rel, err := collection.GetLatest(g, strat)
 		if err != nil {
-			buildlog.Fatalln(err)
+			return err
 		}
 		if err = toml.NewEncoder(os.Stdout).Encode(rel); err != nil {
-			buildlog.Fatalln(err)
+			return err
 		}
 		name = rel.Name
 	} else if name, err = strat.NextName("", releases.BumpAny); err != nil {
-		buildlog.Fatalln(err)
+		return err
 	}
 
 	p := prompts.New(nil, args)
 	if !p.YesNo("publish " + name + "?") {
-		return
+		return nil
 	}
 
 	ctx := fxconfig.NewContext(context.Background(), fxconfig.Configure())
@@ -64,7 +63,5 @@ func runPublish(cmd *cobra.Command, args []string) {
 	defer sess.Close()
 
 	_, err = sess.BuildAndPublish(ctx, cfg, p.Args(), name, newObserver())
-	if err != nil {
-		buildlog.Fatalln(err)
-	}
+	return err
 }

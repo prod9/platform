@@ -11,26 +11,25 @@ import (
 	"github.com/spf13/cobra"
 	"platform.prodigy9.co/conf"
 	"platform.prodigy9.co/engine"
-	"platform.prodigy9.co/internal/buildlog"
 )
 
 var ExecCmd = &cobra.Command{
 	Use:   "exec [module] [-- command...]",
 	Short: "Run a command in, or open a shell into, the built container",
-	Run:   runExec,
+	RunE:  runExec,
 }
 
-func runExec(cmd *cobra.Command, args []string) {
+func runExec(cmd *cobra.Command, args []string) error {
 	selectors, command := splitAtDash(cmd, args)
 
 	cfg, err := conf.Load(".")
 	if err != nil {
-		buildlog.Fatalln(err)
+		return err
 	}
 
 	modname, err := selectModule(cfg, selectors)
 	if err != nil {
-		buildlog.Fatalln(err)
+		return err
 	}
 
 	ctx := fxconfig.NewContext(context.Background(), fxconfig.Configure())
@@ -39,12 +38,12 @@ func runExec(cmd *cobra.Command, args []string) {
 
 	results, err := sess.Build(ctx, cfg, []string{modname}, newObserver())
 	if err != nil {
-		buildlog.Fatalln(err)
+		return err
 	}
 
 	result := results[0]
 	if result.Err != nil {
-		buildlog.Fatalln(result.Err)
+		return result.Err
 	}
 
 	// A given command runs non-interactively (scriptable, smoke-friendly); a bare invocation
@@ -52,11 +51,11 @@ func runExec(cmd *cobra.Command, args []string) {
 	container := result.UnsafeContainer()
 	switch {
 	case len(command) > 0:
-		runInContainer(ctx, container, command)
+		return runInContainer(ctx, container, command)
 	case isTerminal(os.Stdout):
-		openShell(ctx, container)
+		return openShell(ctx, container)
 	default:
-		printSummary(ctx, container)
+		return printSummary(ctx, container)
 	}
 }
 
@@ -69,47 +68,53 @@ func splitAtDash(cmd *cobra.Command, args []string) (selectors, command []string
 	return args[:dash], args[dash:]
 }
 
-func runInContainer(ctx context.Context, container *dagger.Container, command []string) {
+// runInContainer runs the operator's command and makes its status this invocation's status,
+// which is what makes `platform exec -- <cmd>` scriptable. The code travels back as an
+// exitError rather than an os.Exit here, so the session that owns this container closes
+// first.
+func runInContainer(ctx context.Context, container *dagger.Container, command []string) error {
 	exec := container.WithExec(command, dagger.ContainerWithExecOpts{
 		Expect: dagger.ReturnTypeAny,
 	})
 
 	stdout, err := exec.Stdout(ctx)
 	if err != nil {
-		buildlog.Fatalln(err)
+		return err
 	}
 	stderr, err := exec.Stderr(ctx)
 	if err != nil {
-		buildlog.Fatalln(err)
+		return err
 	}
 	code, err := exec.ExitCode(ctx)
 	if err != nil {
-		buildlog.Fatalln(err)
+		return err
 	}
 
 	fmt.Fprint(os.Stdout, stdout)
 	fmt.Fprint(os.Stderr, stderr)
-	os.Exit(code)
-}
-
-func openShell(ctx context.Context, container *dagger.Container) {
-	if _, err := container.Terminal().Sync(ctx); err != nil {
-		buildlog.Fatalln(err)
+	if code != 0 {
+		return exitError{code: code}
 	}
+	return nil
 }
 
-func printSummary(ctx context.Context, container *dagger.Container) {
+func openShell(ctx context.Context, container *dagger.Container) error {
+	_, err := container.Terminal().Sync(ctx)
+	return err
+}
+
+func printSummary(ctx context.Context, container *dagger.Container) error {
 	command, err := container.DefaultArgs(ctx)
 	if err != nil {
-		buildlog.Fatalln(err)
+		return err
 	}
 	workdir, err := container.Workdir(ctx)
 	if err != nil {
-		buildlog.Fatalln(err)
+		return err
 	}
 	envs, err := container.EnvVariables(ctx)
 	if err != nil {
-		buildlog.Fatalln(err)
+		return err
 	}
 
 	fmt.Fprintln(os.Stdout, "workdir:", workdir)
@@ -118,14 +123,15 @@ func printSummary(ctx context.Context, container *dagger.Container) {
 	for _, env := range envs {
 		name, err := env.Name(ctx)
 		if err != nil {
-			buildlog.Fatalln(err)
+			return err
 		}
 		value, err := env.Value(ctx)
 		if err != nil {
-			buildlog.Fatalln(err)
+			return err
 		}
 		fmt.Fprintf(os.Stdout, "  %s=%s\n", name, value)
 	}
+	return nil
 }
 
 func isTerminal(f *os.File) bool {

@@ -1,13 +1,14 @@
 package main
 
 import (
+	"os"
+
 	"platform.prodigy9.co/cmd"
 	"platform.prodigy9.co/internal/buildlog"
 )
 
 func main() {
-	defer buildlog.Event("main", "done")
-	if err := cmd.Execute(); err != nil {
-		buildlog.Fatalln(err)
-	}
+	code := cmd.Execute()
+	buildlog.Event("main", "done")
+	os.Exit(code)
 }
