@@ -32,6 +32,10 @@ var (
 	DaggerEnginePortConfig = fxconfig.IntDef("DAGGER_ENGINE_PORT", 1234)
 
 	ErrNoJobs = errors.New("engine: empty units list, nothing to do")
+	// ErrEmptyPlan is unreachable while every framework plans at least one step, and stays
+	// loud for the same reason unknownStep does: the silent version is a build that reports
+	// success having executed nothing.
+	ErrEmptyPlan = errors.New("engine: framework planned no steps, nothing to build")
 
 	// lookupHost is the resolver seam: swapped in tests, never at runtime.
 	lookupHost = net.DefaultResolver.LookupHost

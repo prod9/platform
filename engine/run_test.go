@@ -142,14 +142,22 @@ func TestRunDoneIsReportedOnlyOnce(t *testing.T) {
 	require.Equal(t, 1, strings.Count(strings.Join(obs.lines, "\n"), "rundone"))
 }
 
-func TestRunWithNoStepsIsImmediatelyDone(t *testing.T) {
+// TestRunWithNoStepsFails pins the twin of unknownStep: a framework that plans nothing
+// built nothing, so the run must fail rather than report an imageless success — which is
+// what makes Result's "a success with no container cannot be constructed" true.
+func TestRunWithNoStepsFails(t *testing.T) {
 	fw := &stubFramework{}
-	run := newStubRun(fw, nil)
+	obs := &recorder{}
+	run := newStubRun(fw, obs)
 
 	require.False(t, run.Next(context.Background()))
+
 	result := run.Result()
-	require.NoError(t, result.Err)
+	require.ErrorIs(t, result.Err, ErrEmptyPlan)
 	require.Nil(t, result.container)
+	require.Empty(t, fw.seen, "an empty plan executes nothing")
+	require.Equal(t, []string{"rundone stubunit"}, obs.lines,
+		"a run that built nothing announces no image")
 }
 
 // newStubRun builds a cursor with its client already in hand, so no test ever dials a

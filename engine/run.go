@@ -47,9 +47,19 @@ type Run struct {
 // injects, plus caller when there is one. The fold is run-owned because Result mints its
 // scalars from it. It does no engine work — a connection is taken at the first Next — so
 // opening a run is free and never dials.
+//
+// A framework that plans nothing opens an already-failed run: it executes no step, reports
+// no image, and hands back a result carrying ErrEmptyPlan. Rejecting it here rather than
+// letting the cursor fall straight through is what makes Result's guarantee hold — an
+// imageless success is not a state a caller can be handed.
 func NewRun(sess *Session, unit *framework.BuildUnit, caller observer.Observer) *Run {
 	obs, out := observer.Accumulate(caller)
-	return &Run{sess: sess, unit: unit, out: out, obs: obs, steps: unit.Framework.Plan(unit)}
+
+	run := &Run{sess: sess, unit: unit, out: out, obs: obs, steps: unit.Framework.Plan(unit)}
+	if len(run.steps) == 0 {
+		run.err = ErrEmptyPlan
+	}
+	return run
 }
 
 // Next executes exactly one step and reports whether the run should continue. It returns
