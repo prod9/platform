@@ -4,7 +4,7 @@ https://edu.chainguard.dev/open-source/wolfi/overview/ @ 2026-07-26 -->
 # Wolfi (our base image)
 
 Every framework but `Dockerfile` and `Infra` builds on `cgr.dev/chainguard/wolfi-base:latest`
-(`framework/base.go:32`). Wolfi is Chainguard's rolling, glibc-free distro. Our side of the
+(`framework/base.go:32`). Wolfi is Chainguard's rolling, glibc-based distro. Our side of the
 contract — the FHS tree, the package sets, the never-pin rule, the apk cache mount — is
 [`../spec/frameworks.md`](../spec/frameworks.md); this file is only for looking *their*
 packaging up.
@@ -44,3 +44,5 @@ the image.
 | What provides the MIME table?        | `mailcap` (2.1.54-r7)                             | 2026-07-26 |
 | What does `mailcap` lay down?        | `/etc/mailcap`, `/etc/mime.types`, `/etc/nginx/mime.types` | 2026-07-26 |
 | Is `font/woff2` in that table?       | Yes — 2258 entries, 74869 bytes                   | 2026-07-26 |
+| What Caddy does `caddy` install?     | 2.11.4-r0                                         | 2026-07-27 |
+| What does `caddy` lay down?          | `/usr/bin/caddy`, `/etc/caddy/Caddyfile`, `/usr/share/caddy/index.html` | 2026-07-27 |

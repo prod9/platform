@@ -103,8 +103,8 @@ describes what a framework's runner stage lays down.
 | `custom`      | Anything; escapes the taxonomy      | Whatever the build defines     | Dockerfile, Infra |
 
 `native` copies just the compiled binary into a lean runner. `interpreted` carries build
-output plus `node_modules`. `static` drops in a Caddy file-server and the built bundle
-with no language runtime. `custom` owns its own base and runtime entirely (Dockerfile uses
+output plus `node_modules`. `static` drops in Caddy and the built bundle with no language
+runtime. `custom` owns its own base and runtime entirely (Dockerfile uses
 the user's `FROM`; `Infra` packs a `FROM scratch` manifest image).
 
 ## Discovery — first match wins
@@ -185,6 +185,50 @@ not just the static family.
 use `apk` and the names often coincide, which is exactly what makes the wrong lookup pass
 review. How to resolve one properly: [`../vendor/wolfi.md`](../vendor/wolfi.md).
 
+## The static family's HTTP surface
+
+`static` runners serve `RunDir` with Caddy from a platform-authored config at
+`/etc/caddy/Caddyfile` — `caddy run --config`, never the `caddy file-server` subcommand.
+The subcommand serves files correctly but exposes no config surface at all: no response
+headers, no cache policy, no error pages, no access log. Everything below is reachable only
+through a Caddyfile, so the file is the contract and the subcommand is not an alternative.
+
+The config lives at Caddy's own packaged path, outside `RunDir` — a config file under the
+served root is a config file the world can download.
+
+| Concern | Rule |
+| ---------------- | -------------------------------------------------------------------- |
+| Listen           | the module's `port` (default `3000`), also the image's exposed port    |
+| `Content-Type`   | Go's `mime.TypeByExtension` over `/etc/mime.types`, plus `nosniff`     |
+| Compression      | `encode zstd gzip` — responses ≥512 bytes of a compressible type       |
+| Hashed assets    | `/_astro/*` → `public, max-age=31536000, immutable`                    |
+| Everything else  | `public, max-age=0, must-revalidate`                                   |
+| Errors           | `handle_errors` serves `/{err.status_code}.html` at the error's status |
+| Access log       | JSON on stdout; `trusted_proxies private_ranges` for the real client IP |
+
+- **The MIME table is the whole Content-Type story.** Caddy's `file_server` sets
+  `Content-Type` from `mime.TypeByExtension` alone and sends *no* header when the extension
+  is unknown — there is no per-extension override in its config, so a type missing from
+  `/etc/mime.types` cannot be patched in the Caddyfile. That is why `mailcap` is a runner
+  package (above) and not a static-family one. `X-Content-Type-Options: nosniff` is set for
+  the same reason: having got the type right, forbid the browser from guessing otherwise.
+- **Two cache tiers, split on content-addressing.** A hashed filename can never change
+  meaning, so it is cached for a year and never revalidated. Everything else is republished
+  in place under a stable name, so it must revalidate on every use — `ETag` and
+  `Last-Modified` then make the common case a 304. `_astro` is Astro's default output for
+  hashed bundles ([`build.assets`](https://docs.astro.build/en/reference/configuration-reference/)),
+  and Astro is what the static family discovers on.
+- **Error pages keep their status.** `handle_errors` rewrites to the status-named page and
+  re-runs `file_server`; the response carries the original code, so a missing page is a real
+  404 with a real body. A project that ships no `404.html` gets a bodiless 404, which is the
+  same thing it got before.
+
+Deliberately absent, by convention rather than config: CSP, HSTS, and `X-Frame-Options`
+(per-app policy the origin cannot know, and the gateway's ground), precompressed sidecars
+(nothing in the build emits them, and searching for them costs three stats per request),
+SPA fallback (`static` is multi-page; Astro's `build.format` already emits real
+directories), h2c (TLS terminates at the gateway), and directory browsing.
+
 ## Test-in-build is a hard gate
 
 The Go frameworks run the module's tests **inside the image build**, as their own `Step`
@@ -204,8 +248,8 @@ and there is no skip-tests opt-out. Full rationale:
   compiled binary.
 - **pnpm** — Node comes from nodejs.org via `tj/n` (`n install lts`), pnpm via Node's
   corepack. `pnpm/basic` and `pnpm/workspace` serve via bare `node`; `pnpm/static` serves
-  the built bundle with Caddy `file-server`. Workspace runner marks `RunDir` as ESM
-  (`withPNPMModuleFix`).
+  the built bundle with Caddy under the HTTP surface above. Workspace runner marks `RunDir`
+  as ESM (`withPNPMModuleFix`).
 
   🚨 **Platform names no toolchain version, anywhere — never pin.** Node is whatever `n`
   calls `lts`; pnpm is whatever the repo's `package.json` `packageManager` field says, which
