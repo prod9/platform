@@ -12,8 +12,8 @@ import (
 	"cuelang.org/go/mod/modfile"
 	r "github.com/stretchr/testify/require"
 	"platform.prodigy9.co/conf"
-	"platform.prodigy9.co/framework/scaffold"
 	"platform.prodigy9.co/dsl"
+	"platform.prodigy9.co/framework/scaffold"
 )
 
 // infraSpec runs PlatformInfra.Scaffold against a temp dir (greenfield: CUE_MOD_PREFIX supplied) and
