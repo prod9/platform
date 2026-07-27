@@ -188,10 +188,11 @@ review. How to resolve one properly: [`../vendor/wolfi.md`](../vendor/wolfi.md).
 ## The static family's HTTP surface
 
 `static` runners serve `RunDir` with Caddy from a platform-authored config at
-`/etc/caddy/Caddyfile` — `caddy run --config`, never the `caddy file-server` subcommand.
-The subcommand serves files correctly but exposes no config surface at all: no response
-headers, no cache policy, no error pages, no access log. Everything below is reachable only
-through a Caddyfile, so the file is the contract and the subcommand is not an alternative.
+`/etc/caddy/Caddyfile` — `caddy run --config`, never the `caddy file-server` subcommand. The
+subcommand serves files correctly, and its flags reach the listener, compression and the
+access log, but response headers, cache policy, error pages, trusted proxies and the admin
+endpoint have no flags at all. Those are reachable only through a Caddyfile, so the file is
+the contract and the subcommand is not an alternative.
 
 The config lives at Caddy's own packaged path, outside `RunDir` — a config file under the
 served root is a config file the world can download.
@@ -212,10 +213,11 @@ one Caddy invocation exists anywhere in platform: the runner's default args.
 
 - **The MIME table is the whole Content-Type story.** Caddy's `file_server` sets
   `Content-Type` from `mime.TypeByExtension` alone and sends *no* header when the extension
-  is unknown — there is no per-extension override in its config, so a type missing from
-  `/etc/mime.types` cannot be patched in the Caddyfile. That is why `mailcap` is a runner
-  package (above) and not a static-family one. `X-Content-Type-Options: nosniff` is set for
-  the same reason: having got the type right, forbid the browser from guessing otherwise.
+  is unknown. It has no MIME map of its own, so a type missing from `/etc/mime.types` can
+  only be forced per-path with a `header` rule — the table is the mechanism, and `mailcap`
+  supplying it (above) is what makes this correct for free.
+  `X-Content-Type-Options: nosniff` follows from it: having got the type right, forbid the
+  browser from guessing otherwise.
 - **One cache tier, because platform cannot know which files are content-addressed.** An
   immutable, year-long tier is only safe over filenames that change with their contents, and
   the framework is handed a directory, not a bundler's manifest — a wrong guess serves a
@@ -232,8 +234,8 @@ otherwise reach inside. `port` is `preview`'s forwarding input and nothing else.
 Deliberately absent, by convention rather than config: CSP, HSTS, and `X-Frame-Options`
 (per-app policy the origin cannot know, and the gateway's ground), precompressed sidecars
 (nothing in the build emits them, and searching for them costs three stats per request),
-SPA fallback (`static` is multi-page), h2c (TLS terminates at the gateway), and directory
-browsing.
+SPA fallback (`static` is multi-page), and h2c and directory browsing (nothing has asked for
+either).
 
 ## Test-in-build is a hard gate
 
