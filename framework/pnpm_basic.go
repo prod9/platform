@@ -35,9 +35,13 @@ func (PNPMBasic) Execute(ctx context.Context, client *dagger.Client, unit *Build
 
 	switch step {
 	case StepBase:
-		builder := withBuildPkgs(BaseImageForUnit(client, unit))
-		builder = withPNPMPkgCache(client, withPNPM(builder))
-		return withUnitEnv(builder, unit), nil
+		builder := BaseImageForUnit(client, unit)
+		builder = withBuildPkgs(builder)
+		builder = withPNPM(builder)
+		builder = withPNPMPkgCache(client, builder)
+
+		builder = withUnitEnv(builder, unit)
+		return builder, nil
 
 	case StepDeps:
 		return withPNPMDeps(in, host), nil
@@ -51,12 +55,19 @@ func (PNPMBasic) Execute(ctx context.Context, client *dagger.Client, unit *Build
 			outdir = defaultBuildDir
 		}
 
-		// The runner descends from the dependency layer, not from a bare base: this is an
-		// interpreted family, so node_modules must be in the image at runtime. Re-derived
-		// rather than threaded, and Dagger dedupes it against the layer StepDeps built.
-		runner := withBuildPkgs(BaseImageForUnit(client, unit))
-		runner = withPNPMPkgCache(client, withPNPM(runner))
-		runner = withRunnerPkgs(withPNPMDeps(withUnitEnv(runner, unit), host)).
+		// StepBase's provisioning, repeated in the same order so Dagger dedupes the identical
+		// prefix instead of installing pnpm a second time. Re-derived rather than threaded.
+		runner := BaseImageForUnit(client, unit)
+		runner = withBuildPkgs(runner)
+		runner = withPNPM(runner)
+		runner = withPNPMPkgCache(client, runner)
+		runner = withUnitEnv(runner, unit)
+
+		// Runner packages ahead of the dependency layer: they never change, while the
+		// dependency layer keys on the repo's manifests. This is an interpreted family, so
+		// node_modules and the runtime stay in the image rather than being left behind.
+		runner = withRunnerPkgs(runner)
+		runner = withPNPMDeps(runner, host).
 			WithWorkdir(RunDir).
 			WithDirectory(RunDir, in.Directory(outdir))
 		runner = withUnitAssets(runner, in, unit)

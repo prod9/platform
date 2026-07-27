@@ -6,10 +6,11 @@ import "dagger.io/dagger"
 // served root serves everything in it, a config file included.
 const caddyfilePath = "/etc/caddy/Caddyfile"
 
-// caddyfile is the static family's HTTP surface. Response headers, cache policy, error pages,
-// trusted proxies and the admin endpoint have no `caddy file-server` flags, which is why the
-// subcommand is not an alternative. A constant: nothing in it is derived from the project
-// being built. Spec: docs/spec/frameworks.md, "The static family's HTTP surface".
+// caddyfile is the static family's HTTP surface. Response headers, cache policy, error
+// pages, trusted proxies and the admin endpoint have no `caddy file-server` flags, which
+// is why the subcommand is not an alternative. A constant: nothing in it is derived from
+// the project being built. Spec: docs/spec/frameworks.md, "The static family's HTTP
+// surface".
 const caddyfile = `{
 	admin off
 	servers {

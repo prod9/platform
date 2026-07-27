@@ -50,9 +50,12 @@ func (GoWorkspace) Execute(ctx context.Context, client *dagger.Client, unit *Bui
 
 	switch step {
 	case StepBase:
-		builder := withBuildPkgs(BaseImageForUnit(client, unit), "go").WithWorkdir(SrcDir)
+		builder := BaseImageForUnit(client, unit)
+		builder = withBuildPkgs(builder, "go").
+			WithWorkdir(SrcDir)
 		builder = withGoCaches(client, builder, goversion)
-		return withGoVersion(builder, goversion), nil
+		builder = withGoVersion(builder, goversion)
+		return builder, nil
 
 	case StepDeps:
 		builder := in.
@@ -86,7 +89,8 @@ func (GoWorkspace) Execute(ctx context.Context, client *dagger.Client, unit *Bui
 		return in.WithExec([]string{"go", "build", "-v", "-o", BinDir + "/" + outbin, pkg}), nil
 
 	case StepBuildRunner:
-		runner := withRunnerPkgs(BaseImageForUnit(client, unit))
+		runner := BaseImageForUnit(client, unit)
+		runner = withRunnerPkgs(runner)
 		runner = withUnitEnv(runner, unit)
 		runner = runner.WithFile(BinDir+"/"+outbin, in.File(BinDir+"/"+outbin))
 		runner = withUnitAssets(runner, in, unit)

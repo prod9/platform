@@ -35,9 +35,13 @@ func (PNPMStatic) Execute(ctx context.Context, client *dagger.Client, unit *Buil
 
 	switch step {
 	case StepBase:
-		builder := withBuildPkgs(BaseImageForUnit(client, unit))
-		builder = withPNPMPkgCache(client, withPNPM(builder))
-		return withUnitEnv(builder, unit), nil
+		builder := BaseImageForUnit(client, unit)
+		builder = withBuildPkgs(builder)
+		builder = withPNPM(builder)
+		builder = withPNPMPkgCache(client, builder)
+
+		builder = withUnitEnv(builder, unit)
+		return builder, nil
 
 	case StepDeps:
 		return withPNPMDeps(in, host), nil
@@ -51,12 +55,13 @@ func (PNPMStatic) Execute(ctx context.Context, client *dagger.Client, unit *Buil
 			outdir = defaultBuildDir
 		}
 
-		// Static family: only the built bundle and a webserver ship. The runner starts from
-		// the bare base, not the pnpm one — Node, corepack, the build packages and
-		// node_modules all belong to the build and nothing serves files with them.
-		runner := withRunnerPkgs(BaseImageForUnit(client, unit))
-		runner = withUnitEnv(runner, unit)
-		runner = withCaddyServer(runner).
+		// Static family: only the built bundle and a webserver ship. Off the bare base, never
+		// the pnpm one — the runtime, corepack, the build packages and node_modules all
+		// belong to the build, and nothing serves files with them.
+		runner := BaseImageForUnit(client, unit)
+		runner = withRunnerPkgs(runner)
+		runner = withCaddyServer(runner)
+		runner = withUnitEnv(runner, unit).
 			WithWorkdir(RunDir).
 			WithDirectory(RunDir, in.Directory(outdir))
 		runner = withUnitAssets(runner, in, unit)

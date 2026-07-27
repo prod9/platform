@@ -43,9 +43,12 @@ func (GoBasic) Execute(ctx context.Context, client *dagger.Client, unit *BuildUn
 
 	switch step {
 	case StepBase:
-		builder := withBuildPkgs(BaseImageForUnit(client, unit), "go").WithWorkdir(SrcDir)
+		builder := BaseImageForUnit(client, unit)
+		builder = withBuildPkgs(builder, "go").
+			WithWorkdir(SrcDir)
 		builder = withGoCaches(client, builder, goversion)
-		return withGoVersion(builder, goversion), nil
+		builder = withGoVersion(builder, goversion)
+		return builder, nil
 
 	case StepDeps:
 		// go.mod/go.sum alone, so the dependency layer keys on the manifests and survives
@@ -68,7 +71,8 @@ func (GoBasic) Execute(ctx context.Context, client *dagger.Client, unit *BuildUn
 	case StepBuildRunner:
 		// The base is a pure function of (client, unit) and Dagger dedupes it, so the
 		// runner re-derives its own rather than needing the builder's ancestor handed back.
-		runner := withRunnerPkgs(BaseImageForUnit(client, unit))
+		runner := BaseImageForUnit(client, unit)
+		runner = withRunnerPkgs(runner)
 		runner = withUnitEnv(runner, unit)
 		runner = runner.WithFile(BinDir+"/"+outbin, in.File(BinDir+"/"+outbin))
 		runner = withUnitAssets(runner, in, unit)
