@@ -132,8 +132,11 @@ on the same session as the container it authenticates.
 
 ### One observer, five callbacks
 
-A run reports everything to **one** `Observer`, supplied by whoever opens the run. There is
-no channel to close, no `Events()` getter, no snapshot-plus-delta:
+A run reports everything to **one** `Observer`, supplied by whoever opens the run. The
+contract, the tee and the accumulator are their own package —
+[`engine/observer/`](../../engine/observer/observer.go) — so `engine` imports the reporting
+vocabulary rather than declaring it. There is no channel to close, no `Events()` getter, no
+snapshot-plus-delta:
 
 ```go
 type Observer interface {
@@ -186,21 +189,23 @@ names.
 
 **The fold is a type of its own, and the observer that writes it is unexported.** The
 accumulator is only a writer; what the rest of the engine wants is the accumulated scalars.
-So `outcome` — the three-field fold — is the type `Run` and `BuildResult` hold, and no field
+So `Outcome` — the three-field fold — is the type `Run` and `BuildResult` hold, and no field
 anywhere is typed as a concrete `Observer` implementation. Composition and the fold are
 handed over together by one constructor:
 
 ```go
-func accumulate(caller Observer) (Observer, *outcome)
+func Accumulate(caller Observer) (Observer, *Outcome)
 ```
 
-Nothing outside the engine names the accumulator; nothing inside it names one either beyond
-that constructor. **Observer-typed fields stay `Observer`** — specializing one to an
-implementation is what this shape exists to prevent.
+`Outcome`'s three fields are exported and the accumulator's type is not: the fold crosses
+the package line into `engine`, and the writer never does. Nothing outside `observer` names
+the accumulator; nothing inside it names one either beyond that constructor.
+**Observer-typed fields stay `Observer`** — specializing one to an implementation is what
+this shape exists to prevent.
 
 The wrap site is `NewRun` — the fold has to be **run-owned**, because `Run.Result()` mints
 its scalars from it. Nil is eliminated **once, there**, so no downstream code carries a
-guard: `accumulate` returns the bare accumulator when `caller` is nil and `Tee(acc, caller)`
+guard: `Accumulate` returns the bare accumulator when `caller` is nil and `Tee(acc, caller)`
 otherwise.
 
 `Tee`'s contract is **non-nil children only**, and the run's report path has no nil check
@@ -208,7 +213,7 @@ at all. A caller that wants nothing simply passes nothing — the fold still hap
 the result depends on it.
 
 The accumulator is named for accumulating, never `Recorder`: "record" is already taken by
-the DB vocabulary (`BuildEvent` records) and by test helpers. `outcome` names the data;
+the DB vocabulary (`BuildEvent` records) and by test helpers. `Outcome` names the data;
 "fold" stays the verb for what the accumulator does to the stream.
 
 Callbacks fire on the **multiplexer's per-unit goroutine**, so an implementation serializes
