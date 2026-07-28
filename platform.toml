@@ -1,7 +1,8 @@
 maintainer = "Chakrit Wichian <chakrit@prodigy9.co>"
 
-platform = "auto"
-repository = "https://github.com/prod9/platform"
+local_arch = "auto"
+publish_arch = "amd64"
+repository = "github.com/prod9/platform"
 strategy = "semver"
 
 excludes = [
