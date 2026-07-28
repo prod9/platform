@@ -15,8 +15,14 @@ const caddyfilePath = "/etc/caddy/Caddyfile"
 // is why the subcommand is not an alternative. Still a constant in the sense that matters:
 // the only thing interpolated is RunDir, platform's own path, never anything from the
 // project being built. Spelling that path out a second time here is how it goes stale the
-// day the FHS tree moves. Spec: docs/spec/frameworks.md, "The static family's HTTP
-// surface"; Caddy's own behavior: docs/vendor/caddy.md.
+// day the FHS tree moves.
+//
+// `{$PORT:3000}` is Caddy's own pre-parse env substitution, not a Go one — Caddy resolves
+// it against the container's environment when the runner starts, so the file holds the same
+// bytes in every static image and platform never learns the port. Nothing here or anywhere
+// else sets PORT; it arrives from whoever runs the image, or it does not and 3000 stands.
+// Spec: docs/spec/frameworks.md, "The static family's HTTP surface"; Caddy's own behavior:
+// docs/vendor/caddy.md.
 var caddyfile = fmt.Sprintf(`{
 	admin off
 	servers {
@@ -24,7 +30,7 @@ var caddyfile = fmt.Sprintf(`{
 	}
 }
 
-:3000 {
+:{$PORT:3000} {
 	root * %s
 	encode zstd gzip
 
