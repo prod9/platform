@@ -11,7 +11,11 @@ on the app's behalf, and never templates a listen address into an app's config.
 
 An application that needs a configurable port reads `PORT` itself, the way 12-factor
 prescribes. Where platform supplies the server — `pnpm/static`, whose Caddy is platform's
-own — the port is a fixed convention (`:3000`) written as a literal, not a knob.
+own — Caddy is that application: its config listens on `:{$PORT:3000}`, reading the variable
+from its own environment at start and falling back to 3000. Platform writes that reference
+and never the answer. Nothing sets `PORT` on the container's behalf — not the module's
+`port` key, not `preview`, not a framework — so the value can only arrive from outside, from
+whoever runs the image.
 
 `preview` forwards the port the operator configured and makes no container change of any
 kind. The `port` key exists for that forwarding and nothing else.
@@ -30,7 +34,8 @@ by reading one file rather than by building an image and looking inside.
 ## Consequences
 
 - `framework/caddy.go` is a constant. Nothing in the Caddyfile derives from the project being
-  built: not the port, not the served root, not a path matcher.
+  built: not the served root, not a path matcher, and not the listen port — `{$PORT:3000}` is
+  the same bytes in every static image, resolved by Caddy at start and never by platform.
 - No framework declares `WithExposedPort`. Kubernetes ignores the OCI field anyway, and
   declaring it would state a port platform does not own.
 - A framework may not special-case a bundler's output layout. `pnpm/static` is handed one

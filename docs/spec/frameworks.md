@@ -198,9 +198,19 @@ The config lives at Caddy's own packaged path, outside `RunDir` — a config fil
 served root is a config file the world can download.
 
 **The Caddyfile is a constant.** Nothing in it is derived from the project being built — the
-served root, the port and every header are the same bytes in every static image, because the
-framework's only input contract is the one output directory it copies to `RunDir`. Exactly
-one Caddy invocation exists anywhere in platform: the runner's default args.
+served root, the listen address and every header are the same bytes in every static image,
+because the framework's only input contract is the one output directory it copies to
+`RunDir`. Exactly one Caddy invocation exists anywhere in platform: the runner's default
+args.
+
+**The listen port is `{$PORT:3000}` — an env reference, not a value platform holds.** Caddy
+is the application in a static image, and an application reads its own port from the
+environment; the Caddyfile spells that read out and the deployment supplies the answer, or
+does not and gets 3000. The bytes are identical in every static image, so this is a constant
+in the sense above: platform writes the same reference every time and never resolves it,
+never reads the module's `port` into the image, and never sets `PORT` on the container.
+Caddy substitutes it before parsing, at container start —
+[`../vendor/caddy.md`](../vendor/caddy.md).
 
 **The served root is written from `RunDir`, never spelled out.** `RunDir` is platform's
 own constant and the directory the framework has just copied the bundle into; a second
@@ -210,7 +220,7 @@ the Caddyfile stays a constant in the sense the ruling means.
 
 | Concern        | Rule                                                                    |
 |----------------|-------------------------------------------------------------------------|
-| Listen         | `:3000`                                                                 |
+| Listen         | `:{$PORT:3000}` — the environment's, defaulted, never platform's        |
 | Served root    | `RunDir`                                                                |
 | `Content-Type` | Go's `mime.TypeByExtension` over `/etc/mime.types`, plus `nosniff`      |
 | Compression    | `encode zstd gzip` — responses ≥512 bytes of a compressible type        |
@@ -236,9 +246,11 @@ defaults to, what `handle_errors` does to the status — is
   the code, so a missing page is a real 404 with a real body. A project that ships no
   `404.html` gets a bodiless 404.
 
-The container's own port is the container's business. Platform writes `:3000` and stops
-there: it does not read the module's `port` into the image, declare an exposed port, or
-otherwise reach inside. `port` is `preview`'s forwarding input and nothing else.
+The container's own port is the container's business. Platform writes the `PORT` reference
+and stops there: it does not read the module's `port` into the image, set `PORT` on the
+container, declare an exposed port, or otherwise reach inside. `port` is `preview`'s
+forwarding input and nothing else — a static site previewed on a port other than 3000 needs
+`PORT` in the module's `[env]` to match, and platform will not infer it.
 
 Deliberately absent, by convention rather than config: CSP, HSTS, and `X-Frame-Options`
 (per-app policy the origin cannot know, and the gateway's ground), precompressed sidecars

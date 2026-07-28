@@ -1,5 +1,5 @@
-<!-- derived from: https://caddyserver.com/docs/caddyfile/directives/{encode,file_server} +
-github.com/caddyserver/caddy v2.11.4 modules/caddyhttp/fileserver/staticfiles.go @ 2026-07-27 -->
+<!-- derived from: https://caddyserver.com/docs/caddyfile/{concepts,directives/{encode,file_server}} +
+github.com/caddyserver/caddy v2.11.4 modules/caddyhttp/fileserver/staticfiles.go @ 2026-07-28 -->
 
 # Caddy (the static family's webserver)
 
@@ -50,6 +50,19 @@ the encoders.
 status-named page and re-running `file_server` serves that page **at the original error
 status** — the code is not reset to 200 by the rewrite. A `status` subdirective exists to
 override it deliberately; we do not use one.
+
+## Environment variables in the Caddyfile
+
+`{$NAME}` expands to the environment variable's value, and `{$NAME:default}` supplies a
+default for when the variable is unset. The expansion happens **before Caddyfile parsing
+begins** — it is textual, so a variable can expand to an empty value, a partial token, or
+several tokens and lines. Being pre-parse, it reads the environment of the `caddy run`
+process at config load, which for our runner is container start.
+
+This is the one substitution allowed in a site address: Caddy's docs state that
+placeholders cannot be used in addresses, but Caddyfile environment variables can. The
+runtime `{env.NAME}` placeholder is the other form — resolved per request, unsupported in
+addresses, and not something we use.
 
 ## Not verified here
 
