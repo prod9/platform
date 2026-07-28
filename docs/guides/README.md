@@ -16,6 +16,9 @@ detail rather than inlining it. Update in place.
 
 ## Index
 
+- [`cutting-a-release.md`](cutting-a-release.md) — green `main` → published GitHub release:
+  changelog, notes file, tag, branch push, golden re-record, `gh release create`. Ordered so
+  the dirty-worktree refusal never bites.
 - [`troubleshooting-build-cache.md`](troubleshooting-build-cache.md) — `platform clean` as
   first-line diagnosis for a "worked on a fresh checkout but not here" build failure; the
   Dagger cache-poisoning mode; why pnpm→apk is never the fix.
