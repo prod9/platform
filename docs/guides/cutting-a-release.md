@@ -3,9 +3,10 @@
 Takes a green `main` to a published GitHub release: a notes file, a tag, a pushed branch, a
 re-recorded golden, and a release page carrying the notes.
 
-`platform release` refuses a dirty worktree, so everything written by hand lands **before**
-the tag; everything the tag itself moves lands **after** it. That split is what the ordering
-below is for.
+The notes are drafted **outside the repo**, in `/tmp`. Their permanent home is the GitHub
+release page, so a copy in the tree is a second original that drifts, and `platform release`
+refuses a dirty worktree anyway — an uncommitted draft would block the tag it exists to
+describe. Nothing here commits until step 5, and that commit is the tag's own drift.
 
 ## 0. Preconditions
 
@@ -25,7 +26,7 @@ going in.
 ```sh
 git fetch gh --tags
 git describe --tags --abbrev=0                       # the previous tag, e.g. v0.9.16
-git log --reverse --format='- `%h` %s' v0.9.16..HEAD > /tmp/changelog.txt
+git log --reverse --format='- `%h` %s' v0.9.16..HEAD > /tmp/v0.9.17-release.md
 ```
 
 🚨 **Capture to a file and read the file.** `git log` on a release-sized range is long
@@ -35,7 +36,7 @@ says so.
 
 ## 2. Write the notes file
 
-One file, `docs/scratch/<YYYY-MM-DD>-<version>-release.md`, two sections:
+One file, `/tmp/<version>-release.md`, two sections:
 
 - **Changelog** — the step-1 list, verbatim: one line per commit, hash and subject. No
   editing, no grouping, no judgement. It is the record of what went in.
@@ -44,12 +45,8 @@ One file, `docs/scratch/<YYYY-MM-DD>-<version>-release.md`, two sections:
   move, a renamed symbol, a docs pass, a test change: all belong to the changelog and none
   belong here. If a reader cannot act on a line, it is not a release note.
 
-The notes file is the last commit before the tag, so its own commit is the one line the
-changelog cannot contain. That is fine and needs no fixing.
-
-```sh
-git add docs/scratch/<file>.md && git commit
-```
+Nothing is committed here — the worktree must still be clean when step 3 runs, and the
+changelog is complete precisely because no release-prep commit exists to be missing from it.
 
 ## 3. Cut the tag
 
@@ -90,12 +87,12 @@ smoke red on `main` for whoever runs it next.
 ```sh
 gh release create v0.9.17 --verify-tag \
   --title v0.9.17 \
-  --notes-file docs/scratch/<YYYY-MM-DD>-v0.9.17-release.md
+  --notes-file /tmp/v0.9.17-release.md
 ```
 
 `--verify-tag` refuses to invent a tag that does not exist, which is what catches a step-3
-that never ran. The GitHub release page is the canonical home of the text from then on; the
-file stays in the repo as the record of what was published.
+that never ran. The release page is the canonical home of the text from here on — edit it
+there, not in a file.
 
 ## What this does not do
 
