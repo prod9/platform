@@ -128,8 +128,13 @@ does not need the toolchain starts from the bare base instead and shares no pref
 is in: `docs/spec/frameworks.md`, "Which base a runner descends from".
 
 **Name the package manager, never the runtime underneath.** It is `withPNPM`, `pnpm build`,
-`pnpm run` — never `withNode`, never a bare `node` invocation. pnpm is the thing platform
-drives; Node is an implementation detail of pnpm arriving.
+`pnpm run` — never `withNode`. pnpm is the thing platform drives; Node is an implementation
+detail of pnpm arriving. The law governs what platform *names* — helpers, the commands it
+issues during a build, docs. It stops at the runner's default command: `pnpm/basic` and
+`pnpm/workspace` ship `node .`, deliberately, because that entrypoint runs an already-built
+bundle and pnpm is a build-time tool rather than a runtime supervisor
+(`docs/spec/frameworks.md`, "Bare `node` is the interpreted runners' default command on
+purpose"). Settled; an audit that re-files it is wrong.
 
 Commit messages **(per-repo Law)**: `area: Capitalized description`. Prefix is a code
 component/topic (`deps:`, `docs:`, `tooling:`, `cmd:`, `kubectl:`), not a skill or tool

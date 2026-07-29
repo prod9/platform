@@ -280,6 +280,13 @@ and there is no skip-tests opt-out. Full rationale:
   the built bundle with Caddy under the HTTP surface above. Workspace runner marks `RunDir`
   as ESM (`withPNPMModuleFix`).
 
+  **Bare `node` is the interpreted runners' default command on purpose.** The runner's
+  default args are a runtime entrypoint over an already-built bundle, and pnpm is a
+  build-time tool, not a runtime supervisor — routing the entrypoint through `pnpm start`
+  would add a process layer and require every application to carry a `start` script that
+  itself invokes the runtime. A module names its own entrypoint with `cmd`/`args` in
+  `platform.toml`; unset, the interpreted families fall back to `node .`.
+
   **The default build directory follows the family's own bundler, not one house value.**
   A module's `build_dir` overrides it; unset, each pnpm framework falls back to what the
   toolchain it discovers actually emits:
