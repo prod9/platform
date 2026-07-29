@@ -23,6 +23,15 @@ func TestProject_inferValues(t *testing.T) {
 	r.Equal(t, "ghcr.io/prod9/platform/"+ModNames[1], proj.Modules[ModNames[1]].ImageName)
 }
 
+// TestRepositoryURL pins the derivation every consumer of a link goes through. The stored
+// form is scheme-less, so pasting it into a URL is the bug this function exists to stop;
+// a platform.toml predating that rule still carries the scheme, and must not double it.
+func TestRepositoryURL(t *testing.T) {
+	r.Equal(t, "https://github.com/prod9/platform", RepositoryURL("github.com/prod9/platform"))
+	r.Equal(t, "https://github.com/prod9/platform", RepositoryURL("https://github.com/prod9/platform"))
+	r.Equal(t, "", RepositoryURL(""))
+}
+
 func TestProject_vars(t *testing.T) {
 	// [vars] is the verbatim DSL \(var) table — a pure passthrough map.
 	// Bools and numbers are strings (TOML has no untyped scalar the DSL wants),

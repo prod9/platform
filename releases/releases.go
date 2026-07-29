@@ -159,7 +159,7 @@ func generateMessage(cfg *conf.Model, title string, refs []CommitRef) string {
 		sb.WriteString("* [")
 		sb.WriteString(ref.Hash)
 		sb.WriteString("][")
-		sb.WriteString(cfg.Repository)
+		sb.WriteString(conf.RepositoryURL(cfg.Repository))
 		sb.WriteString("/commit/")
 		sb.WriteString(ref.Hash)
 		sb.WriteString("] ")

@@ -177,6 +177,17 @@ func InferImageBase(repository string) string {
 	return ""
 }
 
+// RepositoryURL derives the browser form of a repository address. The stored value is
+// scheme-less, so anything rendering a link goes through here rather than concatenating —
+// a raw value produces text no client resolves. A value that already carries a scheme is
+// returned untouched, because a platform.toml predating the scheme-less rule is still read.
+func RepositoryURL(repository string) string {
+	if repository == "" || strings.Contains(repository, "://") {
+		return repository
+	}
+	return "https://" + repository
+}
+
 func (p *Model) inferValues() {
 	base := InferImageBase(p.Repository)
 

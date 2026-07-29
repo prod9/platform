@@ -41,12 +41,12 @@ type BuildUnit struct {
 	Vars map[string]any
 }
 
-// RepositoryURL is the https form of the scheme-less platform.toml repository — the
-// org.opencontainers.image.source value GitHub parses to link a pushed package to its
-// repository. Linkage is what routes registry_package webhook events to the repo's
-// webhooks; a non-URL value leaves the package unlinked and the webhook silently deaf.
+// RepositoryURL is the unit's repository as a URL — the org.opencontainers.image.source
+// value GitHub parses to link a pushed package to its repository. Linkage is what routes
+// registry_package webhook events to the repo's webhooks; a non-URL value leaves the
+// package unlinked and the webhook silently deaf. The derivation itself is conf's.
 func (u *BuildUnit) RepositoryURL() string {
-	return "https://" + u.Repository
+	return conf.RepositoryURL(u.Repository)
 }
 
 // Units turns config into one BuildUnit per selected module (every module when modnames is
