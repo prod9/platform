@@ -194,14 +194,27 @@ are jobs too. fx's queue is one-shot, so a recurring job reschedules itself at t
 
 **Two jobs carry a build**, and the split is what keeps the record the queue:
 
-| Job           | Shape                        | What it does                                                                                                                                                                                          |
-| ------------- | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `scan_builds` | recurring, self-rescheduling | Reads `builds` against their events, finds every build with no terminal `run_done`, and schedules a `build` job per build with `ScheduleNowIfNotExists`. Requeuing a timed-out build is the same scan. |
-| `build`       | one-shot, payload = build id | Repo-prep → engine run → write `build_events`.                                                                                                                                                        |
+| Job           | Shape                        | What it does                                                                                                                                                                                |
+| ------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scan_builds` | recurring, singleton         | Reads `builds` against their events, finds every build with no terminal `run_done`, and schedules a `build` job per build with `ScheduleNow`. Requeuing a timed-out build is the same scan. |
+| `build`       | one-shot, payload = build id | Repo-prep → engine run → write `build_events`.                                                                                                                                              |
 
 A controller therefore never schedules a job. It appends a record; the scan turns records
-into work. That is what makes the trigger sources interchangeable, and it is why an
-overlapping sweep is harmless — `ScheduleNowIfNotExists` collapses duplicates.
+into work. That is what makes the trigger sources interchangeable.
+
+**A job's name is fx's dispatch key, and its struct is its payload.** `worker` registers one
+instance per `Name()` and unmarshals each queued row's payload into that instance before
+`Run`, so many pending `build` jobs coexist under the one name and are told apart only by the
+build id they carry. `ScheduleNowIfNotExists` dedupes on the name alone, which makes it the
+primitive for a **singleton** job and never for a per-build one: `scan_builds` schedules
+*itself* with it at the end of every run, and schedules each build with plain `ScheduleNow`.
+
+The scan skips a build whose stream already carries an event, so a sweep that overlaps a
+running build does not schedule it a second time.
+
+**The publish tag is the ref's last segment.** A build's `ref` is `refs/tags/vX.Y.Z` and the
+image is published under `vX.Y.Z` — the worker strips the `refs/tags/` prefix and passes the
+remainder as the tag, so the image carries the version a human pushed rather than a sha.
 
 🚨 **A job's success is not a build's success.** A job answers *did the job do its work* —
 relay the instruction to the engine, observe the execution, record what happened. A build
