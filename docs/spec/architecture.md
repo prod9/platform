@@ -80,6 +80,13 @@ graph `conf ← framework/scaffold ← framework ← cmd`:
   `[vars]` merge. The publish target is not a stored section: a module's image is inferred
   per-module (`InferImageBase`) and the tag derives from the release strategy; only the
   top-level `[vars]` table is carried, fed to `render`.
+
+  **`repository` is stored scheme-less** — `github.com/prod9/platform`, the form the ghcr
+  mirror and the image-source label are both derived from. Every other form is derived, and
+  `conf` owns the derivation: `InferImageBase` for the registry path, `RepositoryURL` for
+  the `https://` form a browser needs. A consumer that pastes `Repository` into a URL
+  itself emits a broken link — the derivations exist so nobody has to know which form is
+  stored.
 - `framework/scaffold/` — **the one** files/templating mechanism: render templates with
   data. Generic — no discover, no orchestration, no per-type data; the driver writes
   finished bytes.

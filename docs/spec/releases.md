@@ -89,8 +89,15 @@ format.
 ## Changelog
 
 `generateMessage` builds the annotated-tag body: the name as a title, then one bullet per
-commit — `* [<hash>][<repository>/commit/<hash>] <subject>`. Commits come from
+commit — `* [<hash>][<repository-url>/commit/<hash>] <subject>`, where the link is
+`conf.RepositoryURL` (the `https://` form; `repository` itself is stored scheme-less — see
+[architecture.md](architecture.md) §Package layout). Commits come from
 `git log --pretty="%h %s"` over the range, parsed by `parseLogOutput` (`releases.go`).
+
+**Neither this nor `Release.Changelog()` is release-note generation.** The tag body and the
+terminal listing are supplementary data about a release — every commit, verbatim. Release
+notes are prose a human writes: what changed for someone using the thing, and why it
+matters. No command produces them and none will.
 
 ## Tags are version tags
 
