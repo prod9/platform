@@ -15,6 +15,7 @@ import (
 	"fx.prodigy9.co/httpserver/middlewares"
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/require"
+	"platform.prodigy9.co/srv/auth"
 	"platform.prodigy9.co/srv/github"
 )
 
@@ -60,10 +61,11 @@ func TestBuildForPush(t *testing.T) {
 	create := buildForPush(tagPush)
 	require.NotNil(t, create)
 	require.Equal(t, &Create{
+		Trigger:  TriggerGitHubPush,
 		Owner:    "prod9",
 		Repo:     "app",
 		CloneURL: "https://github.com/prod9/app.git",
-		Tag:      "v1.2.3",
+		Ref:      "refs/tags/v1.2.3",
 		SHA:      "abc123",
 	}, create)
 
@@ -194,29 +196,22 @@ func TestWebhookTagPushCreatesBuild(t *testing.T) {
 
 	require.Equal(t, http.StatusAccepted, resp.Code)
 
-	var build struct {
-		Owner    string `db:"owner"`
-		Repo     string `db:"repo"`
-		CloneURL string `db:"clone_url"`
-		Tag      string `db:"tag"`
-		SHA      string `db:"sha"`
-		Status   string `db:"status"`
-		Error    string `db:"error"`
-		Image    string `db:"image"`
-		Digest   string `db:"digest"`
-	}
-	require.NoError(t, data.Get(ctx, &build, `
-		SELECT owner, repo, clone_url, tag, sha, status, error, image, digest
-		FROM builds`))
+	systemUserID, err := auth.SystemUserID(ctx)
+	require.NoError(t, err)
+
+	build := &Build{}
+	require.NoError(t, data.Get(ctx, build, `SELECT `+buildColumns+` FROM builds`))
+	require.Equal(t, TriggerGitHubPush, build.Trigger)
+	require.Equal(t, systemUserID, build.UserID)
+	require.Zero(t, build.RetryOf)
 	require.Equal(t, "prod9", build.Owner)
 	require.Equal(t, "app", build.Repo)
 	require.Equal(t, "https://github.com/prod9/app.git", build.CloneURL)
-	require.Equal(t, "v1.2.3", build.Tag)
+	require.Equal(t, "refs/tags/v1.2.3", build.Ref)
 	require.Equal(t, "abc123", build.SHA)
-	require.Equal(t, "queued", build.Status)
-	require.Equal(t, "", build.Error)
-	require.Equal(t, "", build.Image)
-	require.Equal(t, "", build.Digest)
+
+	// The record says who asked and what for; how it goes is the event stream's to say.
+	require.Empty(t, eventsFor(t, ctx, build.ID))
 }
 
 func TestWebhookBranchPushCreatesNoBuild(t *testing.T) {

@@ -83,7 +83,7 @@ func Router(cfg *config.Source, db *sqlx.DB, installed bool) (chi.Router, error)
 
 	var ctrs []controllers.Interface
 	if installed {
-		ctrs = append(ctrs, auth.SessionCtr{}, builds.APICtr{}, builds.WebhookCtr{})
+		ctrs = append(ctrs, auth.SessionCtr{}, builds.BuildCtr{}, builds.WebhookCtr{})
 	} else {
 		ctrs = append(ctrs, install.StateCtr{DB: db, Merged: merged})
 	}

@@ -14,6 +14,7 @@ import (
 	"fx.prodigy9.co/httpserver/controllers"
 	"fx.prodigy9.co/httpserver/render"
 	"github.com/go-chi/chi/v5"
+	"platform.prodigy9.co/srv/auth"
 	"platform.prodigy9.co/srv/github"
 )
 
@@ -72,6 +73,14 @@ func githubWebhook(resp http.ResponseWriter, req *http.Request) {
 		render.JSON(resp, req, webhookReceipt{Status: "ignored"})
 		return
 	}
+
+	// A webhook build is the App's own act, so it is attributed to the system principal —
+	// no human asked for it, and a build without a principal is a record with a hole in it.
+	create.UserID, err = auth.SystemUserID(ctx)
+	if err != nil {
+		render.Error(resp, req, 500, err)
+		return
+	}
 	if err := create.Execute(ctx, nil); err != nil {
 		render.Error(resp, req, 500, err)
 		return
@@ -117,6 +126,9 @@ type pushOwner struct {
 // buildForPush decides whether a push warrants a build: only a still-existing version
 // tag (refs/tags/v*) does — rolling repos cut no tags and stay CLI-published (see the
 // delivery-verbs ADR). Everything else returns nil.
+//
+// The record keeps the ref whole. What a ref points at moves, and the UI groups a repo's
+// builds by it; the sha beside it is what this build resolved to.
 func buildForPush(ev pushEvent) *Create {
 	tag, isTag := strings.CutPrefix(ev.Ref, "refs/tags/")
 	if !isTag || !strings.HasPrefix(tag, "v") || ev.Deleted {
@@ -124,10 +136,11 @@ func buildForPush(ev pushEvent) *Create {
 	}
 
 	return &Create{
+		Trigger:  TriggerGitHubPush,
 		Owner:    ev.Repository.Owner.Login,
 		Repo:     ev.Repository.Name,
 		CloneURL: ev.Repository.CloneURL,
-		Tag:      tag,
+		Ref:      ev.Ref,
 		SHA:      ev.After,
 	}
 }
