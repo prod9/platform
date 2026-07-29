@@ -71,6 +71,12 @@ Domain packages live at the top level by their own name: `framework/`, `dsl/`,
 
 ## Package layout (target)
 
+🚨 **This section governs the shared packages and the CLI — not `srv/`.** `srv` is a web app
+built on [prod9/fx](https://fx.prodigy9.co), and how it splits packages is decided by fx
+web-app convention: self-contained fragments, one folder per concern, each holding its own
+models, controllers, jobs and migration SQL. The rules below — and §No grab-bag packages
+above — say nothing about it. See [platform-server.md](platform-server.md).
+
 A **`Framework` is the sole owner of a project type** — it recognizes itself, scaffolds
 itself, and builds itself. Only two things sit outside a framework: the `platform.toml`
 data model, and the `init` command's human orchestration. The packages form an acyclic
@@ -125,6 +131,15 @@ graph `conf ← framework/scaffold ← framework ← cmd`:
   self-contained language at the top level, peer of `cuemod/`. Consumed by
   `framework/gitops` render; extracted from it so the language stands on its own.
 - `releases/`, `git/` (formerly `gitctx/`+`gitcmd/`), `internal/` — unchanged in role.
+  `internal/termlog` is platform's terminal narration sink (formerly `buildlog`; see
+  [engine.md](engine.md)).
+- `srv/` — the platform server, a layer **above** the shared packages and outside this
+  layout's jurisdiction, shaped by fx convention instead
+  ([platform-server.md](platform-server.md)). It ships in the same binary and the same
+  module; the one rule this layout imposes on it is directional — the shared packages are
+  leaves and never import server concerns, guarded by `srv/boundary_test.go`. Background
+  jobs are files inside the fragment that owns their domain, run by a separate
+  `platform worker` process.
 
 The former `baseline/` and top-level `scaffold/` packages are **absorbed**, not surviving
 packages: `baseline/`'s templating folds into `framework/scaffold/` and its embedded infra

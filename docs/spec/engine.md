@@ -57,7 +57,7 @@ Commands open **one** session and defer `Close`. It is safe for concurrent use, 
 never a reason to open a second.
 
 🚨 **A command that holds a session returns its errors; it never exits from inside.**
-`os.Exit` runs no deferred function, so a command that reaches `buildlog.Fatalln` on a
+`os.Exit` runs no deferred function, so a command that reaches `termlog.Fatalln` on a
 failure path abandons every connection the session opened — the one case where the
 deferred `Close` above is a promise the code does not keep, and it is the failure paths
 where an engine is most likely to be left holding state. Session-holding commands are
@@ -153,7 +153,7 @@ concern. Publish being a bracket is load-bearing rather than descriptive: it run
 run's connection is still a local variable, which is what lets the registry secret be minted
 on the same session as the container it authenticates.
 
-### One observer, five callbacks
+### One observer, six callbacks
 
 A run reports everything to **one** `Observer`, supplied by whoever opens the run. The
 contract, the tee and the accumulator are their own package —
@@ -164,6 +164,7 @@ snapshot-plus-delta:
 ```go
 type Observer interface {
     StepStarted(unit, step string, at time.Time)
+    StepOutput(unit, step string, at time.Time, stdout, stderr string)
     StepDone(unit, step string, at time.Time, err error)
     ImageBuilt(unit, image string, at time.Time)
     Published(unit, image, hash string, at time.Time)
@@ -171,23 +172,24 @@ type Observer interface {
 }
 ```
 
-Three callbacks are **lifecycle**, two are **output**. The output pair mirrors the
-build⊥publish orthogonality
+Three callbacks are **lifecycle**, one is **capture**, two are **output**. The output pair
+mirrors the build⊥publish orthogonality
 ([delivery-verbs-are-orthogonal](../decisions/2026-07-05-delivery-verbs-are-orthogonal.md)):
 `ImageBuilt` is the common path — every successful build fires it, and four of the five
 commands that build (`build`, `export`, `exec`, `preview`) never publish — while
 `Published` fires only on the publish path and is the only place a registry hash exists.
 One callback per event kind; nothing is inferred from a shared method with a mode flag.
 
-The kernel stays at these five until a capability actually arrives: the per-step
-log-capture callback below is added when capture lands, not front-loaded.
+The kernel stays at these six until a capability actually arrives; nothing is front-loaded
+against a consumer that does not exist yet. `StepOutput` earned its place when `srv` began
+persisting captured output — see §Log capture below.
 
 `RunDone` fires **exactly once** per run, whichever way the cursor ends, which makes the
 report self-terminating: a consumer needs no out-of-band done signal.
 
 Signatures carry **scalars only, never engine or framework types**. Go interfaces are
 structural, so an implementation then needs no platform import at all — that is what lets
-the leaf `internal/buildlog` and, later, `srv` satisfy the same methods without importing
+the leaf `internal/termlog` and, later, `srv` satisfy the same methods without importing
 the engine or each other.
 
 Everything else is a **fold** of these callbacks: a step's elapsed time is
@@ -249,15 +251,38 @@ a serialization format.
 **Log capture rides `Container.Stdout`/`Stderr`, never `WithLogOutput`.** Per-unit
 retrieval is incremental and per-step: each step's output is read as that step finishes,
 with no re-execution (Dagger caches the walk), landing exactly on the `.Sync()` boundary
-`Next` already has — so captured output flushes per step, as a sixth callback added when
-capture lands. It demuxes cleanly across units sharing a session, so the session layer is
-untouched by log capture. `WithLogOutput` is the Dagger CLI *subprocess's* stderr pipe —
-rendered TUI text, never demuxable — and is not a capture path.
+`Next` already has — so captured output flushes per step. It demuxes cleanly across units
+sharing a session, so the session layer is untouched by log capture. `WithLogOutput` is the
+Dagger CLI *subprocess's* stderr pipe — rendered TUI text, never demuxable — and is not a
+capture path.
 
-**`buildlog` is not build-progress.** `internal/buildlog` is platform's own narration of
-what *platform* is doing; what an observer reports is what the *build* is doing. They
-coincide only on a machine-local CLI run, and must not be merged: `cmd` owns the
-progress-rendering observer and calls `buildlog` as its sink.
+Capture is the **sixth callback**, and it is no longer deferred: `srv` persists a step's
+output in `build_events` ([platform-server.md](platform-server.md)), so a build whose logs
+only ever reached a terminal would be unreadable in the webui — which is the whole point of
+the server.
+
+```go
+StepOutput(unit, step string, at time.Time, stdout, stderr string)
+```
+
+It fires on the same `.Sync()` boundary as `StepDone`, before it, so a consumer that only
+stores the terminal row still has the output in hand.
+
+**`termlog` is not build-progress.** `internal/termlog` is platform's own narration of what
+*platform* is doing, rendered for the operator's terminal; what an observer reports is what
+the *build* is doing. They coincide only on a machine-local CLI run, and must not be merged:
+`cmd` owns the progress-rendering observer and calls `termlog` as its sink, while the
+server's build job implements the same interface and writes `build_events` instead. The
+package is named for the terminal it writes to precisely because the older name, `buildlog`,
+kept inviting the merge.
+
+**Every line platform emits goes through a typed constructor.** `termlog` exposes one
+function per kind of output — `Event(obj, action)`, `Config`, `Error`, `Git`, `File`,
+`Image`, `HTTPServing` — and output is grouped by construction rather than filtered after
+the fact. A new kind of output is a new constructor, never an ad-hoc `Logger()` call at the
+emit site. `Event` is the general shape: something happened to something, so it takes the
+object and the action (`termlog.Event("web/build", "started")`). The unit is deliberately
+not a field of its own — `termlog` knows nothing of what the object is.
 
 **The default CLI shows steps, not Dagger.** Dagger's own `WithLogOutput` TUI is a
 debugging firehose gated behind `-v`; at default verbosity a build's visible progress is
@@ -399,7 +424,7 @@ remains the worker's, and it still never sees a host address.
 
 The publish bracket pushes a successfully-built container on the connection that built it,
 so the registry secret is minted by the same session that owns the container, and logs the
-image via `buildlog.Image`. `publish` composes the ordinary path — build the units at the
+image via `termlog.Image`. `publish` composes the ordinary path — build the units at the
 publish arch, suffix each `ImageName` with the release tag, run, then push — and the
 `[]BuildAttempt` records of what shipped are assembled by `srv`
 ([platform-server.md](platform-server.md)), not by the engine.

@@ -57,6 +57,15 @@ superseded by the settled surface; read the table, not the blockquote, for the t
 
 ## What `srv` is
 
+🚨 **`srv` is a web app, and it carries a web app's own conventions.** It is built on
+[prod9/fx](https://fx.prodigy9.co) and its shape — fragments, controllers, actions,
+background jobs, embedded migrations, how finely it splits packages — is decided by **fx
+web-app convention**, not by the laws written for the CLI and the shared packages. The
+package-layout rules in [architecture.md](architecture.md) govern the shared-package graph
+and hold **no jurisdiction** here; citing them to settle a question about `srv`'s internals
+is a category error. A reader who wants to know how a piece of `srv` should be shaped reads
+fx, then this file.
+
 `srv` is the API + webhook processor: on a push it clones the repo, builds the image,
 renders + publishes the infra artifact, and lets Flux pull it. It owns the GitHub App, the
 DB, and token minting. It is a layer above the **shared packages** (the stateless
@@ -152,25 +161,55 @@ a build's; the durable record is the handoff.
 record not yet dispatched; "pending" is a property of the record, not a place it lives.
 This is what makes the trigger sources interchangeable: each appends the same fact.
 
-**The record must be complete enough to act on.** The controller serializes full intent
-— repo, sha, which units, which target — so the worker never re-derives *what was
-asked for*. If the worker has to reload `platform.toml` to learn that, the controller
-did not finish its job and the decision has silently moved downstream. Repo preparation is
-different in kind: fetching the tree fulfils a decision rather than making one, so it
-belongs to the worker.
+**The record must be complete enough to act on.** The controller serializes full intent —
+**which repo, at which ref, resolved to which sha** — so the worker never re-derives *what
+was asked for*.
 
-### The worker is a peer of `srv`, not a fragment
+**A build is whole-repo, so the unit set is not intent.** `platform.toml`'s `[modules]`
+defines the units and a build schedules all of them; which units exist is a property of the
+committed tree, not a choice a trigger makes. So the controller does not carry a unit list
+and the worker reads `platform.toml` from the tree it prepared — that is reading a
+definition, not re-deciding a request. Repo preparation is the same in kind: fetching the
+tree fulfils a decision rather than making one, so it belongs to the worker.
 
-**Worker** is the settled name, and it is fx's: `fx.prodigy9.co/worker` already supplies
-the machinery — a `worker.Interface` (`Name`, `Run(ctx) error`), a job registry, and the
-`WORKER_POLL` interval. The build worker is one such job, so it inherits the poll loop
-rather than hand-rolling one. It reads pending records, decides what runs next, asks the
-engine to run it, and writes the resulting events.
+### The worker is a peer *process*, and the jobs live in their fragments
 
-Its dependencies are the record store and the engine; it needs nothing from HTTP. So it
-sits beside `srv`, not inside it — `srv` writes records, the worker reads them, and
-neither imports the other. A worker living *inside* an HTTP fragment is the pre-rework mistake
-(`srv/builds/runner.go`), and it is torn out rather than repaired.
+**Worker** is the settled name, and it is fx's: `fx.prodigy9.co/worker` supplies the entire
+machinery — the poll loop, the `jobs` table, claim and status, behind
+`worker.New(cfg, jobs...)` + `Start()`. Platform writes **no worker**; it writes jobs. A job
+is a `worker.Interface` (`Name() string`, `Run(ctx) error`) whose own struct is the payload.
+
+**The separation is at the process, not the package.** `worker.Start()` blocks and runs as
+its own command — `platform worker`, deployed as its own process beside `platform srv`,
+scaled by adding processes. The job *code* lives in the fragment that owns its domain, per
+fx's self-contained-fragment convention: the build jobs are files in `srv/builds`, a session
+sweep would belong to `srv/auth`. There is no central jobs package — that is the grab-bag
+fx's fragment model exists to prevent. A worker loop hand-rolled *inside* an HTTP fragment is
+the pre-rework mistake (`srv/builds/runner.go`), and it is torn out rather than repaired.
+
+**The worker is general background processing**, not a build runner: recurring cleanup
+sweeps, reconciliation of bad state, and anything else that must happen off the request path
+are jobs too. fx's queue is one-shot, so a recurring job reschedules itself at the end of
+`Run` — no cron machinery is added.
+
+**Two jobs carry a build**, and the split is what keeps the record the queue:
+
+| Job           | Shape                        | What it does                                                                                                                                                                                          |
+| ------------- | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scan_builds` | recurring, self-rescheduling | Reads `builds` against their events, finds every build with no terminal `run_done`, and schedules a `build` job per build with `ScheduleNowIfNotExists`. Requeuing a timed-out build is the same scan. |
+| `build`       | one-shot, payload = build id | Repo-prep → engine run → write `build_events`.                                                                                                                                                        |
+
+A controller therefore never schedules a job. It appends a record; the scan turns records
+into work. That is what makes the trigger sources interchangeable, and it is why an
+overlapping sweep is harmless — `ScheduleNowIfNotExists` collapses duplicates.
+
+🚨 **A job's success is not a build's success.** A job answers *did the job do its work* —
+relay the instruction to the engine, observe the execution, record what happened. A build
+answers *did the build succeed*, and that answer lives only in `build_events`. A build that
+failed and was correctly recorded is a **successful job**. So `Run` returns an error only
+when the job itself could not do its work; a failed build returns nil. Collapsing the two
+vocabularies would put build state back in fx's `jobs` table, which is the mechanism's, not
+the domain's.
 
 **It is not called a "runner."** In CI vocabulary "runner" means the agent that executes
 jobs — which is what an *engine* is here — and `engine/runners` already holds that name
@@ -193,6 +232,64 @@ Everything else is a **fold** of that stream:
 | current state       | reduction of the build's events so far                                |
 | an **attempt**      | a `Start`→terminal span within the stream                             |
 | stuck / timed-out   | last-event timestamp vs the build's `platform.toml` timeout           |
+
+**An attempt is a fold and never a table.** There is no `build_attempts` relation: a retry
+re-runs the same commit, so an attempt row would carry nothing a `run_done` boundary in the
+stream does not already mark.
+
+### The two tables
+
+```
+builds                          -- one row per trigger; immutable after insert
+  id            bigserial
+  trigger       text            -- 'github-push' | 'webui' | 'cli' | 'retry'
+  retry_of      bigint NULL     -- REFERENCES builds(id); set only when trigger = 'retry'
+  user_id       bigint NULL     -- REFERENCES users(id); null for a webhook trigger
+  owner         text
+  repo          text
+  clone_url     text
+  ref           text            -- 'refs/heads/main' | 'refs/tags/v1.2.3'
+  sha           text            -- the commit this build builds
+  created_at    timestamptz
+
+build_events                    -- append-only; one row per engine Observer callback
+  id            bigserial
+  build_id      bigint          -- REFERENCES builds(id)
+  kind          text            -- step_started | step_done | image_built | published | run_done
+  unit          text            -- module name; '' for run-level events
+  step          text            -- '' unless step-scoped
+  at            timestamptz     -- the engine's own callback time, not the insert time
+  error         text            -- step_done, run_done
+  image         text            -- image_built, published
+  hash          text            -- published only
+  stdout        text            -- captured output, per step
+  stderr        text
+  created_at    timestamptz
+```
+
+`build_events` is a transcription of the `Observer` contract ([engine.md](engine.md)) and
+nothing more — one column per callback argument, `at` preserved as the engine reported it so
+elapsed time survives a slow writer. Captured `stdout`/`stderr` ride the `step_done` row
+rather than a kind of their own.
+
+**A `builds` row records who asked and what for, never how it went.** No `status`, no
+`image`, no `error` column: those are the stored state this design exists to remove, and
+they live in the stream. The row is written once and never updated.
+
+**`ref` is a moving pointer, and that is the point.** A trigger names a ref — a branch or a
+tag — and what a ref points at changes. `sha` is what it resolved to for *this* build, so the
+committed-image model keeps its anchor ([render-is-pure-function-of-committed-git](../decisions/2026-06-26-render-is-pure-function-of-committed-git.md)),
+while `ref` is the **grouping key the UI reads**: a developer watching `refs/heads/topic`
+sees the failed build, the fix-push, and the green build as one list. A new push is a new
+build row, never a mutation of the old one.
+
+**A retry is a new row, linked.** Clicking retry appends a build with `trigger = 'retry'` and
+`retry_of` pointing at the row it re-runs — the immediate parent, so a chain stays walkable —
+and it re-runs that row's `sha` rather than re-resolving the ref.
+
+Folds are **computed per read** until listing measurably hurts; there is deliberately no
+denormalized fold column on `builds` yet. Adding one is a cache decision, and a cache that
+does not exist cannot go stale or be written to by mistake.
 
 **It is still a reconciler** — the difference is only how the to-be state is arrived at:
 `to-be = f(history, timeout)`, then converge (requeue the timed-out, launch the pending).

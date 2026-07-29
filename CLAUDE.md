@@ -110,6 +110,22 @@ reason, presented and approved before any edit.
 
 ## Conventions
 
+**`srv/` is a web app and answers to fx, not to the CLI's laws.** It is built on
+[prod9/fx](https://fx.prodigy9.co), so its shape — self-contained fragments, controllers,
+actions, background jobs, embedded migration SQL, how finely packages split — comes from fx
+web-app convention. `docs/spec/architecture.md` §Package layout and §No grab-bag packages
+govern the shared-package graph and hold **no jurisdiction** inside `srv/`; citing them to
+settle an `srv` question is a category error. Load the `prod9-fx` skill before shaping
+anything there. The one rule that does cross the line is directional and guarded by
+`srv/boundary_test.go`: shared packages are leaves and never import server concerns.
+
+**Background jobs live in the fragment that owns their domain; the worker is a process.**
+Platform writes no worker — `fx.prodigy9.co/worker` supplies the loop, the `jobs` table,
+claim and status. `platform worker` runs them as its own process beside `platform srv`.
+There is no central jobs package. A job's success means *the job did its work*, which is not
+the same as the work succeeding: a build that failed and was correctly recorded is a
+successful job (`docs/spec/platform-server.md`).
+
 **Container build steps read top-to-bottom, one call per line.** Our helpers take the
 container in the argument position, so nesting them (`withRunnerPkgs(withDeps(withBase(x)))`)
 grows rightward and hides the order. Each helper gets its own `x = helper(x)` line; native
