@@ -13,7 +13,7 @@ import (
 	"github.com/spf13/cobra"
 	"platform.prodigy9.co/conf"
 	"platform.prodigy9.co/engine"
-	"platform.prodigy9.co/internal/buildlog"
+	"platform.prodigy9.co/internal/termlog"
 )
 
 var PreviewCmd = &cobra.Command{
@@ -88,7 +88,7 @@ func runPreview(cmd *cobra.Command, args []string) error {
 
 	// Up forwards the host port from the service itself and blocks until interrupted, so the
 	// address is known before it is serving rather than read back off a tunnel handle.
-	buildlog.HTTPServing(fmt.Sprintf("http://localhost:%d", port))
+	termlog.HTTPServing(fmt.Sprintf("http://localhost:%d", port))
 	return service.Up(ctx, dagger.ServiceUpOpts{
 		Ports: []dagger.PortForward{{Frontend: port, Backend: port}},
 	})

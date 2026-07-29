@@ -11,7 +11,7 @@ import (
 	"github.com/spf13/cobra"
 	initcmd "platform.prodigy9.co/cmd/init"
 	"platform.prodigy9.co/conf"
-	"platform.prodigy9.co/internal/buildlog"
+	"platform.prodigy9.co/internal/termlog"
 )
 
 var rootCmd = &cobra.Command{
@@ -36,7 +36,7 @@ func init() {
 	rootCmd.SetVersionTemplate("{{.Version}}\n")
 
 	rootCmd.PersistentPreRun = func(*cobra.Command, []string) {
-		buildlog.SetVerbosity(verbosity - quietness)
+		termlog.SetVerbosity(verbosity - quietness)
 	}
 
 	rootCmd.PersistentFlags().StringVarP(&conf.PlatformFilename, "file", "f",
@@ -80,6 +80,6 @@ func Execute() int {
 		return exit.code
 	}
 
-	buildlog.Error(err)
+	termlog.Error(err)
 	return 1
 }

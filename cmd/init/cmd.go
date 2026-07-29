@@ -14,7 +14,7 @@ import (
 	"github.com/spf13/cobra"
 	"platform.prodigy9.co/conf"
 	"platform.prodigy9.co/framework"
-	"platform.prodigy9.co/internal/buildlog"
+	"platform.prodigy9.co/internal/termlog"
 )
 
 var initForce bool
@@ -37,7 +37,7 @@ func init() {
 func run(cmd *cobra.Command, args []string) {
 	wd, err := os.Getwd()
 	if err != nil {
-		buildlog.Fatalln(err)
+		termlog.Fatalln(err)
 	}
 	sess := prompts.New(nil, args)
 
@@ -54,7 +54,7 @@ func run(cmd *cobra.Command, args []string) {
 
 	plan, err := Analyze(wd, info, inputs)
 	if err != nil {
-		buildlog.Fatalln(err)
+		termlog.Fatalln(err)
 	}
 	applyPlan(wd, sess, plan)
 }
@@ -68,7 +68,7 @@ func promptScaffoldInputs(sess *prompts.Session, wd string) map[string]string {
 		return nil
 	}
 	if err != nil {
-		buildlog.Fatalln(err)
+		termlog.Fatalln(err)
 	}
 
 	inputs := map[string]string{}
@@ -98,22 +98,22 @@ func applyPlan(wd string, sess *prompts.Session, plan *Plan) {
 		err = plan.Apply()
 	}
 	if err != nil {
-		buildlog.Fatalln(err)
+		termlog.Fatalln(err)
 	}
 	for _, f := range plan.Files {
 		if f.Action == FileOverwrite && !replace {
 			continue // Apply kept the existing file — no action taken
 		}
-		buildlog.File(f.Action.String(), f.Path)
+		termlog.File(f.Action.String(), f.Path)
 	}
 
 	// Close with the effective parsed config (same view as `configure`) so the operator sees
 	// the resolved result of the freshly written platform.toml.
 	cfg, err := conf.Load(wd)
 	if err != nil {
-		buildlog.Fatalln(err)
+		termlog.Fatalln(err)
 	}
 	if err := toml.NewEncoder(os.Stdout).Encode(cfg); err != nil {
-		buildlog.Fatalln(err)
+		termlog.Fatalln(err)
 	}
 }

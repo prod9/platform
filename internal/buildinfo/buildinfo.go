@@ -1,5 +1,5 @@
 // Package buildinfo renders program output -- results and summaries -- to stdout, kept
-// distinct from buildlog's diagnostic logging on stderr.
+// distinct from termlog's diagnostic logging on stderr.
 package buildinfo
 
 import (

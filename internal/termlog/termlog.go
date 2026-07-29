@@ -1,4 +1,4 @@
-package buildlog
+package termlog
 
 import (
 	"io"

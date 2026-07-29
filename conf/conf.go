@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
-	"platform.prodigy9.co/internal/buildlog"
+	"platform.prodigy9.co/internal/termlog"
 	"platform.prodigy9.co/internal/timeouts"
 )
 
@@ -149,7 +149,7 @@ func (p *Model) assignDefaults() {
 		// when both appear. Cleared so a re-encode emits only `framework`. The
 		// deprecation note fires whenever the old key is read, folded or dropped.
 		if mod.Builder != "" {
-			buildlog.Config("modules."+name+".builder", "deprecated — rename the key to `framework`")
+			termlog.Config("modules."+name+".builder", "deprecated — rename the key to `framework`")
 			if mod.Framework == "" {
 				mod.Framework = mod.Builder
 			}
@@ -160,7 +160,7 @@ func (p *Model) assignDefaults() {
 
 func (p *Model) assignEnvOverrides() {
 	if platform, ok := os.LookupEnv("PLATFORM"); ok {
-		buildlog.Config("platform", platform)
+		termlog.Config("platform", platform)
 		p.LocalArch = platform
 		p.PublishArch = platform
 	}

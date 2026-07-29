@@ -19,7 +19,7 @@ import (
 	"platform.prodigy9.co/conf"
 	"platform.prodigy9.co/engine/observer"
 	"platform.prodigy9.co/framework"
-	"platform.prodigy9.co/internal/buildlog"
+	"platform.prodigy9.co/internal/termlog"
 )
 
 var (
@@ -129,7 +129,7 @@ func pick(endpoints []string) string {
 // dialHost connects to the engine at host. An empty host carries no runner host, so dagger
 // auto-provisions and reuses the local engine — that is how the roster asks for "local".
 func dialHost(ctx context.Context, host string) (*dagger.Client, error) {
-	opts := []dagger.ClientOpt{dagger.WithLogOutput(buildlog.OutputForDagger())}
+	opts := []dagger.ClientOpt{dagger.WithLogOutput(termlog.OutputForDagger())}
 	if host != "" {
 		opts = append(opts, dagger.WithRunnerHost(host))
 	}

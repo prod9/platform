@@ -7,7 +7,7 @@ import (
 	"github.com/spf13/cobra"
 	"platform.prodigy9.co/conf"
 	"platform.prodigy9.co/git"
-	"platform.prodigy9.co/internal/buildlog"
+	"platform.prodigy9.co/internal/termlog"
 	"platform.prodigy9.co/releases"
 )
 
@@ -41,7 +41,7 @@ func runReleaseCmd(cmd *cobra.Command, args []string) {
 	if (bumpPatch && bumpMinor) ||
 		(bumpPatch && bumpMajor) ||
 		(bumpMinor && bumpMajor) {
-		buildlog.Fatalln(errors.New("only one of --patch, --minor, or --major may be specified"))
+		termlog.Fatalln(errors.New("only one of --patch, --minor, or --major may be specified"))
 	}
 
 	opts := &releases.Options{Force: forceRelease}
@@ -58,14 +58,14 @@ func runReleaseCmd(cmd *cobra.Command, args []string) {
 
 	cfg, err := conf.Load(".")
 	if err != nil {
-		buildlog.Fatalln(err)
+		termlog.Fatalln(err)
 	}
 
 	g := git.New(cfg)
 
 	rel, err := releases.Generate(cfg, g, opts)
 	if err != nil {
-		buildlog.Fatalln(err)
+		termlog.Fatalln(err)
 	}
 
 	rel.Changelog()
@@ -75,6 +75,6 @@ func runReleaseCmd(cmd *cobra.Command, args []string) {
 	}
 
 	if err = releases.Create(cfg, g, rel); err != nil {
-		buildlog.Fatalln(err)
+		termlog.Fatalln(err)
 	}
 }

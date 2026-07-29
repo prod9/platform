@@ -1,4 +1,4 @@
-package buildlog
+package termlog
 
 import (
 	"log/slog"
@@ -13,7 +13,7 @@ import (
 
 // Event reports that something happened to something — an object and what it did or had
 // done to it (`dagger-cache cleaned`, `web/build started`) — at Info level. The object is
-// whatever the caller names it; buildlog knows nothing of what it is.
+// whatever the caller names it; termlog knows nothing of what it is.
 func Event(obj, action string) {
 	Logger().Info(action, slog.String("obj", obj))
 }

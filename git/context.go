@@ -7,7 +7,7 @@ import (
 	"sync"
 
 	"platform.prodigy9.co/conf"
-	"platform.prodigy9.co/internal/buildlog"
+	"platform.prodigy9.co/internal/termlog"
 )
 
 var ErrDirtyWorkdir = errors.New("git: working directory is dirty")
@@ -102,6 +102,6 @@ func (ctx *Context) run(args ...string) (string, error) {
 		return "", err
 	}
 
-	buildlog.Git(args...)
+	termlog.Git(args...)
 	return RunWithProgress(context.Background(), wd, args...)
 }

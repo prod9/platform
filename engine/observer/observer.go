@@ -14,7 +14,7 @@ import "time"
 //
 // Every signature carries scalars only — never an engine or framework type. Go interfaces
 // are structural, so that is what lets a package implement this without importing engine
-// at all, which is how the leaf internal/buildlog and srv can satisfy the same contract.
+// at all, which is how the leaf internal/termlog and srv can satisfy the same contract.
 //
 // Callbacks fire on the goroutine driving the run, one unit per goroutine under fan-out,
 // so an implementation serializes itself; the engine adds no lock on a caller's behalf.

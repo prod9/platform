@@ -6,7 +6,7 @@ import (
 	fxconfig "fx.prodigy9.co/config"
 	"github.com/spf13/cobra"
 	"platform.prodigy9.co/engine"
-	"platform.prodigy9.co/internal/buildlog"
+	"platform.prodigy9.co/internal/termlog"
 )
 
 var CleanCmd = &cobra.Command{
@@ -24,6 +24,6 @@ func runCleanCmd(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	buildlog.Event("dagger-cache", "cleaned")
+	termlog.Event("dagger-cache", "cleaned")
 	return nil
 }

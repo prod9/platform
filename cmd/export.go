@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 	"platform.prodigy9.co/conf"
 	"platform.prodigy9.co/engine"
-	"platform.prodigy9.co/internal/buildlog"
+	"platform.prodigy9.co/internal/termlog"
 )
 
 var ExportCmd = &cobra.Command{
@@ -63,6 +63,6 @@ func exportImage(ctx context.Context, result engine.BuildResult) error {
 		return err
 	}
 
-	buildlog.Image("export", outname, string(id))
+	termlog.Image("export", outname, string(id))
 	return nil
 }

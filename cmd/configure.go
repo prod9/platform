@@ -6,7 +6,7 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/spf13/cobra"
 	"platform.prodigy9.co/conf"
-	"platform.prodigy9.co/internal/buildlog"
+	"platform.prodigy9.co/internal/termlog"
 )
 
 var ConfigureCmd = &cobra.Command{
@@ -18,10 +18,10 @@ var ConfigureCmd = &cobra.Command{
 func runConfigureCmd(cmd *cobra.Command, args []string) {
 	cfg, err := conf.Load(".")
 	if err != nil {
-		buildlog.Fatalln(err)
+		termlog.Fatalln(err)
 	}
 
 	if err := toml.NewEncoder(os.Stdout).Encode(cfg); err != nil {
-		buildlog.Fatalln(err)
+		termlog.Fatalln(err)
 	}
 }
