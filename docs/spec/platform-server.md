@@ -244,7 +244,7 @@ builds                          -- one row per trigger; immutable after insert
   id            bigserial
   trigger       text            -- 'github-push' | 'webui' | 'cli' | 'retry'
   retry_of      bigint NULL     -- REFERENCES builds(id); set only when trigger = 'retry'
-  user_id       bigint NULL     -- REFERENCES users(id); null for a webhook trigger
+  user_id       bigint          -- REFERENCES users(id); the system user for a webhook trigger
   owner         text
   repo          text
   clone_url     text
@@ -275,6 +275,16 @@ rather than a kind of their own.
 **A `builds` row records who asked and what for, never how it went.** No `status`, no
 `image`, no `error` column: those are the stored state this design exists to remove, and
 they live in the stream. The row is written once and never updated.
+
+**Every build has a principal, and a webhook's is the system user.** `user_id` is `NOT
+NULL`: a build nobody can be named for is a record with a hole in it, and "nobody" is not
+what a webhook trigger means — the App acted, on its installation's authority. So `users`
+carries one seeded row whose `identities` entry is `('system', 'platform')`, and a
+webhook-triggered build attributes to it. It is a **principal, not an account**: no login
+flow speaks the `system` provider, so no session can ever be minted for it, and
+`identities`' `UNIQUE (provider, provider_id)` makes the row single by construction rather
+than by a rule someone has to enforce. `retry_of` stays nullable because absence is real
+there — a first build has no parent, and `0` would be a foreign key pointing at nothing.
 
 **`ref` is a moving pointer, and that is the point.** A trigger names a ref — a branch or a
 tag — and what a ref points at changes. `sha` is what it resolved to for *this* build, so the
