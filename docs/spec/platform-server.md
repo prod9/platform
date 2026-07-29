@@ -1,59 +1,20 @@
 # Platform Server
 
-Status: **target design — skeleton implemented, rebuild pending.** The **route surface**
-and the **install/boot flow** are now settled — the
-[Operations](#operations-settled-surface) table below teaches the settled surface, and
-[installation.md](installation.md) owns the
-install model (installer fragment, `GET /api/install`, boot composition). The **build
-lifecycle** is settled too — see [Build lifecycle](#build-lifecycle-event-sourced) below.
-Still open, held for a design pass: the **cluster view** (reading k8s + Flux state for
-pods, logs, and rollout continuity after a publish). The implementation blockquote
-immediately below describes the
-**pre-rebuild skeleton as the code stands today** — its routes and setup flow are
-superseded by the settled surface; read the table, not the blockquote, for the target.
+The **route surface**, the **install/boot flow**, and the **build lifecycle** are settled:
+the [Operations](#operations-settled-surface) table teaches the surface,
+[installation.md](installation.md) owns the install model (installer fragment,
+`GET /api/install`, boot composition), and [Build lifecycle](#build-lifecycle-event-sourced)
+owns the event-sourced record. Held for its own design pass: the **cluster view** — reading
+k8s + Flux state for pods, logs, and rollout continuity after a publish.
 
-> **Target design — skeleton implemented.** A `srv/` tree now exists: the router +
-> `platform serve` command and the embedded `webui/` seam (placeholder page,
-> `GET /api/health`) + DB (users/identities per the
-> [identity ADR](../decisions/2026-06-14-identity-and-linked-accounts.md)), migrations
-> embedded in `srv/`, run at boot. The GitHub App bootstrap is implemented: the manifest
-> flow lives at `/setup/github` (manifest form) + `/setup/github/callback` (code
-> exchange), storing the App credentials encrypted in the single-row `github_app` table.
-> Webhook ingest is implemented: `POST /api/webhooks/github` verifies the App webhook
-> HMAC signature and records a queued `builds` row for each pushed version tag
-> (`refs/tags/v*`, not deleted); the build runner below consumes the queue.
-> Repo-prep is implemented (`srv/builds/repoprep.go`): `PrepRepo` maintains the full bare
-> mirror under a per-repo flock, resolves the sha, and adds the per-build worktree
-> (§Repo preparation below); `RemoveWorkTree` is the post-build cleanup; cache root via
-> `CACHE_DIR` (default `/var/cache/platform`). Engine wiring is implemented
-> (`srv/builds/builds.go` + `srv/builds/runner.go`): `Serve` opens one `engine.NewSession` per
-> process and a
-> claim loop consumes queued builds — `ClaimBuild` (`FOR UPDATE SKIP LOCKED`, oldest
-> first) → repo-prep → `conf.Load` → `sess.BuildAndPublish` under the build's tag →
-> `FinishBuild`/`FailBuild` records the outcome (2s poll tick when the queue is empty).
-> GitHub login is implemented (`srv/auth/auth.go`): `/api/auth/github` +
-> `/api/auth/github/callback` run the App's user-OAuth flow, find-or-create
-> user+identity per the [identity ADR](../decisions/2026-06-14-identity-and-linked-accounts.md)
-> (user token encrypted into identity metadata; no refresh handling and no
-> verified-email auto-link yet), and mint a platform session — a random token whose
-> SHA-256 lands in the `sessions` table, carried by a 30-day `platform_session`
-> cookie, revoked by `POST /api/auth/logout`. The web-UI API is implemented: `GET /api/me`
-> (`srv/auth/auth.go`) and `GET /api/builds` (`srv/builds/api.go`) authenticate against
-> that session (hand-written wire structs — see §No `api/` contract layer).
-> Installation-token minting is implemented (`srv/github/tokens.go`): a hand-rolled
-> RS256 App JWT resolves the repo's installation and mints its short-lived token
-> (§Two token types). **VOID (2026-07-18):** its implemented consumer
-> `POST /api/repos/{owner}/{repo}/flux-webhook` (`srv/flux/webhook.go`) is dead — the
-> GitHub→Flux `registry_package` webhook is **org-wide, provisioned once in the install
-> flow**, never minted per-repo. The endpoint drops in the srv rebuild.
-> `srv` is the **second driver** of the one-publish-engine model — the tag-watch
-> server invoking the same build+push engine the local CLI drives (see
-> [delivery-verbs-are-orthogonal](../decisions/2026-07-05-delivery-verbs-are-orthogonal.md)
-> and the one-engine-two-drivers model in [engine.md](engine.md)). The frozen ruling
-> behind the auth model lives in
-> [platform-server-github-app-zero-rbac](../decisions/2026-06-29-platform-server-github-app-zero-rbac.md).
-> Source:
-> [platform-as-CI design (prior-art)](../scratch/prior-art.md#platform-as-ci-architecture-design-2026-06-29).
+`srv` is the **second driver** of the one-publish-engine model: the tag-watch server invokes
+the same build+push engine the local CLI drives (see
+[delivery-verbs-are-orthogonal](../decisions/2026-07-05-delivery-verbs-are-orthogonal.md)
+and the one-engine-two-drivers model in [engine.md](engine.md)). The ruling behind its auth
+model is
+[platform-server-github-app-zero-rbac](../decisions/2026-06-29-platform-server-github-app-zero-rbac.md);
+the design it came from is
+[platform-as-CI (prior-art)](../scratch/prior-art.md#platform-as-ci-architecture-design-2026-06-29).
 
 ## What `srv` is
 
@@ -124,21 +85,18 @@ lives under `/api`; GitHub-facing and health routes stay bare.
 | `GET /api/install`          | none (installer fragment) | ordered install-state list; served **only while not completely installed**            | drives the SPA installer-vs-app decision ([installation.md](installation.md)); its 404 *is* the "installed" signal |
 | `GET /*`                    | none                      | serves the embedded webui; the SPA drives installer-vs-app via `GET /api/install`     | single-binary delivery — no separate frontend deploy                                                               |
 
-`GET /api/me` splits into `GET /api/session` (validity) + `GET /api/users/me` (profile);
-`POST /api/auth/logout` becomes `DELETE /api/session`; `/api/webhooks/github` becomes bare
-`/hooks/github`; the `/setup/github` App-Manifest flow is **killed** (App creation is now
-a by-hand, install-page-guided step — [installation.md](installation.md)). The **Flux→srv
-observability** endpoint `GET /api/repos/{owner}/{repo}/flux` is **forthcoming** — its
-surface and UI need a design pass and are not settled here.
+Session validity and the user's profile are **two operations**, because a webui asks the two
+questions at different moments: `GET /api/session` answers "may I still act", `GET
+/api/users/me` answers "who am I". The **Flux→srv observability** endpoint `GET
+/api/repos/{owner}/{repo}/flux` is **forthcoming** — it belongs to the cluster-view pass and
+is not settled here.
 
-Boot no longer runs the old fail-fast sequence. The server **always boots — no hard boot
-deps** (a DB unreachable is an install-state error, not a boot failure); **migrations
-never auto-run at boot** (installer button or `./platform srv data migrate` — see
-[installation.md](installation.md)); the boot-time **requeue-orphans** action is
-**removed**. Boot instead decides the API composition once from `install.GetState()`
-(installer vs product fragments — [installation.md](installation.md)). The continuous
-**build runner** is an event-sourced reconciler — see below. The current skeleton's
-claim-loop is described in the implementation blockquote above and is superseded.
+**The server always boots.** A DB it cannot reach is an install-state error rather than a
+boot failure, and **migrations never run at boot** — they are the installer's button or
+`./platform srv data migrate` ([installation.md](installation.md)). Boot's one decision is
+the API composition, taken once from `install.GetState()`: the installer fragment while the
+server is incomplete, the product fragments once it is installed. Nothing at boot touches the
+build queue; executing builds is the worker's, and the queue is the records themselves.
 
 ## Triggering a build
 
@@ -184,8 +142,8 @@ its own command — `platform worker`, deployed as its own process beside `platf
 scaled by adding processes. The job *code* lives in the fragment that owns its domain, per
 fx's self-contained-fragment convention: the build jobs are files in `srv/builds`, a session
 sweep would belong to `srv/auth`. There is no central jobs package — that is the grab-bag
-fx's fragment model exists to prevent. A worker loop hand-rolled *inside* an HTTP fragment is
-the pre-rework mistake (`srv/builds/runner.go`), and it is torn out rather than repaired.
+fx's fragment model exists to prevent. A build loop hand-rolled *inside* an HTTP fragment is
+the shape this forbids: the server process serves, and the worker process works.
 
 **The worker is general background processing**, not a build runner: recurring cleanup
 sweeps, reconciliation of bad state, and anything else that must happen off the request path
@@ -324,7 +282,6 @@ domain for GitHub App events and Kubernetes events, and the bare noun would coll
 
 **`BuildAttempt` is an output type.** It is the srv-side DB model wrapping a finished
 result for display; it is not an input to the build path, and the `engine` never sees one.
-The pre-rework `AttemptFrom`/`Purpose` vocabulary is discarded.
 
 `BuildResult` is **engine-side only**, and it does not cross this boundary. It survives
 there as the engine's result type ([engine.md](engine.md)) because half of it is a live
@@ -390,10 +347,10 @@ bus-factor on whoever connected the repo.
 The server governs one App for its bound org. The App is **created by hand** on GitHub,
 guided by the **webui install page** (which renders the running server's live webhook +
 callback URLs at install time), then its credentials — **app id, private key, webhook
-secret, client secret** — are copied into **fx config**. The old App-Manifest
-auto-exchange flow (`/setup/github`) is **killed**: creation is now an install-page step,
-credentials arrive via config, and the install record holds only the `installation_id`,
-not the credentials. This is a *server install* concern owned by the installer fragment —
+secret, client secret** — are copied into **fx config**. Creation is an install-page step
+rather than an App-Manifest auto-exchange: credentials arrive through config, and the
+install record holds only the `installation_id`, never the credentials themselves. This is
+a *server install* concern owned by the installer fragment —
 **not** `platform init`. See [installation.md](installation.md).
 
 ### Two token types, chosen per operation
