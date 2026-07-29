@@ -21,6 +21,20 @@ import (
 	"platform.prodigy9.co/srv/srvtest"
 )
 
+// githubUsersSQL selects the users a GitHub login created. Tests scope by provider
+// because the users table is never empty: the migration seeds the system principal.
+const githubUsersSQL = `
+	SELECT u.* FROM users u
+	JOIN identities i ON i.user_id = u.id
+	WHERE i.provider = 'github'`
+
+// loginUsersCountSQL counts every user that is not the seeded system principal — an
+// orphan row a losing login racer left behind counts here, which is what the race test
+// is watching for.
+const loginUsersCountSQL = `
+	SELECT count(*) FROM users u WHERE NOT EXISTS (
+		SELECT 1 FROM identities i WHERE i.user_id = u.id AND i.provider = 'system')`
+
 const (
 	testServerURL    = "https://platform.example.com"
 	testClientID     = "Iv1.abc"
@@ -336,7 +350,7 @@ func TestGitHubCallbackCreatesUserIdentityAndSession(t *testing.T) {
 	require.Equal(t, int((30 * 24 * time.Hour).Seconds()), session.MaxAge)
 
 	user := &User{}
-	require.NoError(t, data.Get(ctx, user, `SELECT * FROM users`))
+	require.NoError(t, data.Get(ctx, user, githubUsersSQL))
 	require.Equal(t, "octocat", user.Name)
 
 	var identity struct {
@@ -351,7 +365,7 @@ func TestGitHubCallbackCreatesUserIdentityAndSession(t *testing.T) {
 	require.NoError(t, data.Get(ctx, &identity, `
 		SELECT user_id, provider, provider_id, kind, email, email_verified,
 			metadata::text AS metadata
-		FROM identities`))
+		FROM identities WHERE provider = 'github'`))
 	require.Equal(t, user.ID, identity.UserID)
 	require.Equal(t, "github", identity.Provider)
 	require.Equal(t, "12345", identity.ProviderID)
@@ -403,8 +417,8 @@ func TestGitHubCallbackSecondLoginReusesUser(t *testing.T) {
 	}
 	require.NoError(t, data.Get(ctx, &counts, `
 		SELECT
-			(SELECT count(*) FROM users) AS users,
-			(SELECT count(*) FROM identities) AS identities,
+			(` + loginUsersCountSQL + `) AS users,
+			(SELECT count(*) FROM identities WHERE provider = 'github') AS identities,
 			(SELECT count(*) FROM sessions) AS sessions`))
 	require.Equal(t, 1, counts.Users)
 	require.Equal(t, 1, counts.Identities)
@@ -450,8 +464,8 @@ func TestUpsertGitHubUserFirstLoginRace(t *testing.T) {
 	}
 	require.NoError(t, data.Get(ctx, &counts, `
 		SELECT
-			(SELECT count(*) FROM users) AS users,
-			(SELECT count(*) FROM identities) AS identities`))
+			(` + loginUsersCountSQL + `) AS users,
+			(SELECT count(*) FROM identities WHERE provider = 'github') AS identities`))
 	require.Equal(t, 1, counts.Users)
 	require.Equal(t, 1, counts.Identities)
 }
@@ -478,4 +492,29 @@ func TestDeleteSessionInvalidatesSession(t *testing.T) {
 	resp = httptest.NewRecorder()
 	router.ServeHTTP(resp, usersMeRequest(ctx, token))
 	require.Equal(t, http.StatusUnauthorized, resp.Code)
+}
+
+func TestSystemUserIsSeeded(t *testing.T) {
+	ctx := setupDB(t)
+
+	id, err := SystemUserID(ctx)
+	require.NoError(t, err)
+
+	user := &User{}
+	require.NoError(t, data.Get(ctx, user, `SELECT * FROM users WHERE id = $1`, id))
+	require.Equal(t, "platform", user.Name)
+}
+
+// The system user is a principal, not an account: its identity names a provider no login
+// flow speaks, so no session can ever be minted for it.
+func TestSystemUserHasNoLoginIdentity(t *testing.T) {
+	ctx := setupDB(t)
+
+	id, err := SystemUserID(ctx)
+	require.NoError(t, err)
+
+	var kinds []string
+	require.NoError(t, data.Select(ctx, &kinds,
+		`SELECT kind FROM identities WHERE user_id = $1`, id))
+	require.Equal(t, []string{"system"}, kinds)
 }

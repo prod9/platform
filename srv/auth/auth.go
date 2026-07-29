@@ -51,6 +51,18 @@ type User struct {
 	CreatedAt time.Time `db:"created_at"`
 }
 
+// SystemUserID resolves the seeded system principal — the user a build triggered by the
+// App itself is attributed to. It is looked up through its identity rather than by a
+// literal id: the identity is what marks the row as the system's, and it is unique by the
+// identities table's own constraint.
+func SystemUserID(ctx context.Context) (int64, error) {
+	var id int64
+	err := data.Get(ctx, &id, `
+		SELECT user_id FROM identities
+		WHERE provider = 'system' AND provider_id = 'platform'`)
+	return id, err
+}
+
 // Session is a live platform session's identity and lifetime — what the webui's
 // validity probe needs, distinct from the user's profile.
 type Session struct {

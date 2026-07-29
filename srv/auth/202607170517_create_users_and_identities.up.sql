@@ -19,3 +19,12 @@ CREATE TABLE identities
 
     UNIQUE (provider, provider_id)
 );
+
+-- The system principal: the user a build triggered by the App itself is attributed to.
+-- No login flow speaks the 'system' provider, so no session can ever be minted for it,
+-- and identities' UNIQUE (provider, provider_id) keeps the row single.
+WITH seeded_user AS (
+    INSERT INTO users (name) VALUES ('platform') RETURNING id
+)
+INSERT INTO identities (user_id, provider, provider_id, kind)
+SELECT id, 'system', 'platform', 'system' FROM seeded_user;
