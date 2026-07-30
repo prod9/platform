@@ -158,7 +158,7 @@ are jobs too. fx's queue is one-shot, so a recurring job reschedules itself at t
 
 | Job           | Shape                        | What it does                                                                                                                                                                                |
 | ------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `scan_builds` | recurring, singleton         | Reads `builds` against their events, finds every build with no terminal `run_done`, and schedules a `build` job per build with `ScheduleNow`. Requeuing a timed-out build is the same scan. |
+| `scan_builds` | recurring, singleton         | Reads `builds` against their events, finds every build nothing has reported on, and schedules a `build` job per build with `ScheduleNow`.                                                   |
 | `build`       | one-shot, payload = build id | Repo-prep → engine run → write `build_events`.                                                                                                                                              |
 
 A controller therefore never schedules a job. It appends a record; the scan turns records
@@ -171,8 +171,19 @@ build id they carry. `ScheduleNowIfNotExists` dedupes on the name alone, which m
 primitive for a **singleton** job and never for a per-build one: `scan_builds` schedules
 *itself* with it at the end of every run, and schedules each build with plain `ScheduleNow`.
 
-The scan skips a build whose stream already carries an event, so a sweep that overlaps a
-running build does not schedule it a second time.
+**A build with an event has been picked up, and the scan leaves it alone.** The first thing
+the `build` job does is report, so the presence of any event is what tells an overlapping
+sweep that this build already has a worker — which is what keeps one build from being run
+twice.
+
+**Recovering a stalled build is not yet in this surface.** The obvious rule — reschedule a
+build whose last event is older than its timeout — needs two things this design does not have
+yet: a stall boundary the scan can know (a unit's timeout lives in the repo's
+`platform.toml`, which only exists once the tree is prepared, so the scan cannot read it),
+and an attempt boundary a resumed stream cannot blur (a span closes only when every reporter
+has finished, so appending to a stalled attempt extends it rather than starting a new one).
+Until both are settled, a stalled build stays stalled and a human retries it — which appends
+a new row and is the path that already works.
 
 **The publish tag is the ref's last segment.** A build's `ref` is `refs/tags/vX.Y.Z` and the
 image is published under `vX.Y.Z` — the worker strips the `refs/tags/` prefix and passes the
