@@ -18,6 +18,7 @@ type transcriber struct {
 
 	mu       sync.Mutex
 	err      error
+	written  int
 	captured map[string]capture
 }
 
@@ -37,6 +38,16 @@ func (t *transcriber) Err() error {
 	defer t.mu.Unlock()
 
 	return t.err
+}
+
+// Silent says the engine reported nothing at all, which is how a caller knows a failure
+// happened before the run could speak for itself: the stream has no terminal event and
+// nothing else will ever put one there.
+func (t *transcriber) Silent() bool {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	return t.written == 0
 }
 
 func (t *transcriber) StepStarted(unit, step string, at time.Time) {
@@ -94,6 +105,7 @@ func (t *transcriber) append(event *AppendEvent) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
+	t.written++
 	if err != nil && t.err == nil {
 		t.err = err
 	}

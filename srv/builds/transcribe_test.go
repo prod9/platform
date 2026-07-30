@@ -76,6 +76,18 @@ func TestTranscriberKeepsAWriteFailureForTheJob(t *testing.T) {
 	require.Error(t, scribe.Err(), "no build 404 exists for the event to belong to")
 }
 
+// TestTranscriberIsSilentUntilTheEngineSpeaks pins what a build job reads to decide whether
+// the stream needs a terminal event of its own.
+func TestTranscriberIsSilentUntilTheEngineSpeaks(t *testing.T) {
+	ctx := setupDB(t)
+	build := queueTestBuild(t, ctx, "api")
+	scribe := newTranscriber(ctx, build.ID)
+
+	require.True(t, scribe.Silent())
+	scribe.StepStarted("api", "build", at(1))
+	require.False(t, scribe.Silent())
+}
+
 func kindsOf(events []*BuildEvent) []EventKind {
 	kinds := []EventKind{}
 	for _, event := range events {

@@ -2,7 +2,6 @@ package builds
 
 import (
 	"context"
-	"errors"
 	"strings"
 	"time"
 
@@ -81,8 +80,11 @@ func (r *RunBuild) execute(ctx context.Context, build *Build, scribe *transcribe
 	sess := engine.NewSession(ctx)
 	defer sess.Close()
 
+	// A unit that failed under the engine has already said so in the stream, so only a
+	// failure the engine never reported is handed back — an empty plan, or a [modules] the
+	// framework layer rejected before a single run opened.
 	_, err = sess.BuildAndPublish(ctx, cfg, nil, publishTag(build.Ref), scribe)
-	if errors.Is(err, engine.ErrNoJobs) {
+	if err != nil && scribe.Silent() {
 		return err
 	}
 	return nil
