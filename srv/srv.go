@@ -138,6 +138,7 @@ func connectDB(cfg *config.Source) (*sqlx.DB, error) {
 // Mount collecting fragment migrations. Migrations run via the installer or the CLI,
 // never at boot (docs/spec/installation.md).
 var merged = migrate.Merged(
+	migrate.JobsTable,
 	migrator.FromFS(auth.Migrations),
 	migrator.FromFS(builds.Migrations),
 	migrator.FromFS(install.Migrations),

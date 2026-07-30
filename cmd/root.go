@@ -57,6 +57,7 @@ func init() {
 		ServeCmd,
 		VanityCmd,
 		VersionsCmd,
+		WorkerCmd,
 
 		fxcmd.PrintConfigCmd,
 	)

@@ -12,8 +12,17 @@ import (
 
 	"fx.prodigy9.co/data/migrator"
 	"fx.prodigy9.co/fxlog"
+	"fx.prodigy9.co/worker"
 	"github.com/jmoiron/sqlx"
 )
+
+// JobsTable is fx's own jobs schema, applied with ours rather than left to the worker.
+// worker.Start() creates the table itself, but only once the process is already running —
+// too late for that process to have seeded its first job. Applying it here means a migrated
+// database is ready for work before any worker starts. The SQL is fx's, never a copy.
+var JobsTable = migrator.FromSQL("202607300000_create_jobs",
+	worker.CreateJobsTableSQL,
+	"DROP TABLE jobs;")
 
 // Merged combines migration sources into one, re-sorted by name so timestamps
 // interleave across fragments exactly as they would in a single directory.
