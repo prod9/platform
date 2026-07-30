@@ -139,7 +139,11 @@ is a `worker.Interface` (`Name() string`, `Run(ctx) error`) whose own struct is 
 
 **The separation is at the process, not the package.** `worker.Start()` blocks and runs as
 its own command — `platform worker`, deployed as its own process beside `platform srv`,
-scaled by adding processes. The job *code* lives in the fragment that owns its domain, per
+scaled by adding processes. A process runs **one job at a time** and draws from the single
+queue, so a long build occupies a whole process and no process can be pointed at a job kind
+([fx-worker.md](../vendor/fx-worker.md)); one worker is enough to make progress — the scan
+runs in the gap after each build — but builds serialize and queue latency tracks build
+duration. Parallelism across job kinds waits on a partitioning capability fx does not have. The job *code* lives in the fragment that owns its domain, per
 fx's self-contained-fragment convention: the build jobs are files in `srv/builds`, a session
 sweep would belong to `srv/auth`. There is no central jobs package — that is the grab-bag
 fx's fragment model exists to prevent. A build loop hand-rolled *inside* an HTTP fragment is

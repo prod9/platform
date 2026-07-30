@@ -35,6 +35,9 @@ tables and lists; keep entries skimmable.
   evidence here, how to resolve a package against the image, and the packages we've verified.
 - [`caddy.md`](caddy.md) — the static family's webserver: where `Content-Type` comes from,
   the `encode` defaults, and what `handle_errors` does to the response status.
+- [`fx-worker.md`](fx-worker.md) — the job machinery our jobs run on: the struct-is-the-payload
+  contract, what `Name()` keys, which schedule call deduplicates, and why a process runs one
+  job at a time.
 - [`nginx-gateway-fabric-install.md`](nginx-gateway-fabric-install.md) — the NGF / Gateway API
   install recipe: upstream URLs, the firewall-annotation patch, the serverTokens workaround,
   and the string-forcing constraint.
