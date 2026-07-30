@@ -6,11 +6,11 @@ package observer
 
 import "time"
 
-// Observer is how a run reports what it is doing. Three callbacks are lifecycle and two are
-// output: ImageBuilt is the common path — every successful build fires it, and most commands
-// that build never publish — while Published fires only on the publish path and is the only
-// place a registry hash exists. One callback per event kind; nothing is inferred from a
-// shared method with a mode flag.
+// Observer is how a run reports what it is doing. Three callbacks are lifecycle, one is
+// capture, and two are output: ImageBuilt is the common path — every successful build fires
+// it, and most commands that build never publish — while Published fires only on the publish
+// path and is the only place a registry hash exists. One callback per event kind; nothing is
+// inferred from a shared method with a mode flag.
 //
 // Every signature carries scalars only — never an engine or framework type. Go interfaces
 // are structural, so that is what lets a package implement this without importing engine
@@ -20,6 +20,11 @@ import "time"
 // so an implementation serializes itself; the engine adds no lock on a caller's behalf.
 type Observer interface {
 	StepStarted(unit, step string, at time.Time)
+
+	// StepOutput carries what the step printed, and fires only when it printed something.
+	// It arrives before the StepDone that ends the same step, so a consumer that stores
+	// only the terminal row still has the output in hand.
+	StepOutput(unit, step string, at time.Time, stdout, stderr string)
 
 	// StepDone ends the step StepStarted opened; err is what that step failed with, and
 	// nil when it succeeded. There is no separate failure callback.

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"dagger.io/dagger"
@@ -10,11 +11,31 @@ import (
 	"platform.prodigy9.co/framework"
 )
 
-// Registry credentials for publishing built images, supplied via fx env config.
 var (
+	// Registry credentials for publishing built images, supplied via fx env config.
 	RegistryConfig         = fxconfig.Str("REGISTRY")
 	RegistryUsernameConfig = fxconfig.Str("REGISTRY_USERNAME")
 	RegistryPasswordConfig = fxconfig.Str("REGISTRY_PASSWORD")
+
+	// captureOutput reads what a finished step printed. It is a var so a test can drive the
+	// report path without a live engine; nothing but a test replaces it.
+	captureOutput = func(ctx context.Context, container *dagger.Container, err error) (stdout, stderr string) {
+		// A failed step yields no container — dagger hands its streams over on the error
+		// instead — and that is the output most worth having.
+		var execErr *dagger.ExecError
+		if errors.As(err, &execErr) {
+			return execErr.Stdout, execErr.Stderr
+		}
+		if container == nil {
+			return "", ""
+		}
+
+		// A step whose last operation was not an exec has nothing to read, which dagger
+		// reports as an error: an absence of output, not a failure to report it.
+		stdout, _ = container.Stdout(ctx)
+		stderr, _ = container.Stderr(ctx)
+		return stdout, stderr
+	}
 )
 
 // Run drives one unit's planned steps, one per Next. The engine imposes the sequence and
@@ -77,6 +98,11 @@ func (r *Run) Next(ctx context.Context) bool {
 		obs.StepStarted(r.unit.Name, step.String(), at)
 	})
 	container, err := r.execute(ctx, step)
+	if stdout, stderr := captureOutput(ctx, container, err); stdout != "" || stderr != "" {
+		r.report(func(obs observer.Observer, at time.Time) {
+			obs.StepOutput(r.unit.Name, step.String(), at, stdout, stderr)
+		})
+	}
 	r.report(func(obs observer.Observer, at time.Time) {
 		obs.StepDone(r.unit.Name, step.String(), at, err)
 	})

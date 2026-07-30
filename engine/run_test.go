@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -53,6 +54,10 @@ type recorder struct {
 
 func (r *recorder) StepStarted(unit, step string, _ time.Time) {
 	r.lines = append(r.lines, "started "+unit+"/"+step)
+}
+
+func (r *recorder) StepOutput(unit, step string, _ time.Time, stdout, stderr string) {
+	r.lines = append(r.lines, "output "+unit+"/"+step+"/"+stdout+"/"+stderr)
 }
 
 func (r *recorder) StepDone(unit, step string, _ time.Time, err error) {
@@ -140,6 +145,64 @@ func TestRunDoneIsReportedOnlyOnce(t *testing.T) {
 	}
 
 	require.Equal(t, 1, strings.Count(strings.Join(obs.lines, "\n"), "rundone"))
+}
+
+// TestRunReportsCapturedOutputBeforeTheStepEnds pins the ordering a consumer that only
+// stores the terminal row depends on: the output is in hand by the time StepDone arrives.
+func TestRunReportsCapturedOutputBeforeTheStepEnds(t *testing.T) {
+	restore := captureOutput
+	captureOutput = func(context.Context, *dagger.Container, error) (string, string) {
+		return "compiled", "warning"
+	}
+	defer func() { captureOutput = restore }()
+
+	fw := &stubFramework{steps: []framework.Step{"one"}}
+	obs := &recorder{}
+	run := newStubRun(fw, obs)
+
+	for run.Next(context.Background()) {
+	}
+
+	require.Equal(t, []string{
+		"started stubunit/one",
+		"output stubunit/one/compiled/warning",
+		"done stubunit/one",
+		"built stubunit/stubimage",
+		"rundone stubunit",
+	}, obs.lines)
+}
+
+// TestCaptureOutputTakesAFailedStepsOutputFromItsError pins where the output of the step
+// that broke the build comes from: a failed step yields no container, and dagger carries
+// its streams on the error instead.
+func TestCaptureOutputTakesAFailedStepsOutputFromItsError(t *testing.T) {
+	execErr := &dagger.ExecError{Stdout: "compiling", Stderr: "syntax error"}
+
+	stdout, stderr := captureOutput(context.Background(), nil, fmt.Errorf("step: %w", execErr))
+
+	require.Equal(t, "compiling", stdout)
+	require.Equal(t, "syntax error", stderr)
+}
+
+func TestCaptureOutputReportsNothingWhenThereIsNeither(t *testing.T) {
+	stdout, stderr := captureOutput(context.Background(), nil, errStubStep)
+
+	require.Empty(t, stdout)
+	require.Empty(t, stderr)
+}
+
+// TestRunReportsNoOutputForAStepThatCapturedNothing keeps an empty capture off the stream:
+// a step whose last operation was not an exec has no output, and a row of empty strings is
+// not a thing that happened.
+func TestRunReportsNoOutputForAStepThatCapturedNothing(t *testing.T) {
+	fw := &stubFramework{steps: []framework.Step{"one"}}
+	obs := &recorder{}
+	run := newStubRun(fw, obs)
+
+	for run.Next(context.Background()) {
+	}
+
+	require.NotContains(t, obs.lines, "output stubunit/one//")
 }
 
 // TestRunWithNoStepsFails pins the twin of unknownStep: a framework that plans nothing

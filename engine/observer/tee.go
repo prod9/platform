@@ -15,6 +15,12 @@ func (t teeObserver) StepStarted(unit, step string, at time.Time) {
 	}
 }
 
+func (t teeObserver) StepOutput(unit, step string, at time.Time, stdout, stderr string) {
+	for _, obs := range t {
+		obs.StepOutput(unit, step, at, stdout, stderr)
+	}
+}
+
 func (t teeObserver) StepDone(unit, step string, at time.Time, err error) {
 	for _, obs := range t {
 		obs.StepDone(unit, step, at, err)

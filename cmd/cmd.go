@@ -43,6 +43,11 @@ func (observer) StepStarted(unit, step string, _ time.Time) {
 	termlog.Event(unit+"/"+step, "started")
 }
 
+// StepOutput is ignored: the CLI's report is the named-step progress, and dumping every
+// step's stdout would bury it. What a failed step printed still reaches the operator —
+// dagger carries it on the error StepDone hands to termlog.
+func (observer) StepOutput(unit, step string, _ time.Time, stdout, stderr string) {}
+
 func (observer) StepDone(unit, step string, _ time.Time, err error) {
 	if err != nil {
 		termlog.Error(err)

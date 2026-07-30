@@ -38,6 +38,10 @@ type accObserver struct{ out *Outcome }
 
 func (*accObserver) StepStarted(unit, step string, at time.Time) {}
 
+// StepOutput folds nothing: what a step printed belongs to whoever stores it, and an
+// outcome that grew with every line a build printed would no longer be a fold.
+func (*accObserver) StepOutput(unit, step string, at time.Time, stdout, stderr string) {}
+
 func (a *accObserver) StepDone(unit, step string, at time.Time, err error) {
 	a.out.fail(err)
 }
