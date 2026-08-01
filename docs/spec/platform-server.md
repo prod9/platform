@@ -81,15 +81,34 @@ lives under `/api`; GitHub-facing and health routes stay bare.
 | `DELETE /api/session`       | none (cookie optional)    | deletes the session row, clears the cookie                                            | session revocation server-side — a stolen cookie dies with the row, not with the browser                           |
 | `GET /api/users/me`         | session                   | the session user's profile (id + name)                                                | the webui's "who am I" — profile, not session validity                                                             |
 | `GET /api/builds`           | session                   | last 50 builds, newest first                                                          | the webui's build list — the server's whole point made visible                                                     |
+| `GET /api/builds/{id}`      | session                   | one build, every attempt, and each attempt's steps with their captured output        | the build detail view — the stream made readable, which is the reason the events are stored at all                 |
 | `POST /hooks/github`        | App webhook HMAC          | verifies signature; queues a build row per pushed `refs/tags/v*`                      | the pull-model trigger: a version tag *is* the build request (delivery-verbs ADR)                                  |
 | `GET /api/install`          | none (installer fragment) | ordered install-state list; served **only while not completely installed**            | drives the SPA installer-vs-app decision ([installation.md](installation.md)); its 404 *is* the "installed" signal |
-| `GET /*`                    | none                      | serves the embedded webui; the SPA drives installer-vs-app via `GET /api/install`     | single-binary delivery — no separate frontend deploy                                                               |
+| `GET /*`                    | none                      | serves the embedded webui at the status the path deserves; the SPA drives installer-vs-app via `GET /api/install`  | single-binary delivery — no separate frontend deploy                                                               |
 
 Session validity and the user's profile are **two operations**, because a webui asks the two
 questions at different moments: `GET /api/session` answers "may I still act", `GET
 /api/users/me` answers "who am I". The **Flux→srv observability** endpoint `GET
 /api/repos/{owner}/{repo}/flux` is **forthcoming** — it belongs to the cluster-view pass and
 is not settled here.
+
+### The status of a page is the server's answer, not the browser's
+
+The webui is prerendered to a file tree and embedded, so a fixed route is a file and serving
+it is already truthful — nothing matches, nothing exists, 404. A **dynamic** route has no
+file: `/builds/123` cannot be enumerated at build time, so it is served from the SPA fallback
+page, and a fallback served blindly makes every wrong URL answer 200.
+
+So `srv` decides the status itself and the fallback supplies only the body. A path with a
+prerendered file gets that file. A path matching a known dynamic route gets the fallback at
+the status the record deserves — 404 when the build does not exist. Anything unrecognized
+gets the fallback at 404. The client router then renders the not-found view over a response
+that already said so.
+
+The cost is that `srv` knows the webui's dynamic route shapes and looks the record up before
+answering — the price of a static UI, and the reason a status is never left to the browser to
+infer. A wrong URL that answers 200 is a lie told to every crawler, monitor, and `curl` that
+ever reads it.
 
 **The server always boots.** A DB it cannot reach is an install-state error rather than a
 boot failure, and **migrations never run at boot** — they are the installer's button or
