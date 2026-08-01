@@ -1,13 +1,12 @@
 *.docker
-.idea
-bin
-/build/
-.env
-.env.local
-/infra/
-.inbox.log
-.afk.log
+*.local
 .ace/
+.afk.log
+.idea
+.inbox.log
+/build/
+/infra/
+bin
 
 # Render output (model I: rendered manifests are never committed).
 testbeds/*/k8s
