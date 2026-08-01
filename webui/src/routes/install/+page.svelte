@@ -2,7 +2,7 @@
 	// The install gate. GET /api/install returns the ordered checklist; the first non-done
 	// entry is the step, and this page renders the operative instructions for it
 	// (docs/spec/installation.md).
-	import { installState, runMigrations } from "$lib/api.js";
+	import { installState, runMigrations } from "$lib/api.svelte.js";
 	import Panel from "$lib/components/Panel.svelte";
 	import Button from "$lib/components/Button.svelte";
 

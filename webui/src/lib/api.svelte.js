@@ -2,8 +2,20 @@
 // §Operations). Wire shapes are hand-written on both sides — there is deliberately no
 // generated contract layer — so this file is where drift against the handlers shows up.
 
+// An unreachable server is a condition to render, never an exception to throw: a failed
+// fetch here would otherwise take the whole shell down with it and leave a blank page.
+export const unreachable = $state({ hit: false });
+
 async function json(path, options) {
-	const resp = await fetch(path, options);
+	let resp;
+	try {
+		resp = await fetch(path, options);
+	} catch {
+		unreachable.hit = true;
+		return null;
+	}
+
+	unreachable.hit = false;
 	if (!resp.ok) {
 		return null;
 	}

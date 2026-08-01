@@ -1,7 +1,7 @@
 <script>
 	// The build list: the server's whole point made visible. Rows group by ref, newest
 	// first, and the fold behind each row is computed per read — no status is stored.
-	import { listBuilds, tagOf, shortSHA, when, elapsed } from "$lib/api.js";
+	import { listBuilds, tagOf, shortSHA, when, elapsed } from "$lib/api.svelte.js";
 	import { session } from "$lib/session.svelte.js";
 	import StatusChip from "$lib/components/StatusChip.svelte";
 	import Button from "$lib/components/Button.svelte";

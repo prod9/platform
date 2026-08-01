@@ -3,7 +3,7 @@
 	import { onMount } from "svelte";
 	import { goto } from "$app/navigation";
 	import { page } from "$app/state";
-	import { installState } from "$lib/api.js";
+	import { installState, unreachable } from "$lib/api.svelte.js";
 	import { session, loadSession, signOut } from "$lib/session.svelte.js";
 	import Button from "$lib/components/Button.svelte";
 
@@ -14,11 +14,19 @@
 
 	// Install is a gate, not a destination: it never appears in the nav, and the server
 	// decides which side of it we are on. GET /api/install is served only while the
-	// installer fragment is mounted, so its absence is the installed signal.
+	// installer fragment is mounted, so its absence is the installed signal — but only
+	// when the server answered at all. An unreachable server is neither state, so the
+	// gate stands down and the shell says so rather than routing on a guess.
 	async function gate() {
 		const onInstall = page.url.pathname.replace(/\/+$/, "") === "/install";
-		const installed = (await installState()) === null;
+		const state = await installState();
 
+		if (unreachable.hit) {
+			ready = true;
+			return;
+		}
+
+		const installed = state === null;
 		if (installed && onInstall) {
 			await goto("/");
 		} else if (!installed && !onInstall) {
@@ -51,17 +59,15 @@
 		<a class="wordmark" href="/">PRODIGY9</a>
 		<span class="label tag">platform</span>
 
-		{#if session.user}
-			<nav>
-				{#each destinations as destination (destination.href)}
-					<a
-						class="nav-link label"
-						class:nav-link--current={isCurrent(destination.href)}
-						href={destination.href}>{destination.label}</a
-					>
-				{/each}
-			</nav>
-		{/if}
+		<nav>
+			{#each destinations as destination (destination.href)}
+				<a
+					class="nav-link label"
+					class:nav-link--current={isCurrent(destination.href)}
+					href={destination.href}>{destination.label}</a
+				>
+			{/each}
+		</nav>
 
 		<div class="account">
 			<button class="toggle label" onclick={toggleWarm}>
@@ -73,6 +79,13 @@
 			{/if}
 		</div>
 	</header>
+
+	{#if unreachable.hit}
+		<p class="offline mono">
+			No answer from the platform server. Start it on :8210, or the pages below will
+			stay empty.
+		</p>
+	{/if}
 
 	<main>
 		{#if ready}
@@ -144,6 +157,14 @@
 
 	.toggle:hover {
 		color: var(--accent-signal);
+	}
+
+	.offline {
+		margin: 0;
+		padding: 0 var(--lead-2);
+		line-height: var(--lead-2);
+		color: var(--accent-signal);
+		box-shadow: 0 -1px 0 var(--border) inset;
 	}
 
 	main {

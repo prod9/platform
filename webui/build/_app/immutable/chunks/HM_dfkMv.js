@@ -1,1 +1,0 @@
-import{b as o}from"./zBWKZDzs.js";import{c as a,l as r}from"./CjHBhAL6.js";const s=o({user:null,resolved:!1});async function t(){s.user=await a(),s.resolved=!0}async function l(){await r(),s.user=null}export{l as a,t as l,s};

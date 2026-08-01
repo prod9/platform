@@ -1,4 +1,4 @@
-import { currentUser, logout as endSession } from "./api.js";
+import { currentUser, logout as endSession } from "./api.svelte.js";
 
 // The signed-in user, shared by the shell and the pages under it — the shell needs it to
 // decide whether there is anything to navigate, and a page needs it to decide between its
