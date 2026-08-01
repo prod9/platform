@@ -1,0 +1,116 @@
+/* Element defaults. Everything vertical resolves to the lattice in tokens.css — a bare px
+   in a block-flow property drifts the rhythm and is a defect, not a tweak. */
+
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}
+
+html {
+	background: var(--surface);
+}
+
+body {
+	margin: 0;
+	background: var(--surface);
+	color: var(--text);
+	font-family: var(--p9-font);
+	font-size: var(--size-prose);
+	line-height: var(--lead);
+	-webkit-font-smoothing: antialiased;
+}
+
+/* Headings are Curly, tight, and few words. Display sizes carry negative tracking; the
+   font-size is the lattice multiple and the line box leads at 1 on top of it. */
+h1,
+h2,
+h3 {
+	margin: 0;
+	font-family: var(--p9-display);
+	font-weight: 700;
+	line-height: 1;
+	letter-spacing: -0.04em;
+}
+
+h1 {
+	font-size: var(--size-display);
+	letter-spacing: -0.05em;
+}
+
+h2 {
+	font-size: var(--size-heading);
+}
+
+h3 {
+	font-family: var(--p9-support);
+	font-size: var(--size-prose);
+	font-weight: 600;
+	line-height: var(--lead);
+	letter-spacing: 0;
+}
+
+p {
+	margin: 0 0 var(--lead);
+	max-width: 62ch;
+}
+
+/* Prose never runs in caps or below 14px; anything small and structural is Curly. */
+p:last-child {
+	margin-bottom: 0;
+}
+
+a {
+	color: var(--accent);
+	text-decoration-thickness: 1px;
+	text-underline-offset: 3px;
+}
+
+a:hover {
+	color: var(--accent-signal);
+}
+
+code,
+kbd,
+samp,
+pre {
+	font-family: var(--p9-mono);
+	font-size: var(--size-mono);
+}
+
+/* The machine's voice: data, identifiers, timestamps. */
+.mono {
+	font-family: var(--p9-mono);
+	font-size: var(--size-mono);
+	line-height: var(--lead);
+}
+
+/* Caps labels are Curly, tracked, and never Spectral. */
+.label {
+	font-family: var(--p9-support);
+	font-size: var(--size-label);
+	font-weight: 600;
+	line-height: var(--lead);
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	color: var(--text-muted);
+}
+
+.muted {
+	color: var(--text-muted);
+}
+
+/* A separator paints a hairline without occupying height — a border-top would add a
+   pixel to the block and drift every baseline below it. */
+.rule-top {
+	box-shadow: 0 1px 0 var(--border) inset;
+}
+
+.rule-bottom {
+	box-shadow: 0 -1px 0 var(--border) inset;
+}
+
+:focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: 2px;
+}

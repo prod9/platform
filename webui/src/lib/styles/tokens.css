@@ -1,0 +1,85 @@
+/* Tokens split in two layers. Pigments (--p9-*) are the fixed PRODIGY9 palette and never
+   move. Roles are what components consume, and are the only layer a mode rebinds. A
+   component naming a pigment directly is declaring that it holds that value across modes;
+   everything else speaks in roles. */
+
+:root {
+	/* Pigments — immutable. */
+	--p9-logo-indigo: #2a3b8e;
+	--p9-indigo: #43569f;
+	--p9-indigo-2: #5668ad;
+	--p9-red: #d85b52;
+	--p9-red-deep: #c94a43;
+	--p9-ink: #202438;
+	--p9-muted: #737b91;
+	--p9-line: #e2e6f0;
+	--p9-paper: #fbfaf7;
+	--p9-soft: #f2f4f8;
+
+	/* Roles — bright is the default mode. */
+	--surface: var(--p9-paper);
+	--surface-raised: #ffffff;
+	--text: var(--p9-ink);
+	--text-muted: var(--p9-muted);
+	--border: var(--p9-line);
+	--accent: var(--p9-indigo);
+	--accent-signal: var(--p9-red);
+	--accent-signal-strong: var(--p9-red-deep);
+	--panel: var(--p9-soft);
+
+	/* Letterpress depth belongs to warm alone; bright stays flat. */
+	--raised-shadow: none;
+
+	/* Voices. Never substituted: Curly speaks, Spectral reads, Iosevka computes. */
+	--p9-display: "Iosevka Curly", Iosevka, "SFMono-Regular", monospace;
+	--p9-support: "Iosevka Curly", Iosevka, "SFMono-Regular", monospace;
+	--p9-font: Spectral, Georgia, "Times New Roman", serif;
+	--p9-mono: Iosevka, "SFMono-Regular", Menlo, Consolas, monospace;
+
+	/* The vertical lattice. Derived from the prose ratio rather than chosen round:
+	   17px prose at 1.65 lands on 28px, which is therefore the lead every line box and
+	   every block-flow dimension is a whole multiple of. Halves appear only as symmetric
+	   pairs that sum back to a whole unit. */
+	--lead: 28px;
+	--lead-half: 14px;
+	--lead-2: 56px;
+	--lead-3: 84px;
+	--lead-4: 112px;
+
+	/* Type sizes. Prose and mono lead at one unit so two columns of different sizes land
+	   on the same baselines; display snaps its font-size to a whole unit and leads at 1,
+	   never the other way around. */
+	--size-prose: 17px;
+	--size-mono: 13px;
+	--size-label: 12px;
+	--size-heading: 28px;
+	--size-display: 56px;
+	--size-display-lg: 84px;
+
+	/* The page's one shared left measure. Every galley row hangs off it, so a single
+	   vertical line runs the length of the page without any section re-guessing it. */
+	--spine: 200px;
+
+	--radius-sm: 2px;
+	--radius-md: 6px;
+}
+
+/* Warm — opt-in only, from a stored choice, never probed from the OS. It dims the paper
+   and leaves ink where it is: black-ink art reads only on a light ground, so the ground
+   moves down to the band where it still prints and no further. Accents deepen rather
+   than lift, because contrast on a lighter-than-mid ground is won by going darker. */
+:root[data-theme="warm"] {
+	--surface: #c7beb6;
+	--surface-raised: #e2dbd4;
+	--text: #1a1d2c;
+	--text-muted: #4b4539;
+	--border: #9f9891;
+	--panel: #d5cec8;
+	--accent: var(--p9-logo-indigo);
+	--accent-signal: #d04539;
+	--accent-signal-strong: #b93a2f;
+
+	/* Warm compresses the value range, so raised surfaces earn a letterpress cast under
+	   a lit top edge — paper laid on paper. */
+	--raised-shadow: 0 1px 0 rgba(255, 255, 255, 0.5) inset, 0 2px 6px rgba(26, 29, 44, 0.18);
+}

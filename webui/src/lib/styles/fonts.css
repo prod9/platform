@@ -1,0 +1,55 @@
+/* The three PRODIGY9 voices, self-hosted from the @fontsource packages: the binary runs
+   in-cluster and must render without CDN reach. woff2 only — the packages' .woff
+   fallbacks double the embedded size — and only the weights this UI actually sets, since
+   Iosevka's latin subset alone runs about a megabyte per weight. */
+
+/* Speaks — display, headings, nav, buttons, caps labels. */
+@font-face {
+	font-family: "Iosevka Curly";
+	font-style: normal;
+	font-weight: 600;
+	font-display: swap;
+	src: url("@fontsource/iosevka-curly/files/iosevka-curly-latin-600-normal.woff2") format("woff2");
+}
+
+@font-face {
+	font-family: "Iosevka Curly";
+	font-style: normal;
+	font-weight: 700;
+	font-display: swap;
+	src: url("@fontsource/iosevka-curly/files/iosevka-curly-latin-700-normal.woff2") format("woff2");
+}
+
+/* Computes — code, raw data, timestamps, identifiers. */
+@font-face {
+	font-family: Iosevka;
+	font-style: normal;
+	font-weight: 400;
+	font-display: swap;
+	src: url("@fontsource/iosevka/files/iosevka-latin-400-normal.woff2") format("woff2");
+}
+
+/* Reads — running prose and captions. Italic carries emphasis and quotes. */
+@font-face {
+	font-family: Spectral;
+	font-style: normal;
+	font-weight: 400;
+	font-display: swap;
+	src: url("@fontsource/spectral/files/spectral-latin-400-normal.woff2") format("woff2");
+}
+
+@font-face {
+	font-family: Spectral;
+	font-style: italic;
+	font-weight: 400;
+	font-display: swap;
+	src: url("@fontsource/spectral/files/spectral-latin-400-italic.woff2") format("woff2");
+}
+
+@font-face {
+	font-family: Spectral;
+	font-style: normal;
+	font-weight: 600;
+	font-display: swap;
+	src: url("@fontsource/spectral/files/spectral-latin-600-normal.woff2") format("woff2");
+}
