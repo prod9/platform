@@ -87,11 +87,13 @@
 	</header>
 
 	<main>
-		{#if phase === Unreachable}
+		{#if phase === Checking}
+			<p class="muted">Asking the server where it stands…</p>
+		{:else if phase === Unreachable}
 			<p class="offline mono">
 				No answer from the platform server. Start it on :8210.
 			</p>
-		{:else if phase === Open}
+		{:else}
 			{@render children()}
 		{/if}
 	</main>
