@@ -3,55 +3,61 @@
 	import { onMount } from "svelte";
 	import { goto } from "$app/navigation";
 	import { page } from "$app/state";
-	import { installState, unreachable } from "$lib/api.svelte.js";
+	import { installState, Answered, Offline } from "$lib/server.js";
 	import { session, loadSession, signOut } from "$lib/session.svelte.js";
+	import { warm, loadTheme, toggleTheme } from "$lib/theme.svelte.js";
 	import Button from "$lib/components/Button.svelte";
 
 	let { children } = $props();
 
-	let ready = $state(false);
-	let warm = $state(false);
+	// The shell is in exactly one of these, and each renders something different. Three
+	// booleans said the same thing worse: two of their eight combinations were reachable.
+	const Checking = "checking";
+	const Unreachable = "unreachable";
+	const Open = "open";
 
-	// Install is a gate, not a destination: it never appears in the nav, and the server
-	// decides which side of it we are on. GET /api/install is served only while the
-	// installer fragment is mounted, so its absence is the installed signal — but only
-	// when the server answered at all. An unreachable server is neither state, so the
-	// gate stands down and the shell says so rather than routing on a guess.
-	async function gate() {
-		const onInstall = page.url.pathname.replace(/\/+$/, "") === "/install";
-		const state = await installState();
-
-		if (unreachable.hit) {
-			ready = true;
-			return;
-		}
-
-		const installed = state === null;
-		if (installed && onInstall) {
-			await goto("/");
-		} else if (!installed && !onInstall) {
-			await goto("/install/");
-		}
-
-		if (installed) {
-			await loadSession();
-		}
-		ready = true;
-	}
-
-	function toggleWarm() {
-		warm = !warm;
-		document.documentElement.dataset.theme = warm ? "warm" : "";
-	}
+	let phase = $state(Checking);
 
 	// One destination today; the cluster view joins it when that slice lands.
 	const destinations = [{ href: "/", label: "Builds" }];
+
+	// Install is a gate, not a destination: it never appears in the nav, and the server
+	// decides which side of it a visitor is on. GET /api/install is served only while the
+	// installer fragment is mounted, so a refusal is the installed signal — while no
+	// answer at all is neither state, and routing on it would be a guess.
+	async function gate() {
+		const state = await installState();
+		if (state.outcome === Offline) {
+			phase = Unreachable;
+			return;
+		}
+
+		const installing = state.outcome === Answered;
+		await routeToSide(installing);
+
+		if (!installing) {
+			await loadSession();
+		}
+		phase = Open;
+	}
+
+	async function routeToSide(installing) {
+		const onInstall = page.url.pathname.replace(/\/+$/, "") === "/install";
+		if (installing && !onInstall) {
+			await goto("/install/");
+		} else if (!installing && onInstall) {
+			await goto("/");
+		}
+	}
 
 	function isCurrent(href) {
 		return page.url.pathname === href;
 	}
 
-	onMount(gate);
+	onMount(() => {
+		loadTheme();
+		gate();
+	});
 </script>
 
 <div class="shell">
@@ -70,8 +76,8 @@
 		</nav>
 
 		<div class="account">
-			<button class="toggle label" onclick={toggleWarm}>
-				{warm ? "Too glum?" : "Too bright?"}
+			<button class="toggle label" onclick={toggleTheme}>
+				{warm.on ? "Too glum?" : "Too bright?"}
 			</button>
 			{#if session.user}
 				<span class="mono">{session.user.name}</span>
@@ -80,15 +86,12 @@
 		</div>
 	</header>
 
-	{#if unreachable.hit}
-		<p class="offline mono">
-			No answer from the platform server. Start it on :8210, or the pages below will
-			stay empty.
-		</p>
-	{/if}
-
 	<main>
-		{#if ready}
+		{#if phase === Unreachable}
+			<p class="offline mono">
+				No answer from the platform server. Start it on :8210.
+			</p>
+		{:else if phase === Open}
 			{@render children()}
 		{/if}
 	</main>
@@ -135,7 +138,7 @@
 		color: var(--accent);
 	}
 
-	/* The current destination is stated by weight and ink, not by a box around it. */
+	/* The current destination is stated by ink, not by a box around it. */
 	.nav-link--current {
 		color: var(--text);
 	}
@@ -160,11 +163,7 @@
 	}
 
 	.offline {
-		margin: 0;
-		padding: 0 var(--lead-2);
-		line-height: var(--lead-2);
 		color: var(--accent-signal);
-		box-shadow: 0 -1px 0 var(--border) inset;
 	}
 
 	main {

@@ -1,13 +1,11 @@
 <script>
 	// A plate: a real border, because the frame is the point and its width is absorbed
 	// into the padding. Carries a caps label and its content, nothing else.
-	let { label = "", children } = $props();
+	let { label, children } = $props();
 </script>
 
 <div class="panel">
-	{#if label}
-		<p class="label">{label}</p>
-	{/if}
+	<p class="label">{label}</p>
 	{@render children()}
 </div>
 

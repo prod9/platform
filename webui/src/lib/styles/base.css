@@ -55,7 +55,6 @@ p {
 	max-width: 62ch;
 }
 
-/* Prose never runs in caps or below 14px; anything small and structural is Curly. */
 p:last-child {
 	margin-bottom: 0;
 }

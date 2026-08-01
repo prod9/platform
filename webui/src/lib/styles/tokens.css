@@ -7,14 +7,12 @@
 	/* Pigments — immutable. */
 	--p9-logo-indigo: #2a3b8e;
 	--p9-indigo: #43569f;
-	--p9-indigo-2: #5668ad;
 	--p9-red: #d85b52;
 	--p9-red-deep: #c94a43;
 	--p9-ink: #202438;
 	--p9-muted: #737b91;
 	--p9-line: #e2e6f0;
 	--p9-paper: #fbfaf7;
-	--p9-soft: #f2f4f8;
 
 	/* Roles — bright is the default mode. */
 	--surface: var(--p9-paper);
@@ -25,7 +23,6 @@
 	--accent: var(--p9-indigo);
 	--accent-signal: var(--p9-red);
 	--accent-signal-strong: var(--p9-red-deep);
-	--panel: var(--p9-soft);
 
 	/* Letterpress depth belongs to warm alone; bright stays flat. */
 	--raised-shadow: none;
@@ -54,11 +51,6 @@
 	--size-label: 12px;
 	--size-heading: 28px;
 	--size-display: 56px;
-	--size-display-lg: 84px;
-
-	/* The page's one shared left measure. Every galley row hangs off it, so a single
-	   vertical line runs the length of the page without any section re-guessing it. */
-	--spine: 200px;
 
 	--radius-sm: 2px;
 	--radius-md: 6px;
@@ -74,7 +66,6 @@
 	--text: #1a1d2c;
 	--text-muted: #4b4539;
 	--border: #9f9891;
-	--panel: #d5cec8;
 	--accent: var(--p9-logo-indigo);
 	--accent-signal: #d04539;
 	--accent-signal-strong: #b93a2f;

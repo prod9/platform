@@ -1,8 +1,8 @@
 <script>
 	// The install gate. GET /api/install returns the ordered checklist; the first non-done
-	// entry is the step, and this page renders the operative instructions for it
+	// entry is the step, and this page carries the operative instructions for it
 	// (docs/spec/installation.md).
-	import { installState, runMigrations } from "$lib/api.svelte.js";
+	import { installState, runMigrations, Answered } from "$lib/server.js";
 	import Panel from "$lib/components/Panel.svelte";
 	import Button from "$lib/components/Button.svelte";
 
@@ -14,7 +14,10 @@
 	const origin = window.location.origin;
 
 	async function load() {
-		entries = (await installState()) ?? [];
+		const result = await installState();
+		if (result.outcome === Answered) {
+			entries = result.body;
+		}
 		loaded = true;
 	}
 
@@ -23,19 +26,23 @@
 		migrateError = "";
 
 		const result = await runMigrations();
-		if (result.entries) {
-			entries = result.entries;
+		if (result.outcome === Answered) {
+			entries = result.body;
 		} else {
-			migrateError = result.error;
+			migrateError = result.body;
 		}
 
 		migrating = false;
 	}
 
+	// The first entry that is not done is the step; null once every one of them is.
 	let next = $derived(entries.find((entry) => entry.status !== "done") ?? null);
 
 	function isStep(name, status) {
-		return next !== null && next.name === name && next.status === status;
+		if (next === null) {
+			return false;
+		}
+		return next.name === name && next.status === status;
 	}
 
 	load();
@@ -91,9 +98,7 @@
 			</Panel>
 		{:else if isStep("app-installed", "pending")}
 			<Panel label="Install the App on the org">
-				<p class="muted">
-					Installation completes on redirect back to this server.
-				</p>
+				<p class="muted">Installation completes on redirect back to this server.</p>
 				<Button variant="primary" href="https://github.com/settings/apps">
 					Open GitHub Apps
 				</Button>
