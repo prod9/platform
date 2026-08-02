@@ -40,6 +40,8 @@ Newest first. Scratch is disposable, so this list may lag — the directory is t
 
 **Live** — committed work in flight:
 
+- [2026-08-02 — why `webui/build/` is committed](2026-08-02-webui-build-committed.md) — the
+  compile-time `go:embed` that forces it, and the `BeforeBuild` hook that would release it
 - [2026-07-26 — session lifetime options](2026-07-26-session-lifetime-options.md) — the
   rejected A–D menu, kept for the failure analysis of the `export` 502 and why each option
   missed the missing layer
