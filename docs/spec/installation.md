@@ -1,9 +1,11 @@
 # Installation
 
-Status: **target design — not yet built.** The `srv/` skeleton predates this
-model; the installer fragment, the `GET /api/install` state surface, and the
-boot-composition gating described here are the intended design the rebuild
-implements. The auth model this sits on is frozen in
+Status: **partially built.** The installer fragment, the `GET /api/install` state
+surface, the migrations action, and the boot-composition gating ship today
+(`srv/install`, `srv.Router`). The **org-owner claim and the install page do not
+yet** — until the claim exists no `installations` row can be written, so a real
+server can never reach the installed composition. The auth model this sits on is
+frozen in
 [platform-server-github-app-zero-rbac](../decisions/2026-06-29-platform-server-github-app-zero-rbac.md);
 the route surface lives in [platform-server.md](platform-server.md).
 
@@ -15,8 +17,17 @@ wiring the org-wide delivery webhook, and running migrations. Until all of that
 is true, the server is **not completely installed** and serves only the installer.
 
 The whole concern lives in a single **installer fragment** (an fx app fragment).
-Product fragments — session, users, auth callbacks, hooks, builds — have **zero
-install awareness**: they are mounted only once the server is completely installed.
+Product fragments — hooks, builds — have **zero install awareness**: they are
+mounted only once the server is completely installed.
+
+**The auth fragment is the exception: it mounts in both compositions.** The
+org-owner claim requires a logged-in GitHub user *before* the server is
+installed, so login (`/auth/github`, its callback, and the session endpoints)
+cannot sit behind the installed gate. Login still has real prerequisites — App
+credentials in config and migrated `users`/`sessions` tables — which the install
+order already guarantees before the claim, the only pre-install step that needs a
+session. A login attempted earlier fails on those grounds and the install page
+never offers it earlier.
 
 ## The `GET /api/install` state surface
 
@@ -45,8 +56,8 @@ migrations create the `installations` table — so it is the **last** entry.
 
 Boot decides the API composition **once**, from `install.GetState()`:
 
-- **Webui `GET /*` is mounted unconditionally** in both states. It never needs
-  remounting.
+- **Webui `GET /*` and the auth fragment are mounted unconditionally** in both
+  states. They never need remounting.
 - **Not completely installed** → installer *action* endpoints are mounted;
   product `/api/*` is **not**. `GET /api/install` is served here — it is **part
   of the gated installer fragment, not an always-available endpoint**.
@@ -86,9 +97,11 @@ server binds to exactly the org set at install time and does not rebind live.
 ## The install record
 
 A **singleton** row, written by the org-owner **claim** — the GitHub App Setup URL
-redirects to `GET /api/install/claim` (org-owner-gated: resolve installation→org,
-verify owner, write the row). The write needs the `installations` table, so the
-claim runs **after** migrations, which is why `app-installed` is the last state entry:
+redirects to `GET /api/install/claim` (session-gated: resolve installation→org via
+the App API, verify the session user is an org owner, write the row). The session
+requirement is why the auth fragment mounts pre-install. The write needs the
+`installations` table, so the claim runs **after** migrations, which is why
+`app-installed` is the last state entry:
 
 | Field                  | Note                           |
 |------------------------|--------------------------------|

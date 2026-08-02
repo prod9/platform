@@ -59,7 +59,9 @@ per concern (`srv/auth`, `srv/github`, `srv/builds`, `srv/install`), each carryi
 domain models and controllers (and, where it owns tables, embedded migration SQL — `github`
 is config-only, no schema). The root package composes them **per install state**: boot
 decides once from `install.GetState()` whether to mount the installer fragment or the
-product fragments (see [installation.md](installation.md)), and aggregates every fragment's
+product fragments — the **auth fragment mounts in both** compositions, because the
+org-owner claim needs a login before the server is installed (see
+[installation.md](installation.md)) — and aggregates every fragment's
 `Migrations` embed into one merged set (`srv/migrate.Merged`, timestamps re-sorted across
 fragments) — run by the installer or the CLI, **never at boot**. The fragment import graph
 is acyclic — `auth → github`, `builds → {auth, github}`, `install → {github, migrate}` —
@@ -80,10 +82,13 @@ lives under `/api`; GitHub-facing and health routes stay bare.
 | `GET /api/session`          | session                   | session state — expiry + user id; 401 when none                                       | the webui's "is my session valid" probe, distinct from the user's profile                                          |
 | `DELETE /api/session`       | none (cookie optional)    | deletes the session row, clears the cookie                                            | session revocation server-side — a stolen cookie dies with the row, not with the browser                           |
 | `GET /api/users/me`         | session                   | the session user's profile (id + name)                                                | the webui's "who am I" — profile, not session validity                                                             |
+| `GET /api/repos`            | session                   | repos the App installation reaches, listed **live from GitHub** — never stored        | the webui's repo picker; a stored repo table would be RBAC state the zero-RBAC model forbids                       |
 | `GET /api/builds`           | session                   | last 50 builds, newest first                                                          | the webui's build list — the server's whole point made visible                                                     |
 | `GET /api/builds/{id}`      | session                   | one build, every attempt, and each attempt's steps with their captured output        | the build detail view — the stream made readable, which is the reason the events are stored at all                 |
+| `POST /api/builds`          | session                   | records a `webui`-triggered build: owner/repo + ref, sha resolved server-side         | the manual trigger — the same domain fact as the webhook, authorized by session instead of HMAC                    |
 | `POST /hooks/github`        | App webhook HMAC          | verifies signature; queues a build row per pushed `refs/tags/v*`                      | the pull-model trigger: a version tag *is* the build request (delivery-verbs ADR)                                  |
 | `GET /api/install`          | none (installer fragment) | ordered install-state list; served **only while not completely installed**            | drives the SPA installer-vs-app decision ([installation.md](installation.md)); its 404 *is* the "installed" signal |
+| `GET /api/install/claim`    | session (installer)       | org-owner claim: resolve installation→org, verify owner, write the install record     | the first-install gate — the App Setup URL lands here ([installation.md](installation.md))                         |
 | `GET /*`                    | none                      | serves the embedded webui at the status the path deserves; the SPA drives installer-vs-app via `GET /api/install`  | single-binary delivery — no separate frontend deploy                                                               |
 
 Session validity and the user's profile are **two operations**, because a webui asks the two
@@ -140,7 +145,10 @@ This is what makes the trigger sources interchangeable: each appends the same fa
 
 **The record must be complete enough to act on.** The controller serializes full intent —
 **which repo, at which ref, resolved to which sha** — so the worker never re-derives *what
-was asked for*.
+was asked for*. The webhook gets the sha from the push payload; the manual trigger
+(`POST /api/builds`) names only a ref, so its controller resolves it to a sha via the
+GitHub API before recording — resolution is part of validating the request, not of
+executing it.
 
 **A build is whole-repo, so the unit set is not intent.** `platform.toml`'s `[modules]`
 defines the units and a build schedules all of them; which units exist is a property of the
@@ -396,6 +404,10 @@ a *server install* concern owned by the installer fragment —
 
 - **Installation token** — minted from the app key (JWT → installation), app/bot identity,
   short-lived. No bus-factor; commits attributed to `platform[bot]`.
+- **`srv/github` owns the App API client**: the App JWT, installation-token minting, and
+  the App-identity queries the server makes (installation→org resolution, org-owner
+  check, the installation's repo list, ref→sha resolution). Fragments consume it; none
+  talks to GitHub's API directly except auth's own user-OAuth exchange.
 - **User-to-server token** — obtained via the App's user OAuth flow, acts as the user.
   Used where the infra-repo commit must show as the user and be gated by *their* write
   access. It restores implicit authz (the token can't exceed the user's reach), so the
@@ -455,6 +467,11 @@ Clones are plain `git` to local fs — no dagger needed for sourcing, so the in-
 render and `host.Directory` both work directly against the clone. repo-prep also returns
 the **resolved sha** so the committed-image-pin model has its anchor.
 
+**The clone authenticates with the installation token** (§Two token types): repo-prep
+mints one per sync and injects it into the fetch URL for that command only — the token is
+~1h-lived and autonomous work is exactly what the installation identity is for. Nothing
+long-lived lands on disk; the mirror's stored remote stays credential-free.
+
 ### Cache layout (`/var/cache`), full clones
 
 Not ephemeral `/tmp` — a persistent cache for fast clones and build reuse:
@@ -473,16 +490,19 @@ the mirror cache makes full clones cheap, so shallow buys nothing.
 
 ## Sequencing
 
-Each layer consumes the one below *after* it works:
+Each layer consumes the one below *after* it works. The CLI delivery path and the `srv`
+wrap (webhook ingest, auth, the build pipeline) have shipped; what remains, in order:
 
-1. **Prove the delivery path from the CLI** end-to-end — the `Infra` framework → render →
-   publish → Flux pulls → applies. All shared-package work, no server.
-2. **Wrap it in `srv`** — webhook ingest + GitHub App + token store + the API.
-   Orchestration around a proven path.
-3. **`webui`** on top of a proven API.
-
-The framework refactor + the `Infra` framework are shared-package work and proceed regardless of
-the server timeline — none of the server/auth design gates the next coding step.
+1. **GitHub App API client** (`srv/github`) — JWT, installation token, the App-identity
+   queries. Everything below consumes it.
+2. **Org-owner claim** — the first path to a completely-installed server; the product
+   API is unreachable on a real server until this exists.
+3. **Credentialed clone** — repo-prep authenticates with the installation token.
+4. **Manual trigger + repo list** — `POST /api/builds`, `GET /api/repos`; a build
+   becomes startable by hand, which is what makes the views verifiable.
+5. **Build detail + truthful statuses** — `GET /api/builds/{id}`, the SPA fallback
+   served at the status the record deserves.
+6. **`webui`** on top of the proven API, then install into the cluster.
 
 ## Open details (not blockers)
 
