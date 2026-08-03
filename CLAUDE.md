@@ -219,6 +219,14 @@ rule are spec'd: [`architecture.md`](docs/spec/architecture.md),
 [`engine.md`](docs/spec/engine.md), and the
 [committed-image ADR](docs/decisions/2026-06-26-render-is-pure-function-of-committed-git.md).
 
+## Audits
+
+**A borderline is a violation (per-repo Law).** Audit findings have two buckets: fix, or
+out-of-scope (pre-existing). Anything flagged in-batch — however defensible — gets fixed
+in the audit slice, never left as a standing flag. The only survivors are findings whose
+shape a spec or ADR explicitly chose; those are restated as the accepted residual, citing
+the ruling.
+
 ## Testing
 
 **Philosophy (per-repo Law): blackbox-first; test-in-build is a hard gate.** Prefer
