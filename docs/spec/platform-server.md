@@ -507,15 +507,14 @@ the mirror cache makes full clones cheap, so shallow buys nothing.
 
 Each layer consumes the one below *after* it works. The CLI delivery path, the `srv`
 wrap (webhook ingest, auth, the build pipeline), the **App API client** (`srv/github`:
-JWT, installation token, the App-identity queries), and the **org-owner claim** (the
-first path to a completely-installed server) have shipped; what remains, in order:
+JWT, installation token, the App-identity queries), the **org-owner claim** (the
+first path to a completely-installed server), the **credentialed clone** (repo-prep
+authenticating with a per-sync installation token), and the **manual trigger + repo
+list** (`POST /api/builds`, `GET /api/repos`) have shipped; what remains, in order:
 
-1. **Credentialed clone** — repo-prep authenticates with the installation token.
-2. **Manual trigger + repo list** — `POST /api/builds`, `GET /api/repos`; a build
-   becomes startable by hand, which is what makes the views verifiable.
-3. **Build detail + truthful statuses** — `GET /api/builds/{id}`, the SPA fallback
+1. **Build detail + truthful statuses** — `GET /api/builds/{id}`, the SPA fallback
    served at the status the record deserves.
-4. **`webui`** on top of the proven API, then install into the cluster.
+2. **`webui`** on top of the proven API, then install into the cluster.
 
 ## Open details (not blockers)
 
