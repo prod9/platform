@@ -111,7 +111,8 @@ lives under `/api`; GitHub-facing and health routes stay bare.
 | `POST /hooks/github`        | App webhook HMAC          | verifies signature; queues a build row per pushed `refs/tags/v*`                      | the pull-model trigger: a version tag *is* the build request (delivery-verbs ADR)                                  |
 | `GET /api/install`          | none (installer fragment) | ordered install-state list; served **only while not completely installed**            | drives the SPA installer-vs-app decision ([installation.md](installation.md)); its 404 *is* the "installed" signal |
 | `POST /api/install/claim`   | session (installer)       | org-owner claim: resolve installation→org, verify owner, write the `install.*` settings | the first-install gate; the App Setup URL lands on the webui install page, which posts here ([installation.md](installation.md)) |
-| `GET/POST/DELETE /api/settings*` | session              | fx's settings app, mounted behind `srv`'s session-gating wrapper controller          | operator-visible key/value state — install binding and future server settings, one storage |
+| `GET/POST/DELETE /api/settings*` | session (installed) / none (installer) | fx's settings app via `srv`'s wrapper controller; the installer composition mounts it ungated — the wizard's credential steps write before login can exist ([installation.md](installation.md)) | operator-visible key/value state — App credentials, install binding, future server settings, one storage |
+| `GET /*?go-get=1`           | none                      | vanity go-import meta for module path `platform.prodigy9.co` (the toolchain always appends `go-get=1`) | one host serves module resolution and the product; the standalone `vanity` command and Deployment are legacy |
 | `GET /*`                    | none                      | serves the embedded webui at the status the path deserves; the SPA drives installer-vs-app via `GET /api/install`  | single-binary delivery — no separate frontend deploy                                                               |
 
 Session validity and the user's profile are **two operations**, because a webui asks the two
@@ -424,13 +425,14 @@ bus-factor on whoever connected the repo.
 ### `srv` owns the App
 
 The server governs one App for its bound org. The App is **created by hand** on GitHub,
-guided by the **webui install page** (which renders the running server's live webhook +
+guided by the **webui install wizard** (which renders the running server's live webhook +
 callback URLs at install time), then its credentials — **app id, private key, webhook
-secret, client secret** — are copied into **fx config**. Creation is an install-page step
-rather than an App-Manifest auto-exchange: credentials arrive through config, and the
-install settings hold only the `installation_id`, never the credentials themselves. This is
-a *server install* concern owned by the installer fragment —
-**not** `platform init`. See [installation.md](installation.md).
+secret, client secret** — are pasted into the wizard's credential steps and saved as the
+**`github.app_*` settings**. Creation is a wizard step rather than an App-Manifest
+auto-exchange: credentials live in the settings table (`srv/github`'s `LoadApp` reads
+them; srv and the worker share the rows), and the deployment's fx config carries only
+`DATABASE_URL` and the listen address. This is a *server install* concern owned by the
+installer fragment — **not** `platform init`. See [installation.md](installation.md).
 
 ### Two token types, chosen per operation
 

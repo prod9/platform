@@ -11,9 +11,16 @@ the route surface lives in [platform-server.md](platform-server.md).
 ## What installation is
 
 A platform server governs **one GitHub org**. Installation is the one-time act
-of pointing a fresh server at that org: creating the GitHub App, installing it,
-wiring the org-wide delivery webhook, and running migrations. Until all of that
+of pointing a fresh server at that org: running migrations, creating the GitHub
+App, installing it, and wiring the org-wide delivery webhook. Until all of that
 is true, the server is **not completely installed** and serves only the installer.
+
+The install flow is a **wizard**: the webui walks the state entries as
+step-by-step guided pages, and every value the operator enters — the App
+credentials, then the org binding — is saved into the settings app as its step
+completes, advancing the wizard to the next step. **All install-time settings
+live in settings**; the deployment supplies only `DATABASE_URL` (and listen
+address) through fx config/env.
 
 The whole concern lives in a single **installer fragment** (an fx app fragment).
 Product fragments — hooks, builds — have **zero install *flow* awareness**: they
@@ -27,11 +34,11 @@ data-context pattern); until then the worker path reads the row per job.
 **The auth fragment is the exception: it mounts in both compositions.** The
 org-owner claim requires a logged-in GitHub user *before* the server is
 installed, so login (`/auth/github`, its callback, and the session endpoints)
-cannot sit behind the installed gate. Login still has real prerequisites — App
-credentials in config and migrated `users`/`sessions` tables — which the install
-order already guarantees before the claim, the only pre-install step that needs a
-session. A login attempted earlier fails on those grounds and the install page
-never offers it earlier.
+cannot sit behind the installed gate. Login still has real prerequisites — the
+`github.app_*` settings and migrated `users`/`sessions` tables — which the
+install order already guarantees before the claim, the only pre-install step that
+needs a session. A login attempted earlier fails on those grounds and the install
+page never offers it earlier.
 
 ## The `GET /api/install` state surface
 
@@ -43,8 +50,8 @@ renders from that entry.
 | Entry             | Check                                       | Not-done meaning                           |
 |-------------------|---------------------------------------------|--------------------------------------------|
 | `db-reachable`    | `SELECT 1;`                                 | `error` → "Database connection problem: …" |
-| `app-credentials` | App id / private key / secrets in fx config | `error` when missing                       |
 | `migrations`      | schema is current                           | `pending` → run button; dirty → `error`    |
+| `app-credentials` | every `github.app_*` setting has a value    | `pending` → the credentials wizard steps   |
 | `app-installed`   | every `install.*` setting has a value       | `pending` → org-owner claim                |
 
 Remediations are **convergent and re-runnable**. A dirty migration and a DB error
@@ -52,9 +59,10 @@ surface as **errors**, not action buttons — they are operator conditions, not
 one-click fixes.
 
 "Completely installed" is the conjunction of all four: `db-reachable ∧
-app-credentials ∧ migrations-current ∧ app-installed`. The order matters:
-`app-installed` reads the `install.*` settings, and their rows can't be written
-until migrations create the `settings` table — so it is the **last** entry.
+migrations-current ∧ app-credentials ∧ app-installed`. The order matters:
+every install-time value lives in settings, and the settings table exists only
+once migrations ran — so **migrations precede both settings-backed entries**,
+and `app-installed` stays last (the claim needs credentials to talk to GitHub).
 
 ## Boot composition — the installer gates the product API
 
@@ -101,11 +109,31 @@ server binds to exactly the org set at install time and does not rebind live.
 ## The install settings
 
 Install state lives in **fx's settings app** (`fx.prodigy9.co/app/settings` — the
-`settings` key/value table), under a fixed set of `install.*` keys. There is no
-bespoke `installations` table and **no migration defines the keys**: they are
-hard-coded in the API, a write upserts, and reading an absent key yields the
-empty value. The values are supplied by the guided install flow — the org-owner
-**claim** writes them.
+`settings` key/value table), under two fixed key families. There is no bespoke
+table and **no migration defines the keys**: they are hard-coded in the API, a
+write upserts, and reading an absent key yields the empty value. The values are
+supplied by the wizard — credential steps write the `github.app_*` keys as the
+operator enters them; the org-owner **claim** writes the `install.*` keys:
+
+| Key                         | Value                              |
+|-----------------------------|------------------------------------|
+| `github.app_id`             | the created App's id               |
+| `github.app_private_key`    | PEM private key (PKCS1 or PKCS8)   |
+| `github.app_webhook_secret` | webhook HMAC secret                |
+| `github.app_client_id`      | user-OAuth client id               |
+| `github.app_client_secret`  | user-OAuth client secret           |
+
+`srv/github`'s `LoadApp` reads these settings — **App credentials live in the
+database, not fx config**; srv and the worker read the same rows
+([platform-server.md](platform-server.md), "Auth mechanism"). Secret values in
+Postgres is the allocation config-allocation.md already assigns the server;
+encryption at rest remains open there.
+
+The wizard's credential steps write through the settings surface
+(`POST /api/settings/{slug}`), which the **installer composition mounts
+ungated** — no session can exist before the credentials enable login, the same
+accepted posture as the ungated first-install migrations button. The installed
+composition mounts the same surface session-gated.
 
 The claim: the GitHub App Setup URL is a browser redirect, so it lands on the
 **webui install page** (a GET that only renders, carrying GitHub's
@@ -126,10 +154,9 @@ mounts pre-install. The write needs the `settings` table, so the claim runs
 | `install.installed_at`         | timestamp (RFC 3339)           |
 
 "Installed" means **every `install.*` value is non-empty**; an absent key reads
-as empty, the not-yet-claimed state, and the claim writes all keys or none. App
-credentials are **not** in settings — they live in fx config (see
-[platform-server.md](platform-server.md), "Auth mechanism"). Re-org = clear the
-values + re-install.
+as empty, the not-yet-claimed state, and the claim writes all keys or none.
+Re-org = clear the `install.*` values + re-install (the App credentials survive
+unless the App itself changes).
 
 ## App creation — by hand, guided by the install page
 
@@ -144,8 +171,8 @@ content:
 - the webhook URL and OAuth callback (the srv backend's own URLs — callbacks and
   hooks target the backend directly, never the webui);
 - restrict-to-managed-org;
-- the credential→config mapping (the created App's id, private key, and secrets
-  go into fx config).
+- the credential entry forms (the created App's id, private key, and secrets are
+  pasted into the wizard, which saves them as the `github.app_*` settings).
 
 A `docs/guides/` conceptual how-to is **deferred** — a thin pre-deploy discovery
 doc, added later only if the need proves real, never a second maintained copy of

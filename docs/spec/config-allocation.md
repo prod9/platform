@@ -52,6 +52,7 @@ Top (closest to the human) to bottom (closest to the metal). One owner each.
 | Authorization (who may deploy)        | GitHub           | infra-repo push permission      |
 | Identity, linked accounts, audit      | platform server  | Postgres (`users`/`identities`) |
 | Secret *values*                       | platform server  | Postgres, encrypted at rest     |
+| GitHub App credentials                | platform server  | settings rows (install wizard)  |
 | Secret *references*                   | `infra/`         | CUE (init-container pulls)      |
 | Desired state (image, replicas, env)  | `infra/`         | CUE (linked evaluator) → OCI    |
 | App image (the container)             | OCI registry     | digest-pinned tag               |
