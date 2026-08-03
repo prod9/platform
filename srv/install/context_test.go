@@ -25,7 +25,7 @@ func TestTokenMintsFromContextRecord(t *testing.T) {
 
 func TestTokenFallsBackToLoad(t *testing.T) {
 	ctx := srvtest.SetupDB(t, Source)
-	seedInstall(t, ctx)
+	claimInstalled(t, ctx)
 
 	token, _, err := Token(setupToken(t, ctx))
 	require.NoError(t, err)
@@ -41,7 +41,7 @@ func TestTokenFailsWhenNotInstalled(t *testing.T) {
 
 func TestRecordContextSeedsRequests(t *testing.T) {
 	ctx := srvtest.SetupDB(t, Source)
-	seedInstall(t, ctx)
+	claimInstalled(t, ctx)
 
 	handler := RecordContext(http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
 		record, ok := FromContext(req.Context())
@@ -77,11 +77,11 @@ func TestRecordContextFailsClosedWhenNotInstalled(t *testing.T) {
 	require.Equal(t, 500, resp.Code)
 }
 
-// seedInstall fills the install.* settings through the claim's own writer — tests never
+// claimInstalled fills the install.* settings through the claim's own writer — tests never
 // hand-write install state the product path could not have produced. (Not an srvtest
 // helper: srvtest would have to import install, and this package's internal tests
 // import srvtest — the test binary would cycle.)
-func seedInstall(t *testing.T, ctx context.Context) {
+func claimInstalled(t *testing.T, ctx context.Context) {
 	claim := &ClaimInstall{
 		InstallationID: 7,
 		OrgID:          9, OrgLogin: "prodigy9",

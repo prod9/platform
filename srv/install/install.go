@@ -7,7 +7,6 @@ package install
 
 import (
 	"context"
-	"embed"
 	"errors"
 	"strconv"
 	"time"
@@ -16,16 +15,15 @@ import (
 	"fx.prodigy9.co/data"
 	"fx.prodigy9.co/data/migrator"
 	"github.com/jackc/pgx/v5/pgconn"
-	"platform.prodigy9.co/srv/migrate"
 )
 
 // ErrNotInstalled reports that the server is not bound to an org yet — the install.*
-// settings are absent, unseeded, or still empty.
+// settings are absent or still empty.
 var ErrNotInstalled = errors.New("install: not installed")
 
-// The pre-defined settings keys install state lives under (docs/spec/installation.md,
-// "The install settings"). Seeded empty by this fragment's migration; the claim fills
-// every value or none.
+// The hard-coded settings keys install state lives under (docs/spec/installation.md,
+// "The install settings"). No migration defines them — an absent key reads as empty;
+// the claim writes every value or none.
 const (
 	keyOrgID             = "install.org_id"
 	keyOrgLogin          = "install.org_login"
@@ -46,9 +44,9 @@ type Record struct {
 	InstalledAt       time.Time
 }
 
-// Load decodes the install.* settings. A missing settings table, unseeded keys, and
-// seeded-but-empty values all mean "not installed" — the keys carry values only after
-// the org-owner claim, and the claim writes all of them or none.
+// Load decodes the install.* settings. A missing settings table, absent keys, and
+// empty values all mean "not installed" — the keys carry values only after the
+// org-owner claim, and the claim writes all of them or none.
 func Load(ctx context.Context) (*Record, error) {
 	record := &Record{}
 	fields := []struct {
@@ -77,7 +75,7 @@ func Load(ctx context.Context) (*Record, error) {
 
 // loadValue reads one install.* value, folding every not-installed shape into
 // ErrNotInstalled: a missing settings table (42P01 — its migration has not run, a valid
-// pre-install state), a missing row (unseeded), and an empty value (not yet claimed).
+// pre-install state), an absent row, and an empty value (both: not yet claimed).
 func loadValue(ctx context.Context, key string) (string, error) {
 	setting, err := settings.Get(ctx, key)
 
@@ -114,16 +112,8 @@ func timeField(out *time.Time) func(string) error {
 	}
 }
 
-// Migrations seeds the install.* settings rows; srv aggregates every fragment's SQL at
-// boot via Source, which carries the settings table these rows live in.
-//
-//go:embed *.sql
-var Migrations embed.FS
-
-// Source is the install fragment's whole migration set: fx's settings schema (the
-// storage the install.* keys live in) plus this fragment's seed rows, interleaved by
-// timestamp like any fragment's own SQL.
-var Source = migrate.Merged(
-	migrator.FromFS(*settings.App.EmbeddedMigrations()),
-	migrator.FromFS(Migrations),
-)
+// Source is the install fragment's migration set: fx's settings schema, the storage
+// the install.* keys live in. The fragment carries no SQL of its own — no migration
+// defines the keys; they are hard-coded here and written by the claim
+// (docs/spec/installation.md, "The install settings").
+var Source = migrator.FromFS(*settings.App.EmbeddedMigrations())

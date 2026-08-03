@@ -54,7 +54,7 @@ one-click fixes.
 "Completely installed" is the conjunction of all four: `db-reachable ∧
 app-credentials ∧ migrations-current ∧ app-installed`. The order matters:
 `app-installed` reads the `install.*` settings, and their rows can't be written
-until migrations seed them — so it is the **last** entry.
+until migrations create the `settings` table — so it is the **last** entry.
 
 ## Boot composition — the installer gates the product API
 
@@ -102,10 +102,10 @@ server binds to exactly the org set at install time and does not rebind live.
 
 Install state lives in **fx's settings app** (`fx.prodigy9.co/app/settings` — the
 `settings` key/value table), under a fixed set of `install.*` keys. There is no
-bespoke `installations` table. fx's `settings.Set` **updates only, never
-inserts** (`UPDATE … RETURNING`; the REST controller 404s on a missing key), so
-the keys are *pre-defined*: an srv migration **seeds every `install.*` row with
-an empty value**, and the org-owner **claim** fills the values in.
+bespoke `installations` table and **no migration defines the keys**: they are
+hard-coded in the API, a write upserts, and reading an absent key yields the
+empty value. The values are supplied by the guided install flow — the org-owner
+**claim** writes them.
 
 The claim: the GitHub App Setup URL is a browser redirect, so it lands on the
 **webui install page** (a GET that only renders, carrying GitHub's
@@ -113,8 +113,8 @@ The claim: the GitHub App Setup URL is a browser redirect, so it lands on the
 with that id (session-gated: resolve installation→org via the App API, verify
 the session user is an org owner, write the values) — the write sits behind a
 POST, never the landing GET. The session requirement is why the auth fragment
-mounts pre-install. The write needs the seeded `settings` rows, so the claim
-runs **after** migrations, which is why `app-installed` is the last state entry:
+mounts pre-install. The write needs the `settings` table, so the claim runs
+**after** migrations, which is why `app-installed` is the last state entry:
 
 | Key                            | Value                          |
 |--------------------------------|--------------------------------|
@@ -125,8 +125,8 @@ runs **after** migrations, which is why `app-installed` is the last state entry:
 | `install.installed_by_login`   | seed admin's login at install  |
 | `install.installed_at`         | timestamp (RFC 3339)           |
 
-"Installed" means **every `install.*` value is non-empty**; a seeded-but-empty
-key is the not-yet-claimed state, and the claim writes all keys or none. App
+"Installed" means **every `install.*` value is non-empty**; an absent key reads
+as empty, the not-yet-claimed state, and the claim writes all keys or none. App
 credentials are **not** in settings — they live in fx config (see
 [platform-server.md](platform-server.md), "Auth mechanism"). Re-org = clear the
 values + re-install.
