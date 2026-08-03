@@ -44,6 +44,12 @@ export function runMigrations() {
 	return call("/api/install/migrations", { method: "POST" });
 }
 
+// saveCredentials is the wizard's credential step: the five github.app_* values entered by
+// hand on the install page. The response is a fresh install-state read.
+export function saveCredentials(payload) {
+	return post("/api/install/credentials", payload);
+}
+
 // claimInstall is the org-owner claim: the App's Setup URL lands the browser on the
 // install page with an installation_id, and this posts it (docs/spec/installation.md).
 export function claimInstall(installationID) {

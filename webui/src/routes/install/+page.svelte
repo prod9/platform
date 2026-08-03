@@ -2,7 +2,14 @@
 	// The install gate. GET /api/install returns the ordered checklist; the first non-done
 	// entry is the step, and this page carries the operative instructions for it
 	// (docs/spec/installation.md).
-	import { installState, runMigrations, claimInstall, Answered } from "$lib/server.js";
+	import {
+		installState,
+		runMigrations,
+		saveCredentials,
+		claimInstall,
+		Answered,
+	} from "$lib/server.js";
+	import { nextStep, credentialsPayload } from "$lib/install.js";
 	import { session } from "$lib/session.svelte.js";
 	import Panel from "$lib/components/Panel.svelte";
 	import Button from "$lib/components/Button.svelte";
@@ -11,6 +18,15 @@
 	let loaded = $state(false);
 	let migrating = $state(false);
 	let migrateError = $state("");
+	let credentials = $state({
+		app_id: "",
+		private_key: "",
+		webhook_secret: "",
+		client_id: "",
+		client_secret: "",
+	});
+	let savingCredentials = $state(false);
+	let credentialsError = $state("");
 	let claiming = $state(false);
 	let claimError = $state("");
 
@@ -49,6 +65,20 @@
 		migrating = false;
 	}
 
+	async function submitCredentials() {
+		savingCredentials = true;
+		credentialsError = "";
+
+		const result = await saveCredentials(credentialsPayload(credentials));
+		if (result.outcome === Answered) {
+			entries = result.body;
+		} else {
+			credentialsError = result.body;
+		}
+
+		savingCredentials = false;
+	}
+
 	async function claim() {
 		claiming = true;
 		claimError = "";
@@ -63,8 +93,10 @@
 		claiming = false;
 	}
 
-	// The first entry that is not done is the step; null once every one of them is.
-	let next = $derived(entries.find((entry) => entry.status !== "done") ?? null);
+	let next = $derived(nextStep(entries));
+	let credentialsReady = $derived(
+		Object.values(credentials).every((value) => value.trim() !== ""),
+	);
 
 	function isStep(name, status) {
 		if (next === null) {
@@ -103,27 +135,72 @@
 			<Panel label="Database unreachable">
 				<p class="muted">{next.message}</p>
 			</Panel>
-		{:else if isStep("app-credentials", "error")}
+		{:else if next.name === "app-credentials"}
 			<Panel label="Create the GitHub App">
+				{#if next.status === "error"}
+					<p class="failed mono">{next.message}</p>
+				{/if}
 				<ol class="steps">
 					<li>
-						Create a GitHub App with <code>contents: write</code>,
-						<code>metadata: read</code>, and <code>organization members: read</code>
+						<a href="https://github.com/settings/apps/new" target="_blank">
+							Create a GitHub App
+						</a>
+						with permissions <code>contents: write</code>, <code>metadata: read</code>,
+						and <code>organization members: read</code>
 						(the claim reads org memberships to prove ownership).
 					</li>
 					<li>Webhook URL <code>{origin}/hooks/github</code></li>
 					<li>OAuth callback URL <code>{origin}/auth/github/callback</code></li>
 					<li>Restrict the App to the managed org.</li>
 					<li>
-						Copy the App's id, private key, and client and webhook secrets into the
-						server's config, then restart.
+						In your
+						<a href="https://github.com/settings/apps" target="_blank">Apps list</a>,
+						open the App and generate a private key, a client secret, and a webhook
+						secret.
 					</li>
 					<li>
-						Add an organization webhook delivering <code>registry_package</code> to the
-						cluster's Flux Receiver, so a published image pokes delivery. Org-wide,
-						wired once.
+						In
+						<a href="https://github.com/settings/organizations" target="_blank">
+							the org's settings</a
+						>, under Webhooks, add an organization webhook delivering
+						<code>registry_package</code> to the cluster's Flux Receiver, so a
+						published image pokes delivery. Org-wide, wired once.
 					</li>
+					<li>Paste the App's values below and save.</li>
 				</ol>
+
+				{#if credentialsError}
+					<p class="failed mono">{credentialsError}</p>
+				{/if}
+				<div class="fields">
+					<label>
+						<span class="label">App id</span>
+						<input inputmode="numeric" bind:value={credentials.app_id} />
+					</label>
+					<label>
+						<span class="label">Private key (PEM)</span>
+						<textarea rows="6" bind:value={credentials.private_key}></textarea>
+					</label>
+					<label>
+						<span class="label">Webhook secret</span>
+						<input bind:value={credentials.webhook_secret} />
+					</label>
+					<label>
+						<span class="label">Client id</span>
+						<input bind:value={credentials.client_id} />
+					</label>
+					<label>
+						<span class="label">Client secret</span>
+						<input bind:value={credentials.client_secret} />
+					</label>
+				</div>
+				<Button
+					variant="primary"
+					onclick={submitCredentials}
+					disabled={!credentialsReady || savingCredentials}
+				>
+					{savingCredentials ? "Saving…" : "Save credentials"}
+				</Button>
 			</Panel>
 		{:else if isStep("app-installed", "pending")}
 			{#if !installationID}
@@ -224,5 +301,32 @@
 
 	.failed {
 		color: var(--accent-signal);
+	}
+
+	.fields {
+		display: grid;
+		gap: var(--lead-half);
+		margin: var(--lead) 0;
+	}
+
+	.fields label {
+		display: grid;
+		gap: 2px;
+	}
+
+	.fields input,
+	.fields textarea {
+		padding: 0 var(--lead-half);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		background: var(--surface-raised);
+		font-family: var(--p9-mono);
+		line-height: var(--lead);
+		color: var(--text);
+	}
+
+	.fields textarea {
+		padding: var(--lead-half);
+		resize: vertical;
 	}
 </style>
