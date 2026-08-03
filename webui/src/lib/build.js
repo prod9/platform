@@ -47,6 +47,21 @@ export function lastActivity(build) {
 	return at.toLocaleString();
 }
 
+// byAttempt groups the flat steps read under their attempt ordinal — the wire keeps
+// steps flat with an ordinal each (spec §Operations), and the detail view reads them as
+// one list per attempt. An attempt nothing reported for stays an empty group so ordinals
+// keep indexing the detail view's attempts array.
+export function byAttempt(steps) {
+	const groups = [];
+	for (const step of steps) {
+		while (groups.length <= step.attempt) {
+			groups.push([]);
+		}
+		groups[step.attempt].push(step);
+	}
+	return groups;
+}
+
 const secondsPerMinute = 60;
 
 // ranFor is how long an attempt took, blank until both of its ends are real.

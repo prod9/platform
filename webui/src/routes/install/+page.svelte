@@ -2,7 +2,8 @@
 	// The install gate. GET /api/install returns the ordered checklist; the first non-done
 	// entry is the step, and this page carries the operative instructions for it
 	// (docs/spec/installation.md).
-	import { installState, runMigrations, Answered } from "$lib/server.js";
+	import { installState, runMigrations, claimInstall, Answered } from "$lib/server.js";
+	import { session } from "$lib/session.svelte.js";
 	import Panel from "$lib/components/Panel.svelte";
 	import Button from "$lib/components/Button.svelte";
 
@@ -10,8 +11,21 @@
 	let loaded = $state(false);
 	let migrating = $state(false);
 	let migrateError = $state("");
+	let claiming = $state(false);
+	let claimError = $state("");
 
 	const origin = window.location.origin;
+
+	// The App's Setup URL lands the browser here carrying GitHub's installation_id — the
+	// landing GET only renders; the write sits behind the claim POST
+	// (docs/spec/installation.md §The install record). Signing in bounces through GitHub
+	// and back to /, dropping the query string, so the id is stashed for the return trip.
+	const stashKey = "install.installation_id";
+	const landed = new URLSearchParams(window.location.search).get("installation_id");
+	if (landed) {
+		sessionStorage.setItem(stashKey, landed);
+	}
+	const installationID = Number(landed ?? sessionStorage.getItem(stashKey));
 
 	async function load() {
 		const result = await installState();
@@ -33,6 +47,20 @@
 		}
 
 		migrating = false;
+	}
+
+	async function claim() {
+		claiming = true;
+		claimError = "";
+
+		const result = await claimInstall(installationID);
+		if (result.outcome === Answered) {
+			await load();
+		} else {
+			claimError = result.body;
+		}
+
+		claiming = false;
 	}
 
 	// The first entry that is not done is the step; null once every one of them is.
@@ -79,8 +107,9 @@
 			<Panel label="Create the GitHub App">
 				<ol class="steps">
 					<li>
-						Create a GitHub App with <code>contents: write</code> and
-						<code>metadata: read</code>.
+						Create a GitHub App with <code>contents: write</code>,
+						<code>metadata: read</code>, and <code>organization members: read</code>
+						(the claim reads org memberships to prove ownership).
 					</li>
 					<li>Webhook URL <code>{origin}/hooks/github</code></li>
 					<li>OAuth callback URL <code>{origin}/auth/github/callback</code></li>
@@ -97,12 +126,37 @@
 				</ol>
 			</Panel>
 		{:else if isStep("app-installed", "pending")}
-			<Panel label="Install the App on the org">
-				<p class="muted">Installation completes on redirect back to this server.</p>
-				<Button variant="primary" href="https://github.com/settings/apps">
-					Open GitHub Apps
-				</Button>
-			</Panel>
+			{#if !installationID}
+				<Panel label="Install the App on the org">
+					<p class="muted">
+						Set the App's Setup URL to <code>{origin}/install/</code>, then install it
+						on the managed org — GitHub redirects back here to finish.
+					</p>
+					<Button variant="primary" href="https://github.com/settings/apps">
+						Open GitHub Apps
+					</Button>
+				</Panel>
+			{:else if session.user === null}
+				<Panel label="Claim the installation">
+					<p class="muted">
+						Sign in with a GitHub account that owns the org. That account becomes the
+						seed admin.
+					</p>
+					<Button variant="primary" href="/auth/github">Sign in with GitHub</Button>
+				</Panel>
+			{:else}
+				<Panel label="Claim the installation">
+					<p class="muted">
+						Bind installation #{installationID} to this server as {session.user.name}.
+					</p>
+					{#if claimError}
+						<p class="failed mono">{claimError}</p>
+					{/if}
+					<Button variant="primary" onclick={claim} disabled={claiming}>
+						{claiming ? "Claiming…" : "Claim installation"}
+					</Button>
+				</Panel>
+			{/if}
 		{:else if isStep("migrations", "pending")}
 			<Panel label="Run migrations">
 				<p class="muted">Bring the schema up to date.</p>

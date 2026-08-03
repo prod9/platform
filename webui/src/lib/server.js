@@ -44,12 +44,44 @@ export function runMigrations() {
 	return call("/api/install/migrations", { method: "POST" });
 }
 
+// claimInstall is the org-owner claim: the App's Setup URL lands the browser on the
+// install page with an installation_id, and this posts it (docs/spec/installation.md).
+export function claimInstall(installationID) {
+	return post("/api/install/claim", { installation_id: installationID });
+}
+
 export function currentUser() {
 	return call("/api/users/me");
 }
 
 export function listBuilds() {
 	return call("/api/builds");
+}
+
+export function getBuild(id) {
+	return call(`/api/builds/${id}`);
+}
+
+export function listSteps(id) {
+	return call(`/api/builds/${id}/steps`);
+}
+
+export function listRepos() {
+	return call("/api/repos");
+}
+
+// createBuild records a manual trigger — and a retry is just this again with the same
+// repo and ref (docs/spec/platform-server.md §Build lifecycle).
+export function createBuild(owner, repo, ref) {
+	return post("/api/builds", { owner, repo, ref });
+}
+
+function post(path, body) {
+	return call(path, {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify(body),
+	});
 }
 
 export function endSession() {

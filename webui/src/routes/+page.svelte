@@ -1,7 +1,8 @@
 <script>
 	// The build list: the server's whole point made visible. A row's outcome is folded from
 	// its events on every read — no status is stored anywhere.
-	import { listBuilds, Answered } from "$lib/server.js";
+	import { goto } from "$app/navigation";
+	import { listBuilds, listRepos, createBuild, Answered } from "$lib/server.js";
 	import { tagOf, shortSHA, lastActivity, ranFor } from "$lib/build.js";
 	import { session } from "$lib/session.svelte.js";
 	import StatusChip from "$lib/components/StatusChip.svelte";
@@ -10,6 +11,37 @@
 
 	let builds = $state([]);
 	let loaded = $state(false);
+
+	// The manual trigger: pick a repo the installation reaches, name a ref, and the
+	// controller records the same domain fact a webhook would — resolved server-side.
+	let repos = $state([]);
+	let repoFull = $state("");
+	let ref = $state("");
+	let queueing = $state(false);
+	let triggerError = $state("");
+
+	async function loadRepos() {
+		const result = await listRepos();
+		if (result.outcome === Answered) {
+			repos = result.body;
+		}
+	}
+
+	async function queueBuild(event) {
+		event.preventDefault();
+		queueing = true;
+		triggerError = "";
+
+		const repo = repos.find((entry) => entry.full_name === repoFull);
+		const result = await createBuild(repo.owner, repo.name, ref);
+		if (result.outcome === Answered) {
+			await goto(`/builds/${result.body.id}/`);
+		} else {
+			triggerError = result.body;
+		}
+
+		queueing = false;
+	}
 
 	// A running build advances in the database rather than in this tab, so the list
 	// re-reads while anything is live and rests when nothing is.
@@ -34,6 +66,7 @@
 		}
 
 		load();
+		loadRepos();
 		const timer = setInterval(() => {
 			if (anyLive()) {
 				load();
@@ -54,49 +87,73 @@
 	</section>
 {:else if !loaded}
 	<p class="muted">Loading…</p>
-{:else if builds.length === 0}
-	<Panel label="No builds yet">
-		<p class="muted">Push a version tag on an installed repo and it queues one.</p>
-	</Panel>
 {:else}
-	<section>
-		<div class="head">
-			<h2>Builds</h2>
-			<p class="label">Latest 50, newest first</p>
-		</div>
+	<form class="trigger" onsubmit={queueBuild}>
+		<select class="mono" bind:value={repoFull} required>
+			<option value="" disabled>Repository…</option>
+			{#each repos as repo (repo.full_name)}
+				<option value={repo.full_name}>{repo.full_name}</option>
+			{/each}
+		</select>
+		<input
+			class="mono"
+			type="text"
+			bind:value={ref}
+			placeholder="refs/tags/v1.2.3"
+			required
+		/>
+		<Button variant="primary" disabled={queueing}>
+			{queueing ? "Queueing…" : "Build"}
+		</Button>
+		{#if triggerError}
+			<span class="error mono">{triggerError}</span>
+		{/if}
+	</form>
 
-		<table>
-			<thead>
-				<tr>
-					<th>Build</th>
-					<th>Repository</th>
-					<th>Tag</th>
-					<th>Commit</th>
-					<th>Status</th>
-					<th>Took</th>
-					<th>When</th>
-				</tr>
-			</thead>
-			<tbody>
-				{#each builds as build (build.id)}
+	{#if builds.length === 0}
+		<Panel label="No builds yet">
+			<p class="muted">Push a version tag on an installed repo and it queues one.</p>
+		</Panel>
+	{:else}
+		<section>
+			<div class="head">
+				<h2>Builds</h2>
+				<p class="label">Latest 50, newest first</p>
+			</div>
+
+			<table>
+				<thead>
 					<tr>
-						<td class="mono"><a href="/builds/{build.id}/">#{build.id}</a></td>
-						<td class="mono">{build.owner}/{build.repo}</td>
-						<td class="mono">{tagOf(build.ref)}</td>
-						<td class="mono muted">{shortSHA(build.sha)}</td>
-						<td>
-							<StatusChip status={build.status} />
-							{#if build.error}
-								<span class="error mono" title={build.error}>{build.error}</span>
-							{/if}
-						</td>
-						<td class="mono muted">{ranFor(build)}</td>
-						<td class="mono muted">{lastActivity(build)}</td>
+						<th>Build</th>
+						<th>Repository</th>
+						<th>Tag</th>
+						<th>Commit</th>
+						<th>Status</th>
+						<th>Took</th>
+						<th>When</th>
 					</tr>
-				{/each}
-			</tbody>
-		</table>
-	</section>
+				</thead>
+				<tbody>
+					{#each builds as build (build.id)}
+						<tr>
+							<td class="mono"><a href="/builds/{build.id}/">#{build.id}</a></td>
+							<td class="mono">{build.owner}/{build.repo}</td>
+							<td class="mono">{tagOf(build.ref)}</td>
+							<td class="mono muted">{shortSHA(build.sha)}</td>
+							<td>
+								<StatusChip status={build.status} />
+								{#if build.error}
+									<span class="error mono" title={build.error}>{build.error}</span>
+								{/if}
+							</td>
+							<td class="mono muted">{ranFor(build)}</td>
+							<td class="mono muted">{lastActivity(build)}</td>
+						</tr>
+					{/each}
+				</tbody>
+			</table>
+		</section>
+	{/if}
 {/if}
 
 <style>
@@ -114,6 +171,27 @@
 		align-items: baseline;
 		gap: var(--lead);
 		margin-bottom: var(--lead);
+	}
+
+	.trigger {
+		display: flex;
+		align-items: center;
+		gap: var(--lead-half);
+		margin-bottom: var(--lead-2);
+	}
+
+	.trigger select,
+	.trigger input {
+		padding: 0 var(--lead-half);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		background: var(--surface-raised);
+		line-height: var(--lead);
+		color: var(--text);
+	}
+
+	.trigger input {
+		width: 24ch;
 	}
 
 	table {

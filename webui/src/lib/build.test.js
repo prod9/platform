@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { tagOf, shortSHA, lastActivity, ranFor } from "./build.js";
+import { tagOf, shortSHA, lastActivity, ranFor, byAttempt } from "./build.js";
 
 // A Go zero time — what the server sends for a moment that has not happened.
 const never = "0001-01-01T00:00:00Z";
@@ -71,6 +71,34 @@ describe("lastActivity", () => {
 
 	test("treats a missing field as absent rather than as a date", () => {
 		expect(lastActivity({})).toBe("");
+	});
+});
+
+describe("byAttempt", () => {
+	test("groups steps under their attempt ordinal, in order", () => {
+		const steps = [
+			{ attempt: 0, unit: "web", step: "base" },
+			{ attempt: 0, unit: "web", step: "deps" },
+			{ attempt: 1, unit: "web", step: "base" },
+		];
+
+		expect(byAttempt(steps)).toEqual([
+			[
+				{ attempt: 0, unit: "web", step: "base" },
+				{ attempt: 0, unit: "web", step: "deps" },
+			],
+			[{ attempt: 1, unit: "web", step: "base" }],
+		]);
+	});
+
+	test("keeps an attempt no step reported for as an empty group", () => {
+		const steps = [{ attempt: 1, unit: "web", step: "base" }];
+
+		expect(byAttempt(steps)).toEqual([[], [{ attempt: 1, unit: "web", step: "base" }]]);
+	});
+
+	test("is empty for no steps", () => {
+		expect(byAttempt([])).toEqual([]);
 	});
 });
 

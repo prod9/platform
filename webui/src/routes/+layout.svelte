@@ -35,9 +35,9 @@
 		const installing = state.outcome === Answered;
 		await routeToSide(installing);
 
-		if (!installing) {
-			await loadSession();
-		}
+		// The auth fragment mounts in both compositions — the org-owner claim needs a
+		// login before the server is installed — so the session loads on both sides too.
+		await loadSession();
 		phase = Open;
 	}
 
