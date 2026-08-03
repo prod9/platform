@@ -54,7 +54,7 @@ func init() {
 		RenderCmd,
 		PublishCmd,
 		ReleaseCmd,
-		ServeCmd,
+		SrvCmd,
 		VanityCmd,
 		VersionsCmd,
 		WorkerCmd,

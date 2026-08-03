@@ -211,7 +211,7 @@ other:
 So "no flux webhook" says nothing until the axis is named — disambiguate first.
 
 platform self-delivers from the **`prod9/infra` GitOps repo** (working copy
-`~/Documents/prod9/infra/infra-v2`; module `prodigy9.co`) onto the prod9-main cluster —
+`~/Documents/prod9/infra`; module `prodigy9.co`) onto the prod9-main cluster —
 `./infra` in this repo and the old stage9 deployment are dead legacy.
 
 Arch targets (`local_arch`/`publish_arch`), registry credentials, and the committed-image
