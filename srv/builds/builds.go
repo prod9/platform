@@ -61,9 +61,15 @@ type Create struct {
 }
 
 func (c *Create) Execute(ctx context.Context, out any) error {
-	return data.Exec(ctx, `
+	const insert = `
 		INSERT INTO builds (trigger, retry_of, user_id, owner, repo, clone_url, ref, sha)
-		VALUES ($1, NULLIF($2, 0::bigint), $3, $4, $5, $6, $7, $8)`,
+		VALUES ($1, NULLIF($2, 0::bigint), $3, $4, $5, $6, $7, $8)`
+
+	if out == nil {
+		return data.Exec(ctx, insert,
+			c.Trigger, c.RetryOf, c.UserID, c.Owner, c.Repo, c.CloneURL, c.Ref, c.SHA)
+	}
+	return data.Get(ctx, out, insert+` RETURNING `+buildColumns,
 		c.Trigger, c.RetryOf, c.UserID, c.Owner, c.Repo, c.CloneURL, c.Ref, c.SHA)
 }
 

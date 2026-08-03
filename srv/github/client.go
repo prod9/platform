@@ -3,6 +3,7 @@ package github
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -11,7 +12,13 @@ import (
 	"fx.prodigy9.co/config"
 )
 
-var httpClient = &http.Client{Timeout: 10 * time.Second}
+var (
+	httpClient = &http.Client{Timeout: 10 * time.Second}
+
+	// ErrRepoUnreachable reports that the installation cannot see the repo — absent,
+	// or outside the granted repository set.
+	ErrRepoUnreachable = errors.New("github: repo unreachable by this installation")
+)
 
 // Client is the App API client every fragment consumes; none talks to GitHub's API
 // directly except auth's own user-OAuth exchange (spec §"srv owns the App"). App-scoped
@@ -153,6 +160,37 @@ func (c *Client) Repos(ctx context.Context, token string) ([]Repo, error) {
 			return repos, nil
 		}
 	}
+}
+
+// RepoCloneURL fetches the repo's clone URL. It doubles as the reachability check for
+// the manual build trigger: ErrRepoUnreachable when the installation cannot see the
+// repo, so the caller can answer 404 instead of recording an unbuildable intent.
+func (c *Client) RepoCloneURL(ctx context.Context, token, owner, repo string) (string, error) {
+	if err := CheckRepoPath(owner, repo); err != nil {
+		return "", err
+	}
+
+	path := fmt.Sprintf("/repos/%s/%s", owner, repo)
+	resp, err := c.send(ctx, "GET", path, token, "")
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotFound {
+		return "", ErrRepoUnreachable
+	}
+	if resp.StatusCode != http.StatusOK {
+		return "", RespError("repo lookup", resp)
+	}
+
+	var repository struct {
+		CloneURL string `json:"clone_url"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&repository); err != nil {
+		return "", fmt.Errorf("github: decoding repo: %w", err)
+	}
+	return repository.CloneURL, nil
 }
 
 // ResolveRef resolves a ref (sha, heads/BRANCH, or tags/TAG) to its commit sha via

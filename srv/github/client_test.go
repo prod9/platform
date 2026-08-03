@@ -185,6 +185,38 @@ func TestRepos(t *testing.T) {
 	require.Equal(t, Repo{Name: "last", FullName: "prodigy9/last", Owner: "prodigy9"}, repos[100])
 }
 
+func TestRepoCloneURL(t *testing.T) {
+	client, _ := testClient(t, http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
+		require.Equal(t, "GET", req.Method)
+		require.Equal(t, "/repos/prodigy9/platform", req.URL.Path)
+		require.Equal(t, "Bearer ghs_tok", req.Header.Get("Authorization"))
+
+		fmt.Fprint(resp, `{"clone_url":"https://github.com/prodigy9/platform.git"}`)
+	}))
+
+	cloneURL, err := client.RepoCloneURL(context.Background(), "ghs_tok", "prodigy9", "platform")
+	require.NoError(t, err)
+	require.Equal(t, "https://github.com/prodigy9/platform.git", cloneURL)
+}
+
+func TestRepoCloneURLUnreachableRepo(t *testing.T) {
+	client, _ := testClient(t, http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
+		resp.WriteHeader(404)
+	}))
+
+	_, err := client.RepoCloneURL(context.Background(), "ghs_tok", "prodigy9", "hidden")
+	require.ErrorIs(t, err, ErrRepoUnreachable)
+}
+
+func TestRepoCloneURLRejectsBadRepoPath(t *testing.T) {
+	client, _ := testClient(t, http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
+		t.Error("request must not reach the API")
+	}))
+
+	_, err := client.RepoCloneURL(context.Background(), "ghs_tok", "..", "platform")
+	require.Error(t, err)
+}
+
 func TestResolveRef(t *testing.T) {
 	client, _ := testClient(t, http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
 		require.Equal(t, "GET", req.Method)

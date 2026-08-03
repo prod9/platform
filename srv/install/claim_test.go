@@ -56,19 +56,7 @@ func setupClaim(t *testing.T, membershipStatus int, membershipBody string) *clai
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
 
-	key, err := rsa.GenerateKey(rand.Reader, 2048)
-	require.NoError(t, err)
-	keyPEM := pem.EncodeToMemory(&pem.Block{
-		Type:  "RSA PRIVATE KEY",
-		Bytes: x509.MarshalPKCS1PrivateKey(key),
-	})
-	stubApp(t, &github.App{
-		AppID:         42,
-		PrivateKey:    string(keyPEM),
-		WebhookSecret: "whsec",
-		ClientID:      "Iv1.abc",
-		ClientSecret:  "csec",
-	}, nil)
+	stubApp(t, testApp(t), nil)
 
 	cfg := fxtest.Configure()
 	config.Set(cfg, github.APIURLConfig, server.URL)
@@ -94,6 +82,25 @@ func stubApp(t *testing.T, app *github.App, err error) {
 	orig := github.LoadApp
 	github.LoadApp = func(ctx context.Context) (*github.App, error) { return app, err }
 	t.Cleanup(func() { github.LoadApp = orig })
+}
+
+// testApp is a full set of App credentials with a real signing key, so App-JWT calls
+// against a fake GitHub authenticate for real.
+func testApp(t *testing.T) *github.App {
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	keyPEM := pem.EncodeToMemory(&pem.Block{
+		Type:  "RSA PRIVATE KEY",
+		Bytes: x509.MarshalPKCS1PrivateKey(key),
+	})
+
+	return &github.App{
+		AppID:         42,
+		PrivateKey:    string(keyPEM),
+		WebhookSecret: "whsec",
+		ClientID:      "Iv1.abc",
+		ClientSecret:  "csec",
+	}
 }
 
 func (h *claimHarness) claim(withCookie bool) *httptest.ResponseRecorder {

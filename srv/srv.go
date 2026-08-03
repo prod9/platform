@@ -84,13 +84,22 @@ func Router(cfg *config.Source, db *sqlx.DB, installed bool) (chi.Router, error)
 	// Auth mounts in both compositions: the org-owner claim needs a login before the
 	// server is installed (docs/spec/installation.md).
 	ctrs := []controllers.Interface{auth.SessionCtr{}}
-	if installed {
-		ctrs = append(ctrs, builds.BuildCtr{}, builds.WebhookCtr{})
-	} else {
+	if !installed {
 		ctrs = append(ctrs, install.StateCtr{DB: db, Merged: merged})
 	}
-	ctrs = append(ctrs, UI{}) // catch-all /* — mounts last
 
+	// Product fragments mount behind the install-record middleware — the bound record
+	// is ambient truth for every product route (docs/spec/installation.md).
+	if installed {
+		product := router.With(install.RecordContext)
+		for _, ctr := range []controllers.Interface{builds.BuildCtr{}, builds.WebhookCtr{}} {
+			if err := ctr.Mount(cfg, product); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	ctrs = append(ctrs, UI{}) // catch-all /* — mounts last
 	for _, ctr := range ctrs {
 		if err := ctr.Mount(cfg, router); err != nil {
 			return nil, err
