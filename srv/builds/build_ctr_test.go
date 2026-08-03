@@ -285,6 +285,122 @@ func TestListFoldsEachBuildsEvents(t *testing.T) {
 	require.Empty(t, body[1].Image)
 }
 
+func TestGetWithoutCookie(t *testing.T) {
+	router := apiRouter(t, nil)
+
+	resp := httptest.NewRecorder()
+	router.ServeHTTP(resp, httptest.NewRequest("GET", "/api/builds/1", nil))
+
+	require.Equal(t, http.StatusUnauthorized, resp.Code)
+}
+
+func TestGetUnknownBuild(t *testing.T) {
+	ctx := setupDB(t)
+	token := startTestSession(t, ctx)
+	router := apiRouter(t, nil)
+
+	req := httptest.NewRequest("GET", "/api/builds/999", nil).WithContext(ctx)
+	req.AddCookie(&http.Cookie{Name: "platform_session", Value: token})
+	resp := httptest.NewRecorder()
+	router.ServeHTTP(resp, req)
+
+	require.Equal(t, http.StatusNotFound, resp.Code)
+}
+
+// The detail view is the record plus every attempt folded — steps stay behind the
+// sub-resource so the heavy output payload never rides the detail read.
+func TestGetFoldsEveryAttempt(t *testing.T) {
+	ctx := setupDB(t)
+	build := queueTestBuild(t, ctx, "app")
+	appendTestEvents(t, ctx, build.ID,
+		&AppendEvent{Kind: EventStepStarted, Unit: "api", At: at(1)},
+		&AppendEvent{Kind: EventRunDone, Unit: "api", At: at(2), Error: "boom"},
+		&AppendEvent{Kind: EventStepStarted, Unit: "api", At: at(3)},
+		&AppendEvent{Kind: EventPublished, Unit: "api", At: at(4),
+			Image: "ghcr.io/prod9/app:v1.2.3", Hash: "sha256:abc"},
+		&AppendEvent{Kind: EventRunDone, Unit: "api", At: at(5)})
+	token := startTestSession(t, ctx)
+	router := apiRouter(t, nil)
+
+	req := httptest.NewRequest("GET", fmt.Sprintf("/api/builds/%d", build.ID), nil).WithContext(ctx)
+	req.AddCookie(&http.Cookie{Name: "platform_session", Value: token})
+	resp := httptest.NewRecorder()
+	router.ServeHTTP(resp, req)
+	require.Equal(t, http.StatusOK, resp.Code)
+
+	var body struct {
+		listedBuild
+		Attempts []struct {
+			Status string `json:"status"`
+			Image  string `json:"image"`
+			Error  string `json:"error"`
+		} `json:"attempts"`
+	}
+	require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &body))
+	require.Equal(t, build.ID, body.ID)
+	require.Equal(t, "app", body.Repo)
+	require.Len(t, body.Attempts, 2)
+	require.Equal(t, "failed", body.Attempts[0].Status)
+	require.Equal(t, "boom", body.Attempts[0].Error)
+	require.Equal(t, "succeeded", body.Attempts[1].Status)
+	require.Equal(t, "ghcr.io/prod9/app:v1.2.3", body.Attempts[1].Image)
+}
+
+func TestStepsWithoutCookie(t *testing.T) {
+	router := apiRouter(t, nil)
+
+	resp := httptest.NewRecorder()
+	router.ServeHTTP(resp, httptest.NewRequest("GET", "/api/builds/1/steps", nil))
+
+	require.Equal(t, http.StatusUnauthorized, resp.Code)
+}
+
+func TestStepsUnknownBuild(t *testing.T) {
+	ctx := setupDB(t)
+	token := startTestSession(t, ctx)
+	router := apiRouter(t, nil)
+
+	req := httptest.NewRequest("GET", "/api/builds/999/steps", nil).WithContext(ctx)
+	req.AddCookie(&http.Cookie{Name: "platform_session", Value: token})
+	resp := httptest.NewRecorder()
+	router.ServeHTTP(resp, req)
+
+	require.Equal(t, http.StatusNotFound, resp.Code)
+}
+
+func TestStepsListsTheFlatFold(t *testing.T) {
+	ctx := setupDB(t)
+	build := queueTestBuild(t, ctx, "app")
+	appendTestEvents(t, ctx, build.ID,
+		&AppendEvent{Kind: EventStepStarted, Unit: "api", Step: "test", At: at(1)},
+		&AppendEvent{Kind: EventStepDone, Unit: "api", Step: "test", At: at(2),
+			Stdout: "ok\n", Stderr: "warn\n"},
+		&AppendEvent{Kind: EventRunDone, Unit: "api", At: at(3)})
+	token := startTestSession(t, ctx)
+	router := apiRouter(t, nil)
+
+	req := httptest.NewRequest("GET", fmt.Sprintf("/api/builds/%d/steps", build.ID), nil).WithContext(ctx)
+	req.AddCookie(&http.Cookie{Name: "platform_session", Value: token})
+	resp := httptest.NewRecorder()
+	router.ServeHTTP(resp, req)
+	require.Equal(t, http.StatusOK, resp.Code)
+
+	var steps []struct {
+		Attempt int    `json:"attempt"`
+		Unit    string `json:"unit"`
+		Step    string `json:"step"`
+		Stdout  string `json:"stdout"`
+		Stderr  string `json:"stderr"`
+	}
+	require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &steps))
+	require.Len(t, steps, 1)
+	require.Equal(t, 0, steps[0].Attempt)
+	require.Equal(t, "api", steps[0].Unit)
+	require.Equal(t, "test", steps[0].Step)
+	require.Equal(t, "ok\n", steps[0].Stdout)
+	require.Equal(t, "warn\n", steps[0].Stderr)
+}
+
 // listedBuild mirrors the handler's wire shape; the fragment writes its own wire structs
 // by hand (spec §No api/ contract layer), so the test asserts against a hand-written one.
 type listedBuild struct {

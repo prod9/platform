@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
 	"fx.prodigy9.co/config"
 	"fx.prodigy9.co/data"
 	"fx.prodigy9.co/httpserver/controllers"
+	"fx.prodigy9.co/httpserver/httperrors"
 	"fx.prodigy9.co/httpserver/render"
 	"github.com/go-chi/chi/v5"
 	"platform.prodigy9.co/srv/auth"
@@ -35,6 +37,8 @@ var _ controllers.Interface = BuildCtr{}
 
 func (BuildCtr) Mount(cfg *config.Source, router chi.Router) error {
 	router.Get("/api/builds", list)
+	router.Get("/api/builds/{id}", get)
+	router.Get("/api/builds/{id}/steps", listSteps)
 	router.Post("/api/builds", trigger)
 	router.Get("/api/repos", listRepos)
 	return nil
@@ -220,6 +224,115 @@ func streamsFor(ctx context.Context, limit int) (map[int64][]*BuildEvent, error)
 		streams[event.BuildID] = append(streams[event.BuildID], event)
 	}
 	return streams, nil
+}
+
+// detailResponse is the detail view: the record plus every attempt folded. Steps stay
+// behind the /steps sub-resource so the heavy output payload never rides this read. It
+// is a view composed over the domain folds, per spec §Data-domain structs stay flat.
+type detailResponse struct {
+	buildResponse
+	Attempts []attemptResponse `json:"attempts"`
+}
+
+type attemptResponse struct {
+	Status     Status    `json:"status"`
+	StartedAt  time.Time `json:"started_at"`
+	FinishedAt time.Time `json:"finished_at"`
+	Image      string    `json:"image"`
+	Hash       string    `json:"hash"`
+	Error      string    `json:"error"`
+}
+
+func get(resp http.ResponseWriter, req *http.Request) {
+	build, events, ok := loadBuild(resp, req)
+	if !ok {
+		return
+	}
+
+	attempts := fold(events)
+	out := detailResponse{
+		buildResponse: respond(build, Latest(events)),
+		Attempts:      make([]attemptResponse, len(attempts)),
+	}
+	for i, attempt := range attempts {
+		out.Attempts[i] = attemptResponse{
+			Status:     attempt.Status,
+			StartedAt:  attempt.StartedAt,
+			FinishedAt: attempt.FinishedAt,
+			Image:      attempt.Image,
+			Hash:       attempt.Hash,
+			Error:      attempt.Error,
+		}
+	}
+	render.JSON(resp, req, out)
+}
+
+type stepResponse struct {
+	Attempt    int       `json:"attempt"`
+	Unit       string    `json:"unit"`
+	Step       string    `json:"step"`
+	StartedAt  time.Time `json:"started_at"`
+	FinishedAt time.Time `json:"finished_at"`
+	Error      string    `json:"error"`
+	Stdout     string    `json:"stdout"`
+	Stderr     string    `json:"stderr"`
+}
+
+func listSteps(resp http.ResponseWriter, req *http.Request) {
+	_, events, ok := loadBuild(resp, req)
+	if !ok {
+		return
+	}
+
+	steps := Steps(events)
+	out := make([]stepResponse, len(steps))
+	for i, step := range steps {
+		out[i] = stepResponse{
+			Attempt:    step.Attempt,
+			Unit:       step.Unit,
+			Step:       step.Step,
+			StartedAt:  step.StartedAt,
+			FinishedAt: step.FinishedAt,
+			Error:      step.Error,
+			Stdout:     step.Stdout,
+			Stderr:     step.Stderr,
+		}
+	}
+	render.JSON(resp, req, out)
+}
+
+// loadBuild gates, resolves {id}, and reads the row plus its whole stream — the shared
+// front half of the detail and steps reads. ok=false means a response was written.
+func loadBuild(resp http.ResponseWriter, req *http.Request) (*Build, []*BuildEvent, bool) {
+	if _, authed := auth.RequireUser(resp, req); !authed {
+		return nil, nil, false
+	}
+	ctx := req.Context()
+
+	id, err := strconv.ParseInt(chi.URLParam(req, "id"), 10, 64)
+	if err != nil {
+		render.Error(resp, req, 404, httperrors.ErrNotFound)
+		return nil, nil, false
+	}
+
+	build := &Build{}
+	err = data.Get(ctx, build, `SELECT `+buildColumns+` FROM builds WHERE id = $1`, id)
+	if data.IsNoRows(err) {
+		render.Error(resp, req, 404, httperrors.ErrNotFound)
+		return nil, nil, false
+	} else if err != nil {
+		render.Error(resp, req, 500, err)
+		return nil, nil, false
+	}
+
+	events := []*BuildEvent{}
+	err = data.Select(ctx, &events, `
+		SELECT * FROM build_events WHERE build_id = $1 ORDER BY id`, id)
+	if err != nil {
+		render.Error(resp, req, 500, err)
+		return nil, nil, false
+	}
+	return build, events, true
 }
 
 func respond(build *Build, latest BuildAttempt) buildResponse {
