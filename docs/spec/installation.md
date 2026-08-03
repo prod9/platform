@@ -22,6 +22,22 @@ completes, advancing the wizard to the next step. **All install-time settings
 live in settings**; the deployment supplies only `DATABASE_URL` (and listen
 address) through fx config/env.
 
+The wizard UI holds four rules:
+
+- **Progress is always visible.** The full ordered state list renders on every
+  step, statuses as returned by `GET /api/install`.
+- **One step at a time.** Below the progress list sits exactly one step panel —
+  the one for the first non-`done` entry.
+- **Each panel is operative.** It carries the detailed instructions the human
+  operator follows, direct links to the external pages the step works on (the
+  GitHub App creation page, the Apps list for the Setup URL, the org webhook
+  settings), and — where the step takes values — the input fields and a save
+  action posting the step's installer action.
+- **Restartable, always converging.** The wizard holds no step state of its
+  own: every save's response (and every page load) is a fresh state read, so a
+  reload, a failure, or out-of-order work always lands the operator back on
+  the first unfinished step, with the progress list telling the truth.
+
 The whole concern lives in a single **installer fragment** (an fx app fragment).
 Product fragments — hooks, builds — have **zero install *flow* awareness**: they
 are mounted only once the server is completely installed and never ask "am I
