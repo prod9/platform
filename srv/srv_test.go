@@ -121,6 +121,13 @@ func TestUIBuildRouteStatusFollowsTheRecord(t *testing.T) {
 	require.Equal(t, http.StatusOK, found.Code)
 	require.Contains(t, found.Body.String(), "<html")
 
+	// The SPA links with a trailing slash (trailingSlash = "always"), so the shape
+	// matches with or without one.
+	slashed := httptest.NewRecorder()
+	router.ServeHTTP(slashed, httptest.NewRequest("GET",
+		fmt.Sprintf("/builds/%d/", build.ID), nil).WithContext(ctx))
+	require.Equal(t, http.StatusOK, slashed.Code)
+
 	missing := httptest.NewRecorder()
 	router.ServeHTTP(missing, httptest.NewRequest("GET", "/builds/999999", nil).WithContext(ctx))
 	require.Equal(t, http.StatusNotFound, missing.Code)

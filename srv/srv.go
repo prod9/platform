@@ -232,10 +232,12 @@ func prerendered(build fs.FS, path string) bool {
 	return err == nil
 }
 
-// buildRoute matches the webui's one dynamic route shape, /builds/{id}. Knowing the
-// shape is the price of a static UI answering with a real status.
+// buildRoute matches the webui's one dynamic route shape, /builds/{id} — with or
+// without a trailing slash, since the SPA links with one (trailingSlash = "always").
+// Knowing the shape is the price of a static UI answering with a real status.
 func buildRoute(path string) (int64, bool) {
 	rest, ok := strings.CutPrefix(path, "/builds/")
+	rest = strings.TrimSuffix(rest, "/")
 	if !ok || strings.Contains(rest, "/") {
 		return 0, false
 	}
