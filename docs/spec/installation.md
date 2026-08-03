@@ -96,10 +96,13 @@ server binds to exactly the org set at install time and does not rebind live.
 
 ## The install record
 
-A **singleton** row, written by the org-owner **claim** — the GitHub App Setup URL
-redirects to `GET /api/install/claim` (session-gated: resolve installation→org via
-the App API, verify the session user is an org owner, write the row). The session
-requirement is why the auth fragment mounts pre-install. The write needs the
+A **singleton** row, written by the org-owner **claim**. The GitHub App Setup URL
+is a browser redirect, so it lands on the **webui install page** (a GET that only
+renders, carrying GitHub's `installation_id` query param); the page then submits
+`POST /api/install/claim` with that id (session-gated: resolve installation→org
+via the App API, verify the session user is an org owner, write the row) — the
+write sits behind a POST, never the landing GET. The session requirement is why
+the auth fragment mounts pre-install. The write needs the
 `installations` table, so the claim runs **after** migrations, which is why
 `app-installed` is the last state entry:
 
