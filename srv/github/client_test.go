@@ -84,6 +84,19 @@ func requireAppJWT(t *testing.T, req *http.Request, key *rsa.PrivateKey) {
 	require.LessOrEqual(t, claims.Exp, now+10*60)
 }
 
+func TestJWTAcceptsPKCS8Key(t *testing.T) {
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	der, err := x509.MarshalPKCS8PrivateKey(key)
+	require.NoError(t, err)
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der})
+
+	app := &App{ClientID: "Iv1.abc", PrivateKey: string(keyPEM)}
+	token, err := app.jwt(time.Now())
+	require.NoError(t, err)
+	require.NotEmpty(t, token)
+}
+
 func TestInstallationToken(t *testing.T) {
 	var client *Client
 	var key *rsa.PrivateKey
@@ -185,6 +198,20 @@ func TestRepos(t *testing.T) {
 	require.Equal(t, Repo{Name: "last", FullName: "prodigy9/last", Owner: "prodigy9"}, repos[100])
 }
 
+func TestReposNeverEndingPagesIsAnError(t *testing.T) {
+	client, _ := testClient(t, http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
+		var repos []string
+		for i := range 100 {
+			repos = append(repos, fmt.Sprintf(
+				`{"name":"repo%d","full_name":"prodigy9/repo%d","owner":{"login":"prodigy9"}}`, i, i))
+		}
+		fmt.Fprintf(resp, `{"total_count":10000,"repositories":[%s]}`, strings.Join(repos, ","))
+	}))
+
+	_, err := client.Repos(context.Background(), "ghs_tok")
+	require.ErrorContains(t, err, "did not end")
+}
+
 func TestRepoCloneURL(t *testing.T) {
 	client, _ := testClient(t, http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
 		require.Equal(t, "GET", req.Method)
@@ -230,6 +257,17 @@ func TestResolveRef(t *testing.T) {
 	sha, err := client.ResolveRef(context.Background(), "ghs_tok", "prodigy9", "platform", "tags/v1.2.3")
 	require.NoError(t, err)
 	require.Equal(t, "e4c7a1", sha)
+}
+
+func TestResolveRefUnresolvable(t *testing.T) {
+	for _, status := range []int{404, 422} {
+		client, _ := testClient(t, http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
+			resp.WriteHeader(status)
+		}))
+
+		_, err := client.ResolveRef(context.Background(), "ghs_tok", "prodigy9", "platform", "tags/nope")
+		require.ErrorIs(t, err, ErrRefUnresolvable, "status=%d", status)
+	}
 }
 
 func TestResolveRefRejectsBadRepoPath(t *testing.T) {

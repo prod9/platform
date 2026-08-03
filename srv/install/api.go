@@ -68,7 +68,7 @@ func (c StateCtr) claim(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	owner, org, err := claimedOrgOwner(ctx, client, action.InstallationID, user.Name)
+	org, owner, err := claimedOrgOwner(ctx, client, action.InstallationID, user.Name)
 	if err != nil {
 		render.Error(resp, req, 500, err)
 		return
@@ -92,22 +92,22 @@ func (c StateCtr) claim(resp http.ResponseWriter, req *http.Request) {
 // claimedOrgOwner resolves the installation's org and answers whether user is an
 // active owner of it — the App-identity reads behind the claim, kept apart from the
 // handler's status-code branching.
-func claimedOrgOwner(ctx context.Context, client *github.Client, installationID int64, user string) (bool, *github.Org, error) {
+func claimedOrgOwner(ctx context.Context, client *github.Client, installationID int64, user string) (*github.Org, bool, error) {
 	org, err := client.InstallationOrg(ctx, installationID)
 	if err != nil {
-		return false, nil, err
+		return nil, false, err
 	}
 
 	token, err := client.InstallationToken(ctx, installationID)
 	if err != nil {
-		return false, nil, err
+		return nil, false, err
 	}
 
 	owner, err := client.IsOrgOwner(ctx, token, org.Login, user)
 	if err != nil {
-		return false, nil, err
+		return nil, false, err
 	}
-	return owner, org, nil
+	return org, owner, nil
 }
 
 func (c StateCtr) getState(resp http.ResponseWriter, req *http.Request) {

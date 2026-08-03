@@ -18,7 +18,15 @@ var (
 	// ErrRepoUnreachable reports that the installation cannot see the repo — absent,
 	// or outside the granted repository set.
 	ErrRepoUnreachable = errors.New("github: repo unreachable by this installation")
+
+	// ErrRefUnresolvable reports a ref the repo does not have — the manual trigger's
+	// likely typo, answered as the caller's error rather than the server's.
+	ErrRefUnresolvable = errors.New("github: ref does not resolve to a commit")
 )
+
+// maxRepoPages bounds the repo-list walk so a misbehaving server that keeps returning
+// full pages cannot hold a request forever; 100 repos/page makes the cap generous.
+const maxRepoPages = 50
 
 // Client is the App API client every fragment consumes; none talks to GitHub's API
 // directly except auth's own user-OAuth exchange (spec §"srv owns the App"). App-scoped
@@ -133,7 +141,7 @@ func (c *Client) Repos(ctx context.Context, token string) ([]Repo, error) {
 	const perPage = 100
 
 	var repos []Repo
-	for page := 1; ; page++ {
+	for page := 1; page <= maxRepoPages; page++ {
 		path := fmt.Sprintf("/installation/repositories?per_page=%d&page=%d", perPage, page)
 		body, err := c.fetch(ctx, "GET", path, token, "repo list")
 		if err != nil {
@@ -160,6 +168,7 @@ func (c *Client) Repos(ctx context.Context, token string) ([]Repo, error) {
 			return repos, nil
 		}
 	}
+	return nil, fmt.Errorf("github: repo list did not end within %d pages", maxRepoPages)
 }
 
 // RepoCloneURL fetches the repo's clone URL. It doubles as the reachability check for
@@ -207,6 +216,11 @@ func (c *Client) ResolveRef(ctx context.Context, token, owner, repo, ref string)
 	}
 	defer resp.Body.Close()
 
+	// 404 = ref (or repo) absent; 422 = a name the endpoint cannot resolve. Both are
+	// the caller's ref being wrong, not a server fault.
+	if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusUnprocessableEntity {
+		return "", ErrRefUnresolvable
+	}
 	if resp.StatusCode != http.StatusOK {
 		return "", RespError("ref resolution", resp)
 	}

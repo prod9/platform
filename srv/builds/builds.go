@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"fx.prodigy9.co/data"
+	"fx.prodigy9.co/httpserver/controllers"
+	"fx.prodigy9.co/validate"
 )
 
 // Trigger is how a build came to be asked for. Every trigger records the same domain fact
@@ -48,16 +50,29 @@ type Build struct {
 }
 
 // Create records the intent to build. The record is the queue — there is no dispatch step
-// here — so it carries full intent: which repo, at which ref, resolved to which sha.
+// here — so it carries full intent: which repo, at which ref, resolved to which sha. The
+// manual-trigger path reads owner, repo, and ref from the request; every other field is
+// derived server-side by the caller.
 type Create struct {
-	Trigger  Trigger
-	RetryOf  int64
-	UserID   int64
-	Owner    string
-	Repo     string
-	CloneURL string
-	Ref      string
-	SHA      string
+	Owner string `json:"owner"`
+	Repo  string `json:"repo"`
+	Ref   string `json:"ref"`
+
+	Trigger  Trigger `json:"-"`
+	RetryOf  int64   `json:"-"`
+	UserID   int64   `json:"-"`
+	CloneURL string  `json:"-"`
+	SHA      string  `json:"-"`
+}
+
+var _ controllers.Validator = (*Create)(nil)
+
+func (c *Create) Validate() error {
+	return validate.Multi(
+		validate.Required("owner", c.Owner),
+		validate.Required("repo", c.Repo),
+		validate.Required("ref", c.Ref),
+	)
 }
 
 func (c *Create) Execute(ctx context.Context, out any) error {

@@ -19,9 +19,10 @@ func TestTokenMintsFromContextRecord(t *testing.T) {
 	ctx := setupToken(t, context.Background())
 	ctx = NewContext(ctx, &Record{InstallationID: 7})
 
-	token, err := Token(ctx)
+	token, client, err := Token(ctx)
 	require.NoError(t, err)
 	require.Equal(t, "ghs_ctx_tok", token)
+	require.NotNil(t, client)
 }
 
 func TestTokenFallsBackToLoad(t *testing.T) {
@@ -31,7 +32,7 @@ func TestTokenFallsBackToLoad(t *testing.T) {
 			(id, org_id, org_login, installation_id, installed_by_user_id, installed_by_login)
 		VALUES (1, 9, 'prodigy9', 7, 1, 'chakrit')`))
 
-	token, err := Token(setupToken(t, ctx))
+	token, _, err := Token(setupToken(t, ctx))
 	require.NoError(t, err)
 	require.Equal(t, "ghs_ctx_tok", token)
 }
@@ -39,7 +40,7 @@ func TestTokenFallsBackToLoad(t *testing.T) {
 func TestTokenFailsWhenNotInstalled(t *testing.T) {
 	ctx := srvtest.SetupDB(t, migrator.FromFS(Migrations))
 
-	_, err := Token(setupToken(t, ctx))
+	_, _, err := Token(setupToken(t, ctx))
 	require.ErrorIs(t, err, ErrNotInstalled)
 }
 
@@ -95,7 +96,7 @@ func setupToken(t *testing.T, ctx context.Context) context.Context {
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
 
-	stubApp(t, testApp(t), nil)
+	srvtest.StubApp(t, srvtest.TestApp(t), nil)
 
 	cfg := config.Configure()
 	config.Set(cfg, github.APIURLConfig, server.URL)

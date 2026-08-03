@@ -19,7 +19,7 @@ import (
 var CacheDirConfig = config.StrDef("CACHE_DIR", "/var/cache/platform")
 
 // PrepRepo produces a local working tree for a build (spec §Repo preparation): a full
-// bare mirror of the repo (clone --mirror once, incremental fetch after — never
+// bare mirror of the repo (init-bare once, credentialed mirror-fetch every sync — never
 // shallow), the input sha resolved to a full commit sha (the committed-image-pin
 // anchor), and a per-build worktree added off the mirror. Only the mirror mutation
 // locks; worktrees are independent and removed by RemoveWorkTree after the build.
@@ -61,7 +61,9 @@ func (p *PrepRepo) Run(ctx context.Context) (workDir string, resolvedSHA string,
 // syncMirror initializes (first sync) then fetches the bare mirror under an exclusive
 // flock, serializing concurrent preps of the same repo on its one mutation. The fetch
 // passes the credentialed URL as a command argument so the token rides that one
-// invocation only — the stored remote keeps the clean CloneURL (spec §Repo preparation).
+// invocation only — the stored remote keeps the clean CloneURL, the spec-chosen record
+// of the mirror's source; nothing in the sync path fetches through it (spec §Repo
+// preparation).
 func (p *PrepRepo) syncMirror(ctx context.Context, mirror string) error {
 	if err := os.MkdirAll(filepath.Dir(mirror), 0o755); err != nil {
 		return err

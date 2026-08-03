@@ -20,10 +20,6 @@ import (
 	"platform.prodigy9.co/srv/install"
 )
 
-// errTriggerIncomplete rejects a manual trigger missing any part of the domain fact —
-// which repo, at which ref.
-var errTriggerIncomplete = errors.New("builds: owner, repo, and ref are all required")
-
 // listLimit is what the build list shows: enough history to see the last few pushes of
 // every active ref without paging machinery that has no consumer yet.
 const listLimit = 50
@@ -55,26 +51,18 @@ func trigger(resp http.ResponseWriter, req *http.Request) {
 	}
 	ctx := req.Context()
 
-	var body struct {
-		Owner string `json:"owner"`
-		Repo  string `json:"repo"`
-		Ref   string `json:"ref"`
-	}
-	if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+	create := &Create{Trigger: TriggerWebUI, UserID: user.ID}
+	if err := controllers.ReadAction(req, create); err != nil {
 		render.Error(resp, req, 400, err)
 		return
 	}
-	if body.Owner == "" || body.Repo == "" || body.Ref == "" {
-		render.Error(resp, req, 400, errTriggerIncomplete)
-		return
-	}
 
-	token, client, err := installationClient(ctx)
+	token, client, err := install.Token(ctx)
 	if err != nil {
 		render.Error(resp, req, 500, err)
 		return
 	}
-	cloneURL, err := client.RepoCloneURL(ctx, token, body.Owner, body.Repo)
+	create.CloneURL, err = client.RepoCloneURL(ctx, token, create.Owner, create.Repo)
 	if errors.Is(err, github.ErrRepoUnreachable) {
 		render.Error(resp, req, 404, err)
 		return
@@ -82,31 +70,31 @@ func trigger(resp http.ResponseWriter, req *http.Request) {
 		render.Error(resp, req, 500, err)
 		return
 	}
-	sha, err := client.ResolveRef(ctx, token, body.Owner, body.Repo,
-		strings.TrimPrefix(body.Ref, "refs/"))
-	if err != nil {
+	create.SHA, err = client.ResolveRef(ctx, token, create.Owner, create.Repo,
+		strings.TrimPrefix(create.Ref, "refs/"))
+	if errors.Is(err, github.ErrRefUnresolvable) {
+		render.Error(resp, req, 404, err)
+		return
+	} else if err != nil {
 		render.Error(resp, req, 500, err)
 		return
 	}
 
-	create := &Create{
-		Trigger:  TriggerWebUI,
-		UserID:   user.ID,
-		Owner:    body.Owner,
-		Repo:     body.Repo,
-		CloneURL: cloneURL,
-		Ref:      body.Ref,
-		SHA:      sha,
-	}
 	build := &Build{}
 	if err := create.Execute(ctx, build); err != nil {
 		render.Error(resp, req, 500, err)
 		return
 	}
+	renderCreated(resp, req, respond(build, Latest(nil)))
+}
 
+// renderCreated is render.JSON at 201: fx's render fixes status 200 (a gap its own TODO
+// notes), so the one created-returning handler writes the status itself, with the same
+// committed-response encode handling render.JSON uses.
+func renderCreated(resp http.ResponseWriter, req *http.Request, obj any) {
 	resp.Header().Set("Content-Type", "application/json")
 	resp.WriteHeader(http.StatusCreated)
-	if err := json.NewEncoder(resp).Encode(respond(build, Latest(nil))); err != nil {
+	if err := json.NewEncoder(resp).Encode(obj); err != nil {
 		render.Error(resp, req, 500, err)
 	}
 }
@@ -119,7 +107,7 @@ func listRepos(resp http.ResponseWriter, req *http.Request) {
 	}
 	ctx := req.Context()
 
-	token, client, err := installationClient(ctx)
+	token, client, err := install.Token(ctx)
 	if err != nil {
 		render.Error(resp, req, 500, err)
 		return
@@ -141,21 +129,6 @@ type repoResponse struct {
 	Name     string `json:"name"`
 	FullName string `json:"full_name"`
 	Owner    string `json:"owner"`
-}
-
-// installationClient pairs a fresh installation token with the App client that minted
-// it — every GitHub call these handlers make is installation-scoped.
-func installationClient(ctx context.Context) (string, *github.Client, error) {
-	token, err := install.Token(ctx)
-	if err != nil {
-		return "", nil, err
-	}
-
-	client, err := github.NewClient(ctx)
-	if err != nil {
-		return "", nil, err
-	}
-	return token, client, nil
 }
 
 // buildResponse is the record as stored plus the fold of its events. The fold is computed

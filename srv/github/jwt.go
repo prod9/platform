@@ -22,9 +22,16 @@ func (a *App) jwt(now time.Time) (string, error) {
 	if block == nil {
 		return "", errors.New("github: app private key is not PEM")
 	}
+	// GitHub downloads keys as PKCS1 ("RSA PRIVATE KEY"), but a key re-encoded in
+	// transit (openssl, some secret stores) arrives as PKCS8 — accept both.
 	key, err := x509.ParsePKCS1PrivateKey(block.Bytes)
 	if err != nil {
-		return "", fmt.Errorf("github: parsing app private key: %w", err)
+		parsed, pkcs8Err := x509.ParsePKCS8PrivateKey(block.Bytes)
+		rsaKey, isRSA := parsed.(*rsa.PrivateKey)
+		if pkcs8Err != nil || !isRSA {
+			return "", fmt.Errorf("github: parsing app private key (PKCS1 or PKCS8 RSA): %w", err)
+		}
+		key = rsaKey
 	}
 
 	claims, err := json.Marshal(struct {

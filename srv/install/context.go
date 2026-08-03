@@ -59,22 +59,28 @@ func RecordContext(next http.Handler) http.Handler {
 }
 
 // Token mints a fresh ~1h installation token for one autonomous operation — mint per
-// use, never store (docs/spec/platform-server.md §Two token types). The record comes
-// from the context when RecordContext seeded it; the worker path, which runs outside
-// HTTP, falls back to loading it.
-func Token(ctx context.Context) (string, error) {
+// use, never store (docs/spec/platform-server.md §Two token types). It returns the App
+// client that minted the token alongside it, so callers with further installation-scoped
+// calls to make reuse it instead of constructing a second one. The record comes from the
+// context when RecordContext seeded it; the worker path, which runs outside HTTP, falls
+// back to loading it.
+func Token(ctx context.Context) (string, *github.Client, error) {
 	record, ok := FromContext(ctx)
 	if !ok {
 		loaded, err := Load(ctx)
 		if err != nil {
-			return "", err
+			return "", nil, err
 		}
 		record = loaded
 	}
 
 	client, err := github.NewClient(ctx)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
-	return client.InstallationToken(ctx, record.InstallationID)
+	token, err := client.InstallationToken(ctx, record.InstallationID)
+	if err != nil {
+		return "", nil, err
+	}
+	return token, client, nil
 }

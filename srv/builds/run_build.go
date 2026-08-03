@@ -58,7 +58,7 @@ func (r *RunBuild) Run(ctx context.Context) error {
 // in the stream, so those errors are not returned twice.
 func (r *RunBuild) execute(ctx context.Context, build *Build, scribe *transcriber) error {
 	cacheDir := config.Get(config.FromContext(ctx), CacheDirConfig)
-	token, err := install.Token(ctx)
+	token, _, err := install.Token(ctx)
 	if err != nil {
 		return err
 	}
@@ -88,7 +88,10 @@ func (r *RunBuild) execute(ctx context.Context, build *Build, scribe *transcribe
 
 	// A unit that failed under the engine has already said so in the stream, so only a
 	// failure the engine never reported is handed back — an empty plan, or a [modules] the
-	// framework layer rejected before a single run opened.
+	// framework layer rejected before a single run opened. Silent means zero events, not
+	// zero terminal events: a crash after step_started leaves the attempt open, which is
+	// the spec's declared stalled-build gap ("Recovering a stalled build is not yet in
+	// this surface"), not this job's to close.
 	_, err = sess.BuildAndPublish(ctx, cfg, nil, publishTag(build.Ref), scribe)
 	if err != nil && scribe.Silent() {
 		return err

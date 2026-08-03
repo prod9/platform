@@ -2,11 +2,7 @@ package builds
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/rsa"
-	"crypto/x509"
 	"encoding/json"
-	"encoding/pem"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -78,23 +74,7 @@ func setupInstalled(t *testing.T) (context.Context, *config.Source) {
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
 
-	key, err := rsa.GenerateKey(rand.Reader, 2048)
-	require.NoError(t, err)
-	keyPEM := pem.EncodeToMemory(&pem.Block{
-		Type:  "RSA PRIVATE KEY",
-		Bytes: x509.MarshalPKCS1PrivateKey(key),
-	})
-	origLoad := github.LoadApp
-	github.LoadApp = func(ctx context.Context) (*github.App, error) {
-		return &github.App{
-			AppID:         42,
-			PrivateKey:    string(keyPEM),
-			WebhookSecret: "whsec",
-			ClientID:      "Iv1.abc",
-			ClientSecret:  "csec",
-		}, nil
-	}
-	t.Cleanup(func() { github.LoadApp = origLoad })
+	srvtest.StubApp(t, srvtest.TestApp(t), nil)
 
 	cfg := fxtest.Configure()
 	config.Set(cfg, github.APIURLConfig, server.URL)
@@ -194,6 +174,20 @@ func TestTriggerUnreachableRepo(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/api/builds",
 		strings.NewReader(`{"owner":"prodigy9","repo":"hidden","ref":"refs/tags/v1.2.3"}`)).WithContext(ctx)
+	req.AddCookie(&http.Cookie{Name: "platform_session", Value: token})
+	resp := httptest.NewRecorder()
+	router.ServeHTTP(resp, req)
+
+	require.Equal(t, http.StatusNotFound, resp.Code)
+}
+
+func TestTriggerUnresolvableRef(t *testing.T) {
+	ctx, cfg := setupInstalled(t)
+	token := startTestSession(t, ctx)
+	router := apiRouter(t, cfg)
+
+	req := httptest.NewRequest("POST", "/api/builds",
+		strings.NewReader(`{"owner":"prodigy9","repo":"app","ref":"refs/tags/nope"}`)).WithContext(ctx)
 	req.AddCookie(&http.Cookie{Name: "platform_session", Value: token})
 	resp := httptest.NewRecorder()
 	router.ServeHTTP(resp, req)
