@@ -131,7 +131,8 @@ home** for the creation steps — it renders the running server's live URLs at
 install time, so the operator copies real values rather than guessing them. Steps
 content:
 
-- exact permissions: `contents: write`, `metadata: read`;
+- exact permissions: `contents: write`, `metadata: read`, `organization members: read`
+  (the claim reads org memberships to prove ownership);
 - the webhook URL and OAuth callback (the srv backend's own URLs — callbacks and
   hooks target the backend directly, never the webui);
 - restrict-to-managed-org;

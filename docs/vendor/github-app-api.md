@@ -25,5 +25,6 @@
   membership endpoint means "not a member". The App needs the **Organization members:
   read** permission for its installation token to read memberships.
 - `commits/{ref}` supports the `application/vnd.github.sha` media type — the response
-  body is then the bare SHA-1, no JSON.
+  body is then the bare SHA-1, no JSON. A ref the repo does not have answers 422 (or
+  404 when the repo itself is absent) — both mean the caller's ref, not a server fault.
 - Installation tokens live ~1 hour; mint per operation, never store.
