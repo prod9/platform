@@ -73,6 +73,15 @@ func (c *Create) Execute(ctx context.Context, out any) error {
 		c.Trigger, c.RetryOf, c.UserID, c.Owner, c.Repo, c.CloneURL, c.Ref, c.SHA)
 }
 
+// Exists reports whether a build row exists. It is the truthful-status lookup for the
+// webui's /builds/{id} dynamic route — the server decides the page's status, not the
+// browser (spec §The status of a page is the server's answer).
+func Exists(ctx context.Context, id int64) (bool, error) {
+	var found bool
+	err := data.Get(ctx, &found, `SELECT EXISTS (SELECT 1 FROM builds WHERE id = $1)`, id)
+	return found, err
+}
+
 // Migrations is this fragment's schema; srv aggregates every fragment's SQL at boot.
 //
 //go:embed *.sql

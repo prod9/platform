@@ -5,7 +5,7 @@ export default {
 		adapter: adapter({
 			pages: "build",
 			assets: "build",
-			fallback: undefined,
+			fallback: "fallback.html",
 		}),
 	},
 };

@@ -15,6 +15,8 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"fx.prodigy9.co/config"
@@ -99,7 +101,13 @@ func Router(cfg *config.Source, db *sqlx.DB, installed bool) (chi.Router, error)
 		}
 	}
 
-	ctrs = append(ctrs, UI{}) // catch-all /* — mounts last
+	// Catch-all /* mounts last; the record lookup for dynamic-route statuses is wired
+	// only when the product fragments are — the installer composition 404s them all.
+	ui := UI{}
+	if installed {
+		ui.BuildExists = builds.Exists
+	}
+	ctrs = append(ctrs, ui)
 	for _, ctr := range ctrs {
 		if err := ctr.Mount(cfg, router); err != nil {
 			return nil, err
@@ -156,17 +164,85 @@ var merged = migrate.Merged(
 )
 
 // UI serves the embedded web UI (webui.Assets) at the site root; requests not matched
-// by an API route fall through to it.
-type UI struct{}
+// by an API route fall through to it. The server decides every page's status itself
+// (docs/spec/platform-server.md §The status of a page is the server's answer): a
+// prerendered file is served as-is, the known dynamic route /builds/{id} gets the SPA
+// fallback at the status the record deserves, and anything unrecognized gets the
+// fallback at 404. BuildExists is that record lookup — nil (the installer composition)
+// makes every dynamic path a 404.
+type UI struct {
+	BuildExists func(ctx context.Context, id int64) (bool, error)
+}
 
 var _ controllers.Interface = UI{}
 
-func (UI) Mount(cfg *config.Source, router chi.Router) error {
+func (ui UI) Mount(cfg *config.Source, router chi.Router) error {
 	build, err := fs.Sub(webui.Assets, "build")
 	if err != nil {
 		return err
 	}
+	fallback, err := fs.ReadFile(build, "fallback.html")
+	if err != nil {
+		return err
+	}
 
-	router.Handle("/*", http.FileServer(http.FS(build)))
+	files := http.FileServer(http.FS(build))
+	router.Handle("/*", http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
+		if prerendered(build, req.URL.Path) {
+			files.ServeHTTP(resp, req)
+			return
+		}
+
+		status := http.StatusNotFound
+		if id, ok := buildRoute(req.URL.Path); ok && ui.BuildExists != nil {
+			exists, err := ui.BuildExists(req.Context(), id)
+			if err != nil {
+				render.Error(resp, req, 500, err)
+				return
+			}
+			if exists {
+				status = http.StatusOK
+			}
+		}
+
+		resp.Header().Set("Content-Type", "text/html; charset=utf-8")
+		resp.WriteHeader(status)
+		resp.Write(fallback)
+	}))
 	return nil
+}
+
+// prerendered reports whether the embedded build output holds a file for the path — a
+// file itself, or a directory page (adapter-static emits route/index.html, which the
+// file server resolves).
+func prerendered(build fs.FS, path string) bool {
+	name := strings.Trim(path, "/")
+	if name == "" {
+		name = "index.html"
+	}
+
+	info, err := fs.Stat(build, name)
+	if err != nil {
+		return false
+	}
+	if !info.IsDir() {
+		return true
+	}
+	_, err = fs.Stat(build, name+"/index.html")
+	return err == nil
+}
+
+// buildRoute matches the webui's one dynamic route shape, /builds/{id}. Knowing the
+// shape is the price of a static UI answering with a real status.
+func buildRoute(path string) (int64, bool) {
+	rest, ok := strings.CutPrefix(path, "/builds/")
+	if !ok || strings.Contains(rest, "/") {
+		return 0, false
+	}
+
+	id, err := strconv.ParseInt(rest, 10, 64)
+	if err != nil {
+		return 0, false
+	}
+	return id, true
 }

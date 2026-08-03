@@ -2,13 +2,20 @@ package srv
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
+	"fx.prodigy9.co/data/migrator"
 	"fx.prodigy9.co/fxtest"
 	"github.com/stretchr/testify/require"
+	"platform.prodigy9.co/srv/auth"
+	"platform.prodigy9.co/srv/builds"
+	"platform.prodigy9.co/srv/install"
+	"platform.prodigy9.co/srv/migrate"
+	"platform.prodigy9.co/srv/srvtest"
 )
 
 func TestRouterServesUIIndex(t *testing.T) {
@@ -72,6 +79,52 @@ func TestAuthMountsInBothCompositions(t *testing.T) {
 
 		require.Equal(t, http.StatusUnauthorized, get(router, "/api/session").Code)
 	}
+}
+
+// A path with no prerendered file gets the SPA fallback at 404 — a wrong URL that
+// answers 200 is a lie (spec §The status of a page is the server's answer).
+func TestUIUnknownPathIsFallbackAt404(t *testing.T) {
+	for _, installed := range []bool{false, true} {
+		router, err := Router(fxtest.Configure(), nil, installed)
+		require.NoError(t, err)
+
+		resp := get(router, "/no/such/page")
+		require.Equal(t, http.StatusNotFound, resp.Code)
+		require.Contains(t, resp.Header().Get("Content-Type"), "text/html")
+		require.Contains(t, resp.Body.String(), "<html")
+	}
+}
+
+// The dynamic /builds/{id} route answers with the status the record deserves: 404 when
+// the build does not exist, 200 when it does — the fallback supplies only the body.
+func TestUIBuildRouteStatusFollowsTheRecord(t *testing.T) {
+	ctx := srvtest.SetupDB(t,
+		migrate.JobsTable,
+		migrator.FromFS(auth.Migrations),
+		migrator.FromFS(builds.Migrations),
+		migrator.FromFS(install.Migrations))
+	systemUser, err := auth.SystemUserID(ctx)
+	require.NoError(t, err)
+
+	build := &builds.Build{}
+	create := &builds.Create{Trigger: builds.TriggerWebUI, UserID: systemUser,
+		Owner: "prod9", Repo: "app", CloneURL: "https://github.com/prod9/app.git",
+		Ref: "refs/tags/v1.2.3", SHA: "abc123"}
+	require.NoError(t, create.Execute(ctx, build))
+
+	router, err := Router(fxtest.Configure(), nil, true)
+	require.NoError(t, err)
+
+	found := httptest.NewRecorder()
+	router.ServeHTTP(found, httptest.NewRequest("GET",
+		fmt.Sprintf("/builds/%d", build.ID), nil).WithContext(ctx))
+	require.Equal(t, http.StatusOK, found.Code)
+	require.Contains(t, found.Body.String(), "<html")
+
+	missing := httptest.NewRecorder()
+	router.ServeHTTP(missing, httptest.NewRequest("GET", "/builds/999999", nil).WithContext(ctx))
+	require.Equal(t, http.StatusNotFound, missing.Code)
+	require.Contains(t, missing.Body.String(), "<html")
 }
 
 func get(router http.Handler, path string) *httptest.ResponseRecorder {
