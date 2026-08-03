@@ -86,7 +86,9 @@ func Router(cfg *config.Source, db *sqlx.DB, installed bool) (chi.Router, error)
 	// Auth mounts in both compositions: the org-owner claim needs a login before the
 	// server is installed (docs/spec/installation.md).
 	ctrs := []controllers.Interface{auth.SessionCtr{}}
-	if !installed {
+	if installed {
+		ctrs = append(ctrs, SettingsCtr{})
+	} else {
 		ctrs = append(ctrs, install.StateCtr{DB: db, Merged: merged})
 	}
 
@@ -160,7 +162,7 @@ var merged = migrate.Merged(
 	migrate.JobsTable,
 	migrator.FromFS(auth.Migrations),
 	migrator.FromFS(builds.Migrations),
-	migrator.FromFS(install.Migrations),
+	install.Source,
 )
 
 // UI serves the embedded web UI (webui.Assets) at the site root; requests not matched

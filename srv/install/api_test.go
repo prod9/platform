@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"fx.prodigy9.co/data"
-	"fx.prodigy9.co/data/migrator"
 	"fx.prodigy9.co/fxtest"
 	"fx.prodigy9.co/httpserver/middlewares"
 	"github.com/go-chi/chi/v5"
@@ -17,13 +16,13 @@ import (
 )
 
 func TestGetInstallReturnsOrderedEntries(t *testing.T) {
-	ctx := srvtest.SetupDB(t, migrator.FromFS(Migrations))
+	ctx := srvtest.SetupDB(t, Source)
 	db := data.FromContext(ctx)
 
 	cfg := fxtest.Configure()
 	router := chi.NewRouter()
 	router.Use(middlewares.Configure(cfg))
-	ctr := StateCtr{DB: db, Merged: migrate.Merged(migrator.FromFS(Migrations))}
+	ctr := StateCtr{DB: db, Merged: migrate.Merged(Source)}
 	require.NoError(t, ctr.Mount(cfg, router))
 
 	resp := httptest.NewRecorder()

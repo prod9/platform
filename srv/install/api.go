@@ -43,9 +43,9 @@ func (c StateCtr) Mount(cfg *config.Source, router chi.Router) error {
 }
 
 // claim is the org-owner claim (POST /api/install/claim): the session user proves
-// active org ownership of the installation's org via the App API, and the singleton
-// install record is written. The webui install page posts here after GitHub's Setup
-// URL redirect lands on it.
+// active org ownership of the installation's org via the App API, and the install.*
+// settings are filled. The webui install page posts here after GitHub's Setup URL
+// redirect lands on it.
 func (c StateCtr) claim(resp http.ResponseWriter, req *http.Request) {
 	user, ok := auth.RequireUser(resp, req)
 	if !ok {

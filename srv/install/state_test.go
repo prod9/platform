@@ -6,7 +6,6 @@ import (
 
 	"fx.prodigy9.co/config"
 	"fx.prodigy9.co/data"
-	"fx.prodigy9.co/data/migrator"
 	"fx.prodigy9.co/fxtest"
 	"github.com/stretchr/testify/require"
 	"platform.prodigy9.co/srv/migrate"
@@ -22,10 +21,10 @@ func TestComplete(t *testing.T) {
 // With the schema migrated but no org bound and no app configured, the ordered state
 // reports db/migrations done, credentials missing, and the install pending.
 func TestGetStateMigratedButNotInstalled(t *testing.T) {
-	ctx := srvtest.SetupDB(t, migrator.FromFS(Migrations))
+	ctx := srvtest.SetupDB(t, Source)
 	db := data.FromContext(ctx)
 
-	entries := GetState(ctx, db, migrate.Merged(migrator.FromFS(Migrations)))
+	entries := GetState(ctx, db, migrate.Merged(Source))
 
 	require.Equal(t,
 		[]string{"db-reachable", "app-credentials", "app-installed", "migrations"},
@@ -37,14 +36,14 @@ func TestGetStateMigratedButNotInstalled(t *testing.T) {
 	require.False(t, Complete(entries))
 }
 
-// On a fresh database the installations table is absent; the reader treats the missing
+// On a fresh database the settings table is absent; the reader treats the missing
 // table as not-installed, and migrations report pending rather than erroring.
 func TestGetStateFreshDBReportsPending(t *testing.T) {
 	srvtest.SkipWithoutPostgres(t)
 	ctx := fxtest.ConnectTestDatabase(t)
 	db := data.FromContext(ctx)
 
-	entries := GetState(ctx, db, migrate.Merged(migrator.FromFS(Migrations)))
+	entries := GetState(ctx, db, migrate.Merged(Source))
 
 	require.Equal(t, StatusDone, statusOf(t, entries, "db-reachable"))
 	require.Equal(t, StatusPending, statusOf(t, entries, "app-installed"))
@@ -54,7 +53,7 @@ func TestGetStateFreshDBReportsPending(t *testing.T) {
 // GetState mirrors an absent database as errors rather than panicking on a nil handle.
 func TestGetStateNilDB(t *testing.T) {
 	ctx := config.NewContext(context.Background(), fxtest.Configure())
-	entries := GetState(ctx, nil, migrate.Merged(migrator.FromFS(Migrations)))
+	entries := GetState(ctx, nil, migrate.Merged(Source))
 
 	require.Equal(t, StatusError, statusOf(t, entries, "db-reachable"))
 	require.Equal(t, StatusError, statusOf(t, entries, "app-installed"))

@@ -36,18 +36,20 @@ func apiRouter(t *testing.T, cfg *config.Source) chi.Router {
 }
 
 // setupInstalled is an installed server for the trigger/repos endpoints: migrated DB
-// with the singleton install record, stubbed App credentials, and a fake GitHub serving
-// token mints, the repo lookup, ref resolution, and the installation repo list.
+// with the install.* settings claimed, stubbed App credentials, and a fake GitHub
+// serving token mints, the repo lookup, ref resolution, and the installation repo list.
 func setupInstalled(t *testing.T) (context.Context, *config.Source) {
 	ctx := srvtest.SetupDB(t,
 		migrate.JobsTable,
 		migrator.FromFS(Migrations),
 		migrator.FromFS(auth.Migrations),
-		migrator.FromFS(install.Migrations))
-	require.NoError(t, data.Exec(ctx, `
-		INSERT INTO installations
-			(id, org_id, org_login, installation_id, installed_by_user_id, installed_by_login)
-		VALUES (1, 9, 'prodigy9', 7, 1, 'chakrit')`))
+		install.Source)
+	claim := &install.ClaimInstall{
+		InstallationID: 7,
+		OrgID:          9, OrgLogin: "prodigy9",
+		UserID: 1, UserLogin: "chakrit",
+	}
+	require.NoError(t, claim.Execute(ctx, nil))
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /app/installations/7/access_tokens", func(resp http.ResponseWriter, req *http.Request) {

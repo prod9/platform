@@ -143,6 +143,16 @@ func RequireUser(resp http.ResponseWriter, req *http.Request) (*User, bool) {
 	return user, true
 }
 
+// Require is RequireUser as middleware, for mounting whole routers behind the session
+// gate rather than gating handler by handler.
+func Require(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
+		if _, ok := RequireUser(resp, req); ok {
+			next.ServeHTTP(resp, req)
+		}
+	})
+}
+
 func usersMe(resp http.ResponseWriter, req *http.Request) {
 	user, ok := RequireUser(resp, req)
 	if !ok {

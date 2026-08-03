@@ -69,6 +69,21 @@ func TestInstalledMountsProductNotInstaller(t *testing.T) {
 	require.NotEqual(t, http.StatusNotFound, get(router, "/api/builds").Code)
 }
 
+// fx's settings app mounts only in the installed composition, behind the session gate:
+// 401 proves mounted-and-gated; the installer composition drops it outright. Unknown
+// /api/* paths still answer 404, not 401 — the SPA reads GET /api/install's 404 as the
+// "installed" signal.
+func TestSettingsMountsInstalledAndGated(t *testing.T) {
+	installed, err := Router(fxtest.Configure(), nil, true)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusUnauthorized, get(installed, "/api/settings").Code)
+	require.Equal(t, http.StatusNotFound, get(installed, "/api/install").Code)
+
+	notInstalled, err := Router(fxtest.Configure(), nil, false)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusNotFound, get(notInstalled, "/api/settings").Code)
+}
+
 // The auth fragment mounts in both compositions — the org-owner claim needs a login
 // before the server is installed (installation.md). 401 proves the route is mounted
 // and gated; 404 would mean the composition dropped it.
@@ -102,7 +117,7 @@ func TestUIBuildRouteStatusFollowsTheRecord(t *testing.T) {
 		migrate.JobsTable,
 		migrator.FromFS(auth.Migrations),
 		migrator.FromFS(builds.Migrations),
-		migrator.FromFS(install.Migrations))
+		install.Source)
 	systemUser, err := auth.SystemUserID(ctx)
 	require.NoError(t, err)
 

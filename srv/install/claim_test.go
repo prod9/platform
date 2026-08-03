@@ -33,8 +33,7 @@ type claimHarness struct {
 }
 
 func setupClaim(t *testing.T, membershipStatus int, membershipBody string) *claimHarness {
-	ctx := srvtest.SetupDB(t,
-		migrator.FromFS(Migrations), migrator.FromFS(auth.Migrations))
+	ctx := srvtest.SetupDB(t, Source, migrator.FromFS(auth.Migrations))
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /app/installations/7/access_tokens", func(resp http.ResponseWriter, req *http.Request) {
@@ -59,7 +58,7 @@ func setupClaim(t *testing.T, membershipStatus int, membershipBody string) *clai
 	router := chi.NewRouter()
 	router.Use(middlewares.Configure(cfg))
 	db := data.FromContext(ctx)
-	ctr := StateCtr{DB: db, Merged: migrate.Merged(migrator.FromFS(Migrations))}
+	ctr := StateCtr{DB: db, Merged: migrate.Merged(Source)}
 	require.NoError(t, ctr.Mount(cfg, router))
 
 	var userID int64

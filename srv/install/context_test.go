@@ -8,8 +8,6 @@ import (
 	"testing"
 
 	"fx.prodigy9.co/config"
-	"fx.prodigy9.co/data"
-	"fx.prodigy9.co/data/migrator"
 	"github.com/stretchr/testify/require"
 	"platform.prodigy9.co/srv/github"
 	"platform.prodigy9.co/srv/srvtest"
@@ -26,11 +24,8 @@ func TestTokenMintsFromContextRecord(t *testing.T) {
 }
 
 func TestTokenFallsBackToLoad(t *testing.T) {
-	ctx := srvtest.SetupDB(t, migrator.FromFS(Migrations))
-	require.NoError(t, data.Exec(ctx, `
-		INSERT INTO installations
-			(id, org_id, org_login, installation_id, installed_by_user_id, installed_by_login)
-		VALUES (1, 9, 'prodigy9', 7, 1, 'chakrit')`))
+	ctx := srvtest.SetupDB(t, Source)
+	seedInstall(t, ctx)
 
 	token, _, err := Token(setupToken(t, ctx))
 	require.NoError(t, err)
@@ -38,18 +33,15 @@ func TestTokenFallsBackToLoad(t *testing.T) {
 }
 
 func TestTokenFailsWhenNotInstalled(t *testing.T) {
-	ctx := srvtest.SetupDB(t, migrator.FromFS(Migrations))
+	ctx := srvtest.SetupDB(t, Source)
 
 	_, _, err := Token(setupToken(t, ctx))
 	require.ErrorIs(t, err, ErrNotInstalled)
 }
 
 func TestRecordContextSeedsRequests(t *testing.T) {
-	ctx := srvtest.SetupDB(t, migrator.FromFS(Migrations))
-	require.NoError(t, data.Exec(ctx, `
-		INSERT INTO installations
-			(id, org_id, org_login, installation_id, installed_by_user_id, installed_by_login)
-		VALUES (1, 9, 'prodigy9', 7, 1, 'chakrit')`))
+	ctx := srvtest.SetupDB(t, Source)
+	seedInstall(t, ctx)
 
 	handler := RecordContext(http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
 		record, ok := FromContext(req.Context())
@@ -74,7 +66,7 @@ func TestRecordContextFailsClosedWithoutDataContext(t *testing.T) {
 }
 
 func TestRecordContextFailsClosedWhenNotInstalled(t *testing.T) {
-	ctx := srvtest.SetupDB(t, migrator.FromFS(Migrations))
+	ctx := srvtest.SetupDB(t, Source)
 
 	handler := RecordContext(http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
 		t.Error("handler must not run without an install record")
@@ -83,6 +75,19 @@ func TestRecordContextFailsClosedWhenNotInstalled(t *testing.T) {
 	resp := httptest.NewRecorder()
 	handler.ServeHTTP(resp, httptest.NewRequest("GET", "/", nil).WithContext(ctx))
 	require.Equal(t, 500, resp.Code)
+}
+
+// seedInstall fills the install.* settings through the claim's own writer — tests never
+// hand-write install state the product path could not have produced. (Not an srvtest
+// helper: srvtest would have to import install, and this package's internal tests
+// import srvtest — the test binary would cycle.)
+func seedInstall(t *testing.T, ctx context.Context) {
+	claim := &ClaimInstall{
+		InstallationID: 7,
+		OrgID:          9, OrgLogin: "prodigy9",
+		UserID: 1, UserLogin: "chakrit",
+	}
+	require.NoError(t, claim.Execute(ctx, nil))
 }
 
 // setupToken provides Token's two collaborators: stubbed App credentials and a fake
