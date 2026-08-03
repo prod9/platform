@@ -100,11 +100,12 @@ is not settled here.
 ### `webui/build/` is committed
 
 The webui (SvelteKit, adapter-static) is embedded via `//go:embed all:build`, which
-resolves at compile time — so `webui/build/` is **committed**, rebuilt by hand with
-`pnpm build`. A generated bundle would make `pnpm build` a precondition of `go build`,
-`go test ./...`, `go run .`, and the container's `StepTest` alike — a fresh clone would not
-compile. The Go toolchain closes no part of that gap; `go build` and `go test` never run
-`go generate`. Generating the bundle waits on a pre-build hook (the `BeforeBuild` point the
+resolves at compile time — so `webui/build/` — the prerendered file tree of HTML plus
+hashed chunks that `pnpm build` emits — is **committed**, rebuilt by hand. Generating it
+instead would make `pnpm build` a precondition of `go build`, `go test ./...`, `go run .`,
+and the container's `StepTest` alike — a fresh clone would not compile. The Go toolchain
+closes no part of that gap; `go build` and `go test` never run `go generate`. Generating
+the tree waits on a pre-build hook (the `BeforeBuild` point the
 [test-in-build ADR](../decisions/2026-07-05-test-in-build-is-a-hard-gate.md) names,
 unbuilt).
 
