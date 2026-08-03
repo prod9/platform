@@ -64,7 +64,8 @@ org-owner claim needs a login before the server is installed (see
 [installation.md](installation.md)) — and aggregates every fragment's
 `Migrations` embed into one merged set (`srv/migrate.Merged`, timestamps re-sorted across
 fragments) — run by the installer or the CLI, **never at boot**. The fragment import graph
-is acyclic — `auth → github`, `builds → {auth, github}`, `install → {github, migrate}` —
+is acyclic — `auth → github`, `builds → {auth, github}`, `install → {auth, github,
+migrate}` (the org-owner claim is session-gated, so the installer consumes auth) —
 nothing imports `srv` back, and `srv/migrate` is a leaf. `srv/srvtest` holds the
 fragment-neutral test scaffolding.
 
