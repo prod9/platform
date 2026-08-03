@@ -66,10 +66,18 @@ org-owner claim needs a login before the server is installed (see
 fragments) — run by the installer or the CLI, **never at boot**. The fragment import graph
 is acyclic — `auth → github`, `builds → {auth, github, install}`, `install → {auth,
 github, migrate}` (the org-owner claim is session-gated, so the installer consumes auth;
-product fragments may read the bound install record — that edge carries the record read
-only, never install-flow state; see [installation.md](installation.md)) —
+product fragments may read the bound install settings — that edge carries the settings
+read only, never install-flow state; see [installation.md](installation.md)) —
 nothing imports `srv` back, and `srv/migrate` is a leaf. `srv/srvtest` holds the
 fragment-neutral test scaffolding.
+
+**Install state is stored in fx's settings app** (`fx.prodigy9.co/app/settings`), not a
+bespoke table ([installation.md](installation.md), "The install settings"). Its REST
+controller ships ungated by design — fx expects the embedder to apply authorization —
+so `srv` mounts it through its own wrapper controller: the wrapper's `Mount` builds the
+session-auth middleware chain, opens an inner router group, and calls the embedded
+`settings.Ctr.Mount` there. The settings migration joins `srv/migrate.Merged` like any
+fragment's.
 
 **Data-domain structs stay flat.** There is no ORM here, so a fragment's domain models
 mirror the query or fold that produces them — a struct is one row or one reduction, never
@@ -102,7 +110,8 @@ lives under `/api`; GitHub-facing and health routes stay bare.
 | `POST /api/builds`          | session                   | records a `webui`-triggered build: owner/repo + ref, sha resolved server-side         | the manual trigger — the same domain fact as the webhook, authorized by session instead of HMAC                    |
 | `POST /hooks/github`        | App webhook HMAC          | verifies signature; queues a build row per pushed `refs/tags/v*`                      | the pull-model trigger: a version tag *is* the build request (delivery-verbs ADR)                                  |
 | `GET /api/install`          | none (installer fragment) | ordered install-state list; served **only while not completely installed**            | drives the SPA installer-vs-app decision ([installation.md](installation.md)); its 404 *is* the "installed" signal |
-| `POST /api/install/claim`   | session (installer)       | org-owner claim: resolve installation→org, verify owner, write the install record     | the first-install gate; the App Setup URL lands on the webui install page, which posts here ([installation.md](installation.md)) |
+| `POST /api/install/claim`   | session (installer)       | org-owner claim: resolve installation→org, verify owner, write the `install.*` settings | the first-install gate; the App Setup URL lands on the webui install page, which posts here ([installation.md](installation.md)) |
+| `GET/POST/DELETE /api/settings*` | session              | fx's settings app, mounted behind `srv`'s session-gating wrapper controller          | operator-visible key/value state — install binding and future server settings, one storage |
 | `GET /*`                    | none                      | serves the embedded webui at the status the path deserves; the SPA drives installer-vs-app via `GET /api/install`  | single-binary delivery — no separate frontend deploy                                                               |
 
 Session validity and the user's profile are **two operations**, because a webui asks the two
@@ -419,7 +428,7 @@ guided by the **webui install page** (which renders the running server's live we
 callback URLs at install time), then its credentials — **app id, private key, webhook
 secret, client secret** — are copied into **fx config**. Creation is an install-page step
 rather than an App-Manifest auto-exchange: credentials arrive through config, and the
-install record holds only the `installation_id`, never the credentials themselves. This is
+install settings hold only the `installation_id`, never the credentials themselves. This is
 a *server install* concern owned by the installer fragment —
 **not** `platform init`. See [installation.md](installation.md).
 
@@ -525,9 +534,13 @@ first path to a completely-installed server), the **credentialed clone** (repo-p
 authenticating with a per-sync installation token), the **manual trigger + repo
 list** (`POST /api/builds`, `GET /api/repos`), and **build detail + truthful
 statuses** (`GET /api/builds/{id}`, the `/steps` sub-resource, the SPA fallback
-served at the status the record deserves) have shipped; what remains:
+served at the status the record deserves), and the **webui** on top of the proven
+API have shipped; what remains:
 
-1. **`webui`** on top of the proven API, then install into the cluster.
+1. **Cluster install** — declared in the `prod9/infra` GitOps repo. The srv pod runs as
+   its own **ServiceAccount** with read-only RBAC on the Flux CRs (the forthcoming
+   cluster-view surface reads them); platform deploys nothing — publish pushes the image
+   and Flux pulls.
 
 ## Open details (not blockers)
 

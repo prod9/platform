@@ -47,7 +47,7 @@ superseded moves to `../scratch/` — `spec/` holds current design only, never h
   (k8s + Flux state) is held for a design pass.
 - [`installation.md`](installation.md) — the server install model: the installer fragment,
   the `GET /api/install` state surface, boot composition, the org-owner first-install
-  gate, the install record, by-hand App creation, and the org-wide GitHub→Flux delivery
+  gate, the install settings, by-hand App creation, and the org-wide GitHub→Flux delivery
   webhook.
 
 Keep this list in sync when adding or removing a spec.
