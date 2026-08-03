@@ -1,6 +1,7 @@
 // Package install is the platform server's installer fragment: the singleton install
-// record, the ordered install-state surface (GET /api/install), and the migrations
-// remediation. Boot mounts this fragment only while the server is not completely
+// record, the ordered install-state surface (GET /api/install), the migrations
+// remediation, and the org-owner claim (POST /api/install/claim). Boot mounts this
+// fragment only while the server is not completely
 // installed; product fragments have zero install awareness.
 package install
 

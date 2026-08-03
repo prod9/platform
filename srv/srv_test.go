@@ -62,6 +62,18 @@ func TestInstalledMountsProductNotInstaller(t *testing.T) {
 	require.NotEqual(t, http.StatusNotFound, get(router, "/api/builds").Code)
 }
 
+// The auth fragment mounts in both compositions — the org-owner claim needs a login
+// before the server is installed (installation.md). 401 proves the route is mounted
+// and gated; 404 would mean the composition dropped it.
+func TestAuthMountsInBothCompositions(t *testing.T) {
+	for _, installed := range []bool{false, true} {
+		router, err := Router(fxtest.Configure(), nil, installed)
+		require.NoError(t, err)
+
+		require.Equal(t, http.StatusUnauthorized, get(router, "/api/session").Code)
+	}
+}
+
 func get(router http.Handler, path string) *httptest.ResponseRecorder {
 	resp := httptest.NewRecorder()
 	router.ServeHTTP(resp, httptest.NewRequest("GET", path, nil))

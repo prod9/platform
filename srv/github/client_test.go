@@ -120,12 +120,12 @@ func TestInstallationOrg(t *testing.T) {
 		require.Equal(t, "/app/installations/7", req.URL.Path)
 		requireAppJWT(t, req, key)
 
-		fmt.Fprint(resp, `{"id":7,"account":{"login":"prodigy9","type":"Organization"}}`)
+		fmt.Fprint(resp, `{"id":7,"account":{"id":9,"login":"prodigy9","type":"Organization"}}`)
 	}))
 
 	org, err := client.InstallationOrg(context.Background(), 7)
 	require.NoError(t, err)
-	require.Equal(t, "prodigy9", org)
+	require.Equal(t, &Org{ID: 9, Login: "prodigy9"}, org)
 }
 
 func TestIsOrgOwner(t *testing.T) {

@@ -81,9 +81,11 @@ func Router(cfg *config.Source, db *sqlx.DB, installed bool) (chi.Router, error)
 	router.Use(middlewares.LogRequests(cfg))
 	router.Get("/health", health)
 
-	var ctrs []controllers.Interface
+	// Auth mounts in both compositions: the org-owner claim needs a login before the
+	// server is installed (docs/spec/installation.md).
+	ctrs := []controllers.Interface{auth.SessionCtr{}}
 	if installed {
-		ctrs = append(ctrs, auth.SessionCtr{}, builds.BuildCtr{}, builds.WebhookCtr{})
+		ctrs = append(ctrs, builds.BuildCtr{}, builds.WebhookCtr{})
 	} else {
 		ctrs = append(ctrs, install.StateCtr{DB: db, Merged: merged})
 	}

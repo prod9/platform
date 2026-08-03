@@ -1,6 +1,7 @@
 package install
 
 import (
+	"context"
 	"errors"
 	"net/http"
 
@@ -10,13 +11,18 @@ import (
 	"fx.prodigy9.co/httpserver/render"
 	"github.com/go-chi/chi/v5"
 	"github.com/jmoiron/sqlx"
+	"platform.prodigy9.co/srv/auth"
+	"platform.prodigy9.co/srv/github"
 	"platform.prodigy9.co/srv/migrate"
 )
 
-var errNoDB = errors.New("install: no database configured")
+var (
+	errNoDB        = errors.New("install: no database configured")
+	errNotOrgOwner = errors.New("install: session user is not an owner of the installation's org")
+)
 
-// StateCtr serves the gated installer surface: the ordered install-state read and the
-// migrations remediation. Boot mounts it only while the server is not completely
+// StateCtr serves the gated installer surface: the ordered install-state read, the
+// migrations remediation, and the org-owner claim. Boot mounts it only while the server is not completely
 // installed, so its absence (a 404 on GET /api/install) is the SPA's "installed" signal.
 //
 // It carries the boot DB handle (possibly nil) and the merged migration set explicitly
@@ -32,7 +38,76 @@ var _ controllers.Interface = StateCtr{}
 func (c StateCtr) Mount(cfg *config.Source, router chi.Router) error {
 	router.Get("/api/install", c.getState)
 	router.Post("/api/install/migrations", c.runMigrations)
+	router.Post("/api/install/claim", c.claim)
 	return nil
+}
+
+// claim is the org-owner claim (POST /api/install/claim): the session user proves
+// active org ownership of the installation's org via the App API, and the singleton
+// install record is written. The webui install page posts here after GitHub's Setup
+// URL redirect lands on it.
+func (c StateCtr) claim(resp http.ResponseWriter, req *http.Request) {
+	user, ok := auth.RequireUser(resp, req)
+	if !ok {
+		return
+	}
+
+	action := &ClaimInstall{UserID: user.ID, UserLogin: user.Name}
+	if err := controllers.ReadAction(req, action); err != nil {
+		render.Error(resp, req, 400, err)
+		return
+	}
+
+	ctx := req.Context()
+	client, err := github.NewClient(ctx)
+	if errors.Is(err, github.ErrNoApp) {
+		render.Error(resp, req, 503, err)
+		return
+	} else if err != nil {
+		render.Error(resp, req, 500, err)
+		return
+	}
+
+	owner, org, err := claimedOrgOwner(ctx, client, action.InstallationID, user.Name)
+	if err != nil {
+		render.Error(resp, req, 500, err)
+		return
+	} else if !owner {
+		render.Error(resp, req, 403, errNotOrgOwner)
+		return
+	}
+
+	action.OrgID, action.OrgLogin = org.ID, org.Login
+	if err := action.Execute(ctx, nil); errors.Is(err, ErrAlreadyInstalled) {
+		render.Error(resp, req, 409, err)
+		return
+	} else if err != nil {
+		render.Error(resp, req, 500, err)
+		return
+	}
+
+	render.JSON(resp, req, GetState(ctx, c.DB, c.Merged))
+}
+
+// claimedOrgOwner resolves the installation's org and answers whether user is an
+// active owner of it — the App-identity reads behind the claim, kept apart from the
+// handler's status-code branching.
+func claimedOrgOwner(ctx context.Context, client *github.Client, installationID int64, user string) (bool, *github.Org, error) {
+	org, err := client.InstallationOrg(ctx, installationID)
+	if err != nil {
+		return false, nil, err
+	}
+
+	token, err := client.InstallationToken(ctx, installationID)
+	if err != nil {
+		return false, nil, err
+	}
+
+	owner, err := client.IsOrgOwner(ctx, token, org.Login, user)
+	if err != nil {
+		return false, nil, err
+	}
+	return owner, org, nil
 }
 
 func (c StateCtr) getState(resp http.ResponseWriter, req *http.Request) {

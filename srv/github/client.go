@@ -29,6 +29,13 @@ type Repo struct {
 	Owner    string
 }
 
+// Org is the account an installation is installed on: the rename-stable numeric id
+// and the current login.
+type Org struct {
+	ID    int64
+	Login string
+}
+
 func NewClient(ctx context.Context) (*Client, error) {
 	app, err := LoadApp(ctx)
 	if err != nil {
@@ -62,29 +69,29 @@ func (c *Client) InstallationToken(ctx context.Context, installationID int64) (s
 	return minted.Token, nil
 }
 
-// InstallationOrg resolves an installation to the org (account login) it is
-// installed on.
-func (c *Client) InstallationOrg(ctx context.Context, installationID int64) (string, error) {
+// InstallationOrg resolves an installation to the org it is installed on.
+func (c *Client) InstallationOrg(ctx context.Context, installationID int64) (*Org, error) {
 	path := fmt.Sprintf("/app/installations/%d", installationID)
 	bearer, err := c.app.jwt(time.Now())
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	body, err := c.fetch(ctx, "GET", path, bearer, "installation lookup")
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	var installation struct {
 		Account struct {
+			ID    int64  `json:"id"`
 			Login string `json:"login"`
 		} `json:"account"`
 	}
 	if err := json.Unmarshal(body, &installation); err != nil {
-		return "", fmt.Errorf("github: decoding installation: %w", err)
+		return nil, fmt.Errorf("github: decoding installation: %w", err)
 	}
-	return installation.Account.Login, nil
+	return &Org{installation.Account.ID, installation.Account.Login}, nil
 }
 
 // IsOrgOwner reports whether user holds an active owner (admin) membership in org.
