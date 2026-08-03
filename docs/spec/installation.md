@@ -16,8 +16,13 @@ wiring the org-wide delivery webhook, and running migrations. Until all of that
 is true, the server is **not completely installed** and serves only the installer.
 
 The whole concern lives in a single **installer fragment** (an fx app fragment).
-Product fragments — hooks, builds — have **zero install awareness**: they are
-mounted only once the server is completely installed.
+Product fragments — hooks, builds — have **zero install *flow* awareness**: they
+are mounted only once the server is completely installed and never ask "am I
+installed" — boot answers that exactly once. The **bound install record is
+ambient truth**, though: any product fragment may read it (`install.Load`) —
+that is consuming the binding, not install awareness. When HTTP handlers need
+it, the install fragment delivers it as request-context middleware (the fx
+data-context pattern); until then the worker path reads the row per job.
 
 **The auth fragment is the exception: it mounts in both compositions.** The
 org-owner claim requires a logged-in GitHub user *before* the server is
