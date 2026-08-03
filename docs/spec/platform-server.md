@@ -520,12 +520,12 @@ Each layer consumes the one below *after* it works. The CLI delivery path, the `
 wrap (webhook ingest, auth, the build pipeline), the **App API client** (`srv/github`:
 JWT, installation token, the App-identity queries), the **org-owner claim** (the
 first path to a completely-installed server), the **credentialed clone** (repo-prep
-authenticating with a per-sync installation token), and the **manual trigger + repo
-list** (`POST /api/builds`, `GET /api/repos`) have shipped; what remains, in order:
+authenticating with a per-sync installation token), the **manual trigger + repo
+list** (`POST /api/builds`, `GET /api/repos`), and **build detail + truthful
+statuses** (`GET /api/builds/{id}`, the `/steps` sub-resource, the SPA fallback
+served at the status the record deserves) have shipped; what remains:
 
-1. **Build detail + truthful statuses** — `GET /api/builds/{id}`, the SPA fallback
-   served at the status the record deserves.
-2. **`webui`** on top of the proven API, then install into the cluster.
+1. **`webui`** on top of the proven API, then install into the cluster.
 
 ## Open details (not blockers)
 
