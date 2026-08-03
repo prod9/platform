@@ -38,8 +38,32 @@ var _ controllers.Interface = StateCtr{}
 func (c StateCtr) Mount(cfg *config.Source, router chi.Router) error {
 	router.Get("/api/install", c.getState)
 	router.Post("/api/install/migrations", c.runMigrations)
+	router.Post("/api/install/credentials", c.saveCredentials)
 	router.Post("/api/install/claim", c.claim)
 	return nil
+}
+
+// saveCredentials is the wizard's credential step (POST /api/install/credentials).
+// Deliberately ungated: no session can exist before the credentials enable login —
+// the same accepted posture as the first-install migrations button
+// (docs/spec/installation.md).
+func (c StateCtr) saveCredentials(resp http.ResponseWriter, req *http.Request) {
+	action := &SaveCredentials{}
+	if err := controllers.ReadAction(req, action); err != nil {
+		render.Error(resp, req, 400, err)
+		return
+	}
+	if c.DB == nil {
+		render.Error(resp, req, 503, errNoDB)
+		return
+	}
+
+	ctx := req.Context()
+	if err := action.Execute(ctx, nil); err != nil {
+		render.Error(resp, req, 500, err)
+		return
+	}
+	render.JSON(resp, req, GetState(ctx, c.DB, c.Merged))
 }
 
 // claim is the org-owner claim (POST /api/install/claim): the session user proves

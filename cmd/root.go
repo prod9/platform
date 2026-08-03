@@ -55,7 +55,6 @@ func init() {
 		PublishCmd,
 		ReleaseCmd,
 		SrvCmd,
-		VanityCmd,
 		VersionsCmd,
 		WorkerCmd,
 

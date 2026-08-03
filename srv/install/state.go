@@ -29,14 +29,16 @@ const (
 	StatusError   Status = "error"
 )
 
-// GetState returns the ordered install-state list. db may be nil (no database
-// configured); the ctx must carry fx config so app-credentials can be resolved.
+// GetState returns the ordered install-state list; db may be nil (no database
+// configured). The order is the wizard's: every install-time value lives in settings,
+// and the settings table exists only once migrations ran, so migrations precede both
+// settings-backed entries and the claim stays last (docs/spec/installation.md).
 func GetState(ctx context.Context, db *sqlx.DB, merged migrator.Source) []Entry {
 	return []Entry{
 		dbReachable(ctx, db),
-		appCredentials(ctx),
-		appInstalled(ctx, db),
 		migrationsState(ctx, db, merged),
+		appCredentials(ctx, db),
+		appInstalled(ctx, db),
 	}
 }
 
@@ -60,10 +62,17 @@ func dbReachable(ctx context.Context, db *sqlx.DB) Entry {
 	return Entry{"db-reachable", StatusDone, ""}
 }
 
-func appCredentials(ctx context.Context) Entry {
-	_, err := github.LoadApp(ctx)
+func appCredentials(ctx context.Context, db *sqlx.DB) Entry {
+	if db == nil {
+		return Entry{"app-credentials", StatusError, "no database configured"}
+	}
+	if err := db.PingContext(ctx); err != nil {
+		return Entry{"app-credentials", StatusError, err.Error()}
+	}
+
+	_, err := github.LoadApp(data.NewContext(ctx, db))
 	if errors.Is(err, github.ErrNoApp) {
-		return Entry{"app-credentials", StatusError, "app credentials missing from config"}
+		return Entry{"app-credentials", StatusPending, ""}
 	} else if err != nil {
 		return Entry{"app-credentials", StatusError, err.Error()}
 	}

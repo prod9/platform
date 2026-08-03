@@ -33,7 +33,8 @@ const (
 )
 
 // Record is the decoded install.* settings binding the server to one GitHub org. App
-// credentials are deliberately absent — they live in fx config, never in the DB.
+// credentials are deliberately absent — they are the github.app_* settings, owned by
+// srv/github.
 type Record struct {
 	OrgID             int64
 	OrgLogin          string

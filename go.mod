@@ -7,7 +7,6 @@ require (
 	dagger.io/dagger v0.21.7
 	fx.prodigy9.co v0.9.2
 	github.com/BurntSushi/toml v1.4.0
-	github.com/felixge/httpsnoop v1.0.4
 	github.com/go-chi/chi/v5 v5.2.2
 	github.com/jackc/pgx/v5 v5.7.5
 	github.com/jmoiron/sqlx v1.4.0
@@ -32,6 +31,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/emicklei/proto v1.14.2 // indirect
+	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/getsentry/sentry-go v0.34.1 // indirect
 	github.com/go-ini/ini v1.67.0 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect

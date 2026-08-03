@@ -18,8 +18,9 @@ func TestComplete(t *testing.T) {
 	require.False(t, Complete([]Entry{{Status: StatusError}}))
 }
 
-// With the schema migrated but no org bound and no app configured, the ordered state
-// reports db/migrations done, credentials missing, and the install pending.
+// With the schema migrated but no credentials entered and no org bound, the ordered
+// state reports db/migrations done and both settings-backed entries pending — the
+// wizard's remaining steps (docs/spec/installation.md, the state surface).
 func TestGetStateMigratedButNotInstalled(t *testing.T) {
 	ctx := srvtest.SetupDB(t, Source)
 	db := data.FromContext(ctx)
@@ -27,12 +28,12 @@ func TestGetStateMigratedButNotInstalled(t *testing.T) {
 	entries := GetState(ctx, db, migrate.Merged(Source))
 
 	require.Equal(t,
-		[]string{"db-reachable", "app-credentials", "app-installed", "migrations"},
+		[]string{"db-reachable", "migrations", "app-credentials", "app-installed"},
 		names(entries))
 	require.Equal(t, StatusDone, statusOf(t, entries, "db-reachable"))
-	require.Equal(t, StatusError, statusOf(t, entries, "app-credentials"))
-	require.Equal(t, StatusPending, statusOf(t, entries, "app-installed"))
 	require.Equal(t, StatusDone, statusOf(t, entries, "migrations"))
+	require.Equal(t, StatusPending, statusOf(t, entries, "app-credentials"))
+	require.Equal(t, StatusPending, statusOf(t, entries, "app-installed"))
 	require.False(t, Complete(entries))
 }
 
@@ -46,8 +47,9 @@ func TestGetStateFreshDBReportsPending(t *testing.T) {
 	entries := GetState(ctx, db, migrate.Merged(Source))
 
 	require.Equal(t, StatusDone, statusOf(t, entries, "db-reachable"))
-	require.Equal(t, StatusPending, statusOf(t, entries, "app-installed"))
 	require.Equal(t, StatusPending, statusOf(t, entries, "migrations"))
+	require.Equal(t, StatusPending, statusOf(t, entries, "app-credentials"))
+	require.Equal(t, StatusPending, statusOf(t, entries, "app-installed"))
 }
 
 // GetState mirrors an absent database as errors rather than panicking on a nil handle.
@@ -56,8 +58,9 @@ func TestGetStateNilDB(t *testing.T) {
 	entries := GetState(ctx, nil, migrate.Merged(Source))
 
 	require.Equal(t, StatusError, statusOf(t, entries, "db-reachable"))
-	require.Equal(t, StatusError, statusOf(t, entries, "app-installed"))
 	require.Equal(t, StatusError, statusOf(t, entries, "migrations"))
+	require.Equal(t, StatusError, statusOf(t, entries, "app-credentials"))
+	require.Equal(t, StatusError, statusOf(t, entries, "app-installed"))
 	require.False(t, Complete(entries))
 }
 

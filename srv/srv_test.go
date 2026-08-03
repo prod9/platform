@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -69,19 +70,49 @@ func TestInstalledMountsProductNotInstaller(t *testing.T) {
 	require.NotEqual(t, http.StatusNotFound, get(router, "/api/builds").Code)
 }
 
-// fx's settings app mounts only in the installed composition, behind the session gate:
-// 401 proves mounted-and-gated; the installer composition drops it outright. Unknown
-// /api/* paths still answer 404, not 401 — the SPA reads GET /api/install's 404 as the
-// "installed" signal.
-func TestSettingsMountsInstalledAndGated(t *testing.T) {
-	installed, err := Router(fxtest.Configure(), nil, true)
-	require.NoError(t, err)
-	require.Equal(t, http.StatusUnauthorized, get(installed, "/api/settings").Code)
-	require.Equal(t, http.StatusNotFound, get(installed, "/api/install").Code)
+// There is no generic settings REST surface in either composition — settings writes go
+// through purpose-built installer actions only (platform-server.md §Operations).
+func TestNoSettingsSurface(t *testing.T) {
+	for _, installed := range []bool{false, true} {
+		router, err := Router(fxtest.Configure(), nil, installed)
+		require.NoError(t, err)
 
+		require.Equal(t, http.StatusNotFound, get(router, "/api/settings").Code)
+	}
+}
+
+// The wizard's credential step is ungated in the installer composition — no session
+// can exist before the credentials enable login (installation.md). 400 (validation)
+// proves the handler was reached, not a gate; the installed composition drops the
+// route outright.
+func TestCredentialsMountedUngatedInInstaller(t *testing.T) {
 	notInstalled, err := Router(fxtest.Configure(), nil, false)
 	require.NoError(t, err)
-	require.Equal(t, http.StatusNotFound, get(notInstalled, "/api/settings").Code)
+	require.Equal(t, http.StatusBadRequest,
+		post(notInstalled, "/api/install/credentials", "{}").Code)
+
+	installed, err := Router(fxtest.Configure(), nil, true)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusNotFound,
+		post(installed, "/api/install/credentials", "{}").Code)
+}
+
+// One host serves module resolution and the product: any path with ?go-get=1 answers
+// the go-import meta for platform.prodigy9.co in both compositions (platform-server.md
+// §Operations; the standalone vanity command is gone).
+func TestGoGetMetaServed(t *testing.T) {
+	for _, installed := range []bool{false, true} {
+		router, err := Router(fxtest.Configure(), nil, installed)
+		require.NoError(t, err)
+
+		for _, path := range []string{"/?go-get=1", "/framework?go-get=1"} {
+			resp := get(router, path)
+			require.Equal(t, http.StatusOK, resp.Code, path)
+			require.Contains(t, resp.Body.String(), "go-import", path)
+			require.Contains(t, resp.Body.String(), "platform.prodigy9.co", path)
+			require.Contains(t, resp.Body.String(), "github.com/prod9/platform", path)
+		}
+	}
 }
 
 // The auth fragment mounts in both compositions — the org-owner claim needs a login
@@ -152,5 +183,11 @@ func TestUIBuildRouteStatusFollowsTheRecord(t *testing.T) {
 func get(router http.Handler, path string) *httptest.ResponseRecorder {
 	resp := httptest.NewRecorder()
 	router.ServeHTTP(resp, httptest.NewRequest("GET", path, nil))
+	return resp
+}
+
+func post(router http.Handler, path, body string) *httptest.ResponseRecorder {
+	resp := httptest.NewRecorder()
+	router.ServeHTTP(resp, httptest.NewRequest("POST", path, strings.NewReader(body)))
 	return resp
 }

@@ -30,6 +30,7 @@ import (
 	"fx.prodigy9.co/httpserver/render"
 	"github.com/go-chi/chi/v5"
 	"github.com/jmoiron/sqlx"
+	"go.jonnrb.io/vanity"
 	"platform.prodigy9.co/srv/auth"
 	"platform.prodigy9.co/srv/builds"
 	"platform.prodigy9.co/srv/install"
@@ -86,9 +87,7 @@ func Router(cfg *config.Source, db *sqlx.DB, installed bool) (chi.Router, error)
 	// Auth mounts in both compositions: the org-owner claim needs a login before the
 	// server is installed (docs/spec/installation.md).
 	ctrs := []controllers.Interface{auth.SessionCtr{}}
-	if installed {
-		ctrs = append(ctrs, SettingsCtr{})
-	} else {
+	if !installed {
 		ctrs = append(ctrs, install.StateCtr{DB: db, Merged: merged})
 	}
 
@@ -188,8 +187,17 @@ func (ui UI) Mount(cfg *config.Source, router chi.Router) error {
 		return err
 	}
 
+	// One host serves module resolution and the product (platform-server.md
+	// §Operations): the go toolchain always appends ?go-get=1, so that query is the
+	// whole discriminator and the SPA never sees it.
+	goGet := vanity.GitHubHandler("platform.prodigy9.co", "prod9", "platform", "https")
+
 	files := http.FileServer(http.FS(build))
 	router.Handle("/*", http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
+		if req.URL.Query().Get("go-get") == "1" {
+			goGet.ServeHTTP(resp, req)
+			return
+		}
 		if prerendered(build, req.URL.Path) {
 			files.ServeHTTP(resp, req)
 			return

@@ -1,5 +1,5 @@
 // Package github owns the server's GitHub integration: the GitHub App credential set
-// (supplied via fx config), the repo-name whitelist every fragment taking owner/repo
+// (the github.app_* settings), the repo-name whitelist every fragment taking owner/repo
 // input shares, and the shared API-error summary.
 package github
 
@@ -10,19 +10,38 @@ import (
 	"io"
 	"net/http"
 	"regexp"
+	"strconv"
 
-	"fx.prodigy9.co/config"
+	"fx.prodigy9.co/app/settings"
+	"fx.prodigy9.co/data"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
-// ErrNoApp reports that the GitHub App credentials are absent from config — how the
-// installer detects "not yet configured".
-var ErrNoApp = errors.New("github: no github app configured")
+var (
+	// ErrNoApp reports that the GitHub App credentials are absent or incomplete — how
+	// the installer detects "not yet configured".
+	ErrNoApp = errors.New("github: no github app configured")
 
-// LoadApp seams loadApp so fragment tests can stub the App without config plumbing.
-var LoadApp = loadApp
+	// LoadApp seams loadApp so fragment tests can stub the App without settings plumbing.
+	LoadApp = loadApp
 
-// App is the server's GitHub App credential set. It is injected via fx config (a k8s
-// Secret at rest, provided by the operator), never stored in the DB.
+	repoNamePattern = regexp.MustCompile(`^[A-Za-z0-9-][A-Za-z0-9._-]*$`)
+)
+
+// The hard-coded settings keys the App credentials live under
+// (docs/spec/installation.md, "The install settings"). No migration defines them — an
+// absent key reads as empty; the wizard's credential step writes them all.
+const (
+	keyAppID         = "github.app_id"
+	keyPrivateKey    = "github.app_private_key"
+	keyWebhookSecret = "github.app_webhook_secret"
+	keyClientID      = "github.app_client_id"
+	keyClientSecret  = "github.app_client_secret"
+)
+
+// App is the server's GitHub App credential set. It lives in the github.app_* settings
+// — the database, not fx config — so srv and the worker read the same rows
+// (docs/spec/platform-server.md, "Auth mechanism").
 type App struct {
 	AppID         int64
 	PrivateKey    string
@@ -32,24 +51,71 @@ type App struct {
 }
 
 func loadApp(ctx context.Context) (*App, error) {
-	cfg := config.FromContext(ctx)
-	app := &App{
-		AppID:         config.Get(cfg, AppIDConfig),
-		PrivateKey:    config.Get(cfg, PrivateKeyConfig),
-		WebhookSecret: config.Get(cfg, WebhookSecretConfig),
-		ClientID:      config.Get(cfg, ClientIDConfig),
-		ClientSecret:  config.Get(cfg, ClientSecretConfig),
-	}
-
-	if app.AppID == 0 ||
-		app.PrivateKey == "" ||
-		app.WebhookSecret == "" ||
-		app.ClientID == "" ||
-		app.ClientSecret == "" {
+	if _, ok := data.LookupFromContext(ctx); !ok {
 		return nil, ErrNoApp
 	}
 
-	return app, nil
+	values := map[string]string{}
+	for _, key := range []string{keyAppID, keyPrivateKey, keyWebhookSecret, keyClientID, keyClientSecret} {
+		value, err := loadValue(ctx, key)
+		if err != nil {
+			return nil, err
+		}
+		values[key] = value
+	}
+
+	appID, err := strconv.ParseInt(values[keyAppID], 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("github: bad %s: %w", keyAppID, err)
+	}
+
+	return &App{
+		AppID:         appID,
+		PrivateKey:    values[keyPrivateKey],
+		WebhookSecret: values[keyWebhookSecret],
+		ClientID:      values[keyClientID],
+		ClientSecret:  values[keyClientSecret],
+	}, nil
+}
+
+// SaveApp writes every github.app_* setting in one transaction — the wizard's
+// credential step is its caller, and the step is convergent: re-posting overwrites.
+func SaveApp(ctx context.Context, app *App) error {
+	values := map[string]string{
+		keyAppID:         strconv.FormatInt(app.AppID, 10),
+		keyPrivateKey:    app.PrivateKey,
+		keyWebhookSecret: app.WebhookSecret,
+		keyClientID:      app.ClientID,
+		keyClientSecret:  app.ClientSecret,
+	}
+
+	return data.Run(ctx, func(s data.Scope) error {
+		for key, value := range values {
+			upsert := &settings.Upsert{Key: key, Value: value}
+			if err := upsert.Execute(s.Context(), &settings.Settings{}); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+// loadValue reads one github.app_* value, folding every not-configured shape into
+// ErrNoApp: a missing settings table (42P01 — its migration has not run, a valid
+// pre-install state) and an empty value — settings.Get folds an absent row into the
+// fallback, so absent and empty both arrive as "".
+func loadValue(ctx context.Context, key string) (string, error) {
+	value, err := settings.Get(ctx, key, "")
+
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "42P01" {
+		return "", ErrNoApp
+	} else if err != nil {
+		return "", err
+	} else if value == "" {
+		return "", ErrNoApp
+	}
+	return value, nil
 }
 
 // RespError summarizes a failed GitHub API response: op, status line, and up to 1KB
@@ -73,5 +139,3 @@ func CheckRepoPath(owner, repo string) error {
 	}
 	return nil
 }
-
-var repoNamePattern = regexp.MustCompile(`^[A-Za-z0-9-][A-Za-z0-9._-]*$`)

@@ -33,11 +33,15 @@ func testClient(t *testing.T, handler http.Handler) (*Client, *rsa.PrivateKey) {
 	server := httptest.NewServer(handler)
 	t.Cleanup(server.Close)
 
-	t.Setenv("GITHUB_APP_ID", "42")
-	t.Setenv("GITHUB_APP_PRIVATE_KEY", string(keyPEM))
-	t.Setenv("GITHUB_APP_WEBHOOK_SECRET", "whsec")
-	t.Setenv("GITHUB_APP_CLIENT_ID", "Iv1.abc")
-	t.Setenv("GITHUB_APP_CLIENT_SECRET", "csec")
+	// Credentials live in settings now; stub the loader rather than dragging a
+	// database into every client test — the settings-backed read has its own tests
+	// in app_test.go.
+	app := &App{AppID: 42, PrivateKey: string(keyPEM),
+		WebhookSecret: "whsec", ClientID: "Iv1.abc", ClientSecret: "csec"}
+	orig := LoadApp
+	LoadApp = func(context.Context) (*App, error) { return app, nil }
+	t.Cleanup(func() { LoadApp = orig })
+
 	t.Setenv("GITHUB_API_URL", server.URL)
 	ctx := config.NewContext(context.Background(), fxtest.Configure())
 
