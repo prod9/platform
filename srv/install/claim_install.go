@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"time"
 
+	"fx.prodigy9.co/app/settings"
 	"fx.prodigy9.co/data"
 	"fx.prodigy9.co/httpserver/controllers"
 	"fx.prodigy9.co/validate"
@@ -65,19 +66,11 @@ func (c *ClaimInstall) Execute(ctx context.Context, out any) error {
 			keyInstalledAt:       time.Now().UTC().Format(time.RFC3339),
 		}
 		for key, value := range values {
-			if err := setValue(s, key, value); err != nil {
+			upsert := &settings.Upsert{Key: key, Value: value}
+			if err := upsert.Execute(s.Context(), &settings.Settings{}); err != nil {
 				return err
 			}
 		}
 		return nil
 	})
-}
-
-// setValue upserts one settings row inside the claim's transaction. Temporary seam:
-// fx's settings.Set updates only (no insert) as of v0.8.6 — once the upstream upsert
-// lands and fx is upgraded, this collapses to settings.Set on the scope's context.
-func setValue(s data.Scope, key, value string) error {
-	return s.Exec(`INSERT INTO settings (key, value) VALUES ($1, $2)
-		ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`,
-		key, value)
 }

@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"fx.prodigy9.co/app/settings"
-	"fx.prodigy9.co/data"
 	"fx.prodigy9.co/data/migrator"
 	"github.com/jackc/pgx/v5/pgconn"
 )
@@ -75,20 +74,20 @@ func Load(ctx context.Context) (*Record, error) {
 
 // loadValue reads one install.* value, folding every not-installed shape into
 // ErrNotInstalled: a missing settings table (42P01 — its migration has not run, a valid
-// pre-install state), an absent row, and an empty value (both: not yet claimed).
+// pre-install state), and an empty value — settings.Get folds an absent row into the
+// fallback, so absent and empty (both: not yet claimed) arrive as "".
 func loadValue(ctx context.Context, key string) (string, error) {
-	setting, err := settings.Get(ctx, key)
+	value, err := settings.Get(ctx, key, "")
 
 	var pgErr *pgconn.PgError
-	undefinedTable := errors.As(err, &pgErr) && pgErr.Code == "42P01"
-	if data.IsNoRows(err) || undefinedTable {
+	if errors.As(err, &pgErr) && pgErr.Code == "42P01" {
 		return "", ErrNotInstalled
 	} else if err != nil {
 		return "", err
-	} else if setting.Value == "" {
+	} else if value == "" {
 		return "", ErrNotInstalled
 	}
-	return setting.Value, nil
+	return value, nil
 }
 
 func intField(out *int64) func(string) error {
