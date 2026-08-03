@@ -71,6 +71,16 @@ only, never install-flow state; see [installation.md](installation.md)) —
 nothing imports `srv` back, and `srv/migrate` is a leaf. `srv/srvtest` holds the
 fragment-neutral test scaffolding.
 
+**Data-domain structs stay flat.** There is no ORM here, so a fragment's domain models
+mirror the query or fold that produces them — a struct is one row or one reduction, never
+a nested object graph (`BuildAttempt` does not carry a `Steps` slice; steps are their own
+fold). An API response that spans more than one domain read is a **view**: a wire struct
+composed in Go over multiple domain queries/folds, built in the controller layer and
+JSON-rendered from there — never a nested shape SELECTed out of the database directly. A
+view complicated enough to strain that composition becomes a PostgreSQL view, and the
+domain model selects from it like any other relation. This convention is `srv/`'s data
+domain only; it says nothing about the shared packages.
+
 ### Operations (settled surface)
 
 The settled HTTP surface — the review/grill table. **Reserved backend prefixes** are
@@ -87,7 +97,8 @@ lives under `/api`; GitHub-facing and health routes stay bare.
 | `GET /api/users/me`         | session                   | the session user's profile (id + name)                                                | the webui's "who am I" — profile, not session validity                                                             |
 | `GET /api/repos`            | session                   | repos the App installation reaches, listed **live from GitHub** — never stored        | the webui's repo picker; a stored repo table would be RBAC state the zero-RBAC model forbids                       |
 | `GET /api/builds`           | session                   | last 50 builds, newest first                                                          | the webui's build list — the server's whole point made visible                                                     |
-| `GET /api/builds/{id}`      | session                   | one build, every attempt, and each attempt's steps with their captured output        | the build detail view — the stream made readable, which is the reason the events are stored at all                 |
+| `GET /api/builds/{id}`      | session                   | one build plus its attempts folded — no steps                                         | the build detail view — the stream made readable, which is the reason the events are stored at all                 |
+| `GET /api/builds/{id}/steps`| session                   | the build's steps across all attempts, flat, each carrying its attempt ordinal and captured output | steps are a sub-resource: the heavy stdout/stderr payload stays off the detail read                   |
 | `POST /api/builds`          | session                   | records a `webui`-triggered build: owner/repo + ref, sha resolved server-side         | the manual trigger — the same domain fact as the webhook, authorized by session instead of HMAC                    |
 | `POST /hooks/github`        | App webhook HMAC          | verifies signature; queues a build row per pushed `refs/tags/v*`                      | the pull-model trigger: a version tag *is* the build request (delivery-verbs ADR)                                  |
 | `GET /api/install`          | none (installer fragment) | ordered install-state list; served **only while not completely installed**            | drives the SPA installer-vs-app decision ([installation.md](installation.md)); its 404 *is* the "installed" signal |
