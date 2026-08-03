@@ -38,6 +38,9 @@ tables and lists; keep entries skimmable.
 - [`fx-worker.md`](fx-worker.md) — the job machinery our jobs run on: the struct-is-the-payload
   contract, what `Name()` keys, which schedule call deduplicates, and why a process runs one
   job at a time.
+- [`github-app-api.md`](github-app-api.md) — the GitHub endpoints `srv/github` drives: App
+  JWT claims and header form, token minting, installation/org/repo/ref lookups, and what
+  "org owner" means on the wire.
 - [`nginx-gateway-fabric-install.md`](nginx-gateway-fabric-install.md) — the NGF / Gateway API
   install recipe: upstream URLs, the firewall-annotation patch, the serverTokens workaround,
   and the string-forcing constraint.
