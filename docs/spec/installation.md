@@ -153,8 +153,11 @@ Migrations **never auto-run at boot**. Two paths reach the same schema:
 - **CLI** — `./platform srv data migrate`, run before a deploy so the new boot
   comes up already migrated.
 - **Installer button** — the `migrations` remediation on the install page, which `POST`s
-  `/api/install/migrations` (an installer-fragment action, org-owner gated per the
-  first-install gate).
+  `/api/install/migrations` (an installer-fragment action). **During a first install it is
+  ungated** — no session exists yet, and cannot: migrations are what create the
+  `users`/`sessions` tables, and running them is convergent and harmless. Once the server
+  has been installed (a pending migration dropping an installed server back to the
+  installer), the action requires a session.
 
 Because a pending migration drops the **whole product to the installer** (intended
 — the product API refuses to mount against an out-of-date schema), the CLI pre-run

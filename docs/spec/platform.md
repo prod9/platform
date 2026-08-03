@@ -64,7 +64,7 @@ No credential reaches into the cluster — the cluster pulls everything.
 
 ## Subsystem contracts
 
-- **`srv/` — platform server** (reached via `platform serve`; future). In-cluster, pod SA,
+- **`srv/` — platform server** (started by `platform srv`; `serve` is the alias). In-cluster, pod SA,
   Postgres. Owns Projects, identity, secret *values*, audit, delivery history. Brokers: kube
   tokens (`TokenRequest`), the secret-pull endpoint, the commit-as-user git dance (gated by
   GitHub push perms). Serves the
@@ -75,14 +75,9 @@ No credential reaches into the cluster — the cluster pulls everything.
   Dagger), `kubeconfig` (exec-credential), `tf install`. (No `deploy` command — a new version is
   an infra-repo commit; delivery is `render` + `publish`, infra being a framework.)
 - **`webui/` — SvelteKit (plain JS)**, adapter-static, `go:embed`'d into the `srv/` binary.
-  v1: Login, Projects, Access, delivery history, reconcile status. **`webui/build/` is
-  committed**, rebuilt by hand with `pnpm build`: `go:embed` resolves at compile time, so a
-  generated bundle would make `pnpm build` a precondition of `go build`, `go test ./...`,
-  `go run .`, and the container's `StepTest` alike — a fresh clone would not compile. The
-  Go toolchain closes no part of that gap; `go build` and `go test` never run
-  `go generate`. Generating the bundle waits on a pre-build hook (the `BeforeBuild` point
-  the [test-in-build ADR](../decisions/2026-07-05-test-in-build-is-a-hard-gate.md) names,
-  unbuilt).
+  v1: Login, Projects, Access, delivery history, reconcile status. `webui/build/` is
+  committed — why lives in [platform-server.md](platform-server.md), §`webui/build/` is
+  committed.
 - **Shared Go packages** — flat at the top level, no `core/` grab-bag (see
   [`architecture.md`](architecture.md)): `framework` (frameworks — discover/scaffold/build
   strategies) with `framework/scaffold` (the one templating mechanism), `engine` (the Dagger

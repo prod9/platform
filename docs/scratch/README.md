@@ -53,9 +53,10 @@ Newest first. Scratch is disposable, so this list may lag — the directory is t
 - [2026-07-19 — builder lifecycle structure](2026-07-19-builder-lifecycle-options.md) —
   framework emits a serializable `Plan` → `Execute` with `.Sync()` phase boundaries + a
   host-side observer feeding the event-sourced reconciler; one-install-per-cluster ruled
-- [2026-07-18 — TO-DO: de-confuse "flux webhook"](2026-07-18-flux-webhook-deconfusion-tasks.md)
-  — **pending task list** (GitHub→Flux vs Flux→srv; doc edits + delete the wrong ADR); delete
-  when done
+- [2026-07-21 — audit fix-slices ledger](2026-07-21-audit-slices.ledger.md) — the batch-audit
+  backlog save.md points at; slices A–C statuses
+- [2026-07-21 — audit changes walk](2026-07-21-audit-changes.md) — the findings the fix-slices
+  were cut from
 - [2026-07-17 — containerd vs the Dagger engine](2026-07-17-containerd-vs-dagger-engine.md)
 - [2026-07-09 — fx handoff: slog LogValuer resolving sink](2026-07-09-fx-handoff-slog-logvaluer-sink.md)
 

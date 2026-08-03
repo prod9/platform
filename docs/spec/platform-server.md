@@ -65,8 +65,8 @@ org-owner claim needs a login before the server is installed (see
 `Migrations` embed into one merged set (`srv/migrate.Merged`, timestamps re-sorted across
 fragments) — run by the installer or the CLI, **never at boot**. The fragment import graph
 is acyclic — `auth → github`, `builds → {auth, github}`, `install → {github, migrate}` —
-nothing imports `srv` back, and `srv/migrate` is a leaf. `srv/pgerr` and `srv/srvtest` hold
-the shared postgres-error check and fragment-neutral test scaffolding.
+nothing imports `srv` back, and `srv/migrate` is a leaf. `srv/srvtest` holds the
+fragment-neutral test scaffolding.
 
 ### Operations (settled surface)
 
@@ -96,6 +96,17 @@ questions at different moments: `GET /api/session` answers "may I still act", `G
 /api/users/me` answers "who am I". The **Flux→srv observability** endpoint `GET
 /api/repos/{owner}/{repo}/flux` is **forthcoming** — it belongs to the cluster-view pass and
 is not settled here.
+
+### `webui/build/` is committed
+
+The webui (SvelteKit, adapter-static) is embedded via `//go:embed all:build`, which
+resolves at compile time — so `webui/build/` is **committed**, rebuilt by hand with
+`pnpm build`. A generated bundle would make `pnpm build` a precondition of `go build`,
+`go test ./...`, `go run .`, and the container's `StepTest` alike — a fresh clone would not
+compile. The Go toolchain closes no part of that gap; `go build` and `go test` never run
+`go generate`. Generating the bundle waits on a pre-build hook (the `BeforeBuild` point the
+[test-in-build ADR](../decisions/2026-07-05-test-in-build-is-a-hard-gate.md) names,
+unbuilt).
 
 ### The status of a page is the server's answer, not the browser's
 
