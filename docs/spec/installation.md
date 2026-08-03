@@ -1,10 +1,9 @@
 # Installation
 
 Status: **partially built.** The installer fragment, the `GET /api/install` state
-surface, the migrations action, and the boot-composition gating ship today
-(`srv/install`, `srv.Router`). The **org-owner claim and the install page do not
-yet** — until the claim exists no `installations` row can be written, so a real
-server can never reach the installed composition. The auth model this sits on is
+surface, the migrations action, the boot-composition gating, and the org-owner
+claim ship today (`srv/install`, `srv.Router`). The **install page does not
+yet**. The auth model this sits on is
 frozen in
 [platform-server-github-app-zero-rbac](../decisions/2026-06-29-platform-server-github-app-zero-rbac.md);
 the route surface lives in [platform-server.md](platform-server.md).
