@@ -11,6 +11,8 @@ import (
 	"fx.prodigy9.co/worker"
 	"platform.prodigy9.co/conf"
 	"platform.prodigy9.co/engine"
+	"platform.prodigy9.co/srv/github"
+	"platform.prodigy9.co/srv/install"
 )
 
 // RunBuild carries one build: it prepares the tree, hands it to the engine, and writes what
@@ -57,10 +59,15 @@ func (r *RunBuild) Run(ctx context.Context) error {
 // in the stream, so those errors are not returned twice.
 func (r *RunBuild) execute(ctx context.Context, build *Build, scribe *transcriber) error {
 	cacheDir := config.Get(config.FromContext(ctx), CacheDirConfig)
+	token, err := cloneToken(ctx)
+	if err != nil {
+		return err
+	}
 
 	prep := &PrepRepo{
 		CacheDir: cacheDir,
 		CloneURL: build.CloneURL,
+		Token:    token,
 		Owner:    build.Owner,
 		Repo:     build.Repo,
 		SHA:      build.SHA,
@@ -105,6 +112,22 @@ func (r *RunBuild) cleanUp(ctx context.Context, cacheDir string, build *Build) {
 			fxlog.Int64("build", build.ID),
 			fxlog.String("error", err.Error()))
 	}
+}
+
+// cloneToken mints a fresh installation token for one repo-prep sync (spec §Repo
+// preparation): the ~1h installation identity is exactly what autonomous clones are
+// for, and minting per sync keeps anything long-lived off disk.
+func cloneToken(ctx context.Context) (string, error) {
+	record, err := install.Load(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	client, err := github.NewClient(ctx)
+	if err != nil {
+		return "", err
+	}
+	return client.InstallationToken(ctx, record.InstallationID)
 }
 
 // publishTag is the tag the images of this build are published under. A ref is a whole ref

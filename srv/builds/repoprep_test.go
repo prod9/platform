@@ -159,6 +159,37 @@ func testGit(t *testing.T, dir string, args ...string) string {
 	return strings.TrimSpace(string(out))
 }
 
+func TestCredentialedURL(t *testing.T) {
+	cases := []struct{ url, token, want string }{
+		{"https://github.com/prod9/app.git", "tok123", "https://x-access-token:tok123@github.com/prod9/app.git"},
+		{"http://ghe.local/prod9/app.git", "tok123", "http://x-access-token:tok123@ghe.local/prod9/app.git"},
+		{"https://github.com/prod9/app.git", "", "https://github.com/prod9/app.git"},
+		{"file:///srv/repos/app", "tok123", "file:///srv/repos/app"},
+	}
+	for _, c := range cases {
+		require.Equal(t, c.want, credentialedURL(c.url, c.token), "url=%q token=%q", c.url, c.token)
+	}
+}
+
+func TestPrepRepoStoredRemoteStaysCredentialFree(t *testing.T) {
+	remote, sha := initTestRemote(t)
+	cache := t.TempDir()
+
+	prep := &PrepRepo{
+		CacheDir: cache, CloneURL: "file://" + remote, Token: "tok123",
+		Owner: "prod9", Repo: "app", SHA: sha, BuildID: 1,
+	}
+	workDir, resolved, err := prep.Run(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, sha, resolved)
+	require.DirExists(t, workDir)
+
+	mirror := filepath.Join(cache, "git", "prod9", "app.git")
+	stored := testGit(t, mirror, "config", "remote.origin.url")
+	require.Equal(t, "file://"+remote, stored)
+	require.NotContains(t, testGit(t, mirror, "config", "--list"), "tok123")
+}
+
 func TestPrepRepoRejectsPathEscapingNames(t *testing.T) {
 	remote, sha := initTestRemote(t)
 	cache := t.TempDir()
