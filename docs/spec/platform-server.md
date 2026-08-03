@@ -332,9 +332,11 @@ while `ref` is the **grouping key the UI reads**: a developer watching `refs/hea
 sees the failed build, the fix-push, and the green build as one list. A new push is a new
 build row, never a mutation of the old one.
 
-**A retry is a new row, linked.** Clicking retry appends a build with `trigger = 'retry'` and
-`retry_of` pointing at the row it re-runs — the immediate parent, so a chain stays walkable —
-and it re-runs that row's `sha` rather than re-resolving the ref.
+**A retry is just a new build.** Clicking retry records the same domain fact the manual
+trigger records — `POST /api/builds` with the build's repo and ref, ref re-resolved — and
+the superseded build simply runs out; there is no cancel machinery (aborting is a hook
+power, deferred). No dedicated retry endpoint exists. The schema's `trigger = 'retry'` and
+`retry_of` stay for a linked retry chain, written by nothing in this surface.
 
 Folds are **computed per read** until listing measurably hurts; there is deliberately no
 denormalized fold column on `builds` yet. Adding one is a cache decision, and a cache that
