@@ -129,11 +129,12 @@ database, not fx config**; srv and the worker read the same rows
 Postgres is the allocation config-allocation.md already assigns the server;
 encryption at rest remains open there.
 
-The wizard's credential steps write through the settings surface
-(`POST /api/settings/{slug}`), which the **installer composition mounts
-ungated** — no session can exist before the credentials enable login, the same
-accepted posture as the ungated first-install migrations button. The installed
-composition mounts the same surface session-gated.
+The wizard's credential steps post `POST /api/install/credentials` — an
+installer-fragment action that writes all five `github.app_*` settings, each
+required. It is **ungated**: no session can exist before the credentials enable
+login, the same accepted posture as the ungated first-install migrations
+button. There is no generic settings REST surface — every settings write goes
+through a purpose-built action, and reads go through the model accessors.
 
 The claim: the GitHub App Setup URL is a browser redirect, so it lands on the
 **webui install page** (a GET that only renders, carrying GitHub's
