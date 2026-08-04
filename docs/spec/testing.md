@@ -9,7 +9,10 @@ spec owns the mechanism.
 - **`go test ./...`** — hermetic unit tests (no docker/network, fresh-clone runnable). Runs
   inside **every image build** (the `Go*` framework gate — see
   [`frameworks.md`](frameworks.md)) and locally on demand. The light complement, not the
-  primary strategy.
+  primary strategy. Hermeticity is repo-side, fx's own convention: the committed `.env`
+  sets `FXTEST_SKIP_DBTESTS=1`, so DB-backed fxtest tests skip wherever no Postgres
+  exists — the in-build gate included; the generic Go runner stays fx-unaware. Running
+  them takes `FXTEST_SKIP_DBTESTS=0` in `.env.local` or the shell env.
 - **`./test.sh`** — blackbox smoke (`chakrit/smoke`): drives the built binary through Dagger
   against the testbeds; **needs docker**. Runs on the host, manually / pre-publish.
 
