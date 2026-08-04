@@ -44,3 +44,6 @@ tables and lists; keep entries skimmable.
 - [`nginx-gateway-fabric-install.md`](nginx-gateway-fabric-install.md) — the NGF / Gateway API
   install recipe: upstream URLs, the firewall-annotation patch, the serverTokens workaround,
   and the string-forcing constraint.
+- [`neon-pooling.md`](neon-pooling.md) — the production database's pooler: pooled-by-default,
+  PgBouncer transaction mode, prepared statements *are* supported — so an `08P01` there is
+  an interaction bug, never a "use simple_protocol" incompatibility.
