@@ -1,7 +1,8 @@
 <script>
-	// The install gate. GET /api/install returns the ordered checklist; the first non-done
-	// entry is the step, and this page carries the operative instructions for it
-	// (docs/spec/installation.md).
+	// The install gate. GET /api/install returns the ordered checklist; the first
+	// non-fully-ready entry is the step, and this page renders it in three columns:
+	// progress on the left, the step's action in the middle, its operative
+	// instructions on the right (docs/spec/installation.md §The wizard UI).
 	import {
 		installState,
 		runMigrations,
@@ -118,150 +119,198 @@
 	{#if !loaded}
 		<p class="muted">Loading…</p>
 	{:else}
-		<ol class="checklist">
-			{#each entries as entry (entry.name)}
-				<li>
-					<span class="state state--{entry.state || 'unknown'} label"
-						>{entry.state || "unknown"}</span
-					>
-					<span class="mono">{entry.name}</span>
-					<span class="mono muted">{entry.message ?? ""}</span>
-				</li>
-			{/each}
-		</ol>
+		<div class="wizard">
+			<ol class="checklist">
+				{#each entries as entry (entry.name)}
+					<li class:active={next !== null && entry.name === next.name}>
+						<span class="mono name">{entry.name}</span>
+						<span class="state state--{entry.state || 'unknown'} label"
+							>{entry.state || "unknown"}</span
+						>
+						{#if entry.message}
+							<span class="mono failed message">{entry.message}</span>
+						{/if}
+					</li>
+				{/each}
+			</ol>
 
-		{#if next === null}
-			<Panel label="Installed">
-				<p class="muted">Restart the server to start.</p>
-			</Panel>
-		{:else if next.name === "db-reachable"}
-			<Panel label="Database unreachable">
-				<p class="muted">{next.message}</p>
-			</Panel>
-		{:else if next.name === "app-credentials"}
-			<Panel label="Create the GitHub App">
-				{#if next.message}
-					<p class="failed mono">{next.message}</p>
-				{/if}
-				<ol class="steps">
-					<li>
-						<a href="https://github.com/settings/apps/new" target="_blank">
-							Create a GitHub App
-						</a>
-						with permissions <code>contents: write</code>, <code>metadata: read</code>,
-						and <code>organization members: read</code>
-						(the claim reads org memberships to prove ownership).
-					</li>
-					<li>Webhook URL <code>{origin}/hooks/github</code></li>
-					<li>OAuth callback URL <code>{origin}/auth/github/callback</code></li>
-					<li>Restrict the App to the managed org.</li>
-					<li>
-						In your
-						<a href="https://github.com/settings/apps" target="_blank">Apps list</a>,
-						open the App and generate a private key, a client secret, and a webhook
-						secret.
-					</li>
-					<li>
-						In
-						<a href="https://github.com/settings/organizations" target="_blank">
-							the org's settings</a
-						>, under Webhooks, add an organization webhook delivering
-						<code>registry_package</code> to the cluster's Flux Receiver, so a
-						published image pokes delivery. Org-wide, wired once.
-					</li>
-					<li>Paste the App's values below and save.</li>
-				</ol>
-
-				{#if credentialsError}
-					<p class="failed mono">{credentialsError}</p>
-				{/if}
-				<div class="fields">
-					<label>
-						<span class="label">App id</span>
-						<input inputmode="numeric" bind:value={credentials.app_id} />
-					</label>
-					<label>
-						<span class="label">Private key (PEM)</span>
-						<textarea rows="6" bind:value={credentials.private_key}></textarea>
-					</label>
-					<label>
-						<span class="label">Webhook secret</span>
-						<input bind:value={credentials.webhook_secret} />
-					</label>
-					<label>
-						<span class="label">Client id</span>
-						<input bind:value={credentials.client_id} />
-					</label>
-					<label>
-						<span class="label">Client secret</span>
-						<input bind:value={credentials.client_secret} />
-					</label>
-				</div>
-				<Button
-					variant="primary"
-					onclick={submitCredentials}
-					disabled={!credentialsReady || savingCredentials}
-				>
-					{savingCredentials ? "Saving…" : "Save credentials"}
-				</Button>
-			</Panel>
-		{:else if isStep("app-installed", "not_started")}
-			{#if !installationID}
-				<Panel label="Install the App on the org">
-					<p class="muted">
-						Set the App's Setup URL to <code>{origin}/install/</code>, then install it
-						on the managed org — GitHub redirects back here to finish.
-					</p>
-					<Button variant="primary" href="https://github.com/settings/apps">
-						Open GitHub Apps
-					</Button>
-				</Panel>
-			{:else if session.user === null}
-				<Panel label="Claim the installation">
-					<p class="muted">
-						Sign in with a GitHub account that owns the org. That account becomes the
-						seed admin.
-					</p>
-					<Button variant="primary" href="/auth/github">Sign in with GitHub</Button>
-				</Panel>
-			{:else}
-				<Panel label="Claim the installation">
-					<p class="muted">
-						Bind installation #{installationID} to this server as {session.user.name}.
-					</p>
-					{#if claimError}
-						<p class="failed mono">{claimError}</p>
+			<div class="action">
+				{#if next === null}
+					<Panel label="Installed">
+						<p class="muted">Restart the server to start.</p>
+					</Panel>
+				{:else if next.name === "db-reachable"}
+					<Panel label="Database unreachable">
+						<p class="failed mono">{next.message}</p>
+					</Panel>
+				{:else if next.name === "app-credentials"}
+					<Panel label="GitHub App credentials">
+						{#if next.message}
+							<p class="failed mono">{next.message}</p>
+						{/if}
+						{#if credentialsError}
+							<p class="failed mono">{credentialsError}</p>
+						{/if}
+						<div class="fields">
+							<label>
+								<span class="label">App id</span>
+								<input inputmode="numeric" bind:value={credentials.app_id} />
+							</label>
+							<label>
+								<span class="label">Private key (PEM)</span>
+								<textarea rows="6" bind:value={credentials.private_key}></textarea>
+							</label>
+							<label>
+								<span class="label">Webhook secret</span>
+								<input bind:value={credentials.webhook_secret} />
+							</label>
+							<label>
+								<span class="label">Client id</span>
+								<input bind:value={credentials.client_id} />
+							</label>
+							<label>
+								<span class="label">Client secret</span>
+								<input bind:value={credentials.client_secret} />
+							</label>
+						</div>
+						<Button
+							variant="primary"
+							onclick={submitCredentials}
+							disabled={!credentialsReady || savingCredentials}
+						>
+							{savingCredentials ? "Saving…" : "Save credentials"}
+						</Button>
+					</Panel>
+				{:else if isStep("app-installed", "not_started")}
+					{#if !installationID}
+						<Panel label="Install the App on the org">
+							<Button variant="primary" href="https://github.com/settings/apps">
+								Open GitHub Apps
+							</Button>
+						</Panel>
+					{:else if session.user === null}
+						<Panel label="Claim the installation">
+							<Button variant="primary" href="/auth/github">Sign in with GitHub</Button>
+						</Panel>
+					{:else}
+						<Panel label="Claim the installation">
+							<p class="muted">
+								Bind installation <span class="mark">#{installationID}</span> to this
+								server as {session.user.name}.
+							</p>
+							{#if claimError}
+								<p class="failed mono">{claimError}</p>
+							{/if}
+							<Button variant="primary" onclick={claim} disabled={claiming}>
+								{claiming ? "Claiming…" : "Claim installation"}
+							</Button>
+						</Panel>
 					{/if}
-					<Button variant="primary" onclick={claim} disabled={claiming}>
-						{claiming ? "Claiming…" : "Claim installation"}
-					</Button>
-				</Panel>
-			{/if}
-		{:else if isStep("migrations", "not_started", "partially_ready")}
-			<Panel label="Run migrations">
-				<p class="muted">Bring the schema up to date.</p>
-				{#if migrateError}
-					<p class="failed mono">{migrateError}</p>
+				{:else if isStep("migrations", "not_started", "partially_ready")}
+					<Panel label="Run migrations">
+						{#if migrateError}
+							<p class="failed mono">{migrateError}</p>
+						{/if}
+						<Button variant="primary" onclick={migrate} disabled={migrating}>
+							{migrating ? "Running…" : "Run migrations"}
+						</Button>
+					</Panel>
+				{:else if next.name === "migrations"}
+					<Panel label="Migration blocked">
+						<p class="failed mono">{next.message}</p>
+					</Panel>
+				{:else}
+					<Panel label="Step failed">
+						<p class="failed mono">{next.message}</p>
+					</Panel>
 				{/if}
-				<Button variant="primary" onclick={migrate} disabled={migrating}>
-					{migrating ? "Running…" : "Run migrations"}
-				</Button>
-			</Panel>
-		{:else if next.name === "migrations"}
-			<Panel label="Migration blocked">
-				<p class="muted">{next.message}</p>
-			</Panel>
-		{:else}
-			<Panel label="Step failed">
-				<p class="muted">{next.message}</p>
-			</Panel>
-		{/if}
+			</div>
+
+			<aside class="instructions">
+				{#if next === null}
+					<p class="label">Done</p>
+					<p>
+						Every step is ready. Restart the server so it boots into the product —
+						the installer retires itself.
+					</p>
+				{:else if next.name === "db-reachable"}
+					<p class="label">What this means</p>
+					<p>
+						The server cannot reach its database. Fix the deployment's
+						<code>DATABASE_URL</code> — this is an operator concern, not a wizard step.
+					</p>
+				{:else if next.name === "app-credentials"}
+					<p class="label">Create the GitHub App</p>
+					<ol class="steps">
+						<li>
+							<a href="https://github.com/settings/apps/new" target="_blank">
+								Create a GitHub App
+							</a>
+							with permissions <code>contents: write</code>,
+							<code>metadata: read</code>, and <code>organization members: read</code>
+							(the claim reads org memberships to prove ownership).
+						</li>
+						<li>Webhook URL <code>{origin}/hooks/github</code></li>
+						<li>OAuth callback URL <code>{origin}/auth/github/callback</code></li>
+						<li>Restrict the App to the managed org.</li>
+						<li>
+							In your
+							<a href="https://github.com/settings/apps" target="_blank">Apps list</a>,
+							open the App and generate a private key, a client secret, and a webhook
+							secret.
+						</li>
+						<li>
+							In
+							<a href="https://github.com/settings/organizations" target="_blank">
+								the org's settings</a
+							>, under Webhooks, add an organization webhook delivering
+							<code>registry_package</code> to the cluster's Flux Receiver, so a
+							published image pokes delivery. Org-wide, wired once.
+						</li>
+						<li>Paste the App's values into the form and save.</li>
+					</ol>
+				{:else if isStep("app-installed", "not_started")}
+					<p class="label">Install and claim</p>
+					{#if !installationID}
+						<p>
+							Set the App's Setup URL to <code>{origin}/install/</code>, then install
+							it on the managed org — GitHub redirects back here to finish.
+						</p>
+					{:else if session.user === null}
+						<p>
+							Sign in with a GitHub account that owns the org. That account becomes
+							the seed admin.
+						</p>
+					{:else}
+						<p>
+							Claiming binds this installation to the server and marks it installed.
+							The claim verifies you are an active owner of the org.
+						</p>
+					{/if}
+				{:else if isStep("migrations", "not_started", "partially_ready")}
+					<p class="label">Run migrations</p>
+					<p>
+						Creates the schema every later step stores its values in. Re-runnable;
+						it only ever applies what is missing.
+					</p>
+				{:else if next.name === "migrations"}
+					<p class="label">What this means</p>
+					<p>
+						The database schema diverges from what this server ships. Review the
+						database by hand — the wizard will not overwrite an unknown schema.
+					</p>
+				{:else}
+					<p class="label">What this means</p>
+					<p>The check itself failed; the message on the left carries the cause.</p>
+				{/if}
+			</aside>
+		</div>
 	{/if}
 </section>
 
 <style>
 	section {
-		max-width: 80ch;
+		max-width: 150ch;
 	}
 
 	.head {
@@ -271,22 +320,58 @@
 		margin-bottom: var(--lead);
 	}
 
+	.wizard {
+		display: grid;
+		grid-template-columns: minmax(26ch, 1fr) minmax(0, 2fr) minmax(30ch, 1.5fr);
+		gap: var(--lead-2);
+		align-items: start;
+	}
+
+	@media (max-width: 900px) {
+		.wizard {
+			grid-template-columns: minmax(0, 1fr);
+			gap: var(--lead);
+		}
+	}
+
 	.checklist {
-		margin: 0 0 var(--lead-2);
+		margin: 0;
 		padding: 0;
 		list-style: none;
 	}
 
 	.checklist li {
 		display: grid;
-		grid-template-columns: 10ch 24ch minmax(0, 1fr);
-		gap: var(--lead-half);
-		line-height: var(--lead);
+		grid-template-columns: minmax(0, 1fr) auto;
+		padding: var(--lead-half) 0 var(--lead-half) var(--lead-half);
 		box-shadow: 0 -1px 0 var(--border) inset;
 	}
 
+	.checklist li.active {
+		box-shadow:
+			2px 0 0 var(--accent-signal) inset,
+			0 -1px 0 var(--border) inset;
+	}
+
+	.checklist .name {
+		line-height: var(--lead);
+	}
+
+	.checklist li.active .name {
+		color: var(--accent);
+		font-weight: 600;
+	}
+
+	.checklist .state {
+		line-height: var(--lead);
+	}
+
+	.checklist .message {
+		grid-column: 1 / -1;
+	}
+
 	.state--fully_ready {
-		color: var(--text);
+		color: var(--accent);
 	}
 
 	.state--not_started,
@@ -299,6 +384,15 @@
 		color: var(--accent-signal);
 	}
 
+	.instructions .label {
+		color: var(--accent);
+		margin-bottom: var(--lead-half);
+	}
+
+	.instructions p {
+		margin: 0 0 var(--lead-half);
+	}
+
 	.steps {
 		margin: 0;
 		padding-left: var(--lead);
@@ -306,6 +400,16 @@
 
 	.steps li {
 		line-height: var(--lead);
+	}
+
+	.steps li::marker {
+		color: var(--accent-signal);
+		font-family: var(--p9-mono);
+	}
+
+	.mark {
+		color: var(--accent-signal);
+		font-family: var(--p9-mono);
 	}
 
 	.failed {
@@ -332,6 +436,12 @@
 		font-family: var(--p9-mono);
 		line-height: var(--lead);
 		color: var(--text);
+	}
+
+	.fields input:focus,
+	.fields textarea:focus {
+		outline: 2px solid var(--accent);
+		outline-offset: -1px;
 	}
 
 	.fields textarea {
