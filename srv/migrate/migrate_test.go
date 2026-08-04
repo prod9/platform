@@ -20,15 +20,17 @@ func TestStateThenRunConverges(t *testing.T) {
 		"CREATE TABLE widgets (id integer PRIMARY KEY);",
 		"DROP TABLE widgets;")
 
-	pending, dirty, err := migrate.State(ctx, db, src)
+	applied, pending, dirty, err := migrate.State(ctx, db, src)
 	require.NoError(t, err)
 	require.False(t, dirty)
+	require.Equal(t, 0, applied)
 	require.Equal(t, 1, pending)
 
 	require.NoError(t, migrate.Run(ctx, db, src))
 
-	pending, dirty, err = migrate.State(ctx, db, src)
+	applied, pending, dirty, err = migrate.State(ctx, db, src)
 	require.NoError(t, err)
 	require.False(t, dirty)
+	require.Equal(t, 1, applied)
 	require.Equal(t, 0, pending)
 }

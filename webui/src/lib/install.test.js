@@ -2,33 +2,46 @@ import { describe, expect, test } from "vitest";
 import { nextStep, credentialsPayload } from "./install.js";
 
 describe("nextStep", () => {
-	test("picks the first entry that is not done", () => {
+	test("picks the first entry that is not fully ready", () => {
 		const entries = [
-			{ name: "db-reachable", status: "done" },
-			{ name: "migrations", status: "pending" },
-			{ name: "app-credentials", status: "pending" },
+			{ name: "db-reachable", state: "fully_ready" },
+			{ name: "migrations", state: "partially_ready" },
+			{ name: "app-credentials", state: "not_started" },
 		];
 
-		expect(nextStep(entries)).toEqual({ name: "migrations", status: "pending" });
+		expect(nextStep(entries)).toEqual({ name: "migrations", state: "partially_ready" });
 	});
 
-	test("treats an error entry as the step", () => {
+	test("treats an intervention entry as the step", () => {
 		const entries = [
-			{ name: "db-reachable", status: "error", message: "connection refused" },
-			{ name: "migrations", status: "pending" },
+			{ name: "db-reachable", state: "intervention_required", message: "connection refused" },
+			{ name: "migrations", state: "not_started" },
 		];
 
 		expect(nextStep(entries)).toEqual({
 			name: "db-reachable",
-			status: "error",
+			state: "intervention_required",
 			message: "connection refused",
 		});
 	});
 
-	test("is null once every entry is done", () => {
+	test("treats an unknown (empty) state as the step", () => {
 		const entries = [
-			{ name: "db-reachable", status: "done" },
-			{ name: "migrations", status: "done" },
+			{ name: "db-reachable", state: "fully_ready" },
+			{ name: "migrations", state: "", message: "check failed" },
+		];
+
+		expect(nextStep(entries)).toEqual({
+			name: "migrations",
+			state: "",
+			message: "check failed",
+		});
+	});
+
+	test("is null once every entry is fully ready", () => {
+		const entries = [
+			{ name: "db-reachable", state: "fully_ready" },
+			{ name: "migrations", state: "fully_ready" },
 		];
 
 		expect(nextStep(entries)).toBe(null);

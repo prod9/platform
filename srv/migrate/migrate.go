@@ -44,15 +44,20 @@ func Merged(sources ...migrator.Source) migrator.Source {
 	}
 }
 
-// State reports how many migrations in src are still pending and whether the applied
-// set diverges from src (dirty). It is the read half of the migrations install-state
-// check — it never mutates the schema.
-func State(ctx context.Context, db *sqlx.DB, src migrator.Source) (pending int, dirty bool, err error) {
+// State reports how many migrations in src are applied and still pending, and whether
+// the applied set diverges from src (dirty). It is the read half of the migrations
+// install-state check — it never mutates the schema.
+func State(ctx context.Context, db *sqlx.DB, src migrator.Source) (applied, pending int, dirty bool, err error) {
+	migrations, err := src()
+	if err != nil {
+		return 0, 0, false, err
+	}
+
 	plans, dirty, err := migrator.New(db, src).Plan(ctx, migrator.IntentMigrate)
 	if err != nil {
-		return 0, dirty, err
+		return 0, 0, dirty, err
 	}
-	return len(plans), dirty, nil
+	return len(migrations) - len(plans), len(plans), dirty, nil
 }
 
 // Run applies every pending migration in src, refusing a dirty schema rather than

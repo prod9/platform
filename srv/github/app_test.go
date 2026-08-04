@@ -80,13 +80,15 @@ func TestLoadAppMissingCredIsNoApp(t *testing.T) {
 	require.ErrorIs(t, err, ErrNoApp)
 }
 
-// A fresh database has no settings table at all — a valid pre-migration state that
-// must read as "no app configured", not surface as a database error.
-func TestLoadAppNoSettingsTableIsNoApp(t *testing.T) {
+// A missing settings table surfaces as the database error it is: this package
+// assumes the schema exists — tolerating a pre-install world is the install
+// fragment's concern alone (docs/spec/installation.md, install-safe checks).
+func TestLoadAppMissingSettingsTableSurfaces(t *testing.T) {
 	ctx := connectDB(t)
 
 	_, err := loadApp(ctx)
-	require.ErrorIs(t, err, ErrNoApp)
+	require.NotErrorIs(t, err, ErrNoApp)
+	require.ErrorContains(t, err, "settings")
 }
 
 // A context with no database at all (nil boot DB — the installer composition before a

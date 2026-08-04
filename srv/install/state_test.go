@@ -13,73 +13,70 @@ import (
 )
 
 func TestComplete(t *testing.T) {
-	require.True(t, Complete([]Entry{{Status: StatusDone}, {Status: StatusDone}}))
-	require.False(t, Complete([]Entry{{Status: StatusDone}, {Status: StatusPending}}))
-	require.False(t, Complete([]Entry{{Status: StatusError}}))
+	require.True(t, Complete([]Entry{{State: FullyReadyState}, {State: FullyReadyState}}))
+	require.False(t, Complete([]Entry{{State: FullyReadyState}, {State: NotStartedState}}))
+	require.False(t, Complete([]Entry{{State: PartiallyReadyState}}))
+	require.False(t, Complete([]Entry{{State: UnknownState}}))
 }
 
 // With the schema migrated but no credentials entered and no org bound, the ordered
-// state reports db/migrations done and both settings-backed entries pending — the
-// wizard's remaining steps (docs/spec/installation.md, the state surface).
+// state reports db/migrations ready and both settings-backed entries not started —
+// the wizard's remaining steps (docs/spec/installation.md, the state surface).
 func TestGetStateMigratedButNotInstalled(t *testing.T) {
 	ctx := srvtest.SetupDB(t, Source)
 	db := data.FromContext(ctx)
 
 	entries := GetState(ctx, db, migrate.Merged(Source))
 
-	require.Equal(t,
-		[]string{"db-reachable", "migrations", "app-credentials", "app-installed"},
-		names(entries))
-	require.Equal(t, StatusDone, statusOf(t, entries, "db-reachable"))
-	require.Equal(t, StatusDone, statusOf(t, entries, "migrations"))
-	require.Equal(t, StatusPending, statusOf(t, entries, "app-credentials"))
-	require.Equal(t, StatusPending, statusOf(t, entries, "app-installed"))
+	require.Equal(t, []Entry{
+		{Name: "db-reachable", State: FullyReadyState},
+		{Name: "migrations", State: FullyReadyState},
+		{Name: "app-credentials", State: NotStartedState},
+		{Name: "app-installed", State: NotStartedState},
+	}, entries)
 	require.False(t, Complete(entries))
 }
 
-// On a fresh database the settings table is absent; the reader treats the missing
-// table as not-installed, and migrations report pending rather than erroring.
-func TestGetStateFreshDBReportsPending(t *testing.T) {
+// On a fresh database nothing exists yet: every step below db-reachable is not
+// started. The settings-backed checks must reach this verdict without ever sending
+// a query that can fail to parse — the schema probe, not a caught error, is what
+// detects the absent table (docs/spec/installation.md, install-safe checks).
+func TestGetStateFreshDBReportsNotStarted(t *testing.T) {
 	srvtest.SkipWithoutPostgres(t)
 	ctx := fxtest.ConnectTestDatabase(t)
 	db := data.FromContext(ctx)
 
 	entries := GetState(ctx, db, migrate.Merged(Source))
 
-	require.Equal(t, StatusDone, statusOf(t, entries, "db-reachable"))
-	require.Equal(t, StatusPending, statusOf(t, entries, "migrations"))
-	require.Equal(t, StatusPending, statusOf(t, entries, "app-credentials"))
-	require.Equal(t, StatusPending, statusOf(t, entries, "app-installed"))
+	require.Equal(t, []Entry{
+		{Name: "db-reachable", State: FullyReadyState},
+		{Name: "migrations", State: NotStartedState},
+		{Name: "app-credentials", State: NotStartedState},
+		{Name: "app-installed", State: NotStartedState},
+	}, entries)
 }
 
-// GetState mirrors an absent database as errors rather than panicking on a nil handle.
+// With only part of the merged set applied, migrations report partially ready —
+// the one step that can be (docs/spec/installation.md, the state surface).
+func TestGetStatePartialMigrationsIsPartiallyReady(t *testing.T) {
+	ctx := srvtest.SetupDB(t, migrate.JobsTable)
+	db := data.FromContext(ctx)
+
+	entries := GetState(ctx, db, migrate.Merged(migrate.JobsTable, Source))
+
+	require.Equal(t, PartiallyReadyState, entries[1].State)
+}
+
+// Without a database nothing downstream is determinable: db-reachable is the
+// operator's to fix, and every later check is unknown rather than a verdict.
 func TestGetStateNilDB(t *testing.T) {
 	ctx := config.NewContext(context.Background(), fxtest.Configure())
 	entries := GetState(ctx, nil, migrate.Merged(Source))
 
-	require.Equal(t, StatusError, statusOf(t, entries, "db-reachable"))
-	require.Equal(t, StatusError, statusOf(t, entries, "migrations"))
-	require.Equal(t, StatusError, statusOf(t, entries, "app-credentials"))
-	require.Equal(t, StatusError, statusOf(t, entries, "app-installed"))
+	require.Equal(t, InterventionRequiredState, entries[0].State)
+	for _, entry := range entries[1:] {
+		require.Equal(t, UnknownState, entry.State)
+		require.NotEmpty(t, entry.Message)
+	}
 	require.False(t, Complete(entries))
-}
-
-func names(entries []Entry) []string {
-	out := make([]string, len(entries))
-	for i, entry := range entries {
-		out[i] = entry.Name
-	}
-	return out
-}
-
-// statusOf fails the test outright on an unknown name — a missing entry is a broken
-// expectation, not a fourth status.
-func statusOf(t *testing.T, entries []Entry, name string) Status {
-	for _, entry := range entries {
-		if entry.Name == name {
-			return entry.Status
-		}
-	}
-	require.FailNow(t, "no install-state entry named "+name)
-	return ""
 }

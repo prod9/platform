@@ -1,10 +1,10 @@
 // Wizard logic for the install page: which step is next, and the credentials wire
 // payload (docs/spec/installation.md §The wizard UI).
 
-// nextStep picks the entry the wizard renders a panel for — the first one not done —
-// or null once the whole checklist is.
+// nextStep picks the entry the wizard renders a panel for — the first one not fully
+// ready — or null once the whole checklist is.
 export function nextStep(entries) {
-	return entries.find((entry) => entry.status !== "done") ?? null;
+	return entries.find((entry) => entry.state !== "fully_ready") ?? null;
 }
 
 // credentialsPayload shapes the five-field form into the action's wire shape: trimmed

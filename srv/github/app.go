@@ -14,7 +14,6 @@ import (
 
 	"fx.prodigy9.co/app/settings"
 	"fx.prodigy9.co/data"
-	"github.com/jackc/pgx/v5/pgconn"
 )
 
 var (
@@ -108,19 +107,16 @@ func SaveApp(ctx context.Context, app *App) error {
 	})
 }
 
-// LoadSetting reads one installer-owned settings value, folding every not-configured
-// shape into absent: a missing settings table (42P01 — its migration has not run, a
-// valid pre-install state) and an empty value — settings.Get folds an absent row into
-// the fallback, so absent and empty both arrive as "". The App reads use it with
-// ErrNoApp; the install fragment (which sits above this package) reads its install.*
-// keys through it with its own sentinel.
+// LoadSetting reads one settings value, folding an unset one into absent —
+// settings.Get folds an absent row into the fallback, so absent and empty both
+// arrive as "". It assumes the settings schema exists: tolerating a pre-install
+// world is the install fragment's concern alone, guarded there by its schema probe
+// (docs/spec/installation.md, install-safe checks). The App reads use it with
+// ErrNoApp; the install fragment reads its install.* keys through it with its own
+// sentinel.
 func LoadSetting(ctx context.Context, key string, absent error) (string, error) {
 	value, err := settings.Get(ctx, key, "")
-
-	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) && pgErr.Code == "42P01" {
-		return "", absent
-	} else if err != nil {
+	if err != nil {
 		return "", err
 	} else if value == "" {
 		return "", absent

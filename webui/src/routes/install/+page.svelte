@@ -99,11 +99,11 @@
 		Object.values(credentials).every((value) => value.trim() !== ""),
 	);
 
-	function isStep(name, status) {
+	function isStep(name, ...states) {
 		if (next === null) {
 			return false;
 		}
-		return next.name === name && next.status === status;
+		return next.name === name && states.includes(next.state);
 	}
 
 	load();
@@ -121,7 +121,9 @@
 		<ol class="checklist">
 			{#each entries as entry (entry.name)}
 				<li>
-					<span class="state state--{entry.status} label">{entry.status}</span>
+					<span class="state state--{entry.state || 'unknown'} label"
+						>{entry.state || "unknown"}</span
+					>
 					<span class="mono">{entry.name}</span>
 					<span class="mono muted">{entry.message ?? ""}</span>
 				</li>
@@ -132,13 +134,13 @@
 			<Panel label="Installed">
 				<p class="muted">Restart the server to start.</p>
 			</Panel>
-		{:else if isStep("db-reachable", "error")}
+		{:else if next.name === "db-reachable"}
 			<Panel label="Database unreachable">
 				<p class="muted">{next.message}</p>
 			</Panel>
 		{:else if next.name === "app-credentials"}
 			<Panel label="Create the GitHub App">
-				{#if next.status === "error"}
+				{#if next.message}
 					<p class="failed mono">{next.message}</p>
 				{/if}
 				<ol class="steps">
@@ -203,7 +205,7 @@
 					{savingCredentials ? "Saving…" : "Save credentials"}
 				</Button>
 			</Panel>
-		{:else if isStep("app-installed", "pending")}
+		{:else if isStep("app-installed", "not_started")}
 			{#if !installationID}
 				<Panel label="Install the App on the org">
 					<p class="muted">
@@ -235,7 +237,7 @@
 					</Button>
 				</Panel>
 			{/if}
-		{:else if isStep("migrations", "pending")}
+		{:else if isStep("migrations", "not_started", "partially_ready")}
 			<Panel label="Run migrations">
 				<p class="muted">Bring the schema up to date.</p>
 				{#if migrateError}
@@ -245,8 +247,12 @@
 					{migrating ? "Running…" : "Run migrations"}
 				</Button>
 			</Panel>
-		{:else if isStep("migrations", "error")}
+		{:else if next.name === "migrations"}
 			<Panel label="Migration blocked">
+				<p class="muted">{next.message}</p>
+			</Panel>
+		{:else}
+			<Panel label="Step failed">
 				<p class="muted">{next.message}</p>
 			</Panel>
 		{/if}
@@ -279,15 +285,17 @@
 		box-shadow: 0 -1px 0 var(--border) inset;
 	}
 
-	.state--done {
+	.state--fully_ready {
 		color: var(--text);
 	}
 
-	.state--pending {
+	.state--not_started,
+	.state--partially_ready {
 		color: var(--text-muted);
 	}
 
-	.state--error {
+	.state--intervention_required,
+	.state--unknown {
 		color: var(--accent-signal);
 	}
 
