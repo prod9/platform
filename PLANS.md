@@ -108,8 +108,8 @@ Earlier session state (2026-06-12):
 - `init` (`init_cmd.go`, 0.4K)
 - `nginx-gateway` (`nginx_gateway_cmd.go`, 6.3K, has tests)
 - `settings` (`settings_cmd.go`, 0.4K)
-- `vanity` (`vanity_cmd.go`, 1.1K) — **conflicts with platform's existing `vanity` cmd**
-  (different vanity host).
+- `vanity` (`vanity_cmd.go`, 1.1K) — platform has no standalone vanity command
+  (vanity serving lives inside `srv`); absorb as `infra vanity` if still needed.
 
 **Auxiliary trees:** `pipelines/`, `settings/`, `templates/` (each non-empty directory at
 repo root). Need to copy alongside `cmd/`.
@@ -133,8 +133,8 @@ repo root). Need to copy alongside `cmd/`.
    `*_cmd.go`, rename root binding from `infra <sub>` to nested cobra group `infraGroup`.
 3. Add `var InfraCmd = &cobra.Command{Use: "infra", Short: "..."}` exposed from
    `cmd/infra/`. Wire children: `argocd`, `cert-manager`, `generate`, `generate-aoa`,
-   `init`, `nginx-gateway`, `settings` under it. Skip `vanity_cmd.go` — keep platform's
-   existing vanity, or namespace infra-cli's as `infra vanity` if the host differs.
+   `init`, `nginx-gateway`, `settings` under it. Namespace infra-cli's `vanity_cmd.go`
+   as `infra vanity` if still needed — platform's vanity serving lives inside `srv`.
 4. Copy `pipelines/`, `settings/`, `templates/` into `cmd/infra/` (or a new `infraassets/`)
    and `//go:embed` them as needed. Update import paths in copied files from
    `infra.prodigy9.co/...` to `platform.prodigy9.co/cmd/infra/...`.
@@ -148,7 +148,6 @@ repo root). Need to copy alongside `cmd/`.
 **Risks:**
 - `fx.prodigy9.co` v0.4 → v0.8 is a four-minor bump; expect breakage in `prompts.New`,
   `cmd.PrintConfigCmd`, `errutil`, and `ctrlc`.
-- `vanity` collision needs a decision before step 3.
 - Embedded templates may reference relative paths that change once moved.
 
 **Out of scope:** rewriting any infra-cli logic; this is a verbatim fold-in.
@@ -162,7 +161,7 @@ covering (a) the runner containers below, (b) the **dagger-engine NetworkPolicy 
 req/limits** deferred from the live engine deploy (engine listens unauth on `:1234`,
 privileged + headless → any pod cluster-wide gets root-on-node; lock ingress to a dedicated
 `prodigy9.co/dagger-client` label, default-deny; lift off BestEffort), and (c) **platform's
-own deployment** (today's hand/Keel-managed vanity Deployment, → `platform.cue` self-deploy).
+own deployment** (the legacy hand/Keel-managed Deployment, → `platform.cue` self-deploy).
 One review, all builders + platform + engine together. NP primitive — the infra-defs agent
 has the setup (2026-06-24 pointer); source a `defs.#NetworkPolicy` from it rather than
 authoring raw.
@@ -236,7 +235,7 @@ hardening tracks.
 plan below assumed. Reading `fxlog` v0.8.6 falsified step 1's two premises — fxlog has **no
 log levels** and **no `io.Writer`** (by design), so `-q`/`-v` and the Dagger writer can't ride
 it. Resolution: `internal/plog` → `internal/buildlog` (CLI/build console, keeps verbosity +
-Dagger writer); `fxlog` becomes the platform-**server** channel (`vanity` now, Phase B API+UI
+Dagger writer); `fxlog` becomes the platform-**server** channel (`srv`, Phase B API+UI
 later). See the
 [log-channel ADR](docs/decisions/2026-06-24-split-build-and-server-log-channels.md). The
 original plan is kept below as the (corrected) historical record.

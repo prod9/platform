@@ -1,10 +1,10 @@
 # Installation
 
-Status: **partially built.** The installer fragment, the `GET /api/install` state
-surface, the migrations action, the boot-composition gating, and the org-owner
-claim ship today (`srv/install`, `srv.Router`). The **install page does not
-yet**. The auth model this sits on is
-frozen in
+Status: **built.** The installer fragment, the `GET /api/install` state surface,
+the migrations and credentials actions, the boot-composition gating, the
+org-owner claim, and the wizard install page
+(`webui/src/routes/install/+page.svelte`) all ship today (`srv/install`,
+`srv.Router`). The auth model this sits on is frozen in
 [platform-server-github-app-zero-rbac](../decisions/2026-06-29-platform-server-github-app-zero-rbac.md);
 the route surface lives in [platform-server.md](platform-server.md).
 
@@ -45,7 +45,7 @@ installed" — boot answers that exactly once. The **bound install settings are
 ambient truth**, though: any product fragment may read them (`install.Load`) —
 that is consuming the binding, not install awareness. When HTTP handlers need
 it, the install fragment delivers it as request-context middleware (the fx
-data-context pattern); until then the worker path reads the row per job.
+data-context pattern); until then the worker path reads the settings per job.
 
 **The auth fragment is the exception: it mounts in both compositions.** The
 org-owner claim requires a logged-in GitHub user *before* the server is
@@ -65,7 +65,7 @@ renders from that entry.
 
 | Entry             | Check                                       | Not-done meaning                           |
 |-------------------|---------------------------------------------|--------------------------------------------|
-| `db-reachable`    | `SELECT 1;`                                 | `error` → "Database connection problem: …" |
+| `db-reachable`    | connectivity ping                           | `error` → "Database connection problem: …" |
 | `migrations`      | schema is current                           | `pending` → run button; dirty → `error`    |
 | `app-credentials` | every `github.app_*` setting has a value    | `pending` → the credentials wizard steps   |
 | `app-installed`   | every `install.*` setting has a value       | `pending` → org-owner claim                |
@@ -213,11 +213,11 @@ Migrations **never auto-run at boot**. Two paths reach the same schema:
 - **CLI** — `./platform srv data migrate`, run before a deploy so the new boot
   comes up already migrated.
 - **Installer button** — the `migrations` remediation on the install page, which `POST`s
-  `/api/install/migrations` (an installer-fragment action). **During a first install it is
-  ungated** — no session exists yet, and cannot: migrations are what create the
-  `users`/`sessions` tables, and running them is convergent and harmless. Once the server
-  has been installed (a pending migration dropping an installed server back to the
-  installer), the action requires a session.
+  `/api/install/migrations` (an installer-fragment action). Installer actions —
+  migrations and credentials alike — are **deliberately ungated**: the deployment
+  URL is treated as secret until the install record exists, and the boot
+  install-route switch removes the exposure once the server is completely
+  installed. No session requirement applies.
 
 Because a pending migration drops the **whole product to the installer** (intended
 — the product API refuses to mount against an out-of-date schema), the CLI pre-run
