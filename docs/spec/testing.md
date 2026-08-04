@@ -12,7 +12,9 @@ spec owns the mechanism.
   primary strategy. Hermeticity is repo-side, fx's own convention: the committed `.env`
   sets `FXTEST_SKIP_DBTESTS=1`, so DB-backed fxtest tests skip wherever no Postgres
   exists — the in-build gate included; the generic Go runner stays fx-unaware. Running
-  them takes `FXTEST_SKIP_DBTESTS=0` in `.env.local` or the shell env.
+  them takes `FXTEST_SKIP_DBTESTS=0` in `.env.local` or the shell env. DB-backed tests
+  run only against a real, already-running Postgres (a dev machine's); the build never
+  provisions one — no Postgres service containers in the test step, ruled 2026-08-04.
 - **`./test.sh`** — blackbox smoke (`chakrit/smoke`): drives the built binary through Dagger
   against the testbeds; **needs docker**. Runs on the host, manually / pre-publish.
 
