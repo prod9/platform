@@ -80,6 +80,17 @@ every install-time value lives in settings, and the settings table exists only
 once migrations ran — so **migrations precede both settings-backed entries**,
 and `app-installed` stays last (the claim needs credentials to talk to GitHub).
 
+**Each check is isolated and install-safe on its own** — no check assumes an
+earlier one ran, and none may issue a query it can predict will fail. The
+settings-backed checks probe for the settings schema (`to_regclass`) before
+reading and report `pending` when it is absent; the probe always parses, so a
+pre-install server never sends a failing statement — retried failing statements
+are what Neon's pooled endpoint kills connections over
+([vendor/neon-pooling.md](../vendor/neon-pooling.md)). This
+tolerate-the-unbuilt-world assumption is the install fragment's alone: product
+packages (the App client's settings reads included) treat a missing settings
+table as the genuine fault it is post-install.
+
 ## Boot composition — the installer gates the product API
 
 Boot decides the API composition **once**, from `install.GetState()`:
