@@ -148,7 +148,7 @@ folds into `framework/scaffold/`, its discovery into `framework/`, and its orche
 into `cmd/init`.
 
 Command surface: `init  build  configure  exec  export  ls  preview  publish  release
-render  clean  srv  versions  vanity`. `clean` prunes the local Dagger build cache
+render  clean  srv  versions`. `clean` prunes the local Dagger build cache
 (first-line cache diagnostics — see
 [`../guides/troubleshooting-build-cache.md`](../guides/troubleshooting-build-cache.md));
 `versions` lists the release history. `publish` is uniform (infra is just a framework
