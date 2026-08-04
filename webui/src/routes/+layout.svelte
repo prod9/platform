@@ -3,7 +3,13 @@
 	import { onMount } from "svelte";
 	import { goto } from "$app/navigation";
 	import { page } from "$app/state";
-	import { installState, Answered, Offline } from "$lib/server.js";
+	import {
+		installState,
+		installSignal,
+		errorText,
+		Installing,
+		Unknown,
+	} from "$lib/server.js";
 	import { session, loadSession, signOut } from "$lib/session.svelte.js";
 	import { warm, loadTheme, toggleTheme } from "$lib/theme.svelte.js";
 	import Button from "$lib/components/Button.svelte";
@@ -17,23 +23,26 @@
 	const Open = "open";
 
 	let phase = $state(Checking);
+	let unreachableReason = $state("");
 
 	// One destination today; the cluster view joins it when that slice lands.
 	const destinations = [{ href: "/", label: "Builds" }];
 
 	// Install is a gate, not a destination: it never appears in the nav, and the server
 	// decides which side of it a visitor is on. GET /api/install is served only while the
-	// installer fragment is mounted, so a refusal is the installed signal — while no
-	// answer at all is neither state, and routing on it would be a guess.
+	// installer fragment is mounted, so specifically a 404 is the installed signal — no
+	// answer, or a server erroring on the probe, is neither state, and routing on it
+	// would be a guess, so the shell stays shut and says why.
 	async function gate() {
 		const state = await installState();
-		if (state.outcome === Offline) {
+		const signal = installSignal(state);
+		if (signal === Unknown) {
+			unreachableReason = errorText(state);
 			phase = Unreachable;
 			return;
 		}
 
-		const installing = state.outcome === Answered;
-		await routeToSide(installing);
+		await routeToSide(signal === Installing);
 
 		// The auth fragment mounts in both compositions — the org-owner claim needs a
 		// login before the server is installed — so the session loads on both sides too.
@@ -90,9 +99,7 @@
 		{#if phase === Checking}
 			<p class="muted">Asking the server where it stands…</p>
 		{:else if phase === Unreachable}
-			<p class="offline mono">
-				No answer from the platform server. Start it on :8210.
-			</p>
+			<p class="offline mono">{unreachableReason} Reload once it's back on :8210.</p>
 		{:else}
 			{@render children()}
 		{/if}

@@ -33,9 +33,38 @@ async function call(path, options) {
 	return { outcome: Answered, body: await resp.json() };
 }
 
-// installState reads the ordered checklist. The installer fragment is unmounted once the
-// server is installed, so Refused here is the installed signal — which is exactly why it
-// must never be confused with Offline.
+// errorText renders a non-Answered result for display. A refusal carries the handler's
+// reason; Offline has no body at all, so the message is ours — every mutation handler
+// funnels through here instead of inventing its own strings.
+export function errorText(result) {
+	if (result.outcome === Offline) {
+		return "No answer from the platform server.";
+	}
+	if (result.body === "") {
+		return `The server refused without a reason (status ${result.status}).`;
+	}
+	return result.body;
+}
+
+// The install gate's three-way read of installState. The installer fragment is unmounted
+// once the server is installed, so specifically a 404 is the installed signal
+// (docs/spec/installation.md §The SvelteKit SPA drives the installer-vs-app view) — any
+// other refusal is a server in trouble, and Unknown keeps the gate from routing on it.
+export const Installing = "installing";
+export const Installed = "installed";
+export const Unknown = "unknown";
+
+export function installSignal(result) {
+	if (result.outcome === Answered) {
+		return Installing;
+	}
+	if (result.outcome === Refused && result.status === 404) {
+		return Installed;
+	}
+	return Unknown;
+}
+
+// installState reads the ordered checklist; installSignal above interprets the result.
 export function installState() {
 	return call("/api/install");
 }

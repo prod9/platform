@@ -7,6 +7,7 @@
 		runMigrations,
 		saveCredentials,
 		claimInstall,
+		errorText,
 		Answered,
 	} from "$lib/server.js";
 	import { nextStep, credentialsPayload } from "$lib/install.js";
@@ -34,7 +35,7 @@
 
 	// The App's Setup URL lands the browser here carrying GitHub's installation_id — the
 	// landing GET only renders; the write sits behind the claim POST
-	// (docs/spec/installation.md §The install record). Signing in bounces through GitHub
+	// (docs/spec/installation.md §The install settings). Signing in bounces through GitHub
 	// and back to /, dropping the query string, so the id is stashed for the return trip.
 	const stashKey = "install.installation_id";
 	const landed = new URLSearchParams(window.location.search).get("installation_id");
@@ -59,7 +60,7 @@
 		if (result.outcome === Answered) {
 			entries = result.body;
 		} else {
-			migrateError = result.body;
+			migrateError = errorText(result);
 		}
 
 		migrating = false;
@@ -73,7 +74,7 @@
 		if (result.outcome === Answered) {
 			entries = result.body;
 		} else {
-			credentialsError = result.body;
+			credentialsError = errorText(result);
 		}
 
 		savingCredentials = false;
@@ -87,7 +88,7 @@
 		if (result.outcome === Answered) {
 			await load();
 		} else {
-			claimError = result.body;
+			claimError = errorText(result);
 		}
 
 		claiming = false;

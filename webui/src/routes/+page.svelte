@@ -2,7 +2,7 @@
 	// The build list: the server's whole point made visible. A row's outcome is folded from
 	// its events on every read — no status is stored anywhere.
 	import { goto } from "$app/navigation";
-	import { listBuilds, listRepos, createBuild, Answered } from "$lib/server.js";
+	import { listBuilds, listRepos, createBuild, errorText, Answered } from "$lib/server.js";
 	import { tagOf, shortSHA, lastActivity, ranFor } from "$lib/build.js";
 	import { session } from "$lib/session.svelte.js";
 	import StatusChip from "$lib/components/StatusChip.svelte";
@@ -17,6 +17,7 @@
 	let repos = $state([]);
 	let repoFull = $state("");
 	let ref = $state("");
+	let repoError = $state("");
 	let queueing = $state(false);
 	let triggerError = $state("");
 
@@ -24,6 +25,9 @@
 		const result = await listRepos();
 		if (result.outcome === Answered) {
 			repos = result.body;
+			repoError = "";
+		} else {
+			repoError = errorText(result);
 		}
 	}
 
@@ -32,15 +36,22 @@
 		queueing = true;
 		triggerError = "";
 
-		const repo = repos.find((entry) => entry.full_name === repoFull);
-		const result = await createBuild(repo.owner, repo.name, ref);
-		if (result.outcome === Answered) {
-			await goto(`/builds/${result.body.id}/`);
-		} else {
-			triggerError = result.body;
-		}
+		try {
+			const repo = repos.find((entry) => entry.full_name === repoFull);
+			if (repo === undefined) {
+				triggerError = `${repoFull} is no longer in the repo list.`;
+				return;
+			}
 
-		queueing = false;
+			const result = await createBuild(repo.owner, repo.name, ref);
+			if (result.outcome === Answered) {
+				await goto(`/builds/${result.body.id}/`);
+			} else {
+				triggerError = errorText(result);
+			}
+		} finally {
+			queueing = false;
+		}
 	}
 
 	// A running build advances in the database rather than in this tab, so the list
@@ -105,6 +116,9 @@
 		<Button variant="primary" disabled={queueing}>
 			{queueing ? "Queueing…" : "Build"}
 		</Button>
+		{#if repoError}
+			<span class="error mono">Repos unavailable: {repoError}</span>
+		{/if}
 		{#if triggerError}
 			<span class="error mono">{triggerError}</span>
 		{/if}

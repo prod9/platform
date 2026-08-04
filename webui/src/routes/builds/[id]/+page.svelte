@@ -4,7 +4,14 @@
 	// stored, so a running build advances by re-reading.
 	import { goto } from "$app/navigation";
 	import { page } from "$app/state";
-	import { getBuild, listSteps, createBuild, Answered, Refused } from "$lib/server.js";
+	import {
+		getBuild,
+		listSteps,
+		createBuild,
+		errorText,
+		Answered,
+		Refused,
+	} from "$lib/server.js";
 	import { tagOf, shortSHA, lastActivity, ranFor, byAttempt } from "$lib/build.js";
 	import { session } from "$lib/session.svelte.js";
 	import StatusChip from "$lib/components/StatusChip.svelte";
@@ -15,6 +22,7 @@
 	let steps = $state([]);
 	let loaded = $state(false);
 	let missing = $state(false);
+	let stepsError = $state("");
 	let retrying = $state(false);
 	let retryError = $state("");
 
@@ -33,6 +41,9 @@
 		}
 		if (stepsRead.outcome === Answered) {
 			steps = stepsRead.body;
+			stepsError = "";
+		} else {
+			stepsError = errorText(stepsRead);
 		}
 		loaded = true;
 	}
@@ -47,19 +58,21 @@
 		retrying = true;
 		retryError = "";
 
-		const result = await createBuild(build.owner, build.repo, build.ref);
-		if (result.outcome === Answered) {
-			await goto(`/builds/${result.body.id}/`);
-			build = null;
-			steps = [];
-			missing = false;
-			loaded = false;
-			load();
-		} else {
-			retryError = result.body;
+		try {
+			const result = await createBuild(build.owner, build.repo, build.ref);
+			if (result.outcome === Answered) {
+				await goto(`/builds/${result.body.id}/`);
+				build = null;
+				steps = [];
+				missing = false;
+				loaded = false;
+				await load();
+			} else {
+				retryError = errorText(result);
+			}
+		} finally {
+			retrying = false;
 		}
-
-		retrying = false;
 	}
 
 	$effect(() => {
@@ -122,6 +135,10 @@
 			<dt class="label">When</dt>
 			<dd class="mono">{lastActivity(build)}</dd>
 		</dl>
+
+		{#if stepsError}
+			<p class="failed mono">Steps unavailable: {stepsError}</p>
+		{/if}
 
 		{#if steps.length === 0}
 			<Panel label="No steps yet">
