@@ -27,7 +27,7 @@ The wizard UI holds four rules:
 - **Progress is always visible.** The full ordered state list renders on every
   step, statuses as returned by `GET /api/install`.
 - **One step at a time.** Below the progress list sits exactly one step panel —
-  the one for the first non-`done` entry.
+  the one for the first non-`fully_ready` entry.
 - **Each panel is operative.** It carries the detailed instructions the human
   operator follows, direct links to the external pages the step works on (the
   GitHub App creation page, the Apps list for the Setup URL, the org webhook
@@ -59,31 +59,44 @@ page never offers it earlier.
 ## The `GET /api/install` state surface
 
 The installer exposes one read endpoint, `GET /api/install`, returning an
-**ordered list of state entries**. Each entry is `done`, `pending`, or `error`.
-The **first non-`done` entry is the `next` step; the webui picks the component it
-renders from that entry.
+**ordered list of state entries**. Each step is a check unit (`Step`: a name
+and a `Check`) and reports one of five states; the **first non-`fully_ready`
+entry is the `next` step; the webui picks the component it renders from that
+entry.
 
-| Entry             | Check                                       | Not-done meaning                           |
-|-------------------|---------------------------------------------|--------------------------------------------|
-| `db-reachable`    | connectivity ping                           | `error` → "Database connection problem: …" |
-| `migrations`      | schema is current                           | `pending` → run button; dirty → `error`    |
-| `app-credentials` | every `github.app_*` setting has a value    | `pending` → the credentials wizard steps   |
-| `app-installed`   | every `install.*` setting has a value       | `pending` → org-owner claim                |
+| State                   | Meaning                                                        |
+|-------------------------|----------------------------------------------------------------|
+| `fully_ready`           | the step's condition holds                                     |
+| `partially_ready`       | some but not all of the step's work is done                    |
+| `not_started`           | none of it yet — the step's action is the next move            |
+| `intervention_required` | an operator condition, not a one-click fix (dirty schema, bad `DATABASE_URL`) |
+| `""` (unknown)          | the check itself failed — indeterminable, message carries why  |
 
-Remediations are **convergent and re-runnable**. A dirty migration and a DB error
-surface as **errors**, not action buttons — they are operator conditions, not
-one-click fixes.
+Unknown is the **zero value** on purpose: an unset state reads as "nobody
+knows", never as a verdict. Entries carry `message` alongside the state when
+the check produced an error.
 
-"Completely installed" is the conjunction of all four: `db-reachable ∧
-migrations-current ∧ app-credentials ∧ app-installed`. The order matters:
-every install-time value lives in settings, and the settings table exists only
-once migrations ran — so **migrations precede both settings-backed entries**,
-and `app-installed` stays last (the claim needs credentials to talk to GitHub).
+| Entry             | Check                                    | Non-ready meaning                          |
+|-------------------|------------------------------------------|--------------------------------------------|
+| `db-reachable`    | connectivity ping                        | `intervention_required` → connection fix   |
+| `migrations`      | schema is current                        | `not_started`/`partially_ready` → run button; dirty → `intervention_required` |
+| `app-credentials` | every `github.app_*` setting has a value | `not_started` → the credentials wizard steps |
+| `app-installed`   | every `install.*` setting has a value    | `not_started` → org-owner claim            |
+
+`migrations` is the only step that can be `partially_ready` (some applied,
+some pending); credentials and the claim write all-or-none, so they never are.
+Remediations are **convergent and re-runnable**.
+
+"Completely installed" is the conjunction: **every entry `fully_ready`**. The
+order matters: every install-time value lives in settings, and the settings
+table exists only once migrations ran — so **migrations precede both
+settings-backed entries**, and `app-installed` stays last (the claim needs
+credentials to talk to GitHub).
 
 **Each check is isolated and install-safe on its own** — no check assumes an
 earlier one ran, and none may issue a query it can predict will fail. The
 settings-backed checks probe for the settings schema (`to_regclass`) before
-reading and report `pending` when it is absent; the probe always parses, so a
+reading and report `not_started` when it is absent; the probe always parses, so a
 pre-install server never sends a failing statement — retried failing statements
 are what Neon's pooled endpoint kills connections over
 ([vendor/neon-pooling.md](../vendor/neon-pooling.md)). This
