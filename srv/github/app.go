@@ -55,13 +55,21 @@ func loadApp(ctx context.Context) (*App, error) {
 		return nil, ErrNoApp
 	}
 
+	// One transaction around the five reads: a concurrent SaveApp is transactional, so
+	// reading inside one snapshot is what keeps the credential set from arriving torn.
 	values := map[string]string{}
-	for _, key := range []string{keyAppID, keyPrivateKey, keyWebhookSecret, keyClientID, keyClientSecret} {
-		value, err := loadValue(ctx, key)
-		if err != nil {
-			return nil, err
+	err := data.Run(ctx, func(s data.Scope) error {
+		for _, key := range []string{keyAppID, keyPrivateKey, keyWebhookSecret, keyClientID, keyClientSecret} {
+			value, err := LoadSetting(s.Context(), key, ErrNoApp)
+			if err != nil {
+				return err
+			}
+			values[key] = value
 		}
-		values[key] = value
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	appID, err := strconv.ParseInt(values[keyAppID], 10, 64)
@@ -100,20 +108,22 @@ func SaveApp(ctx context.Context, app *App) error {
 	})
 }
 
-// loadValue reads one github.app_* value, folding every not-configured shape into
-// ErrNoApp: a missing settings table (42P01 — its migration has not run, a valid
-// pre-install state) and an empty value — settings.Get folds an absent row into the
-// fallback, so absent and empty both arrive as "".
-func loadValue(ctx context.Context, key string) (string, error) {
+// LoadSetting reads one installer-owned settings value, folding every not-configured
+// shape into absent: a missing settings table (42P01 — its migration has not run, a
+// valid pre-install state) and an empty value — settings.Get folds an absent row into
+// the fallback, so absent and empty both arrive as "". The App reads use it with
+// ErrNoApp; the install fragment (which sits above this package) reads its install.*
+// keys through it with its own sentinel.
+func LoadSetting(ctx context.Context, key string, absent error) (string, error) {
 	value, err := settings.Get(ctx, key, "")
 
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == "42P01" {
-		return "", ErrNoApp
+		return "", absent
 	} else if err != nil {
 		return "", err
 	} else if value == "" {
-		return "", ErrNoApp
+		return "", absent
 	}
 	return value, nil
 }

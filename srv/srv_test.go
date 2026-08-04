@@ -82,13 +82,13 @@ func TestNoSettingsSurface(t *testing.T) {
 }
 
 // The wizard's credential step is ungated in the installer composition — no session
-// can exist before the credentials enable login (installation.md). 400 (validation)
-// proves the handler was reached, not a gate; the installed composition drops the
-// route outright.
+// can exist before the credentials enable login (installation.md). 503 (this router
+// has no DB, reported before the body is parsed) proves the handler was reached, not
+// a gate; the installed composition drops the route outright.
 func TestCredentialsMountedUngatedInInstaller(t *testing.T) {
 	notInstalled, err := Router(fxtest.Configure(), nil, false)
 	require.NoError(t, err)
-	require.Equal(t, http.StatusBadRequest,
+	require.Equal(t, http.StatusServiceUnavailable,
 		post(notInstalled, "/api/install/credentials", "{}").Code)
 
 	installed, err := Router(fxtest.Configure(), nil, true)

@@ -27,9 +27,13 @@ func (a *App) jwt(now time.Time) (string, error) {
 	key, err := x509.ParsePKCS1PrivateKey(block.Bytes)
 	if err != nil {
 		parsed, pkcs8Err := x509.ParsePKCS8PrivateKey(block.Bytes)
+		if pkcs8Err != nil {
+			return "", fmt.Errorf("github: parsing app private key: PKCS1: %v; PKCS8: %w",
+				err, pkcs8Err)
+		}
 		rsaKey, isRSA := parsed.(*rsa.PrivateKey)
-		if pkcs8Err != nil || !isRSA {
-			return "", fmt.Errorf("github: parsing app private key (PKCS1 or PKCS8 RSA): %w", err)
+		if !isRSA {
+			return "", fmt.Errorf("github: app private key is PKCS8 but not RSA (%T)", parsed)
 		}
 		key = rsaKey
 	}

@@ -34,8 +34,18 @@ const (
 // and the settings table exists only once migrations ran, so migrations precede both
 // settings-backed entries and the claim stays last (docs/spec/installation.md).
 func GetState(ctx context.Context, db *sqlx.DB, merged migrator.Source) []Entry {
+	reach := dbReachable(ctx, db)
+	if reach.Status != StatusDone {
+		return []Entry{
+			reach,
+			{"migrations", StatusError, reach.Message},
+			{"app-credentials", StatusError, reach.Message},
+			{"app-installed", StatusError, reach.Message},
+		}
+	}
+
 	return []Entry{
-		dbReachable(ctx, db),
+		reach,
 		migrationsState(ctx, db, merged),
 		appCredentials(ctx, db),
 		appInstalled(ctx, db),
@@ -62,14 +72,9 @@ func dbReachable(ctx context.Context, db *sqlx.DB) Entry {
 	return Entry{"db-reachable", StatusDone, ""}
 }
 
+// appCredentials, appInstalled, and migrationsState assume a reachable db — GetState
+// establishes that once via dbReachable and never calls them otherwise.
 func appCredentials(ctx context.Context, db *sqlx.DB) Entry {
-	if db == nil {
-		return Entry{"app-credentials", StatusError, "no database configured"}
-	}
-	if err := db.PingContext(ctx); err != nil {
-		return Entry{"app-credentials", StatusError, err.Error()}
-	}
-
 	_, err := github.LoadApp(data.NewContext(ctx, db))
 	if errors.Is(err, github.ErrNoApp) {
 		return Entry{"app-credentials", StatusPending, ""}
@@ -80,13 +85,6 @@ func appCredentials(ctx context.Context, db *sqlx.DB) Entry {
 }
 
 func appInstalled(ctx context.Context, db *sqlx.DB) Entry {
-	if db == nil {
-		return Entry{"app-installed", StatusError, "no database configured"}
-	}
-	if err := db.PingContext(ctx); err != nil {
-		return Entry{"app-installed", StatusError, err.Error()}
-	}
-
 	_, err := Load(data.NewContext(ctx, db))
 	if errors.Is(err, ErrNotInstalled) {
 		return Entry{"app-installed", StatusPending, ""}
@@ -97,13 +95,6 @@ func appInstalled(ctx context.Context, db *sqlx.DB) Entry {
 }
 
 func migrationsState(ctx context.Context, db *sqlx.DB, merged migrator.Source) Entry {
-	if db == nil {
-		return Entry{"migrations", StatusError, "no database configured"}
-	}
-	if err := db.PingContext(ctx); err != nil {
-		return Entry{"migrations", StatusError, err.Error()}
-	}
-
 	pending, dirty, err := migrate.State(ctx, db, merged)
 	if err != nil {
 		return Entry{"migrations", StatusError, err.Error()}

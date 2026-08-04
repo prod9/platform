@@ -74,6 +74,19 @@ func TestPostCredentialsAllRequired(t *testing.T) {
 	require.ErrorIs(t, err, github.ErrNoApp)
 }
 
+// Without a database no credential post can succeed, whatever the body says — the
+// missing DB is reported before the body is even parsed, matching runMigrations.
+func TestPostCredentialsWithoutDBUnavailable(t *testing.T) {
+	cfg := fxtest.Configure()
+	router := chi.NewRouter()
+	router.Use(middlewares.Configure(cfg))
+	ctr := StateCtr{DB: nil, Merged: migrate.Merged(Source)}
+	require.NoError(t, ctr.Mount(cfg, router))
+
+	resp := postCredentials(context.Background(), router, `{"app_id": 0}`)
+	require.Equal(t, http.StatusServiceUnavailable, resp.Code)
+}
+
 func setupAPI(t *testing.T) (context.Context, chi.Router) {
 	ctx := srvtest.SetupDB(t, Source)
 	db := data.FromContext(ctx)

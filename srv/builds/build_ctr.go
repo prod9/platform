@@ -11,6 +11,7 @@ import (
 
 	"fx.prodigy9.co/config"
 	"fx.prodigy9.co/data"
+	"fx.prodigy9.co/fxlog"
 	"fx.prodigy9.co/httpserver/controllers"
 	"fx.prodigy9.co/httpserver/httperrors"
 	"fx.prodigy9.co/httpserver/render"
@@ -89,13 +90,16 @@ func trigger(resp http.ResponseWriter, req *http.Request) {
 }
 
 // renderCreated is render.JSON at 201: fx's render fixes status 200 (a gap its own TODO
-// notes), so the one created-returning handler writes the status itself, with the same
-// committed-response encode handling render.JSON uses.
+// notes), so the one created-returning handler writes the status itself. The 201 is
+// committed before encoding, so an encode failure cannot become a status — it is logged
+// instead of silently swallowed.
 func renderCreated(resp http.ResponseWriter, req *http.Request, obj any) {
 	resp.Header().Set("Content-Type", "application/json")
 	resp.WriteHeader(http.StatusCreated)
 	if err := json.NewEncoder(resp).Encode(obj); err != nil {
-		render.Error(resp, req, 500, err)
+		fxlog.Log("encoding 201 response failed after commit",
+			fxlog.String("path", req.URL.Path),
+			fxlog.String("error", err.Error()))
 	}
 }
 

@@ -48,13 +48,14 @@ func (c StateCtr) Mount(cfg *config.Source, router chi.Router) error {
 // the same accepted posture as the first-install migrations button
 // (docs/spec/installation.md).
 func (c StateCtr) saveCredentials(resp http.ResponseWriter, req *http.Request) {
+	if c.DB == nil {
+		render.Error(resp, req, 503, errNoDB)
+		return
+	}
+
 	action := &SaveCredentials{}
 	if err := controllers.ReadAction(req, action); err != nil {
 		render.Error(resp, req, 400, err)
-		return
-	}
-	if c.DB == nil {
-		render.Error(resp, req, 503, errNoDB)
 		return
 	}
 

@@ -8,12 +8,13 @@ package install
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strconv"
 	"time"
 
 	"fx.prodigy9.co/app/settings"
 	"fx.prodigy9.co/data/migrator"
-	"github.com/jackc/pgx/v5/pgconn"
+	"platform.prodigy9.co/srv/github"
 )
 
 // ErrNotInstalled reports that the server is not bound to an org yet — the install.*
@@ -62,33 +63,15 @@ func Load(ctx context.Context) (*Record, error) {
 	}
 
 	for _, field := range fields {
-		value, err := loadValue(ctx, field.key)
+		value, err := github.LoadSetting(ctx, field.key, ErrNotInstalled)
 		if err != nil {
 			return nil, err
 		}
 		if err := field.read(value); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("install: bad %s: %w", field.key, err)
 		}
 	}
 	return record, nil
-}
-
-// loadValue reads one install.* value, folding every not-installed shape into
-// ErrNotInstalled: a missing settings table (42P01 — its migration has not run, a valid
-// pre-install state), and an empty value — settings.Get folds an absent row into the
-// fallback, so absent and empty (both: not yet claimed) arrive as "".
-func loadValue(ctx context.Context, key string) (string, error) {
-	value, err := settings.Get(ctx, key, "")
-
-	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) && pgErr.Code == "42P01" {
-		return "", ErrNotInstalled
-	} else if err != nil {
-		return "", err
-	} else if value == "" {
-		return "", ErrNotInstalled
-	}
-	return value, nil
 }
 
 func intField(out *int64) func(string) error {

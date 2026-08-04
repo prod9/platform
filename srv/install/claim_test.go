@@ -128,6 +128,43 @@ func TestClaimTwiceConflicts(t *testing.T) {
 	require.Equal(t, http.StatusConflict, h.claim(true).Code)
 }
 
+// Two truly concurrent claims serialize on the FOR UPDATE row: exactly one fills the
+// install.* settings, the other blocks on the lock and then finds the first one's write.
+func TestClaimExecuteConcurrentOneWins(t *testing.T) {
+	ctx := srvtest.SetupDB(t, Source)
+
+	start := make(chan struct{})
+	errs := make(chan error, 2)
+	for i := range 2 {
+		claim := &ClaimInstall{
+			InstallationID: 7, OrgID: 9, OrgLogin: "prodigy9",
+			UserID: int64(i + 1), UserLogin: fmt.Sprintf("user%d", i+1),
+		}
+		go func() {
+			<-start
+			errs <- claim.Execute(ctx, nil)
+		}()
+	}
+	close(start)
+
+	var wins, conflicts int
+	for range 2 {
+		err := <-errs
+		if err == nil {
+			wins++
+		} else {
+			require.ErrorIs(t, err, ErrAlreadyInstalled)
+			conflicts++
+		}
+	}
+	require.Equal(t, 1, wins)
+	require.Equal(t, 1, conflicts)
+
+	record, err := Load(ctx)
+	require.NoError(t, err)
+	require.Equal(t, int64(7), record.InstallationID)
+}
+
 func TestClaimWithoutAppUnavailable(t *testing.T) {
 	h := setupClaim(t, 200, `{"role":"admin","state":"active"}`)
 	srvtest.StubApp(t, nil, github.ErrNoApp)

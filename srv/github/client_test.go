@@ -3,6 +3,8 @@ package github
 import (
 	"context"
 	"crypto"
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
@@ -99,6 +101,31 @@ func TestJWTAcceptsPKCS8Key(t *testing.T) {
 	token, err := app.jwt(time.Now())
 	require.NoError(t, err)
 	require.NotEmpty(t, token)
+}
+
+// A PKCS8 key that parses but is not RSA (e.g. EC) must say so — the old wrap
+// surfaced only the PKCS1 error, misdiagnosing a wrong-algorithm key as a bad encoding.
+func TestJWTRejectsNonRSAPKCS8Key(t *testing.T) {
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	der, err := x509.MarshalPKCS8PrivateKey(key)
+	require.NoError(t, err)
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der})
+
+	app := &App{ClientID: "Iv1.abc", PrivateKey: string(keyPEM)}
+	_, err = app.jwt(time.Now())
+	require.ErrorContains(t, err, "not RSA")
+}
+
+// A PEM block that is neither PKCS1 nor PKCS8 reports both parse failures — either
+// alone would point the operator at the wrong half of the fallback.
+func TestJWTBadKeyReportsBothEncodings(t *testing.T) {
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: []byte("garbage")})
+
+	app := &App{ClientID: "Iv1.abc", PrivateKey: string(keyPEM)}
+	_, err := app.jwt(time.Now())
+	require.ErrorContains(t, err, "PKCS1:")
+	require.ErrorContains(t, err, "PKCS8:")
 }
 
 func TestInstallationToken(t *testing.T) {
