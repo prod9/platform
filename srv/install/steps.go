@@ -7,6 +7,7 @@ package install
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"fx.prodigy9.co/data"
 	"fx.prodigy9.co/data/migrator"
@@ -62,11 +63,40 @@ type appCredentials struct{}
 
 func (appCredentials) Name() string { return "app-credentials" }
 
+// Check goes one step past presence: with credentials saved it reads GET /app and
+// compares the App's permissions against the required set — saved-but-under-scoped
+// is partially ready, and the message names the gap
+// (docs/spec/installation.md, the credentials check).
 func (appCredentials) Check(ctx context.Context, db *sqlx.DB) (StepState, error) {
-	return settingsBacked(ctx, db, func(ctx context.Context) error {
-		_, err := github.LoadApp(ctx)
-		return err
-	}, github.ErrNoApp)
+	if db == nil {
+		return UnknownState, errNoDatabase
+	}
+
+	ready, err := settingsSchemaReady(ctx, db)
+	if err != nil {
+		return UnknownState, err
+	}
+	if !ready {
+		return NotStartedState, nil
+	}
+
+	client, err := github.NewClient(data.NewContext(ctx, db))
+	if errors.Is(err, github.ErrNoApp) {
+		return NotStartedState, nil
+	} else if err != nil {
+		return UnknownState, err
+	}
+
+	perms, err := client.AppPermissions(ctx)
+	if err != nil {
+		return UnknownState, err
+	}
+	missing := github.MissingPermissions(perms)
+	if len(missing) > 0 {
+		return PartiallyReadyState,
+			errors.New("app is missing permissions — " + strings.Join(missing, ", "))
+	}
+	return FullyReadyState, nil
 }
 
 type appInstalled struct{}
@@ -80,7 +110,7 @@ func (appInstalled) Check(ctx context.Context, db *sqlx.DB) (StepState, error) {
 	}, ErrNotInstalled)
 }
 
-// settingsBacked is the shared shape of the two settings-reading checks: probe for
+// settingsBacked is the shared shape of the settings-reading checks: probe for
 // the settings schema first — the probe always parses, so a pre-install server never
 // sends a failing statement — then read, folding the reader's absent sentinel into
 // not started.
@@ -89,19 +119,25 @@ func settingsBacked(ctx context.Context, db *sqlx.DB, read func(context.Context)
 		return UnknownState, errNoDatabase
 	}
 
-	var ready bool
-	if err := db.GetContext(ctx, &ready, `SELECT to_regclass('public.settings') IS NOT NULL`); err != nil {
+	ready, err := settingsSchemaReady(ctx, db)
+	if err != nil {
 		return UnknownState, err
 	}
 	if !ready {
 		return NotStartedState, nil
 	}
 
-	err := read(data.NewContext(ctx, db))
+	err = read(data.NewContext(ctx, db))
 	if errors.Is(err, absent) {
 		return NotStartedState, nil
 	} else if err != nil {
 		return UnknownState, err
 	}
 	return FullyReadyState, nil
+}
+
+func settingsSchemaReady(ctx context.Context, db *sqlx.DB) (bool, error) {
+	var ready bool
+	err := db.GetContext(ctx, &ready, `SELECT to_regclass('public.settings') IS NOT NULL`)
+	return ready, err
 }

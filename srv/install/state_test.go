@@ -2,6 +2,9 @@ package install
 
 import (
 	"context"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"fx.prodigy9.co/config"
@@ -79,4 +82,41 @@ func TestGetStateNilDB(t *testing.T) {
 		require.NotEmpty(t, entry.Message)
 	}
 	require.False(t, Complete(entries))
+}
+
+// Credentials saved but the App under-scoped: the check reads GET /app and reports
+// partially ready, naming the gap (docs/spec/installation.md, the credentials check).
+func TestCredentialsStepFlagsUnderscopedApp(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"permissions":{"contents":"read","metadata":"read","members":"read"}}`)
+	}))
+	t.Cleanup(server.Close)
+	t.Setenv("GITHUB_API_URL", server.URL)
+
+	ctx := srvtest.SetupDB(t, Source)
+	srvtest.StubApp(t, srvtest.TestApp(t), nil)
+	db := data.FromContext(ctx)
+
+	entries := GetState(ctx, db, migrate.Merged(Source))
+
+	require.Equal(t, PartiallyReadyState, entries[2].State)
+	require.Contains(t, entries[2].Message, "contents: write")
+	require.Contains(t, entries[2].Message, "organization webhooks: write")
+}
+
+// A fully scoped App reads fully ready.
+func TestCredentialsStepFullyScopedApp(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"permissions":{"contents":"write","metadata":"read","members":"read","organization_hooks":"write"}}`)
+	}))
+	t.Cleanup(server.Close)
+	t.Setenv("GITHUB_API_URL", server.URL)
+
+	ctx := srvtest.SetupDB(t, Source)
+	srvtest.StubApp(t, srvtest.TestApp(t), nil)
+	db := data.FromContext(ctx)
+
+	entries := GetState(ctx, db, migrate.Merged(Source))
+
+	require.Equal(t, FullyReadyState, entries[2].State)
 }

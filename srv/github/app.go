@@ -107,6 +107,31 @@ func SaveApp(ctx context.Context, app *App) error {
 	})
 }
 
+// requiredPermissions is the set the install wizard verifies against GET /app, in
+// display order. Labels read as GitHub's UI names the permission, not the API slug
+// (docs/spec/installation.md, the credentials check).
+var requiredPermissions = []struct{ slug, label, level string }{
+	{"contents", "contents", "write"},
+	{"metadata", "metadata", "read"},
+	{"members", "members", "read"},
+	{"organization_hooks", "organization webhooks", "write"},
+}
+
+// MissingPermissions names every required permission the App's map lacks, as
+// "label: level" strings; write satisfies a read requirement. Empty means the App
+// is fully scoped.
+func MissingPermissions(perms map[string]string) []string {
+	var missing []string
+	for _, required := range requiredPermissions {
+		held := perms[required.slug]
+		if held == "write" || held == required.level {
+			continue
+		}
+		missing = append(missing, required.label+": "+required.level)
+	}
+	return missing
+}
+
 // LoadSetting reads one settings value, folding an unset one into absent —
 // settings.Get folds an absent row into the fallback, so absent and empty both
 // arrive as "". It assumes the settings schema exists: tolerating a pre-install
