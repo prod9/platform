@@ -415,6 +415,13 @@
 		margin-bottom: var(--lead-half);
 	}
 
+	/* Built URLs (org links, webhook/callback paths) can outgrow the column;
+	   break anywhere rather than pushing the grid past the viewport. */
+	.instructions a,
+	.instructions code {
+		overflow-wrap: anywhere;
+	}
+
 	.org {
 		display: grid;
 		gap: 2px;
