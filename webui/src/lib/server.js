@@ -85,6 +85,12 @@ export function saveCredentials(payload) {
 	return post("/api/install/credentials", payload);
 }
 
+// saveRegistryToken is the wizard's registry step: the ghcr push PAT the operator
+// creates by hand. The response is a fresh install-state read.
+export function saveRegistryToken(payload) {
+	return post("/api/install/registry", payload);
+}
+
 // claimInstall is the org-owner claim: the App's Setup URL lands the browser on the
 // install page with an installation_id, and this posts it (docs/spec/installation.md).
 export function claimInstall(installationID) {

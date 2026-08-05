@@ -3,6 +3,7 @@ import {
 	nextStep,
 	appPayload,
 	credentialsPayload,
+	registryPayload,
 	generateWebhookSecret,
 	orgSettingsURL,
 } from "./install.js";
@@ -130,5 +131,15 @@ describe("orgSettingsURL", () => {
 		expect(orgSettingsURL("", "apps/new")).toBe(null);
 		expect(orgSettingsURL("   ", "apps")).toBe(null);
 		expect(orgSettingsURL(undefined, "apps")).toBe(null);
+	});
+});
+
+describe("registryPayload", () => {
+	test("trims the token", () => {
+		expect(registryPayload({ token: "  ghp_abc  " })).toEqual({ token: "ghp_abc" });
+	});
+
+	test("leaves emptiness for the server to refuse", () => {
+		expect(registryPayload({ token: "   " })).toEqual({ token: "" });
 	});
 });

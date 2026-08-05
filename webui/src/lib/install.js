@@ -39,6 +39,14 @@ export function credentialsPayload(fields) {
 	};
 }
 
+// registryPayload shapes the registry-token form — the ghcr PAT the operator
+// creates by hand — the same way.
+export function registryPayload(fields) {
+	return {
+		token: text(fields.token),
+	};
+}
+
 // generateWebhookSecret mints the webhook secret the operator copies into GitHub's
 // creation form — 32 random bytes as hex, from the platform's CSPRNG.
 export function generateWebhookSecret() {

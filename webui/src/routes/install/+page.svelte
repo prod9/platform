@@ -8,6 +8,7 @@
 		runMigrations,
 		saveApp,
 		saveCredentials,
+		saveRegistryToken,
 		claimInstall,
 		errorText,
 		Answered,
@@ -16,6 +17,7 @@
 		nextStep,
 		appPayload,
 		credentialsPayload,
+		registryPayload,
 		generateWebhookSecret,
 		orgSettingsURL,
 	} from "$lib/install.js";
@@ -40,6 +42,9 @@
 	});
 	let savingCredentials = $state(false);
 	let credentialsError = $state("");
+	let registry = $state({ token: "" });
+	let savingRegistry = $state(false);
+	let registryError = $state("");
 	let claiming = $state(false);
 	let claimError = $state("");
 
@@ -115,6 +120,20 @@
 		savingCredentials = false;
 	}
 
+	async function submitRegistry() {
+		savingRegistry = true;
+		registryError = "";
+
+		const result = await saveRegistryToken(registryPayload(registry));
+		if (result.outcome === Answered) {
+			entries = result.body;
+		} else {
+			registryError = errorText(result);
+		}
+
+		savingRegistry = false;
+	}
+
 	async function claim() {
 		claiming = true;
 		claimError = "";
@@ -134,6 +153,7 @@
 	let credentialsReady = $derived(
 		Object.values(credentials).every((value) => value.trim() !== ""),
 	);
+	let registryReady = $derived(registry.token.trim() !== "");
 
 	function isStep(name, ...states) {
 		if (next === null) {
@@ -240,6 +260,28 @@
 							disabled={!credentialsReady || savingCredentials}
 						>
 							{savingCredentials ? "Saving…" : "Save keys"}
+						</Button>
+					</Panel>
+				{:else if next.name === "registry-token"}
+					<Panel label="Registry push token">
+						{#if next.message}
+							<p class="failed mono">{next.message}</p>
+						{/if}
+						{#if registryError}
+							<p class="failed mono">{registryError}</p>
+						{/if}
+						<div class="fields">
+							<label>
+								<span class="label">Classic PAT (write:packages)</span>
+								<input type="password" bind:value={registry.token} />
+							</label>
+						</div>
+						<Button
+							variant="primary"
+							onclick={submitRegistry}
+							disabled={!registryReady || savingRegistry}
+						>
+							{savingRegistry ? "Saving…" : "Save token"}
 						</Button>
 					</Panel>
 				{:else if isStep("app-installed", "not_started")}
@@ -378,6 +420,28 @@
 							GitHub downloads a <code>.pem</code> file; paste its contents.
 						</li>
 						<li>Paste both into the form and save.</li>
+					</ol>
+				{:else if next.name === "registry-token"}
+					<p class="label">Create the push token</p>
+					<ol class="steps">
+						<li>
+							The server pushes built images to <code>ghcr.io</code>, and ghcr
+							accepts only a <strong>classic personal access token</strong> — no
+							App-derived credential works.
+						</li>
+						<li>
+							Create one at
+							<a
+								href="https://github.com/settings/tokens/new?scopes=write:packages&description=platform+publish"
+								target="_blank">github.com/settings/tokens/new</a
+							>
+							with the single scope <code>write:packages</code> — nothing else.
+						</li>
+						<li>
+							The token acts for whoever creates it: prefer a machine user or an
+							org owner.
+						</li>
+						<li>Paste the token into the form and save.</li>
 					</ol>
 				{:else if isStep("app-installed", "not_started")}
 					<p class="label">Install and claim</p>
