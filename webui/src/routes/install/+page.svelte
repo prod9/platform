@@ -8,6 +8,7 @@
 		runMigrations,
 		saveCredentials,
 		claimInstall,
+		setupFlux,
 		errorText,
 		Answered,
 	} from "$lib/server.js";
@@ -31,6 +32,9 @@
 	let credentialsError = $state("");
 	let claiming = $state(false);
 	let claimError = $state("");
+	let receiverURL = $state("");
+	let savingFlux = $state(false);
+	let fluxError = $state("");
 
 	const origin = window.location.origin;
 
@@ -102,6 +106,20 @@
 		}
 
 		claiming = false;
+	}
+
+	async function submitFlux() {
+		savingFlux = true;
+		fluxError = "";
+
+		const result = await setupFlux(receiverURL.trim());
+		if (result.outcome === Answered) {
+			entries = result.body;
+		} else {
+			fluxError = errorText(result);
+		}
+
+		savingFlux = false;
 	}
 
 	let next = $derived(nextStep(entries));
@@ -218,6 +236,25 @@
 							</Button>
 						</Panel>
 					{/if}
+				{:else if isStep("flux-setup", "not_started")}
+					<Panel label="Wire delivery">
+						{#if fluxError}
+							<p class="failed mono">{fluxError}</p>
+						{/if}
+						<div class="fields">
+							<label>
+								<span class="label">Flux Receiver URL</span>
+								<input placeholder="https://…" bind:value={receiverURL} />
+							</label>
+						</div>
+						<Button
+							variant="primary"
+							onclick={submitFlux}
+							disabled={receiverURL.trim() === "" || savingFlux}
+						>
+							{savingFlux ? "Wiring…" : "Create org webhook"}
+						</Button>
+					</Panel>
 				{:else if isStep("migrations", "not_started", "partially_ready")}
 					<Panel label="Run migrations">
 						{#if migrateError}
@@ -284,14 +321,6 @@
 							After creating, on the App's settings page generate a
 							<strong>private key</strong> and a <strong>client secret</strong>.
 						</li>
-						<li>
-							In
-							<a href="https://github.com/settings/organizations" target="_blank">
-								the org's settings</a
-							>, under Webhooks, add an organization webhook delivering
-							<code>registry_package</code> to the cluster's Flux Receiver, so a
-							published image pokes delivery. Org-wide, wired once.
-						</li>
 						<li>Paste the App's values into the form and save.</li>
 					</ol>
 				{:else if isStep("app-installed", "not_started")}
@@ -316,6 +345,15 @@
 							The claim verifies you are an active owner of the org.
 						</p>
 					{/if}
+				{:else if isStep("flux-setup", "not_started")}
+					<p class="label">Wire delivery</p>
+					<p>
+						A published image reaches the cluster because GitHub's
+						<code>registry_package</code> webhook pokes the cluster's Flux Receiver.
+						Paste the Receiver's public URL (from the cluster's Flux setup — ask your
+						infra operator); the server creates the org-wide webhook through the App.
+						Wired once, never per repo; re-running converges.
+					</p>
 				{:else if isStep("migrations", "not_started", "partially_ready")}
 					<p class="label">Run migrations</p>
 					<p>

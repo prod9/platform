@@ -40,7 +40,33 @@ func (c StateCtr) Mount(cfg *config.Source, router chi.Router) error {
 	router.Post("/api/install/migrations", c.runMigrations)
 	router.Post("/api/install/credentials", c.saveCredentials)
 	router.Post("/api/install/claim", c.claim)
+	router.Post("/api/install/flux", c.setupFlux)
 	return nil
+}
+
+// setupFlux is the delivery step (POST /api/install/flux): session-gated like the
+// claim — it mutates the org through the App, and by the time it is reachable the
+// install record exists (docs/spec/installation.md, the flux-setup step).
+func (c StateCtr) setupFlux(resp http.ResponseWriter, req *http.Request) {
+	if _, ok := auth.RequireUser(resp, req); !ok {
+		return
+	}
+
+	action := &SetupFlux{}
+	if err := controllers.ReadAction(req, action); err != nil {
+		render.Error(resp, req, 400, err)
+		return
+	}
+
+	ctx := req.Context()
+	if err := action.Execute(ctx, nil); errors.Is(err, ErrNotInstalled) {
+		render.Error(resp, req, 409, err)
+		return
+	} else if err != nil {
+		render.Error(resp, req, 500, err)
+		return
+	}
+	render.JSON(resp, req, GetState(ctx, c.DB, c.Merged))
 }
 
 // saveCredentials is the wizard's credential step (POST /api/install/credentials).

@@ -36,6 +36,7 @@ func TestGetStateMigratedButNotInstalled(t *testing.T) {
 		{Name: "migrations", State: FullyReadyState},
 		{Name: "app-credentials", State: NotStartedState},
 		{Name: "app-installed", State: NotStartedState},
+		{Name: "flux-setup", State: NotStartedState},
 	}, entries)
 	require.False(t, Complete(entries))
 }
@@ -56,6 +57,7 @@ func TestGetStateFreshDBReportsNotStarted(t *testing.T) {
 		{Name: "migrations", State: NotStartedState},
 		{Name: "app-credentials", State: NotStartedState},
 		{Name: "app-installed", State: NotStartedState},
+		{Name: "flux-setup", State: NotStartedState},
 	}, entries)
 }
 

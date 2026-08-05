@@ -110,6 +110,17 @@ func (appInstalled) Check(ctx context.Context, db *sqlx.DB) (StepState, error) {
 	}, ErrNotInstalled)
 }
 
+type fluxSetup struct{}
+
+func (fluxSetup) Name() string { return "flux-setup" }
+
+func (fluxSetup) Check(ctx context.Context, db *sqlx.DB) (StepState, error) {
+	return settingsBacked(ctx, db, func(ctx context.Context) error {
+		_, err := github.LoadSetting(ctx, keyReceiverURL, errNoReceiver)
+		return err
+	}, errNoReceiver)
+}
+
 // settingsBacked is the shared shape of the settings-reading checks: probe for
 // the settings schema first — the probe always parses, so a pre-install server never
 // sends a failing statement — then read, folding the reader's absent sentinel into

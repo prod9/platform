@@ -85,6 +85,12 @@ export function claimInstall(installationID) {
 	return post("/api/install/claim", { installation_id: installationID });
 }
 
+// setupFlux is the delivery step: the server creates the org webhook targeting the
+// cluster's Flux Receiver and records the URL (docs/spec/installation.md).
+export function setupFlux(receiverURL) {
+	return post("/api/install/flux", { receiver_url: receiverURL });
+}
+
 export function currentUser() {
 	return call("/api/users/me");
 }
