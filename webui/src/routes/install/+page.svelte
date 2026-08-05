@@ -11,7 +11,7 @@
 		errorText,
 		Answered,
 	} from "$lib/server.js";
-	import { nextStep, credentialsPayload } from "$lib/install.js";
+	import { nextStep, credentialsPayload, orgSettingsURL } from "$lib/install.js";
 	import { session } from "$lib/session.svelte.js";
 	import Panel from "$lib/components/Panel.svelte";
 	import Button from "$lib/components/Button.svelte";
@@ -38,6 +38,15 @@
 	// landing GET only renders; the write sits behind the claim POST
 	// (docs/spec/installation.md §The install settings). Signing in bounces through GitHub
 	// and back to /, dropping the query string, so the id is stashed for the return trip.
+	// The org slug only feeds the instruction links; it survives the OAuth bounce the
+	// same way the installation id does. The server never sees it — the claim derives
+	// the real org from the installation.
+	const orgKey = "install.org";
+	let org = $state(sessionStorage.getItem(orgKey) ?? "");
+	$effect(() => sessionStorage.setItem(orgKey, org));
+	let appsNewURL = $derived(orgSettingsURL(org, "apps/new"));
+	let appsURL = $derived(orgSettingsURL(org, "apps"));
+
 	const stashKey = "install.installation_id";
 	const landed = new URLSearchParams(window.location.search).get("installation_id");
 	if (landed) {
@@ -184,8 +193,11 @@
 				{:else if isStep("app-installed", "not_started")}
 					{#if !installationID}
 						<Panel label="Install the App on the org">
-							<Button variant="primary" href="https://github.com/settings/apps">
-								Open GitHub Apps
+							<Button
+								variant="primary"
+								href={appsURL ?? "https://github.com/settings/organizations"}
+							>
+								{appsURL ? "Open the org's Apps" : "Open your orgs"}
 							</Button>
 						</Panel>
 					{:else if session.user === null}
@@ -241,21 +253,31 @@
 					</p>
 				{:else if next.name === "app-credentials"}
 					<p class="label">Create the GitHub App</p>
+					<label class="org">
+						<span class="label">Org slug</span>
+						<input placeholder="your-org" bind:value={org} />
+					</label>
 					<ol class="steps">
 						<li>
-							<a href="https://github.com/settings/apps/new" target="_blank">
-								Create a GitHub App
-							</a>
-							with permissions <code>contents: write</code>,
-							<code>metadata: read</code>, and <code>organization members: read</code>
+							Create a GitHub App <strong>under the managed org</strong> at
+							{#if appsNewURL}
+								<a href={appsNewURL} target="_blank">{appsNewURL}</a>
+							{:else}
+								<code>github.com/organizations/&lt;org&gt;/settings/apps/new</code>
+							{/if}
+							(the org's Settings → Developer settings → GitHub Apps), with
+							permissions <code>contents: write</code>, <code>metadata: read</code>,
+							and <code>organization members: read</code>
 							(the claim reads org memberships to prove ownership).
 						</li>
 						<li>Webhook URL <code>{origin}/hooks/github</code></li>
 						<li>OAuth callback URL <code>{origin}/auth/github/callback</code></li>
 						<li>Restrict the App to the managed org.</li>
 						<li>
-							In your
-							<a href="https://github.com/settings/apps" target="_blank">Apps list</a>,
+							In the org's Apps list at
+							{#if appsURL}
+								<a href={appsURL} target="_blank">{appsURL}</a>{:else}
+								<code>github.com/organizations/&lt;org&gt;/settings/apps</code>{/if},
 							open the App and generate a private key, a client secret, and a webhook
 							secret.
 						</li>
@@ -273,8 +295,12 @@
 					<p class="label">Install and claim</p>
 					{#if !installationID}
 						<p>
-							Set the App's Setup URL to <code>{origin}/install/</code>, then install
-							it on the managed org — GitHub redirects back here to finish.
+							In the App's settings at
+							{#if appsURL}
+								<a href={appsURL} target="_blank">{appsURL}</a>{:else}
+								<code>github.com/organizations/&lt;org&gt;/settings/apps</code>{/if},
+							set the Setup URL to <code>{origin}/install/</code>, then install the App
+							on the managed org — GitHub redirects back here to finish.
 						</p>
 					{:else if session.user === null}
 						<p>
@@ -387,6 +413,23 @@
 	.instructions .label {
 		color: var(--accent);
 		margin-bottom: var(--lead-half);
+	}
+
+	.org {
+		display: grid;
+		gap: 2px;
+		margin-bottom: var(--lead);
+	}
+
+	.org input {
+		max-width: 24ch;
+		padding: 0 var(--lead-half);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		background: var(--surface-raised);
+		font-family: var(--p9-mono);
+		line-height: var(--lead);
+		color: var(--text);
 	}
 
 	.instructions p {

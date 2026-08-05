@@ -7,6 +7,17 @@ export function nextStep(entries) {
 	return entries.find((entry) => entry.state !== "fully_ready") ?? null;
 }
 
+// orgSettingsURL builds the org's developer-settings link for a given trailing path
+// (e.g. "apps/new", "apps"), or null when no org slug has been entered — callers fall
+// back to a placeholder instruction then.
+export function orgSettingsURL(slug, path) {
+	const org = (slug ?? "").trim();
+	if (org === "") {
+		return null;
+	}
+	return `https://github.com/organizations/${org}/settings/${path}`;
+}
+
 // credentialsPayload shapes the five-field form into the action's wire shape: trimmed
 // strings and a numeric app_id. Emptiness and zero are left in for the server's
 // validator to refuse — the form only decides when to enable save.

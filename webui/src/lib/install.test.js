@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { nextStep, credentialsPayload } from "./install.js";
+import { nextStep, credentialsPayload, orgSettingsURL } from "./install.js";
 
 describe("nextStep", () => {
 	test("picks the first entry that is not fully ready", () => {
@@ -85,5 +85,22 @@ describe("credentialsPayload", () => {
 			client_id: "",
 			client_secret: "",
 		});
+	});
+});
+
+describe("orgSettingsURL", () => {
+	test("builds the org's developer-settings path", () => {
+		expect(orgSettingsURL("prod9", "apps/new")).toBe(
+			"https://github.com/organizations/prod9/settings/apps/new",
+		);
+		expect(orgSettingsURL(" prod9 ", "apps")).toBe(
+			"https://github.com/organizations/prod9/settings/apps",
+		);
+	});
+
+	test("is null without a slug", () => {
+		expect(orgSettingsURL("", "apps/new")).toBe(null);
+		expect(orgSettingsURL("   ", "apps")).toBe(null);
+		expect(orgSettingsURL(undefined, "apps")).toBe(null);
 	});
 });
