@@ -40,6 +40,7 @@ func (c StateCtr) Mount(cfg *config.Source, router chi.Router) error {
 	router.Post("/api/install/migrations", c.runMigrations)
 	router.Post("/api/install/app", c.saveApp)
 	router.Post("/api/install/credentials", c.saveCredentials)
+	router.Post("/api/install/registry", c.saveRegistryToken)
 	router.Post("/api/install/claim", c.claim)
 	return nil
 }
@@ -53,6 +54,12 @@ func (c StateCtr) saveApp(resp http.ResponseWriter, req *http.Request) {
 // saveCredentials is the wizard's generated-keys step (POST /api/install/credentials).
 func (c StateCtr) saveCredentials(resp http.ResponseWriter, req *http.Request) {
 	c.runUngated(resp, req, &SaveCredentials{})
+}
+
+// saveRegistryToken is the wizard's registry step (POST /api/install/registry),
+// saving the operator-created ghcr PAT.
+func (c StateCtr) saveRegistryToken(resp http.ResponseWriter, req *http.Request) {
+	c.runUngated(resp, req, &SaveRegistryToken{})
 }
 
 // runUngated is the shared shape of the App wizard writes. Deliberately ungated: no

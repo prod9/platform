@@ -1,6 +1,6 @@
 package install
 
-// The five wizard steps. Each check is isolated and install-safe: a missing
+// The six wizard steps. Each check is isolated and install-safe: a missing
 // database or schema is a verdict (intervention required / not started), never a
 // query sent to fail (docs/spec/installation.md, install-safe checks).
 
@@ -111,6 +111,20 @@ func (appCredentials) Check(ctx context.Context, db *sqlx.DB) (StepState, error)
 			errors.New("app is missing permissions — " + strings.Join(missing, ", "))
 	}
 	return FullyReadyState, nil
+}
+
+type registryToken struct{}
+
+func (registryToken) Name() string { return "registry-token" }
+
+// Check requires the one ghcr key — the registry the wizard covers; presence is
+// the whole verdict, the token proves itself on the first publish
+// (docs/spec/installation.md, "The registry token").
+func (registryToken) Check(ctx context.Context, db *sqlx.DB) (StepState, error) {
+	return settingsBacked(ctx, db, func(ctx context.Context) error {
+		_, err := github.LoadRegistryToken(ctx, ghcrHost)
+		return err
+	}, github.ErrNoRegistryToken)
 }
 
 type appInstalled struct{}

@@ -2,6 +2,8 @@ package builds
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -11,6 +13,7 @@ import (
 	"fx.prodigy9.co/worker"
 	"platform.prodigy9.co/conf"
 	"platform.prodigy9.co/engine"
+	"platform.prodigy9.co/srv/github"
 	"platform.prodigy9.co/srv/install"
 )
 
@@ -83,6 +86,11 @@ func (r *RunBuild) execute(ctx context.Context, build *Build, scribe *transcribe
 		return err
 	}
 
+	ctx, err = registryConfigContext(ctx, cfg)
+	if err != nil {
+		return err
+	}
+
 	sess := engine.NewSession(ctx)
 	defer sess.Close()
 
@@ -114,6 +122,57 @@ func (r *RunBuild) cleanUp(ctx context.Context, cacheDir string, build *Build) {
 			fxlog.Int64("build", build.ID),
 			fxlog.String("error", err.Error()))
 	}
+}
+
+// registryConfigContext hangs the publish credential on the session's config: the
+// wizard-saved token for the registry this build's images name, under the
+// installation record's login — ghcr validates the PAT, not an App credential
+// (docs/vendor/ghcr-auth.md). A missing token fails the run outright; the server
+// never attempts an unauthenticated push. The source is a fresh env read so the
+// worker's ambient config is never mutated.
+func registryConfigContext(ctx context.Context, cfg *conf.Model) (context.Context, error) {
+	host, err := registryHost(cfg)
+	if err != nil {
+		return nil, err
+	}
+	token, err := github.LoadRegistryToken(ctx, host)
+	if err != nil {
+		return nil, err
+	}
+	record, err := install.Load(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	src := config.Configure()
+	config.Set(src, engine.RegistryConfig, host)
+	config.Set(src, engine.RegistryUsernameConfig, record.InstalledByLogin)
+	config.Set(src, engine.RegistryPasswordConfig, token)
+	return config.NewContext(ctx, src), nil
+}
+
+// registryHost is the one registry this build's images name — their first path
+// segment. The session holds one credential, so modules naming different
+// registries (or none) fail the run rather than half-publishing
+// (docs/spec/platform-server.md, "The publish credential").
+func registryHost(cfg *conf.Model) (string, error) {
+	host := ""
+	for name, mod := range cfg.Modules {
+		segment, _, found := strings.Cut(mod.ImageName, "/")
+		if !found || segment == "" {
+			return "", fmt.Errorf("module %s has no registry in image name %q", name, mod.ImageName)
+		}
+
+		if host == "" {
+			host = segment
+		} else if host != segment {
+			return "", fmt.Errorf("modules name more than one registry: %s, %s", host, segment)
+		}
+	}
+	if host == "" {
+		return "", errors.New("no modules name an image to publish")
+	}
+	return host, nil
 }
 
 // publishTag is the tag the images of this build are published under. A ref is a whole ref

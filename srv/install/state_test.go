@@ -37,6 +37,7 @@ func TestGetStateMigratedButNotInstalled(t *testing.T) {
 		{Name: "migrations", State: FullyReadyState},
 		{Name: "app-created", State: NotStartedState},
 		{Name: "app-credentials", State: NotStartedState},
+		{Name: "registry-token", State: NotStartedState},
 		{Name: "app-installed", State: NotStartedState},
 	}, entries)
 	require.False(t, Complete(entries))
@@ -78,6 +79,7 @@ func TestGetStateFreshDBReportsNotStarted(t *testing.T) {
 		{Name: "migrations", State: NotStartedState},
 		{Name: "app-created", State: NotStartedState},
 		{Name: "app-credentials", State: NotStartedState},
+		{Name: "registry-token", State: NotStartedState},
 		{Name: "app-installed", State: NotStartedState},
 	}, entries)
 }
@@ -141,4 +143,19 @@ func TestCredentialsStepFullyScopedApp(t *testing.T) {
 	entries := GetState(ctx, db, migrate.Merged(Source))
 
 	require.Equal(t, FullyReadyState, entries[3].State)
+}
+
+// Saving the ghcr token flips registry-token on its own — it neither needs nor
+// affects the App steps (docs/spec/installation.md, the state surface).
+func TestRegistryTokenStepReady(t *testing.T) {
+	ctx := srvtest.SetupDB(t, Source)
+	db := data.FromContext(ctx)
+
+	require.NoError(t, github.SaveRegistryToken(ctx, "ghcr.io", "ghp_token"))
+
+	entries := GetState(ctx, db, migrate.Merged(Source))
+
+	require.Equal(t, FullyReadyState, entries[4].State)
+	require.Equal(t, "registry-token", entries[4].Name)
+	require.Equal(t, NotStartedState, entries[3].State)
 }

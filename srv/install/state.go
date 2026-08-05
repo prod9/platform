@@ -48,6 +48,7 @@ func GetState(ctx context.Context, db *sqlx.DB, merged migrator.Source) []Entry 
 		migrations{src: merged},
 		appCreated{},
 		appCredentials{},
+		registryToken{},
 		appInstalled{},
 	}
 

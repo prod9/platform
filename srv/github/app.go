@@ -1,6 +1,6 @@
 // Package github owns the server's GitHub integration: the GitHub App credential set
-// (the github.app_* settings), the repo-name whitelist every fragment taking owner/repo
-// input shares, and the shared API-error summary.
+// and the registry push tokens (settings.go), the repo-name whitelist every fragment
+// taking owner/repo input shares, and the shared API-error summary.
 package github
 
 import (
@@ -10,9 +10,7 @@ import (
 	"io"
 	"net/http"
 	"regexp"
-	"strconv"
 
-	"fx.prodigy9.co/app/settings"
 	"fx.prodigy9.co/data"
 )
 
@@ -25,17 +23,6 @@ var (
 	LoadApp = loadApp
 
 	repoNamePattern = regexp.MustCompile(`^[A-Za-z0-9-][A-Za-z0-9._-]*$`)
-)
-
-// The hard-coded settings keys the App credentials live under
-// (docs/spec/installation.md, "The install settings"). No migration defines them — an
-// absent key reads as empty; the wizard's credential step writes them all.
-const (
-	keyAppID         = "github.app_id"
-	keyPrivateKey    = "github.app_private_key"
-	keyWebhookSecret = "github.app_webhook_secret"
-	keyClientID      = "github.app_client_id"
-	keyClientSecret  = "github.app_client_secret"
 )
 
 // App is the server's GitHub App credential set. It lives in the github.app_* settings
@@ -73,103 +60,6 @@ func loadApp(ctx context.Context) (*App, error) {
 	}, nil
 }
 
-// AppCreation is what GitHub's creation form yields: the App's id and client id,
-// plus the webhook secret the wizard minted and the form was given. The generated
-// keys (private key, client secret) arrive in a later wizard step
-// (docs/spec/installation.md, "App creation").
-type AppCreation struct {
-	AppID         int64
-	ClientID      string
-	WebhookSecret string
-}
-
-// AppKeys is the pair generated on the created App's settings page.
-type AppKeys struct {
-	PrivateKey   string
-	ClientSecret string
-}
-
-// SaveAppCreation writes the creation-time settings in one transaction — the
-// app-created wizard step is its caller, and the step is convergent: re-posting
-// overwrites.
-func SaveAppCreation(ctx context.Context, creation *AppCreation) error {
-	return saveSettings(ctx, map[string]string{
-		keyAppID:         strconv.FormatInt(creation.AppID, 10),
-		keyClientID:      creation.ClientID,
-		keyWebhookSecret: creation.WebhookSecret,
-	})
-}
-
-// SaveAppKeys writes the generated pair in one transaction — the app-credentials
-// wizard step is its caller; same convergence.
-func SaveAppKeys(ctx context.Context, keys *AppKeys) error {
-	return saveSettings(ctx, map[string]string{
-		keyPrivateKey:   keys.PrivateKey,
-		keyClientSecret: keys.ClientSecret,
-	})
-}
-
-// LoadAppCreation reads the creation-time trio, ErrNoApp when any is unset — how
-// the app-created check reaches its verdict.
-func LoadAppCreation(ctx context.Context) (*AppCreation, error) {
-	values, err := loadSettings(ctx, keyAppID, keyClientID, keyWebhookSecret)
-	if err != nil {
-		return nil, err
-	}
-
-	appID, err := parseAppID(values[keyAppID])
-	if err != nil {
-		return nil, err
-	}
-
-	return &AppCreation{
-		AppID:         appID,
-		ClientID:      values[keyClientID],
-		WebhookSecret: values[keyWebhookSecret],
-	}, nil
-}
-
-// loadSettings reads the given keys inside one transaction — the writers are
-// transactional, so reading inside one snapshot is what keeps a credential set from
-// arriving torn. Any unset key is ErrNoApp.
-func loadSettings(ctx context.Context, keys ...string) (map[string]string, error) {
-	values := map[string]string{}
-	err := data.Run(ctx, func(s data.Scope) error {
-		for _, key := range keys {
-			value, err := LoadSetting(s.Context(), key, ErrNoApp)
-			if err != nil {
-				return err
-			}
-			values[key] = value
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	return values, nil
-}
-
-func parseAppID(value string) (int64, error) {
-	appID, err := strconv.ParseInt(value, 10, 64)
-	if err != nil {
-		return 0, fmt.Errorf("github: bad %s: %w", keyAppID, err)
-	}
-	return appID, nil
-}
-
-func saveSettings(ctx context.Context, values map[string]string) error {
-	return data.Run(ctx, func(s data.Scope) error {
-		for key, value := range values {
-			upsert := &settings.Upsert{Key: key, Value: value}
-			if err := upsert.Execute(s.Context(), &settings.Settings{}); err != nil {
-				return err
-			}
-		}
-		return nil
-	})
-}
-
 // requiredPermissions is the set the install wizard verifies against GET /app, in
 // display order. Labels read as GitHub's UI names the permission, not the API slug
 // (docs/spec/installation.md, the credentials check).
@@ -192,23 +82,6 @@ func MissingPermissions(perms map[string]string) []string {
 		missing = append(missing, required.label+": "+required.level)
 	}
 	return missing
-}
-
-// LoadSetting reads one settings value, folding an unset one into absent —
-// settings.Get folds an absent row into the fallback, so absent and empty both
-// arrive as "". It assumes the settings schema exists: tolerating a pre-install
-// world is the install fragment's concern alone, guarded there by its schema probe
-// (docs/spec/installation.md, install-safe checks). The App reads use it with
-// ErrNoApp; the install fragment reads its install.* keys through it with its own
-// sentinel.
-func LoadSetting(ctx context.Context, key string, absent error) (string, error) {
-	value, err := settings.Get(ctx, key, "")
-	if err != nil {
-		return "", err
-	} else if value == "" {
-		return "", absent
-	}
-	return value, nil
 }
 
 // RespError summarizes a failed GitHub API response: op, status line, and up to 1KB
