@@ -1,5 +1,11 @@
 import { describe, expect, test } from "vitest";
-import { nextStep, credentialsPayload, orgSettingsURL } from "./install.js";
+import {
+	nextStep,
+	appPayload,
+	credentialsPayload,
+	generateWebhookSecret,
+	orgSettingsURL,
+} from "./install.js";
 
 describe("nextStep", () => {
 	test("picks the first entry that is not fully ready", () => {
@@ -52,39 +58,61 @@ describe("nextStep", () => {
 	});
 });
 
-describe("credentialsPayload", () => {
+describe("appPayload", () => {
 	test("trims every field and numbers the app id", () => {
-		const payload = credentialsPayload({
+		const payload = appPayload({
 			app_id: " 12345 ",
-			private_key: "-----BEGIN RSA PRIVATE KEY-----\nabc\n-----END RSA PRIVATE KEY-----\n",
-			webhook_secret: " hooksec ",
 			client_id: " Iv1.abc ",
-			client_secret: " shhh ",
+			webhook_secret: " hooksec ",
 		});
 
 		expect(payload).toEqual({
 			app_id: 12345,
-			private_key: "-----BEGIN RSA PRIVATE KEY-----\nabc\n-----END RSA PRIVATE KEY-----",
-			webhook_secret: "hooksec",
 			client_id: "Iv1.abc",
-			client_secret: "shhh",
+			webhook_secret: "hooksec",
 		});
 	});
 
 	test("a non-numeric app id becomes zero for the server to refuse", () => {
-		expect(credentialsPayload({ app_id: "not-a-number" }).app_id).toBe(0);
+		expect(appPayload({ app_id: "not-a-number" }).app_id).toBe(0);
 	});
 
 	test("missing fields land as empty strings for the server to refuse", () => {
-		const payload = credentialsPayload({ app_id: "7" });
+		const payload = appPayload({ app_id: "7" });
 
 		expect(payload).toEqual({
 			app_id: 7,
-			private_key: "",
-			webhook_secret: "",
 			client_id: "",
-			client_secret: "",
+			webhook_secret: "",
 		});
+	});
+});
+
+describe("credentialsPayload", () => {
+	test("trims both fields", () => {
+		const payload = credentialsPayload({
+			private_key: "-----BEGIN RSA PRIVATE KEY-----\nabc\n-----END RSA PRIVATE KEY-----\n",
+			client_secret: " shhh ",
+		});
+
+		expect(payload).toEqual({
+			private_key: "-----BEGIN RSA PRIVATE KEY-----\nabc\n-----END RSA PRIVATE KEY-----",
+			client_secret: "shhh",
+		});
+	});
+
+	test("missing fields land as empty strings for the server to refuse", () => {
+		expect(credentialsPayload({})).toEqual({ private_key: "", client_secret: "" });
+	});
+});
+
+describe("generateWebhookSecret", () => {
+	test("mints 64 hex characters", () => {
+		expect(generateWebhookSecret()).toMatch(/^[0-9a-f]{64}$/);
+	});
+
+	test("mints a different secret every call", () => {
+		expect(generateWebhookSecret()).not.toBe(generateWebhookSecret());
 	});
 });
 

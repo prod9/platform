@@ -1,6 +1,6 @@
 package install
 
-// The four wizard steps. Each check is isolated and install-safe: a missing
+// The five wizard steps. Each check is isolated and install-safe: a missing
 // database or schema is a verdict (intervention required / not started), never a
 // query sent to fail (docs/spec/installation.md, install-safe checks).
 
@@ -57,6 +57,20 @@ func (m migrations) Check(ctx context.Context, db *sqlx.DB) (StepState, error) {
 	default:
 		return PartiallyReadyState, nil
 	}
+}
+
+type appCreated struct{}
+
+func (appCreated) Name() string { return "app-created" }
+
+// Check reads the creation-time trio — what GitHub's creation form yields; the
+// generated keys are app-credentials' concern
+// (docs/spec/installation.md, the state surface).
+func (appCreated) Check(ctx context.Context, db *sqlx.DB) (StepState, error) {
+	return settingsBacked(ctx, db, func(ctx context.Context) error {
+		_, err := github.LoadAppCreation(ctx)
+		return err
+	}, github.ErrNoApp)
 }
 
 type appCredentials struct{}

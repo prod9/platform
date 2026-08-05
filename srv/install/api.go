@@ -38,22 +38,32 @@ var _ controllers.Interface = StateCtr{}
 func (c StateCtr) Mount(cfg *config.Source, router chi.Router) error {
 	router.Get("/api/install", c.getState)
 	router.Post("/api/install/migrations", c.runMigrations)
+	router.Post("/api/install/app", c.saveApp)
 	router.Post("/api/install/credentials", c.saveCredentials)
 	router.Post("/api/install/claim", c.claim)
 	return nil
 }
 
-// saveCredentials is the wizard's credential step (POST /api/install/credentials).
-// Deliberately ungated: no session can exist before the credentials enable login —
-// the same accepted posture as the first-install migrations button
-// (docs/spec/installation.md).
+// saveApp is the wizard's create-the-App step (POST /api/install/app), saving what
+// GitHub's creation form yields.
+func (c StateCtr) saveApp(resp http.ResponseWriter, req *http.Request) {
+	c.runUngated(resp, req, &SaveApp{})
+}
+
+// saveCredentials is the wizard's generated-keys step (POST /api/install/credentials).
 func (c StateCtr) saveCredentials(resp http.ResponseWriter, req *http.Request) {
+	c.runUngated(resp, req, &SaveCredentials{})
+}
+
+// runUngated is the shared shape of the App wizard writes. Deliberately ungated: no
+// session can exist before the credentials enable login — the same accepted posture
+// as the first-install migrations button (docs/spec/installation.md).
+func (c StateCtr) runUngated(resp http.ResponseWriter, req *http.Request, action controllers.Action) {
 	if c.DB == nil {
 		render.Error(resp, req, 503, errNoDB)
 		return
 	}
 
-	action := &SaveCredentials{}
 	if err := controllers.ReadAction(req, action); err != nil {
 		render.Error(resp, req, 400, err)
 		return

@@ -46,6 +46,7 @@ func GetState(ctx context.Context, db *sqlx.DB, merged migrator.Source) []Entry 
 	steps := []Step{
 		dbReachable{},
 		migrations{src: merged},
+		appCreated{},
 		appCredentials{},
 		appInstalled{},
 	}

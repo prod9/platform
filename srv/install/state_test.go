@@ -11,6 +11,7 @@ import (
 	"fx.prodigy9.co/data"
 	"fx.prodigy9.co/fxtest"
 	"github.com/stretchr/testify/require"
+	"platform.prodigy9.co/srv/github"
 	"platform.prodigy9.co/srv/migrate"
 	"platform.prodigy9.co/srv/srvtest"
 )
@@ -34,10 +35,31 @@ func TestGetStateMigratedButNotInstalled(t *testing.T) {
 	require.Equal(t, []Entry{
 		{Name: "db-reachable", State: FullyReadyState},
 		{Name: "migrations", State: FullyReadyState},
+		{Name: "app-created", State: NotStartedState},
 		{Name: "app-credentials", State: NotStartedState},
 		{Name: "app-installed", State: NotStartedState},
 	}, entries)
 	require.False(t, Complete(entries))
+}
+
+// The creation step turns ready on its own trio — the generated keys are the next
+// step's concern, so app-credentials stays not started
+// (docs/spec/installation.md, the state surface).
+func TestCreatedStepReadyBeforeCredentials(t *testing.T) {
+	ctx := srvtest.SetupDB(t, Source)
+	db := data.FromContext(ctx)
+
+	err := github.SaveAppCreation(ctx, &github.AppCreation{
+		AppID:         42,
+		ClientID:      "Iv1.abc",
+		WebhookSecret: "whsec",
+	})
+	require.NoError(t, err)
+
+	entries := GetState(ctx, db, migrate.Merged(Source))
+
+	require.Equal(t, FullyReadyState, entries[2].State)
+	require.Equal(t, NotStartedState, entries[3].State)
 }
 
 // On a fresh database nothing exists yet: every step below db-reachable is not
@@ -54,6 +76,7 @@ func TestGetStateFreshDBReportsNotStarted(t *testing.T) {
 	require.Equal(t, []Entry{
 		{Name: "db-reachable", State: FullyReadyState},
 		{Name: "migrations", State: NotStartedState},
+		{Name: "app-created", State: NotStartedState},
 		{Name: "app-credentials", State: NotStartedState},
 		{Name: "app-installed", State: NotStartedState},
 	}, entries)
@@ -99,8 +122,8 @@ func TestCredentialsStepFlagsUnderscopedApp(t *testing.T) {
 
 	entries := GetState(ctx, db, migrate.Merged(Source))
 
-	require.Equal(t, PartiallyReadyState, entries[2].State)
-	require.Contains(t, entries[2].Message, "contents: write")
+	require.Equal(t, PartiallyReadyState, entries[3].State)
+	require.Contains(t, entries[3].Message, "contents: write")
 }
 
 // A fully scoped App reads fully ready.
@@ -117,5 +140,5 @@ func TestCredentialsStepFullyScopedApp(t *testing.T) {
 
 	entries := GetState(ctx, db, migrate.Merged(Source))
 
-	require.Equal(t, FullyReadyState, entries[2].State)
+	require.Equal(t, FullyReadyState, entries[3].State)
 }

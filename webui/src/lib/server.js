@@ -73,8 +73,14 @@ export function runMigrations() {
 	return call("/api/install/migrations", { method: "POST" });
 }
 
-// saveCredentials is the wizard's credential step: the five github.app_* values entered by
-// hand on the install page. The response is a fresh install-state read.
+// saveApp is the wizard's create-the-App step: the trio GitHub's creation form
+// yields, entered on the install page. The response is a fresh install-state read.
+export function saveApp(payload) {
+	return post("/api/install/app", payload);
+}
+
+// saveCredentials is the wizard's generated-keys step: the pair GitHub generates on
+// the created App's settings page. The response is a fresh install-state read.
 export function saveCredentials(payload) {
 	return post("/api/install/credentials", payload);
 }

@@ -6,12 +6,19 @@
 	import {
 		installState,
 		runMigrations,
+		saveApp,
 		saveCredentials,
 		claimInstall,
 		errorText,
 		Answered,
 	} from "$lib/server.js";
-	import { nextStep, credentialsPayload, orgSettingsURL } from "$lib/install.js";
+	import {
+		nextStep,
+		appPayload,
+		credentialsPayload,
+		generateWebhookSecret,
+		orgSettingsURL,
+	} from "$lib/install.js";
 	import { session } from "$lib/session.svelte.js";
 	import Panel from "$lib/components/Panel.svelte";
 	import Button from "$lib/components/Button.svelte";
@@ -20,11 +27,15 @@
 	let loaded = $state(false);
 	let migrating = $state(false);
 	let migrateError = $state("");
-	let credentials = $state({
+	let app = $state({
 		app_id: "",
-		private_key: "",
-		webhook_secret: "",
 		client_id: "",
+		webhook_secret: generateWebhookSecret(),
+	});
+	let savingApp = $state(false);
+	let appError = $state("");
+	let credentials = $state({
+		private_key: "",
 		client_secret: "",
 	});
 	let savingCredentials = $state(false);
@@ -76,6 +87,20 @@
 		migrating = false;
 	}
 
+	async function submitApp() {
+		savingApp = true;
+		appError = "";
+
+		const result = await saveApp(appPayload(app));
+		if (result.outcome === Answered) {
+			entries = result.body;
+		} else {
+			appError = errorText(result);
+		}
+
+		savingApp = false;
+	}
+
 	async function submitCredentials() {
 		savingCredentials = true;
 		credentialsError = "";
@@ -105,6 +130,7 @@
 	}
 
 	let next = $derived(nextStep(entries));
+	let appReady = $derived(Object.values(app).every((value) => value.trim() !== ""));
 	let credentialsReady = $derived(
 		Object.values(credentials).every((value) => value.trim() !== ""),
 	);
@@ -152,8 +178,46 @@
 					<Panel label="Database unreachable">
 						<p class="failed mono">{next.message}</p>
 					</Panel>
+				{:else if next.name === "app-created"}
+					<Panel label="Create the GitHub App">
+						{#if next.message}
+							<p class="failed mono">{next.message}</p>
+						{/if}
+						{#if appError}
+							<p class="failed mono">{appError}</p>
+						{/if}
+						<div class="fields">
+							<label>
+								<span class="label">Webhook secret (copy into GitHub's form)</span>
+								<span class="secret">
+									<input bind:value={app.webhook_secret} />
+									<button
+										type="button"
+										title="Regenerate"
+										onclick={() => (app.webhook_secret = generateWebhookSecret())}
+										>↻</button
+									>
+								</span>
+							</label>
+							<label>
+								<span class="label">App id</span>
+								<input inputmode="numeric" bind:value={app.app_id} />
+							</label>
+							<label>
+								<span class="label">Client id</span>
+								<input bind:value={app.client_id} />
+							</label>
+						</div>
+						<Button
+							variant="primary"
+							onclick={submitApp}
+							disabled={!appReady || savingApp}
+						>
+							{savingApp ? "Saving…" : "Save App"}
+						</Button>
+					</Panel>
 				{:else if next.name === "app-credentials"}
-					<Panel label="GitHub App credentials">
+					<Panel label="GitHub App keys">
 						{#if next.message}
 							<p class="failed mono">{next.message}</p>
 						{/if}
@@ -162,20 +226,8 @@
 						{/if}
 						<div class="fields">
 							<label>
-								<span class="label">App id</span>
-								<input inputmode="numeric" bind:value={credentials.app_id} />
-							</label>
-							<label>
 								<span class="label">Private key (PEM)</span>
 								<textarea rows="6" bind:value={credentials.private_key}></textarea>
-							</label>
-							<label>
-								<span class="label">Webhook secret</span>
-								<input bind:value={credentials.webhook_secret} />
-							</label>
-							<label>
-								<span class="label">Client id</span>
-								<input bind:value={credentials.client_id} />
 							</label>
 							<label>
 								<span class="label">Client secret</span>
@@ -187,7 +239,7 @@
 							onclick={submitCredentials}
 							disabled={!credentialsReady || savingCredentials}
 						>
-							{savingCredentials ? "Saving…" : "Save credentials"}
+							{savingCredentials ? "Saving…" : "Save keys"}
 						</Button>
 					</Panel>
 				{:else if isStep("app-installed", "not_started")}
@@ -251,7 +303,7 @@
 						The server cannot reach its database. Fix the deployment's
 						<code>DATABASE_URL</code> — this is an operator concern, not a wizard step.
 					</p>
-				{:else if next.name === "app-credentials"}
+				{:else if next.name === "app-created"}
 					<p class="label">Create the GitHub App</p>
 					<label class="org">
 						<span class="label">Org slug</span>
@@ -268,10 +320,12 @@
 							(the org's Settings → Developer settings → GitHub Apps). The form top to
 							bottom:
 						</li>
+						<li>Homepage URL: <code>{origin}</code></li>
 						<li>Callback URL: <code>{origin}/auth/github/callback</code></li>
 						<li>
-							Webhook: Active, URL <code>{origin}/hooks/github</code>, and set a
-							webhook secret — keep a copy, the form here needs it.
+							Webhook: Active, URL <code>{origin}/hooks/github</code>, and paste the
+							<strong>webhook secret</strong> the form here minted — regenerate it
+							until you trust it, then copy it across.
 						</li>
 						<li>
 							Permissions (the form's last section):
@@ -281,15 +335,35 @@
 						</li>
 						<li>Where can it be installed: Only on this account.</li>
 						<li>
-							After creating, on the App's settings page generate a
-							<strong>private key</strong> and a <strong>client secret</strong>.
-						</li>
-						<li>
 							In the org's settings, under Webhooks, add an organization webhook
 							delivering <code>registry_package</code> to the cluster's Flux
 							Receiver, so a published image pokes delivery. Org-wide, wired once.
 						</li>
-						<li>Paste the App's values into the form and save.</li>
+						<li>
+							Paste the created App's <strong>App id</strong> and
+							<strong>Client id</strong> (its settings page, About) into the form and
+							save.
+						</li>
+					</ol>
+				{:else if next.name === "app-credentials"}
+					<p class="label">Generate the App's keys</p>
+					<ol class="steps">
+						<li>
+							Open the created App's settings page —
+							{#if appsURL}
+								<a href={appsURL} target="_blank">{appsURL}</a>{:else}
+								<code>github.com/organizations/&lt;org&gt;/settings/apps</code>{/if}
+							→ the App → Edit.
+						</li>
+						<li>
+							Under <em>Client secrets</em>, generate a
+							<strong>client secret</strong>.
+						</li>
+						<li>
+							Under <em>Private keys</em>, generate a <strong>private key</strong> —
+							GitHub downloads a <code>.pem</code> file; paste its contents.
+						</li>
+						<li>Paste both into the form and save.</li>
 					</ol>
 				{:else if isStep("app-installed", "not_started")}
 					<p class="label">Install and claim</p>
@@ -497,5 +571,28 @@
 	.fields textarea {
 		padding: var(--lead-half);
 		resize: vertical;
+	}
+
+	.secret {
+		display: flex;
+		gap: var(--lead-half);
+	}
+
+	.secret input {
+		flex: 1;
+		min-width: 0;
+	}
+
+	.secret button {
+		padding: 0 var(--lead-half);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		background: var(--surface-raised);
+		color: var(--text);
+		cursor: pointer;
+	}
+
+	.secret button:hover {
+		color: var(--accent);
 	}
 </style>

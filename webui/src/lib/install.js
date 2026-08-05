@@ -18,17 +18,34 @@ export function orgSettingsURL(slug, path) {
 	return `https://github.com/organizations/${org}/settings/${path}`;
 }
 
-// credentialsPayload shapes the five-field form into the action's wire shape: trimmed
-// strings and a numeric app_id. Emptiness and zero are left in for the server's
-// validator to refuse — the form only decides when to enable save.
-export function credentialsPayload(fields) {
-	const text = (value) => (value ?? "").trim();
-
+// appPayload shapes the create-the-App form — what GitHub's creation form yields —
+// into the action's wire shape: trimmed strings and a numeric app_id. Emptiness and
+// zero are left in for the server's validator to refuse — the form only decides when
+// to enable save.
+export function appPayload(fields) {
 	return {
 		app_id: Number(text(fields.app_id)) || 0,
-		private_key: text(fields.private_key),
-		webhook_secret: text(fields.webhook_secret),
 		client_id: text(fields.client_id),
+		webhook_secret: text(fields.webhook_secret),
+	};
+}
+
+// credentialsPayload shapes the generated-keys form — the pair GitHub generates on
+// the created App's settings page — the same way.
+export function credentialsPayload(fields) {
+	return {
+		private_key: text(fields.private_key),
 		client_secret: text(fields.client_secret),
 	};
+}
+
+// generateWebhookSecret mints the webhook secret the operator copies into GitHub's
+// creation form — 32 random bytes as hex, from the platform's CSPRNG.
+export function generateWebhookSecret() {
+	const bytes = crypto.getRandomValues(new Uint8Array(32));
+	return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function text(value) {
+	return (value ?? "").trim();
 }

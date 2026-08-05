@@ -74,7 +74,8 @@ fragment-neutral test scaffolding.
 **Install state is stored in fx's settings app** (`fx.prodigy9.co/app/settings`), not a
 bespoke table ([installation.md](installation.md), "The install settings"). The settings
 app contributes its schema only — srv mounts no settings REST surface. Every write goes
-through a purpose-built installer action (`POST /api/install/credentials`, the claim) or
+through a purpose-built installer action (`POST /api/install/app`,
+`POST /api/install/credentials`, the claim) or
 the model accessors (`settings.Get`/`Upsert`) directly; a generic key/value API would be
 an unauthenticated-write surface pre-install and has no reader post-install. The settings
 migration joins `srv/migrate.Merged` like any fragment's.
@@ -111,7 +112,8 @@ lives under `/api`; GitHub-facing and health routes stay bare.
 | `POST /hooks/github`        | App webhook HMAC          | verifies signature; queues a build row per pushed `refs/tags/v*`                      | the pull-model trigger: a version tag *is* the build request (delivery-verbs ADR)                                  |
 | `GET /api/install`          | none (installer fragment) | ordered install-state list; served **only while not completely installed**            | drives the SPA installer-vs-app decision ([installation.md](installation.md)); its 404 *is* the "installed" signal |
 | `POST /api/install/claim`   | session (installer)       | org-owner claim: resolve installation→org, verify owner, write the `install.*` settings | the first-install gate; the App Setup URL lands on the webui install page, which posts here ([installation.md](installation.md)) |
-| `POST /api/install/credentials` | none (installer)      | saves the wizard's credential entries as the `github.app_*` settings, all required     | the wizard's credential steps write before login can exist — same ungated posture as the migrations button ([installation.md](installation.md)) |
+| `POST /api/install/app`     | none (installer)          | saves the creation-time trio — app id, client id, webhook secret — as their `github.app_*` settings | what GitHub's creation form yields, saved as its own wizard step ([installation.md](installation.md)) |
+| `POST /api/install/credentials` | none (installer)      | saves the generated pair — private key, client secret — as their `github.app_*` settings | the keys GitHub generates after creation; both App steps write before login can exist — same ungated posture as the migrations button ([installation.md](installation.md)) |
 | `GET /*?go-get=1`           | none                      | vanity go-import meta for module path `platform.prodigy9.co` (the toolchain always appends `go-get=1`) | one host serves module resolution and the product; the standalone `vanity` command and Deployment are legacy |
 | `GET /*`                    | none                      | serves the embedded webui at the status the path deserves; the SPA drives installer-vs-app via `GET /api/install`  | single-binary delivery — no separate frontend deploy                                                               |
 

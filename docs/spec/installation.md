@@ -1,7 +1,7 @@
 # Installation
 
 Status: **built.** The installer fragment, the `GET /api/install` state surface,
-the migrations and credentials actions, the boot-composition gating, the
+the migrations, App-creation, and credentials actions, the boot-composition gating, the
 org-owner claim, and the wizard install page
 (`webui/src/routes/install/+page.svelte`) all ship today (`srv/install`,
 `srv.Router`). The auth model this sits on is frozen in
@@ -80,8 +80,15 @@ the check produced an error.
 |-------------------|------------------------------------------|--------------------------------------------|
 | `db-reachable`    | connectivity ping                        | `intervention_required` → connection fix   |
 | `migrations`      | schema is current                        | `not_started`/`partially_ready` → run button; dirty → `intervention_required` |
-| `app-credentials` | every `github.app_*` setting has a value **and the App carries the required permissions** | `not_started` → the credentials wizard steps; `partially_ready` → App reachable but under-scoped, message names the gap |
+| `app-created`     | the creation-time values — `github.app_id`, `github.app_client_id`, `github.app_webhook_secret` — all have values | `not_started` → the create-the-App wizard step |
+| `app-credentials` | every `github.app_*` setting has a value **and the App carries the required permissions** | `not_started` → the generated-keys wizard step; `partially_ready` → App reachable but under-scoped, message names the gap |
 | `app-installed`   | every `install.*` setting has a value    | `not_started` → org-owner claim            |
+
+The App steps are two because GitHub's flow is two: **creating** the App yields
+its id and client id (and echoes back the webhook secret the operator typed into
+the form), while the **private key and client secret are generated afterward** on
+the created App's settings page. Each step saves what its GitHub page produced,
+so a reload lands the operator exactly where the real-world flow stands.
 
 Two steps can be `partially_ready`: `migrations` (some applied, some pending)
 and `app-credentials` (credentials saved, but `GET /app` reports a permission
@@ -95,9 +102,10 @@ The credentials check compares `GET /app` (JWT auth) against the required set:
 
 "Completely installed" is the conjunction: **every entry `fully_ready`**. The
 order matters: every install-time value lives in settings, and the settings
-table exists only once migrations ran — so **migrations precede both
-settings-backed entries**, and `app-installed` stays last (the claim needs
-credentials to talk to GitHub).
+table exists only once migrations ran — so **migrations precede every
+settings-backed entry**; `app-created` precedes `app-credentials` (the keys are
+generated on the App that creation produced), and `app-installed` stays last
+(the claim needs credentials to talk to GitHub).
 
 **Each check is isolated and install-safe on its own** — no check assumes an
 earlier one ran, and none may issue a query it can predict will fail. The
@@ -175,12 +183,16 @@ database, not fx config**; srv and the worker read the same rows
 Postgres is the allocation config-allocation.md already assigns the server;
 encryption at rest remains open there.
 
-The wizard's credential steps post `POST /api/install/credentials` — an
-installer-fragment action that writes all five `github.app_*` settings, each
-required. It is **ungated**: no session can exist before the credentials enable
-login, the same accepted posture as the ungated first-install migrations
-button. There is no generic settings REST surface — every settings write goes
-through a purpose-built action, and reads go through the model accessors.
+The wizard's App steps post two installer-fragment actions, one per GitHub
+page: `POST /api/install/app` writes the creation-time trio (`github.app_id`,
+`github.app_client_id`, `github.app_webhook_secret`) and
+`POST /api/install/credentials` writes the generated pair
+(`github.app_private_key`, `github.app_client_secret`) — each action requires
+all of its keys and writes all-or-none. Both are **ungated**: no session can
+exist before the credentials enable login, the same accepted posture as the
+ungated first-install migrations button. There is no generic settings REST
+surface — every settings write goes through a purpose-built action, and reads
+go through the model accessors.
 
 The claim: the GitHub App Setup URL is a browser redirect, so it lands on the
 **webui install page** (a GET that only renders, carrying GitHub's
@@ -210,17 +222,29 @@ unless the App itself changes).
 The GitHub App is **created by hand** on GitHub; there is no manifest
 auto-exchange flow. The **webui install page is the canonical, sole operative
 home** for the creation steps — it renders the running server's live URLs at
-install time, so the operator copies real values rather than guessing them. Steps
-content:
+install time, so the operator copies real values rather than guessing them. The
+content splits across the two App wizard steps as GitHub's flow does:
 
+**`app-created` — the creation form**, top to bottom as GitHub lays it out:
+
+- the Homepage URL (the server's own origin — GitHub requires one, and the
+  running host is the honest value);
+- the OAuth callback and webhook URL (the srv backend's own URLs — callbacks and
+  hooks target the backend directly, never the webui);
+- the webhook secret, **minted by the wizard**: the field arrives pre-filled
+  with a generated value (with a regenerate control), and the operator copies it
+  into GitHub's form — the wizard saves the value GitHub was given;
 - exact permissions, named as GitHub's form groups them — *Repository*: Contents
   (Read and write), Metadata (Read-only); *Organization*: Members (Read-only — the
   claim reads org memberships to prove ownership);
-- the webhook URL and OAuth callback (the srv backend's own URLs — callbacks and
-  hooks target the backend directly, never the webui);
 - restrict-to-managed-org;
-- the credential entry forms (the created App's id, private key, and secrets are
-  pasted into the wizard, which saves them as the `github.app_*` settings).
+- the entry form for what creation yields: App id, client id, and the webhook
+  secret as given.
+
+**`app-credentials` — the generated keys**, on the created App's settings page:
+
+- generate a private key (a PEM download) and a client secret;
+- the entry form for the pair, saved as their `github.app_*` settings.
 
 A `docs/guides/` conceptual how-to is **deferred** — a thin pre-deploy discovery
 doc, added later only if the need proves real, never a second maintained copy of
