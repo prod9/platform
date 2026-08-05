@@ -11,7 +11,9 @@
 
 <style>
 	.panel {
-		padding: var(--lead-half) var(--lead);
+		/* Bottom pads a full lead: the label's own line-height cushions the top, and a
+		   half-lead under a bordered button reads cramped against the frame. */
+		padding: var(--lead-half) var(--lead) var(--lead);
 		border: 1px solid var(--border);
 		border-radius: var(--radius-md);
 		background: var(--surface-raised);

@@ -33,20 +33,24 @@
 		color: var(--accent);
 	}
 
-	/* Primary is the one red note on a view — the key action, never a second one. */
+	/* Primary is the one red note on a view — the key action, never a second one.
+	   Filled, not outlined: the confirm has to read as the page's action. */
 	.btn--primary {
 		border-color: var(--accent-signal);
-		color: var(--accent-signal);
+		background: var(--accent-signal);
+		color: var(--surface-raised);
 	}
 
 	.btn--primary:hover {
 		border-color: var(--accent-signal-strong);
-		color: var(--accent-signal-strong);
+		background: var(--accent-signal-strong);
+		color: var(--surface-raised);
 	}
 
 	.btn:disabled {
 		color: var(--text-muted);
 		border-color: var(--border);
+		background: none;
 		cursor: default;
 	}
 </style>

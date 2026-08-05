@@ -323,15 +323,26 @@
 						<li>Homepage URL: <code>{origin}</code></li>
 						<li>Callback URL: <code>{origin}/auth/github/callback</code></li>
 						<li>
-							Webhook: Active, URL <code>{origin}/hooks/github</code>, and paste the
-							<strong>webhook secret</strong> the form here minted — regenerate it
-							until you trust it, then copy it across.
+							Webhook:
+							<ul>
+								<li>Active: checked</li>
+								<li>URL: <code>{origin}/hooks/github</code></li>
+								<li>
+									Secret: the <strong>webhook secret</strong> the form here minted —
+									regenerate it until you trust it, then copy it across
+								</li>
+							</ul>
 						</li>
 						<li>
 							Permissions (the form's last section):
-							<em>Repository permissions</em> → Contents: Read and write, Metadata:
-							Read-only; <em>Organization permissions</em> → Members: Read-only (the
-							claim reads org memberships to prove ownership).
+							<ul>
+								<li><em>Repository</em> → Contents: Read and write</li>
+								<li><em>Repository</em> → Metadata: Read-only</li>
+								<li>
+									<em>Organization</em> → Members: Read-only (the claim reads org
+									memberships to prove ownership)
+								</li>
+							</ul>
 						</li>
 						<li>Where can it be installed: Only on this account.</li>
 						<li>
@@ -340,9 +351,12 @@
 							Receiver, so a published image pokes delivery. Org-wide, wired once.
 						</li>
 						<li>
-							Paste the created App's <strong>App id</strong> and
-							<strong>Client id</strong> (its settings page, About) into the form and
-							save.
+							Paste the created App's values (its settings page, About) into the
+							form and save:
+							<ul>
+								<li><strong>App id</strong></li>
+								<li><strong>Client id</strong></li>
+							</ul>
 						</li>
 					</ol>
 				{:else if next.name === "app-credentials"}
@@ -529,6 +543,16 @@
 	.steps li::marker {
 		color: var(--accent-signal);
 		font-family: var(--p9-mono);
+	}
+
+	.steps ul {
+		margin: 0;
+		padding-left: var(--lead);
+		list-style: square;
+	}
+
+	.steps ul li::marker {
+		color: var(--text-muted);
 	}
 
 	.mark {
