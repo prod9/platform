@@ -343,42 +343,9 @@ func TestMissingPermissions(t *testing.T) {
 
 	// a read where write is required, and an absent slug, are both named
 	underscoped := map[string]string{
-		"contents": "read", "metadata": "read", "members": "read",
+		"contents": "read", "metadata": "read",
 	}
 	require.Equal(t,
-		[]string{"contents: write", "organization webhooks: write"},
+		[]string{"contents: write", "members: read"},
 		MissingPermissions(underscoped))
-}
-
-func TestEnsureOrgWebhookCreates(t *testing.T) {
-	var created map[string]any
-	client, _ := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, "/orgs/prod9/hooks", r.URL.Path)
-		switch r.Method {
-		case "GET":
-			fmt.Fprint(w, `[{"id":1,"config":{"url":"https://elsewhere.example/hook"},"events":["push"],"active":true}]`)
-		case "POST":
-			require.NoError(t, json.NewDecoder(r.Body).Decode(&created))
-			w.WriteHeader(http.StatusCreated)
-			fmt.Fprint(w, `{"id":2}`)
-		}
-	}))
-
-	err := client.EnsureOrgWebhook(context.Background(), "tok", "prod9", "https://recv.example/hook/abc")
-	require.NoError(t, err)
-	require.Equal(t, "web", created["name"])
-	require.Equal(t, []any{"registry_package"}, created["events"])
-	config := created["config"].(map[string]any)
-	require.Equal(t, "https://recv.example/hook/abc", config["url"])
-	require.Equal(t, "json", config["content_type"])
-}
-
-func TestEnsureOrgWebhookAlreadyWired(t *testing.T) {
-	client, _ := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, "GET", r.Method, "an existing hook must not be re-created")
-		fmt.Fprint(w, `[{"id":1,"config":{"url":"https://recv.example/hook/abc"},"events":["registry_package"],"active":true}]`)
-	}))
-
-	err := client.EnsureOrgWebhook(context.Background(), "tok", "prod9", "https://recv.example/hook/abc")
-	require.NoError(t, err)
 }

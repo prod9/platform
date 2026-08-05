@@ -114,7 +114,6 @@ var requiredPermissions = []struct{ slug, label, level string }{
 	{"contents", "contents", "write"},
 	{"metadata", "metadata", "read"},
 	{"members", "members", "read"},
-	{"organization_hooks", "organization webhooks", "write"},
 }
 
 // MissingPermissions names every required permission the App's map lacks, as

@@ -1,7 +1,6 @@
 package github
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -130,39 +129,6 @@ func (c *Client) AppPermissions(ctx context.Context) (map[string]string, error) 
 		return nil, fmt.Errorf("github: decoding app: %w", err)
 	}
 	return app.Permissions, nil
-}
-
-// EnsureOrgWebhook converges the org-wide delivery webhook: a hook already targeting
-// url is left as is; otherwise one is created delivering registry_package events.
-// Installation-token auth; needs the App's Organization webhooks: write permission.
-func (c *Client) EnsureOrgWebhook(ctx context.Context, token, org, url string) error {
-	path := fmt.Sprintf("/orgs/%s/hooks", org)
-
-	body, err := c.fetch(ctx, "GET", path, token, "org webhook list")
-	if err != nil {
-		return err
-	}
-	var hooks []struct {
-		Config struct {
-			URL string `json:"url"`
-		} `json:"config"`
-	}
-	if err := json.Unmarshal(body, &hooks); err != nil {
-		return fmt.Errorf("github: decoding org webhooks: %w", err)
-	}
-	for _, hook := range hooks {
-		if hook.Config.URL == url {
-			return nil
-		}
-	}
-
-	payload := map[string]any{
-		"name":   "web",
-		"active": true,
-		"events": []string{"registry_package"},
-		"config": map[string]string{"url": url, "content_type": "json"},
-	}
-	return c.postJSON(ctx, path, token, payload, "org webhook create")
 }
 
 // IsOrgOwner reports whether user holds an active owner (admin) membership in org.
@@ -300,31 +266,6 @@ func (c *Client) send(ctx context.Context, method, path, bearer, accept string) 
 		req.Header.Set("Accept", accept)
 	}
 	return httpClient.Do(req)
-}
-
-func (c *Client) postJSON(ctx context.Context, path, bearer string, payload any, op string) error {
-	encoded, err := json.Marshal(payload)
-	if err != nil {
-		return err
-	}
-
-	req, err := http.NewRequestWithContext(ctx, "POST", c.apiURL+path, bytes.NewReader(encoded))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Authorization", "Bearer "+bearer)
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return RespError(op, resp)
-	}
-	return nil
 }
 
 func (c *Client) fetch(ctx context.Context, method, path, bearer, op string) ([]byte, error) {

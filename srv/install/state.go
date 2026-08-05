@@ -48,7 +48,6 @@ func GetState(ctx context.Context, db *sqlx.DB, merged migrator.Source) []Entry 
 		migrations{src: merged},
 		appCredentials{},
 		appInstalled{},
-		fluxSetup{},
 	}
 
 	entries := make([]Entry, len(steps))
