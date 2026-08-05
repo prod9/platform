@@ -447,7 +447,10 @@ The publish bracket reads three fx env-config values off the session's config so
 When `REGISTRY_USERNAME` is empty, the bracket skips `WithRegistryAuth` entirely — Dagger
 then pushes with the **local docker credentials** (osxkeychain). That is the local-publish
 path: a `platform publish` on a laptop needs no `REGISTRY_USERNAME`/`PASSWORD`, only a
-docker login to ghcr. The env creds are for a server driver with no local docker config.
+docker login to ghcr. The env creds are for a server driver with no local docker config —
+the server's worker feeds all three per build from the wizard-saved registry token and
+the installation record ([installation.md](installation.md), "The registry token"); the
+bracket itself is unchanged and never reads settings.
 
 ## Arch targets
 

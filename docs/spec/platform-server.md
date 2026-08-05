@@ -75,7 +75,7 @@ fragment-neutral test scaffolding.
 bespoke table ([installation.md](installation.md), "The install settings"). The settings
 app contributes its schema only — srv mounts no settings REST surface. Every write goes
 through a purpose-built installer action (`POST /api/install/app`,
-`POST /api/install/credentials`, the claim) or
+`POST /api/install/credentials`, `POST /api/install/registry`, the claim) or
 the model accessors (`settings.Get`/`Upsert`) directly; a generic key/value API would be
 an unauthenticated-write surface pre-install and has no reader post-install. The settings
 migration joins `srv/migrate.Merged` like any fragment's.
@@ -114,6 +114,7 @@ lives under `/api`; GitHub-facing and health routes stay bare.
 | `POST /api/install/claim`   | session (installer)       | org-owner claim: resolve installation→org, verify owner, write the `install.*` settings | the first-install gate; the App Setup URL lands on the webui install page, which posts here ([installation.md](installation.md)) |
 | `POST /api/install/app`     | none (installer)          | saves the creation-time trio — app id, client id, webhook secret — as their `github.app_*` settings | what GitHub's creation form yields, saved as its own wizard step ([installation.md](installation.md)) |
 | `POST /api/install/credentials` | none (installer)      | saves the generated pair — private key, client secret — as their `github.app_*` settings | the keys GitHub generates after creation; both App steps write before login can exist — same ungated posture as the migrations button ([installation.md](installation.md)) |
+| `POST /api/install/registry` | none (installer)         | saves the ghcr push PAT as `registry.ghcr.io.token`                                   | ghcr accepts no App-derived credential ([vendor/ghcr-auth.md](../vendor/ghcr-auth.md)); same ungated posture |
 | `GET /*?go-get=1`           | none                      | vanity go-import meta for module path `platform.prodigy9.co` (the toolchain always appends `go-get=1`) | one host serves module resolution and the product; the standalone `vanity` command and Deployment are legacy |
 | `GET /*`                    | none                      | serves the embedded webui at the status the path deserves; the SPA drives installer-vs-app via `GET /api/install`  | single-binary delivery — no separate frontend deploy                                                               |
 
@@ -253,6 +254,15 @@ a new row and is the path that already works.
 **The publish tag is the ref's last segment.** A build's `ref` is `refs/tags/vX.Y.Z` and the
 image is published under `vX.Y.Z` — the worker strips the `refs/tags/` prefix and passes the
 remainder as the tag, so the image carries the version a human pushed rather than a sha.
+
+**The publish credential is the wizard-saved registry token.** Before opening the engine
+session, the worker derives the registry host from the config's image names, reads
+`registry.<host>.token`, and feeds the engine's `REGISTRY`/`REGISTRY_USERNAME`/
+`REGISTRY_PASSWORD` config — username = the installation record's `installed_by_login`
+([installation.md](installation.md), "The registry token";
+[vendor/ghcr-auth.md](../vendor/ghcr-auth.md)). A missing token fails the build's run
+outright — the server never attempts an unauthenticated push. Modules naming more than one
+registry host in one build is unsupported and fails the same way.
 
 🚨 **A job's success is not a build's success.** A job answers *did the job do its work* —
 relay the instruction to the engine, observe the execution, record what happened. A build

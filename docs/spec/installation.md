@@ -12,7 +12,8 @@ the route surface lives in [platform-server.md](platform-server.md).
 
 A platform server governs **one GitHub org**. Installation is the one-time act
 of pointing a fresh server at that org: running migrations, creating the GitHub
-App, installing it, and wiring the org-wide delivery webhook. Until all of that
+App, supplying the registry push token, installing the App, and wiring the
+org-wide delivery webhook. Until all of that
 is true, the server is **not completely installed** and serves only the installer.
 
 The install flow is a **wizard**: the webui walks the state entries as
@@ -82,6 +83,7 @@ the check produced an error.
 | `migrations`      | schema is current                        | `not_started`/`partially_ready` → run button; dirty → `intervention_required` |
 | `app-created`     | the creation-time values — `github.app_id`, `github.app_client_id`, `github.app_webhook_secret` — all have values | `not_started` → the create-the-App wizard step |
 | `app-credentials` | every `github.app_*` setting has a value **and the App carries the required permissions** | `not_started` → the generated-keys wizard step; `partially_ready` → App reachable but under-scoped, message names the gap |
+| `registry-token`  | the `registry.ghcr.io.token` setting has a value | `not_started` → the registry-PAT wizard step |
 | `app-installed`   | every `install.*` setting has a value    | `not_started` → org-owner claim            |
 
 The App steps are two because GitHub's flow is two: **creating** the App yields
@@ -104,7 +106,8 @@ The credentials check compares `GET /app` (JWT auth) against the required set:
 order matters: every install-time value lives in settings, and the settings
 table exists only once migrations ran — so **migrations precede every
 settings-backed entry**; `app-created` precedes `app-credentials` (the keys are
-generated on the App that creation produced), and `app-installed` stays last
+generated on the App that creation produced), `registry-token` follows the App
+steps (it is the last operator-typed value), and `app-installed` stays last
 (the claim needs credentials to talk to GitHub).
 
 **Each check is isolated and install-safe on its own** — no check assumes an
@@ -183,12 +186,30 @@ database, not fx config**; srv and the worker read the same rows
 Postgres is the allocation config-allocation.md already assigns the server;
 encryption at rest remains open there.
 
-The wizard's App steps post two installer-fragment actions, one per GitHub
-page: `POST /api/install/app` writes the creation-time trio (`github.app_id`,
-`github.app_client_id`, `github.app_webhook_secret`) and
+**The registry token** rides the same store, keyed by registry host:
+
+| Key                        | Value                                        |
+|----------------------------|----------------------------------------------|
+| `registry.<host>.token`    | classic PAT with `write:packages`, per registry |
+
+ghcr accepts no App-derived credential — classic PATs are the only thing that
+works outside Actions ([vendor/ghcr-auth.md](../vendor/ghcr-auth.md)) — so the
+token is operator-supplied, a machine-user or org-owner PAT. The wizard's
+`registry-token` step writes the `ghcr.io` key; that one key is what the check
+requires. Only the token is stored: the publish path pairs it with the
+installation record's `install.installed_by_login` as the basic-auth username
+(the username question is the vendor doc's one unverified fact). **Punted, on
+record:** a wizard UI for additional registries (the key shape already admits
+them), and moving the credential to project-scoped settings once projects are a
+settings scope — today the rows are server-global, one credential per registry.
+
+The wizard's typed steps post three installer-fragment actions, one per page
+the operator works: `POST /api/install/app` writes the creation-time trio
+(`github.app_id`, `github.app_client_id`, `github.app_webhook_secret`),
 `POST /api/install/credentials` writes the generated pair
-(`github.app_private_key`, `github.app_client_secret`) — each action requires
-all of its keys and writes all-or-none. Both are **ungated**: no session can
+(`github.app_private_key`, `github.app_client_secret`), and
+`POST /api/install/registry` writes the ghcr token — each action requires
+all of its keys and writes all-or-none. All are **ungated**: no session can
 exist before the credentials enable login, the same accepted posture as the
 ungated first-install migrations button. There is no generic settings REST
 surface — every settings write goes through a purpose-built action, and reads
@@ -245,6 +266,17 @@ content splits across the two App wizard steps as GitHub's flow does:
 
 - generate a private key (a PEM download) and a client secret;
 - the entry form for the pair, saved as their `github.app_*` settings.
+
+**`registry-token` — the ghcr push credential**, created on GitHub by hand like
+the App:
+
+- why a PAT: the server pushes images to ghcr, and ghcr accepts no App-derived
+  credential ([vendor/ghcr-auth.md](../vendor/ghcr-auth.md));
+- a direct link to the classic-PAT creation page, naming the one scope:
+  `write:packages` — nothing else;
+- the note that the token acts for whoever creates it: prefer a machine user or
+  an org owner;
+- the entry form for the token, saved as `registry.ghcr.io.token`.
 
 A `docs/guides/` conceptual how-to is **deferred** — a thin pre-deploy discovery
 doc, added later only if the need proves real, never a second maintained copy of
