@@ -246,7 +246,9 @@ is **org-wide, wired once, never minted per repo** — and the server wires it: 
 `flux.receiver_url`, and its action (`POST /api/install/flux`) creates the org
 webhook (`registry_package` → that URL) through the App's installation token —
 which is why the App needs *Organization → Webhooks: Read and write* and why the
-step sits after the claim. Convergent: an org webhook already targeting the URL
+step sits after the claim. The action is **session-gated like the claim**: it
+mutates the org through the App, and by the time it is reachable the install
+record exists, so the ungated posture's premise (no record yet) no longer holds. Convergent: an org webhook already targeting the URL
 is left as is. The Receiver URL is pasted by the operator — srv's read-only RBAC
 covers source+kustomize CRs only, so it cannot discover the `Receiver` itself.
 The old per-repo `POST /api/repos/{owner}/{repo}/flux-webhook` endpoint is
