@@ -265,21 +265,24 @@
 							{:else}
 								<code>github.com/organizations/&lt;org&gt;/settings/apps/new</code>
 							{/if}
-							(the org's Settings → Developer settings → GitHub Apps), with
-							permissions <code>contents: write</code>, <code>metadata: read</code>,
-							and <code>organization members: read</code>
-							(the claim reads org memberships to prove ownership).
+							(the org's Settings → Developer settings → GitHub Apps). The form top to
+							bottom:
 						</li>
-						<li>Webhook URL <code>{origin}/hooks/github</code></li>
-						<li>OAuth callback URL <code>{origin}/auth/github/callback</code></li>
-						<li>Restrict the App to the managed org.</li>
+						<li>Callback URL: <code>{origin}/auth/github/callback</code></li>
 						<li>
-							In the org's Apps list at
-							{#if appsURL}
-								<a href={appsURL} target="_blank">{appsURL}</a>{:else}
-								<code>github.com/organizations/&lt;org&gt;/settings/apps</code>{/if},
-							open the App and generate a private key, a client secret, and a webhook
-							secret.
+							Webhook: Active, URL <code>{origin}/hooks/github</code>, and set a
+							webhook secret — keep a copy, the form here needs it.
+						</li>
+						<li>
+							Permissions (the form's last section):
+							<em>Repository permissions</em> → Contents: Read and write, Metadata:
+							Read-only; <em>Organization permissions</em> → Members: Read-only (the
+							claim reads org memberships to prove ownership).
+						</li>
+						<li>Where can it be installed: Only on this account.</li>
+						<li>
+							After creating, on the App's settings page generate a
+							<strong>private key</strong> and a <strong>client secret</strong>.
 						</li>
 						<li>
 							In
