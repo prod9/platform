@@ -18,6 +18,9 @@
 | List installation repos     | `GET /installation/repositories`                     | installation token | 200 | `total_count`, `repositories[]`; `per_page` ≤ 100    |
 | Org membership              | `GET /orgs/{org}/memberships/{username}`             | installation token | 200 | `role`: `admin`\|`member`\|`billing_manager`, `state`: `active`\|`pending` |
 | Resolve ref → sha           | `GET /repos/{owner}/{repo}/commits/{ref}`            | installation token | 200 | top-level `sha`; `ref` = SHA, `heads/BRANCH`, `tags/TAG` |
+| Get the authenticated App   | `GET /app`                                           | JWT                | 200 | `permissions`: map of slug → `read`\|`write`         |
+| List org webhooks           | `GET /orgs/{org}/hooks`                              | installation token | 200 | `[]` of `id`, `config` (`url`), `events`, `active`   |
+| Create org webhook          | `POST /orgs/{org}/hooks`                             | installation token | 201 | `name` must be `"web"`; `config.url` + `content_type`; `events`, `active` |
 
 ## Notes
 
@@ -28,3 +31,8 @@
   body is then the bare SHA-1, no JSON. A ref the repo does not have answers 422 (or
   404 when the repo itself is absent) — both mean the caller's ref, not a server fault.
 - Installation tokens live ~1 hour; mint per operation, never store.
+- `GET /app` permission slugs the wizard compares: `contents`, `metadata` (repository);
+  `members`, `organization_hooks` (organization). Values are only ever `read` or
+  `write`; `write` implies `read`.
+- Org webhook writes need the App's **Organization webhooks: read and write**
+  permission; `registry_package` is the event a GHCR publish delivers.

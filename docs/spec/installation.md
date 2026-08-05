@@ -80,18 +80,28 @@ the check produced an error.
 |-------------------|------------------------------------------|--------------------------------------------|
 | `db-reachable`    | connectivity ping                        | `intervention_required` → connection fix   |
 | `migrations`      | schema is current                        | `not_started`/`partially_ready` → run button; dirty → `intervention_required` |
-| `app-credentials` | every `github.app_*` setting has a value | `not_started` → the credentials wizard steps |
+| `app-credentials` | every `github.app_*` setting has a value **and the App carries the required permissions** | `not_started` → the credentials wizard steps; `partially_ready` → App reachable but under-scoped, message names the gap |
 | `app-installed`   | every `install.*` setting has a value    | `not_started` → org-owner claim            |
+| `flux-setup`      | `flux.receiver_url` has a value          | `not_started` → receiver-URL form; save creates the org webhook |
 
-`migrations` is the only step that can be `partially_ready` (some applied,
-some pending); credentials and the claim write all-or-none, so they never are.
-Remediations are **convergent and re-runnable**.
+Two steps can be `partially_ready`: `migrations` (some applied, some pending)
+and `app-credentials` (credentials saved, but `GET /app` reports a permission
+below the required set — the message names exactly which). The claim and
+flux-setup write all-or-none, so they never are. Remediations are
+**convergent and re-runnable**.
+
+The credentials check compares `GET /app` (JWT auth) against the required set:
+`contents: write`, `metadata: read`, `members: read`,
+`organization_hooks: write` — `write` satisfies a `read` requirement. An App
+whose credentials fail JWT/API entirely is `unknown` with the error, not
+partially ready.
 
 "Completely installed" is the conjunction: **every entry `fully_ready`**. The
 order matters: every install-time value lives in settings, and the settings
-table exists only once migrations ran — so **migrations precede both
-settings-backed entries**, and `app-installed` stays last (the claim needs
-credentials to talk to GitHub).
+table exists only once migrations ran — so **migrations precede the
+settings-backed entries**; `app-installed` follows credentials (the claim needs
+them to talk to GitHub), and `flux-setup` stays last — creating the org
+webhook needs the installation token the claim binds.
 
 **Each check is isolated and install-safe on its own** — no check assumes an
 earlier one ran, and none may issue a query it can predict will fail. The
@@ -183,7 +193,7 @@ with that id (session-gated: resolve installation→org via the App API, verify
 the session user is an org owner, write the values) — the write sits behind a
 POST, never the landing GET. The session requirement is why the auth fragment
 mounts pre-install. The write needs the `settings` table, so the claim runs
-**after** migrations, which is why `app-installed` is the last state entry:
+**after** migrations:
 
 | Key                            | Value                          |
 |--------------------------------|--------------------------------|
@@ -193,6 +203,10 @@ mounts pre-install. The write needs the `settings` table, so the claim runs
 | `install.installed_by_user_id` | the seed admin                 |
 | `install.installed_by_login`   | seed admin's login at install  |
 | `install.installed_at`         | timestamp (RFC 3339)           |
+
+The flux-setup step owns one further key, written by its action alongside the
+webhook it creates: `flux.receiver_url` — the cluster Receiver URL the org
+webhook targets; its presence is the step's `fully_ready`.
 
 "Installed" means **every `install.*` value is non-empty**; an absent key reads
 as empty, the not-yet-claimed state, and the claim writes all keys or none.
@@ -207,8 +221,10 @@ home** for the creation steps — it renders the running server's live URLs at
 install time, so the operator copies real values rather than guessing them. Steps
 content:
 
-- exact permissions: `contents: write`, `metadata: read`, `organization members: read`
-  (the claim reads org memberships to prove ownership);
+- exact permissions, named as GitHub's form groups them — *Repository*: Contents
+  (Read and write), Metadata (Read-only); *Organization*: Members (Read-only — the
+  claim reads org memberships to prove ownership), Webhooks (Read and write — the
+  flux-setup step creates the org webhook through the App);
 - the webhook URL and OAuth callback (the srv backend's own URLs — callbacks and
   hooks target the backend directly, never the webui);
 - restrict-to-managed-org;
@@ -225,9 +241,15 @@ Delivery is triggered by GitHub's `registry_package` webhook firing the cluster'
 Flux `Receiver` (the **GitHub→Flux** axis — see
 [config-allocation.md](config-allocation.md) for the flow and
 [scaffolding.md](scaffolding.md) for the one-per-cluster `Receiver`). This webhook
-is **org-wide, wired once, never minted per repo** — provisioning it is a **manual
-step on the webui install page**, alongside the App-creation steps (same operative
-home). The old per-repo `POST /api/repos/{owner}/{repo}/flux-webhook` endpoint is
+is **org-wide, wired once, never minted per repo** — and the server wires it: the
+**flux-setup wizard step** takes the cluster's Receiver URL, saves it as
+`flux.receiver_url`, and its action (`POST /api/install/flux`) creates the org
+webhook (`registry_package` → that URL) through the App's installation token —
+which is why the App needs *Organization → Webhooks: Read and write* and why the
+step sits after the claim. Convergent: an org webhook already targeting the URL
+is left as is. The Receiver URL is pasted by the operator — srv's read-only RBAC
+covers source+kustomize CRs only, so it cannot discover the `Receiver` itself.
+The old per-repo `POST /api/repos/{owner}/{repo}/flux-webhook` endpoint is
 **VOID** and the rebuild drops it.
 
 ## Migrations — never at boot
