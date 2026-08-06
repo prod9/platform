@@ -15,7 +15,6 @@
 |-----------------------------|------------------------------------------------------|--------------------|-----|------------------------------------------------------|
 | Mint installation token     | `POST /app/installations/{id}/access_tokens`         | JWT                | 201 | `token`, `expires_at`, `permissions`                 |
 | Get installation            | `GET /app/installations/{id}`                        | JWT                | 200 | `id`, `account` (`login`, `type`), `app_id`          |
-| List installations          | `GET /app/installations`                             | JWT                | 200 | array of the same installation objects; paginated (`per_page` max 100, default 30) |
 | List installation repos     | `GET /installation/repositories`                     | installation token | 200 | `total_count`, `repositories[]`; `per_page` ≤ 100    |
 | Org membership              | `GET /orgs/{org}/memberships/{username}`             | installation token | 200 | `role`: `admin`\|`member`\|`billing_manager`, `state`: `active`\|`pending` |
 | Resolve ref → sha           | `GET /repos/{owner}/{repo}/commits/{ref}`            | installation token | 200 | top-level `sha`; `ref` = SHA, `heads/BRANCH`, `tags/TAG` |
