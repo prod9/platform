@@ -25,14 +25,26 @@ address) through fx config/env.
 
 The wizard UI holds four rules:
 
-- **Progress is always visible.** The full ordered state list renders on every
-  step, statuses as returned by `GET /api/install`.
-- **One step at a time.** Below the progress list sits exactly one step panel —
-  the one for the first non-`fully_ready` entry.
+- **Progress is always visible, and it is navigation.** The full ordered state
+  list renders on every step, statuses as returned by `GET /api/install`, and
+  every entry is clickable — opening that step's panel. The **default**
+  selection (on load and after every save) is the first non-`fully_ready`
+  entry, so doing nothing but following the default walks the install in
+  order; navigation exists so a done step can be revisited and redone.
+- **One panel at a time.** Below the progress list sits exactly one step panel
+  — the selected entry's.
 - **Each panel is operative.** It carries the detailed instructions the human
   operator follows, direct links to the external pages the step works on (the
-  GitHub App creation page, the Apps list for the Setup URL), and — where the step takes values — the input fields and a save
-  action posting the step's installer action.
+  GitHub App creation page, the Apps list for the Setup URL — all built from
+  the org entry's `values`), and — where the step takes values — the input
+  fields and a save action posting the step's installer action. Non-secret
+  fields pre-fill from the entry's `values`; secret fields always render
+  empty.
+- **Done locks; Redo unlocks.** A `fully_ready` step's panel renders its form
+  locked behind a **Redo** button. Redo is client-side only — it unlocks the
+  form (secret fields empty and required; the webhook-secret mint fires only
+  for an unset field); the server learns nothing until the save lands, which
+  then suffix-resets every later step (§Redo and suffix invalidation).
 - **Restartable, always converging.** The wizard holds no step state of its
   own: every save's response (and every page load) is a fresh state read, so a
   reload, a failure, or out-of-order work always lands the operator back on
@@ -59,10 +71,11 @@ page never offers it earlier.
 ## The `GET /api/install` state surface
 
 The installer exposes one read endpoint, `GET /api/install`, returning an
-**ordered list of state entries**. Each step is a check unit (`Step`: a name
-and a `Check`) and reports one of five states; the **first non-`fully_ready`
-entry is the `next` step; the webui picks the component it renders from that
-entry.
+**ordered list of state entries**. Each step is a self-contained wizard unit
+(`Step`: `Check` produces the step's whole `Entry`; `Reset` clears the step's
+own values — see §Redo and suffix invalidation) and reports one of five
+states; the **first non-`fully_ready` entry is the `next` step** — the webui's
+default selection (see §The wizard UI).
 
 | State                   | Meaning                                                        |
 |-------------------------|----------------------------------------------------------------|
@@ -73,17 +86,35 @@ entry.
 | `""` (unknown)          | the check itself failed — indeterminable, message carries why  |
 
 Unknown is the **zero value** on purpose: an unset state reads as "nobody
-knows", never as a verdict. Entries carry `message` alongside the state when
-the check produced an error.
+knows", never as a verdict. An entry carries `message` alongside the state when
+the check produced an error, and `values` — a string map of the step's
+**non-secret form fields** — so a re-opened panel can re-display what is saved
+(`org` surfaces the slug; `app-created` its app id and client id; the
+secret-only steps surface nothing). Settings never round-trip wholesale: the
+state read is ungated, so the only values that reach the wire are the ones a
+step deliberately puts in its own `values`, and secrets never qualify — a
+secret's presence is implied by the step's state, never echoed.
 
 | Entry             | Check                                    | Non-ready meaning                          |
 |-------------------|------------------------------------------|--------------------------------------------|
 | `db-reachable`    | connectivity ping                        | `intervention_required` → connection fix   |
 | `migrations`      | schema is current                        | `not_started`/`partially_ready` → run button; dirty → `intervention_required` |
+| `org`             | the `github.org` setting has a value; surfaces it in `values` | `not_started` → the name-the-org wizard step |
 | `app-created`     | the creation-time values — `github.app_id`, `github.app_client_id`, `github.app_webhook_secret` — all have values | `not_started` → the create-the-App wizard step |
 | `app-credentials` | every `github.app_*` setting has a value **and the App carries the required permissions** | `not_started` → the generated-keys wizard step; `partially_ready` → App reachable but under-scoped, message names the gap |
 | `registry-token`  | the `registry.ghcr.io.token` setting has a value | `not_started` → the registry-PAT wizard step |
 | `app-installed`   | every `install.*` setting has a value    | `not_started` → org-owner claim            |
+
+The `org` step names the **primary org** — the slug every later panel's GitHub
+links are built from (`github.com/organizations/<org>/…`), saved server-side so
+any tab or browser renders real links. It sits first among the settings-backed
+steps because the wizard is the operator's authority on how to install: the App
+is created wherever the org's links point, so everything after depends on it. A
+wrong slug is also **self-arresting** — its links 404/403 at GitHub, so nothing
+downstream can succeed behind it; the fix is redoing the org step, and suffix
+invalidation (below) covers whatever, if anything, existed after. The server
+never validates the slug against GitHub — the claim independently derives the
+real org from the installation, and only that derived org is install-critical.
 
 The App steps are two because GitHub's flow is two: **creating** the App yields
 its id and client id (and echoes back the webhook secret the operator typed into
@@ -102,12 +133,49 @@ The credentials check compares `GET /app` (JWT auth) against the required set:
 `unknown` with the error, not partially ready.
 
 "Completely installed" is the conjunction: **every entry `fully_ready`**. The
-order matters: every install-time value lives in settings, and the settings
-table exists only once migrations ran — so **migrations precede every
-settings-backed entry**; `app-created` precedes `app-credentials` (the keys are
-generated on the App that creation produced), `registry-token` follows the App
-steps (it is the last operator-typed value), and `app-installed` stays last
-(the claim needs credentials to talk to GitHub).
+order matters twice over — it is both the wizard's sequence and the
+invalidation suffix (§Redo and suffix invalidation): every install-time value
+lives in settings, and the settings table exists only once migrations ran — so
+**migrations precede every settings-backed entry**; `org` heads the
+settings-backed steps (everything after is done on pages its slug locates);
+`app-created` precedes `app-credentials` (the keys are generated on the App
+that creation produced), `registry-token` follows the App steps (it is the
+last operator-typed value), and `app-installed` stays last (the claim needs
+credentials to talk to GitHub).
+
+## Redo and suffix invalidation
+
+A saved step can be **redone** — same action, new values, convergent as every
+remediation is. Because the order is dependency order, new values for step N
+make everything after N unreliable (a re-created App orphans its old keys), so
+**every save also resets the whole suffix**: the action writes its own step
+all-or-none, then calls each later step's `Reset` in the **same transaction**.
+`Reset` is the step's own method — each step clears only keys it owns;
+settings-backed steps write `""` (an empty value already reads as unset, so
+states flip with the plain upsert and nothing needs a delete verb),
+`db-reachable` and `migrations` reset nothing (nothing about them is
+operator-entered). There is **no reset endpoint and no server notion of "redo
+in progress"** — the webui's Redo button is a client-side unlock, and the
+server learns of the redo only as an ordinary save.
+
+The rule is deliberately uniform — suffix, not dependency graph. The one
+over-invalidation it admits is `registry-token` falling to an App-chain redo
+(the PAT is user-scoped and App-independent); re-pasting a token is accepted
+as the price of a one-sentence rule.
+
+Saves refuse empty fields, always: an omitted or blank field is never an
+upsert of emptiness and never a delete. Redoing a secret-bearing step
+therefore means re-entering its secrets — which mirrors reality, since a
+secret can't be copied back out of GitHub and a redo regenerates it there
+anyway. Explicit value *removal* stays unbuilt; the empty-never-writes posture
+is what keeps that door open.
+
+`partially_ready` cannot collide with the locked-form redo UX, recorded here
+so it isn't re-derived: all-or-none saves make partial *form input*
+unreachable, so the state's only producers are diagnostic — `migrations`
+(panel is a button, not a form) and `app-credentials` (App reachable but
+under-permissioned; the fix is on GitHub's side and the panel stays open for
+a re-check). Only `fully_ready` locks a panel.
 
 **Each check is isolated and install-safe on its own** — no check assumes an
 earlier one ran, and none may issue a query it can predict will fail. The
@@ -202,17 +270,19 @@ record:** a wizard UI for additional registries (the key shape already admits
 them), and moving the credential to project-scoped settings once projects are a
 settings scope — today the rows are server-global, one credential per registry.
 
-The wizard's typed steps post three installer-fragment actions, one per page
-the operator works: `POST /api/install/app` writes the creation-time trio
+The wizard's typed steps post four installer-fragment actions, one per page
+the operator works: `POST /api/install/org` writes the primary-org slug
+(`github.org`), `POST /api/install/app` writes the creation-time trio
 (`github.app_id`, `github.app_client_id`, `github.app_webhook_secret`),
 `POST /api/install/credentials` writes the generated pair
 (`github.app_private_key`, `github.app_client_secret`), and
 `POST /api/install/registry` writes the ghcr token — each action requires
-all of its keys and writes all-or-none. All are **ungated**: no session can
-exist before the credentials enable login, the same accepted posture as the
-ungated first-install migrations button. There is no generic settings REST
-surface — every settings write goes through a purpose-built action, and reads
-go through the model accessors.
+all of its keys non-empty, writes all-or-none, and **suffix-resets every later
+step in the same transaction** (§Redo and suffix invalidation). All are
+**ungated**: no session can exist before the credentials enable login, the
+same accepted posture as the ungated first-install migrations button. There is
+no generic settings REST surface — every settings write goes through a
+purpose-built action, and reads go through the model accessors.
 
 The claim: the GitHub App Setup URL is a browser redirect, so it lands on the
 **webui install page** (a GET that only renders, carrying GitHub's
@@ -243,7 +313,14 @@ The GitHub App is **created by hand** on GitHub; there is no manifest
 auto-exchange flow. The **webui install page is the canonical, sole operative
 home** for the creation steps — it renders the running server's live URLs at
 install time, so the operator copies real values rather than guessing them. The
-content splits across the two App wizard steps as GitHub's flow does:
+content splits across the two App wizard steps as GitHub's flow does — with the
+`org` step ahead of both:
+
+**`org` — name the primary org**: one field, the org's slug, saved as
+`github.org`. The instructions say what it is for — every GitHub link the later
+steps render is built from it — and that a wrong slug simply 404s those links.
+Before this step is saved, later panels have no slug to build with and show the
+literal placeholder forms of their URLs.
 
 **`app-created` — the creation form**, top to bottom as GitHub lays it out:
 
