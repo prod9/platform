@@ -1,686 +1,686 @@
 <script>
-// The install gate. GET /api/install returns the ordered checklist; the first
-// non-fully-ready entry is the step, and this page renders it in three columns:
-// progress on the left, the step's action in the middle, its operative
-// instructions on the right (docs/spec/installation.md §The wizard UI).
-import {
-	installState,
-	runMigrations,
-	saveApp,
-	saveCredentials,
-	saveRegistryToken,
-	claimInstall,
-	errorText,
-	Answered,
-} from "$lib/server.js";
-import {
-	nextStep,
-	appPayload,
-	credentialsPayload,
-	registryPayload,
-	generateWebhookSecret,
-	orgSettingsURL,
-} from "$lib/install.js";
-import { session } from "$lib/session.svelte.js";
-import Panel from "$lib/components/Panel.svelte";
-import Button from "$lib/components/Button.svelte";
+	// The install gate. GET /api/install returns the ordered checklist; the first
+	// non-fully-ready entry is the step, and this page renders it in three columns:
+	// progress on the left, the step's action in the middle, its operative
+	// instructions on the right (docs/spec/installation.md §The wizard UI).
+	import {
+		installState,
+		runMigrations,
+		saveApp,
+		saveCredentials,
+		saveRegistryToken,
+		claimInstall,
+		errorText,
+		Answered,
+	} from "$lib/server.js";
+	import {
+		nextStep,
+		appPayload,
+		credentialsPayload,
+		registryPayload,
+		generateWebhookSecret,
+		orgSettingsURL,
+	} from "$lib/install.js";
+	import { session } from "$lib/session.svelte.js";
+	import Panel from "$lib/components/Panel.svelte";
+	import Button from "$lib/components/Button.svelte";
 
-let entries = $state([]);
-let loaded = $state(false);
-let migrating = $state(false);
-let migrateError = $state("");
-let app = $state({
-	app_id: "",
-	client_id: "",
-	webhook_secret: generateWebhookSecret(),
-});
-let savingApp = $state(false);
-let appError = $state("");
-let credentials = $state({
-	private_key: "",
-	client_secret: "",
-});
-let savingCredentials = $state(false);
-let credentialsError = $state("");
-let registry = $state({ token: "" });
-let savingRegistry = $state(false);
-let registryError = $state("");
-let claiming = $state(false);
-let claimError = $state("");
+	let entries = $state([]);
+	let loaded = $state(false);
+	let migrating = $state(false);
+	let migrateError = $state("");
+	let app = $state({
+		app_id: "",
+		client_id: "",
+		webhook_secret: generateWebhookSecret(),
+	});
+	let savingApp = $state(false);
+	let appError = $state("");
+	let credentials = $state({
+		private_key: "",
+		client_secret: "",
+	});
+	let savingCredentials = $state(false);
+	let credentialsError = $state("");
+	let registry = $state({ token: "" });
+	let savingRegistry = $state(false);
+	let registryError = $state("");
+	let claiming = $state(false);
+	let claimError = $state("");
 
-const origin = window.location.origin;
+	const origin = window.location.origin;
 
-// The App's Setup URL lands the browser here carrying GitHub's installation_id — the
-// landing GET only renders; the write sits behind the claim POST
-// (docs/spec/installation.md §The install settings). Signing in bounces through GitHub
-// and back to /, dropping the query string, so the id is stashed for the return trip.
-// The org slug only feeds the instruction links; it survives the OAuth bounce the
-// same way the installation id does. The server never sees it — the claim derives
-// the real org from the installation.
-const orgKey = "install.org";
-let org = $state(sessionStorage.getItem(orgKey) ?? "");
-$effect(() => sessionStorage.setItem(orgKey, org));
-let appsNewURL = $derived(orgSettingsURL(org, "apps/new"));
-let appsURL = $derived(orgSettingsURL(org, "apps"));
+	// The App's Setup URL lands the browser here carrying GitHub's installation_id — the
+	// landing GET only renders; the write sits behind the claim POST
+	// (docs/spec/installation.md §The install settings). Signing in bounces through GitHub
+	// and back to /, dropping the query string, so the id is stashed for the return trip.
+	// The org slug only feeds the instruction links; it survives the OAuth bounce the
+	// same way the installation id does. The server never sees it — the claim derives
+	// the real org from the installation.
+	const orgKey = "install.org";
+	let org = $state(sessionStorage.getItem(orgKey) ?? "");
+	$effect(() => sessionStorage.setItem(orgKey, org));
+	let appsNewURL = $derived(orgSettingsURL(org, "apps/new"));
+	let appsURL = $derived(orgSettingsURL(org, "apps"));
 
-const stashKey = "install.installation_id";
-const landed = new URLSearchParams(window.location.search).get("installation_id");
-if (landed) {
-	sessionStorage.setItem(stashKey, landed);
-}
-const installationID = Number(landed ?? sessionStorage.getItem(stashKey));
-
-async function load() {
-	const result = await installState();
-	if (result.outcome === Answered) {
-		entries = result.body;
+	const stashKey = "install.installation_id";
+	const landed = new URLSearchParams(window.location.search).get("installation_id");
+	if (landed) {
+		sessionStorage.setItem(stashKey, landed);
 	}
-	loaded = true;
-}
+	const installationID = Number(landed ?? sessionStorage.getItem(stashKey));
 
-async function migrate() {
-	migrating = true;
-	migrateError = "";
-
-	const result = await runMigrations();
-	if (result.outcome === Answered) {
-		entries = result.body;
-	} else {
-		migrateError = errorText(result);
+	async function load() {
+		const result = await installState();
+		if (result.outcome === Answered) {
+			entries = result.body;
+		}
+		loaded = true;
 	}
 
-	migrating = false;
-}
+	async function migrate() {
+		migrating = true;
+		migrateError = "";
 
-async function submitApp() {
-	savingApp = true;
-	appError = "";
+		const result = await runMigrations();
+		if (result.outcome === Answered) {
+			entries = result.body;
+		} else {
+			migrateError = errorText(result);
+		}
 
-	const result = await saveApp(appPayload(app));
-	if (result.outcome === Answered) {
-		entries = result.body;
-	} else {
-		appError = errorText(result);
+		migrating = false;
 	}
 
-	savingApp = false;
-}
+	async function submitApp() {
+		savingApp = true;
+		appError = "";
 
-async function submitCredentials() {
-	savingCredentials = true;
-	credentialsError = "";
+		const result = await saveApp(appPayload(app));
+		if (result.outcome === Answered) {
+			entries = result.body;
+		} else {
+			appError = errorText(result);
+		}
 
-	const result = await saveCredentials(credentialsPayload(credentials));
-	if (result.outcome === Answered) {
-		entries = result.body;
-	} else {
-		credentialsError = errorText(result);
+		savingApp = false;
 	}
 
-	savingCredentials = false;
-}
+	async function submitCredentials() {
+		savingCredentials = true;
+		credentialsError = "";
 
-async function submitRegistry() {
-	savingRegistry = true;
-	registryError = "";
+		const result = await saveCredentials(credentialsPayload(credentials));
+		if (result.outcome === Answered) {
+			entries = result.body;
+		} else {
+			credentialsError = errorText(result);
+		}
 
-	const result = await saveRegistryToken(registryPayload(registry));
-	if (result.outcome === Answered) {
-		entries = result.body;
-	} else {
-		registryError = errorText(result);
+		savingCredentials = false;
 	}
 
-	savingRegistry = false;
-}
+	async function submitRegistry() {
+		savingRegistry = true;
+		registryError = "";
 
-async function claim() {
-	claiming = true;
-	claimError = "";
+		const result = await saveRegistryToken(registryPayload(registry));
+		if (result.outcome === Answered) {
+			entries = result.body;
+		} else {
+			registryError = errorText(result);
+		}
 
-	const result = await claimInstall(installationID);
-	if (result.outcome === Answered) {
-		await load();
-	} else {
-		claimError = errorText(result);
+		savingRegistry = false;
 	}
 
-	claiming = false;
-}
+	async function claim() {
+		claiming = true;
+		claimError = "";
 
-let next = $derived(nextStep(entries));
-let appReady = $derived(Object.values(app).every((value) => value.trim() !== ""));
-let credentialsReady = $derived(
-	Object.values(credentials).every((value) => value.trim() !== ""),
-);
-let registryReady = $derived(registry.token.trim() !== "");
+		const result = await claimInstall(installationID);
+		if (result.outcome === Answered) {
+			await load();
+		} else {
+			claimError = errorText(result);
+		}
 
-function isStep(name, ...states) {
-	if (next === null) {
-		return false;
+		claiming = false;
 	}
-	return next.name === name && states.includes(next.state);
-}
 
-load();
+	let next = $derived(nextStep(entries));
+	let appReady = $derived(Object.values(app).every((value) => value.trim() !== ""));
+	let credentialsReady = $derived(
+		Object.values(credentials).every((value) => value.trim() !== ""),
+	);
+	let registryReady = $derived(registry.token.trim() !== "");
+
+	function isStep(name, ...states) {
+		if (next === null) {
+			return false;
+		}
+		return next.name === name && states.includes(next.state);
+	}
+
+	load();
 </script>
 
 <section>
-<div class="head">
-	<h2>Install</h2>
-	<p class="label">Each step brings the server up</p>
-</div>
+	<div class="head">
+		<h2>Install</h2>
+		<p class="label">Each step brings the server up</p>
+	</div>
 
-{#if !loaded}
-	<p class="muted">Loading…</p>
-{:else}
-	<div class="wizard">
-		<ol class="checklist">
-			{#each entries as entry (entry.name)}
-				<li class:active={next !== null && entry.name === next.name}>
-					<span class="mono name">{entry.name}</span>
-					<span class="state state--{entry.state || 'unknown'} label"
-						>{entry.state || "unknown"}</span
-					>
-					{#if entry.message}
-						<span class="mono failed message">{entry.message}</span>
-					{/if}
-				</li>
-			{/each}
-		</ol>
+	{#if !loaded}
+		<p class="muted">Loading…</p>
+	{:else}
+		<div class="wizard">
+			<ol class="checklist">
+				{#each entries as entry (entry.name)}
+					<li class:active={next !== null && entry.name === next.name}>
+						<span class="mono name">{entry.name}</span>
+						<span class="state state--{entry.state || 'unknown'} label"
+							>{entry.state || "unknown"}</span
+						>
+						{#if entry.message}
+							<span class="mono failed message">{entry.message}</span>
+						{/if}
+					</li>
+				{/each}
+			</ol>
 
-		<div class="action">
-			{#if next === null}
-				<Panel label="Installed">
-					<p class="muted">Restart the server to start.</p>
-				</Panel>
-			{:else if next.name === "db-reachable"}
-				<Panel label="Database unreachable">
-					<p class="failed mono">{next.message}</p>
-				</Panel>
-			{:else if next.name === "app-created"}
-				<Panel label="Create the GitHub App">
-					{#if next.message}
+			<div class="action">
+				{#if next === null}
+					<Panel label="Installed">
+						<p class="muted">Restart the server to start.</p>
+					</Panel>
+				{:else if next.name === "db-reachable"}
+					<Panel label="Database unreachable">
 						<p class="failed mono">{next.message}</p>
-					{/if}
-					{#if appError}
-						<p class="failed mono">{appError}</p>
-					{/if}
-					<div class="fields">
-						<label>
-							<span class="label">Webhook secret (copy into GitHub's form)</span>
-							<span class="secret">
-								<input bind:value={app.webhook_secret} />
-								<button
-									type="button"
-									title="Regenerate"
-									onclick={() => (app.webhook_secret = generateWebhookSecret())}
-									>↻</button
-								>
-							</span>
-						</label>
-						<label>
-							<span class="label">App id</span>
-							<input inputmode="numeric" bind:value={app.app_id} />
-						</label>
-						<label>
-							<span class="label">Client id</span>
-							<input bind:value={app.client_id} />
-						</label>
-					</div>
-					<Button
-						variant="primary"
-						onclick={submitApp}
-						disabled={!appReady || savingApp}
-					>
-						{savingApp ? "Saving…" : "Save App"}
-					</Button>
-				</Panel>
-			{:else if next.name === "app-credentials"}
-				<Panel label="GitHub App keys">
-					{#if next.message}
-						<p class="failed mono">{next.message}</p>
-					{/if}
-					{#if credentialsError}
-						<p class="failed mono">{credentialsError}</p>
-					{/if}
-					<div class="fields">
-						<label>
-							<span class="label">Private key (PEM)</span>
-							<textarea rows="6" bind:value={credentials.private_key}></textarea>
-						</label>
-						<label>
-							<span class="label">Client secret</span>
-							<input bind:value={credentials.client_secret} />
-						</label>
-					</div>
-					<Button
-						variant="primary"
-						onclick={submitCredentials}
-						disabled={!credentialsReady || savingCredentials}
-					>
-						{savingCredentials ? "Saving…" : "Save keys"}
-					</Button>
-				</Panel>
-			{:else if next.name === "registry-token"}
-				<Panel label="Registry push token">
-					{#if next.message}
-						<p class="failed mono">{next.message}</p>
-					{/if}
-					{#if registryError}
-						<p class="failed mono">{registryError}</p>
-					{/if}
-					<div class="fields">
-						<label>
-							<span class="label">Classic PAT (write:packages)</span>
-							<input type="password" bind:value={registry.token} />
-						</label>
-					</div>
-					<Button
-						variant="primary"
-						onclick={submitRegistry}
-						disabled={!registryReady || savingRegistry}
-					>
-						{savingRegistry ? "Saving…" : "Save token"}
-					</Button>
-				</Panel>
-			{:else if isStep("app-installed", "not_started")}
-				{#if !installationID}
-					<Panel label="Install the App on the org">
+					</Panel>
+				{:else if next.name === "app-created"}
+					<Panel label="Create the GitHub App">
+						{#if next.message}
+							<p class="failed mono">{next.message}</p>
+						{/if}
+						{#if appError}
+							<p class="failed mono">{appError}</p>
+						{/if}
+						<div class="fields">
+							<label>
+								<span class="label">Webhook secret (copy into GitHub's form)</span>
+								<span class="secret">
+									<input bind:value={app.webhook_secret} />
+									<button
+										type="button"
+										title="Regenerate"
+										onclick={() => (app.webhook_secret = generateWebhookSecret())}
+										>↻</button
+									>
+								</span>
+							</label>
+							<label>
+								<span class="label">App id</span>
+								<input inputmode="numeric" bind:value={app.app_id} />
+							</label>
+							<label>
+								<span class="label">Client id</span>
+								<input bind:value={app.client_id} />
+							</label>
+						</div>
 						<Button
 							variant="primary"
-							href={appsURL ?? "https://github.com/settings/organizations"}
+							onclick={submitApp}
+							disabled={!appReady || savingApp}
 						>
-							{appsURL ? "Open the org's Apps" : "Open your orgs"}
+							{savingApp ? "Saving…" : "Save App"}
 						</Button>
 					</Panel>
-				{:else if session.user === null}
-					<Panel label="Claim the installation">
-						<Button variant="primary" href="/auth/github">Sign in with GitHub</Button>
-					</Panel>
-				{:else}
-					<Panel label="Claim the installation">
-						<p class="muted">
-							Bind installation <span class="mark">#{installationID}</span> to this
-							server as {session.user.name}.
-						</p>
-						{#if claimError}
-							<p class="failed mono">{claimError}</p>
+				{:else if next.name === "app-credentials"}
+					<Panel label="GitHub App keys">
+						{#if next.message}
+							<p class="failed mono">{next.message}</p>
 						{/if}
-						<Button variant="primary" onclick={claim} disabled={claiming}>
-							{claiming ? "Claiming…" : "Claim installation"}
+						{#if credentialsError}
+							<p class="failed mono">{credentialsError}</p>
+						{/if}
+						<div class="fields">
+							<label>
+								<span class="label">Private key (PEM)</span>
+								<textarea rows="6" bind:value={credentials.private_key}></textarea>
+							</label>
+							<label>
+								<span class="label">Client secret</span>
+								<input bind:value={credentials.client_secret} />
+							</label>
+						</div>
+						<Button
+							variant="primary"
+							onclick={submitCredentials}
+							disabled={!credentialsReady || savingCredentials}
+						>
+							{savingCredentials ? "Saving…" : "Save keys"}
 						</Button>
 					</Panel>
-				{/if}
-			{:else if isStep("migrations", "not_started", "partially_ready")}
-				<Panel label="Run migrations">
-					{#if migrateError}
-						<p class="failed mono">{migrateError}</p>
+				{:else if next.name === "registry-token"}
+					<Panel label="Registry push token">
+						{#if next.message}
+							<p class="failed mono">{next.message}</p>
+						{/if}
+						{#if registryError}
+							<p class="failed mono">{registryError}</p>
+						{/if}
+						<div class="fields">
+							<label>
+								<span class="label">Classic PAT (write:packages)</span>
+								<input type="password" bind:value={registry.token} />
+							</label>
+						</div>
+						<Button
+							variant="primary"
+							onclick={submitRegistry}
+							disabled={!registryReady || savingRegistry}
+						>
+							{savingRegistry ? "Saving…" : "Save token"}
+						</Button>
+					</Panel>
+				{:else if isStep("app-installed", "not_started")}
+					{#if !installationID}
+						<Panel label="Install the App on the org">
+							<Button
+								variant="primary"
+								href={appsURL ?? "https://github.com/settings/organizations"}
+							>
+								{appsURL ? "Open the org's Apps" : "Open your orgs"}
+							</Button>
+						</Panel>
+					{:else if session.user === null}
+						<Panel label="Claim the installation">
+							<Button variant="primary" href="/auth/github">Sign in with GitHub</Button>
+						</Panel>
+					{:else}
+						<Panel label="Claim the installation">
+							<p class="muted">
+								Bind installation <span class="mark">#{installationID}</span> to this
+								server as {session.user.name}.
+							</p>
+							{#if claimError}
+								<p class="failed mono">{claimError}</p>
+							{/if}
+							<Button variant="primary" onclick={claim} disabled={claiming}>
+								{claiming ? "Claiming…" : "Claim installation"}
+							</Button>
+						</Panel>
 					{/if}
-					<Button variant="primary" onclick={migrate} disabled={migrating}>
-						{migrating ? "Running…" : "Run migrations"}
-					</Button>
-				</Panel>
-			{:else if next.name === "migrations"}
-				<Panel label="Migration blocked">
-					<p class="failed mono">{next.message}</p>
-				</Panel>
-			{:else}
-				<Panel label="Step failed">
-					<p class="failed mono">{next.message}</p>
-				</Panel>
-			{/if}
-		</div>
-
-		<aside class="instructions">
-			{#if next === null}
-				<p class="label">Done</p>
-				<p>
-					Every step is ready. Restart the server so it boots into the product —
-					the installer retires itself.
-				</p>
-			{:else if next.name === "db-reachable"}
-				<p class="label">What this means</p>
-				<p>
-					The server cannot reach its database. Fix the deployment's
-					<code>DATABASE_URL</code> — this is an operator concern, not a wizard step.
-				</p>
-			{:else if next.name === "app-created"}
-				<p class="label">Create the GitHub App</p>
-				<label class="org">
-					<span class="label">Org slug</span>
-					<input placeholder="your-org" bind:value={org} />
-				</label>
-				<ol class="steps">
-					<li>
-						Create a GitHub App <strong>under the managed org</strong> at
-						{#if appsNewURL}
-							<a href={appsNewURL} target="_blank">{appsNewURL}</a>
-						{:else}
-							<code>github.com/organizations/&lt;org&gt;/settings/apps/new</code>
+				{:else if isStep("migrations", "not_started", "partially_ready")}
+					<Panel label="Run migrations">
+						{#if migrateError}
+							<p class="failed mono">{migrateError}</p>
 						{/if}
-						(the org's Settings → Developer settings → GitHub Apps). The form top to
-						bottom:
-					</li>
-					<li>Homepage URL: <code>{origin}</code></li>
-					<li>Callback URL: <code>{origin}/auth/github/callback</code></li>
-					<li>
-						Webhook:
-						<ul>
-							<li>Active: checked</li>
-							<li>URL: <code>{origin}/hooks/github</code></li>
-							<li>
-								Secret: the <strong>webhook secret</strong> the form here minted —
-								regenerate it until you trust it, then copy it across
-							</li>
-						</ul>
-					</li>
-					<li>
-						Permissions (the form's last section):
-						<ul>
-							<li><em>Repository</em> → Contents: Read and write</li>
-							<li><em>Repository</em> → Metadata: Read-only</li>
-							<li>
-								<em>Organization</em> → Members: Read-only (the claim reads org
-								memberships to prove ownership)
-							</li>
-						</ul>
-					</li>
-					<li>
-						Subscribe to events: <strong>Push</strong>, and only Push — tag
-						pushes trigger builds through it; nothing ticked means nothing ever
-						builds.
-					</li>
-					<li>Where can it be installed: Only on this account.</li>
-					<li>
-						Paste the created App's values (its settings page, About) into the
-						form and save:
-						<ul>
-							<li><strong>App id</strong></li>
-							<li><strong>Client id</strong></li>
-						</ul>
-					</li>
-				</ol>
-			{:else if next.name === "app-credentials"}
-				<p class="label">Generate the App's keys</p>
-				<ol class="steps">
-					<li>
-						Open the created App's settings page —
-						{#if appsURL}
-							<a href={appsURL} target="_blank">{appsURL}</a>{:else}
-							<code>github.com/organizations/&lt;org&gt;/settings/apps</code>{/if}
-						→ the App → Edit.
-					</li>
-					<li>
-						Under <em>Client secrets</em>, generate a
-						<strong>client secret</strong>.
-					</li>
-					<li>
-						Under <em>Private keys</em>, generate a <strong>private key</strong> —
-						GitHub downloads a <code>.pem</code> file; paste its contents.
-					</li>
-					<li>Paste both into the form and save.</li>
-				</ol>
-			{:else if next.name === "registry-token"}
-				<p class="label">Create the push token</p>
-				<ol class="steps">
-					<li>
-						The server pushes built images to <code>ghcr.io</code>, and ghcr
-						accepts only a <strong>classic personal access token</strong> — no
-						App-derived credential works.
-					</li>
-					<li>
-						Create one at
-						<a
-							href="https://github.com/settings/tokens/new?scopes=write:packages&description=platform+publish"
-							target="_blank">github.com/settings/tokens/new</a
-						>
-						with the single scope <code>write:packages</code> — nothing else.
-					</li>
-					<li>
-						The token acts for whoever creates it: prefer a machine user or an
-						org owner.
-					</li>
-					<li>Paste the token into the form and save.</li>
-				</ol>
-			{:else if isStep("app-installed", "not_started")}
-				<p class="label">Install and claim</p>
-				{#if !installationID}
+						<Button variant="primary" onclick={migrate} disabled={migrating}>
+							{migrating ? "Running…" : "Run migrations"}
+						</Button>
+					</Panel>
+				{:else if next.name === "migrations"}
+					<Panel label="Migration blocked">
+						<p class="failed mono">{next.message}</p>
+					</Panel>
+				{:else}
+					<Panel label="Step failed">
+						<p class="failed mono">{next.message}</p>
+					</Panel>
+				{/if}
+			</div>
+
+			<aside class="instructions">
+				{#if next === null}
+					<p class="label">Done</p>
 					<p>
-						In the App's settings at
-						{#if appsURL}
-							<a href={appsURL} target="_blank">{appsURL}</a>{:else}
-							<code>github.com/organizations/&lt;org&gt;/settings/apps</code>{/if},
-						set the Setup URL to <code>{origin}/install/</code>, then install the App
-						on the managed org — GitHub redirects back here to finish.
+						Every step is ready. Restart the server so it boots into the product —
+						the installer retires itself.
 					</p>
-				{:else if session.user === null}
+				{:else if next.name === "db-reachable"}
+					<p class="label">What this means</p>
 					<p>
-						Sign in with a GitHub account that owns the org. That account becomes
-						the seed admin.
+						The server cannot reach its database. Fix the deployment's
+						<code>DATABASE_URL</code> — this is an operator concern, not a wizard step.
+					</p>
+				{:else if next.name === "app-created"}
+					<p class="label">Create the GitHub App</p>
+					<label class="org">
+						<span class="label">Org slug</span>
+						<input placeholder="your-org" bind:value={org} />
+					</label>
+					<ol class="steps">
+						<li>
+							Create a GitHub App <strong>under the managed org</strong> at
+							{#if appsNewURL}
+								<a href={appsNewURL} target="_blank">{appsNewURL}</a>
+							{:else}
+								<code>github.com/organizations/&lt;org&gt;/settings/apps/new</code>
+							{/if}
+							(the org's Settings → Developer settings → GitHub Apps). The form top to
+							bottom:
+						</li>
+						<li>Homepage URL: <code>{origin}</code></li>
+						<li>Callback URL: <code>{origin}/auth/github/callback</code></li>
+						<li>
+							Webhook:
+							<ul>
+								<li>Active: checked</li>
+								<li>URL: <code>{origin}/hooks/github</code></li>
+								<li>
+									Secret: the <strong>webhook secret</strong> the form here minted —
+									regenerate it until you trust it, then copy it across
+								</li>
+							</ul>
+						</li>
+						<li>
+							Permissions (the form's last section):
+							<ul>
+								<li><em>Repository</em> → Contents: Read and write</li>
+								<li><em>Repository</em> → Metadata: Read-only</li>
+								<li>
+									<em>Organization</em> → Members: Read-only (the claim reads org
+									memberships to prove ownership)
+								</li>
+							</ul>
+						</li>
+						<li>
+							Subscribe to events: <strong>Push</strong>, and only Push — tag
+							pushes trigger builds through it; nothing ticked means nothing ever
+							builds.
+						</li>
+						<li>Where can it be installed: Only on this account.</li>
+						<li>
+							Paste the created App's values (its settings page, About) into the
+							form and save:
+							<ul>
+								<li><strong>App id</strong></li>
+								<li><strong>Client id</strong></li>
+							</ul>
+						</li>
+					</ol>
+				{:else if next.name === "app-credentials"}
+					<p class="label">Generate the App's keys</p>
+					<ol class="steps">
+						<li>
+							Open the created App's settings page —
+							{#if appsURL}
+								<a href={appsURL} target="_blank">{appsURL}</a>{:else}
+								<code>github.com/organizations/&lt;org&gt;/settings/apps</code>{/if}
+							→ the App → Edit.
+						</li>
+						<li>
+							Under <em>Client secrets</em>, generate a
+							<strong>client secret</strong>.
+						</li>
+						<li>
+							Under <em>Private keys</em>, generate a <strong>private key</strong> —
+							GitHub downloads a <code>.pem</code> file; paste its contents.
+						</li>
+						<li>Paste both into the form and save.</li>
+					</ol>
+				{:else if next.name === "registry-token"}
+					<p class="label">Create the push token</p>
+					<ol class="steps">
+						<li>
+							The server pushes built images to <code>ghcr.io</code>, and ghcr
+							accepts only a <strong>classic personal access token</strong> — no
+							App-derived credential works.
+						</li>
+						<li>
+							Create one at
+							<a
+								href="https://github.com/settings/tokens/new?scopes=write:packages&description=platform+publish"
+								target="_blank">github.com/settings/tokens/new</a
+							>
+							with the single scope <code>write:packages</code> — nothing else.
+						</li>
+						<li>
+							The token acts for whoever creates it: prefer a machine user or an
+							org owner.
+						</li>
+						<li>Paste the token into the form and save.</li>
+					</ol>
+				{:else if isStep("app-installed", "not_started")}
+					<p class="label">Install and claim</p>
+					{#if !installationID}
+						<p>
+							In the App's settings at
+							{#if appsURL}
+								<a href={appsURL} target="_blank">{appsURL}</a>{:else}
+								<code>github.com/organizations/&lt;org&gt;/settings/apps</code>{/if},
+							set the Setup URL to <code>{origin}/install/</code>, then install the App
+							on the managed org — GitHub redirects back here to finish.
+						</p>
+					{:else if session.user === null}
+						<p>
+							Sign in with a GitHub account that owns the org. That account becomes
+							the seed admin.
+						</p>
+					{:else}
+						<p>
+							Claiming binds this installation to the server and marks it installed.
+							The claim verifies you are an active owner of the org.
+						</p>
+					{/if}
+				{:else if isStep("migrations", "not_started", "partially_ready")}
+					<p class="label">Run migrations</p>
+					<p>
+						Creates the schema every later step stores its values in. Re-runnable;
+						it only ever applies what is missing.
+					</p>
+				{:else if next.name === "migrations"}
+					<p class="label">What this means</p>
+					<p>
+						The database schema diverges from what this server ships. Review the
+						database by hand — the wizard will not overwrite an unknown schema.
 					</p>
 				{:else}
-					<p>
-						Claiming binds this installation to the server and marks it installed.
-						The claim verifies you are an active owner of the org.
-					</p>
+					<p class="label">What this means</p>
+					<p>The check itself failed; the message on the left carries the cause.</p>
 				{/if}
-			{:else if isStep("migrations", "not_started", "partially_ready")}
-				<p class="label">Run migrations</p>
-				<p>
-					Creates the schema every later step stores its values in. Re-runnable;
-					it only ever applies what is missing.
-				</p>
-			{:else if next.name === "migrations"}
-				<p class="label">What this means</p>
-				<p>
-					The database schema diverges from what this server ships. Review the
-					database by hand — the wizard will not overwrite an unknown schema.
-				</p>
-			{:else}
-				<p class="label">What this means</p>
-				<p>The check itself failed; the message on the left carries the cause.</p>
-			{/if}
-		</aside>
-	</div>
-{/if}
+			</aside>
+		</div>
+	{/if}
 </section>
 
 <style>
-section {
-	max-width: 150ch;
-}
-
-.head {
-	display: flex;
-	align-items: baseline;
-	gap: var(--lead);
-	margin-bottom: var(--lead);
-}
-
-.wizard {
-	display: grid;
-	grid-template-columns: minmax(26ch, 1fr) minmax(0, 2fr) minmax(30ch, 1.5fr);
-	gap: var(--lead-2);
-	align-items: start;
-}
-
-@media (max-width: 900px) {
-	.wizard {
-		grid-template-columns: minmax(0, 1fr);
-		gap: var(--lead);
+	section {
+		max-width: 150ch;
 	}
-}
 
-.checklist {
-	margin: 0;
-	padding: 0;
-	list-style: none;
-}
+	.head {
+		display: flex;
+		align-items: baseline;
+		gap: var(--lead);
+		margin-bottom: var(--lead);
+	}
 
-.checklist li {
-	display: grid;
-	grid-template-columns: minmax(0, 1fr) auto;
-	padding: var(--lead-half) 0 var(--lead-half) var(--lead-half);
-	box-shadow: 0 -1px 0 var(--border) inset;
-}
+	.wizard {
+		display: grid;
+		grid-template-columns: minmax(26ch, 1fr) minmax(0, 2fr) minmax(30ch, 1.5fr);
+		gap: var(--lead-2);
+		align-items: start;
+	}
 
-.checklist li.active {
-	box-shadow:
-		2px 0 0 var(--accent-signal) inset,
-		0 -1px 0 var(--border) inset;
-}
+	@media (max-width: 900px) {
+		.wizard {
+			grid-template-columns: minmax(0, 1fr);
+			gap: var(--lead);
+		}
+	}
 
-.checklist .name {
-	line-height: var(--lead);
-}
+	.checklist {
+		margin: 0;
+		padding: 0;
+		list-style: none;
+	}
 
-.checklist li.active .name {
-	color: var(--accent);
-	font-weight: 600;
-}
+	.checklist li {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto;
+		padding: var(--lead-half) 0 var(--lead-half) var(--lead-half);
+		box-shadow: 0 -1px 0 var(--border) inset;
+	}
 
-.checklist .state {
-	line-height: var(--lead);
-}
+	.checklist li.active {
+		box-shadow:
+			2px 0 0 var(--accent-signal) inset,
+			0 -1px 0 var(--border) inset;
+	}
 
-.checklist .message {
-	grid-column: 1 / -1;
-}
+	.checklist .name {
+		line-height: var(--lead);
+	}
 
-.state--fully_ready {
-	color: var(--accent);
-}
+	.checklist li.active .name {
+		color: var(--accent);
+		font-weight: 600;
+	}
 
-.state--not_started,
-.state--partially_ready {
-	color: var(--text-muted);
-}
+	.checklist .state {
+		line-height: var(--lead);
+	}
 
-.state--intervention_required,
-.state--unknown {
-	color: var(--accent-signal);
-}
+	.checklist .message {
+		grid-column: 1 / -1;
+	}
 
-.instructions .label {
-	color: var(--accent);
-	margin-bottom: var(--lead-half);
-}
+	.state--fully_ready {
+		color: var(--accent);
+	}
 
-/* Built URLs (org links, webhook/callback paths) can outgrow the column;
-   break anywhere rather than pushing the grid past the viewport. */
-.instructions a,
-.instructions code {
-	overflow-wrap: anywhere;
-}
+	.state--not_started,
+	.state--partially_ready {
+		color: var(--text-muted);
+	}
 
-.org {
-	display: grid;
-	gap: 2px;
-	margin-bottom: var(--lead);
-}
+	.state--intervention_required,
+	.state--unknown {
+		color: var(--accent-signal);
+	}
 
-.org input {
-	max-width: 24ch;
-	padding: 0 var(--lead-half);
-	border: 1px solid var(--border);
-	border-radius: var(--radius-sm);
-	background: var(--surface-raised);
-	font-family: var(--p9-mono);
-	line-height: var(--lead);
-	color: var(--text);
-}
+	.instructions .label {
+		color: var(--accent);
+		margin-bottom: var(--lead-half);
+	}
 
-.instructions p {
-	margin: 0 0 var(--lead-half);
-}
+	/* Built URLs (org links, webhook/callback paths) can outgrow the column;
+	   break anywhere rather than pushing the grid past the viewport. */
+	.instructions a,
+	.instructions code {
+		overflow-wrap: anywhere;
+	}
 
-.steps {
-	margin: 0;
-	padding-left: var(--lead);
-}
+	.org {
+		display: grid;
+		gap: 2px;
+		margin-bottom: var(--lead);
+	}
 
-.steps li {
-	line-height: var(--lead);
-}
+	.org input {
+		max-width: 24ch;
+		padding: 0 var(--lead-half);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		background: var(--surface-raised);
+		font-family: var(--p9-mono);
+		line-height: var(--lead);
+		color: var(--text);
+	}
 
-.steps li::marker {
-	color: var(--accent-signal);
-	font-family: var(--p9-mono);
-}
+	.instructions p {
+		margin: 0 0 var(--lead-half);
+	}
 
-.steps ul {
-	margin: 0;
-	padding-left: var(--lead);
-	list-style: square;
-}
+	.steps {
+		margin: 0;
+		padding-left: var(--lead);
+	}
 
-.steps ul li::marker {
-	color: var(--text-muted);
-}
+	.steps li {
+		line-height: var(--lead);
+	}
 
-.mark {
-	color: var(--accent-signal);
-	font-family: var(--p9-mono);
-}
+	.steps li::marker {
+		color: var(--accent-signal);
+		font-family: var(--p9-mono);
+	}
 
-.failed {
-	color: var(--accent-signal);
-}
+	.steps ul {
+		margin: 0;
+		padding-left: var(--lead);
+		list-style: square;
+	}
 
-.fields {
-	display: grid;
-	gap: var(--lead-half);
-	margin: var(--lead) 0;
-}
+	.steps ul li::marker {
+		color: var(--text-muted);
+	}
 
-.fields label {
-	display: grid;
-	gap: 2px;
-}
+	.mark {
+		color: var(--accent-signal);
+		font-family: var(--p9-mono);
+	}
 
-.fields input,
-.fields textarea {
-	padding: 0 var(--lead-half);
-	border: 1px solid var(--border);
-	border-radius: var(--radius-sm);
-	background: var(--surface-raised);
-	font-family: var(--p9-mono);
-	line-height: var(--lead);
-	color: var(--text);
-}
+	.failed {
+		color: var(--accent-signal);
+	}
 
-.fields input:focus,
-.fields textarea:focus {
-	outline: 2px solid var(--accent);
-	outline-offset: -1px;
-}
+	.fields {
+		display: grid;
+		gap: var(--lead-half);
+		margin: var(--lead) 0;
+	}
 
-.fields textarea {
-	padding: var(--lead-half);
-	resize: vertical;
-}
+	.fields label {
+		display: grid;
+		gap: 2px;
+	}
 
-.secret {
-	display: flex;
-	gap: var(--lead-half);
-}
+	.fields input,
+	.fields textarea {
+		padding: 0 var(--lead-half);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		background: var(--surface-raised);
+		font-family: var(--p9-mono);
+		line-height: var(--lead);
+		color: var(--text);
+	}
 
-.secret input {
-	flex: 1;
-	min-width: 0;
-}
+	.fields input:focus,
+	.fields textarea:focus {
+		outline: 2px solid var(--accent);
+		outline-offset: -1px;
+	}
 
-.secret button {
-	padding: 0 var(--lead-half);
-	border: 1px solid var(--border);
-	border-radius: var(--radius-sm);
-	background: var(--surface-raised);
-	color: var(--text);
-	cursor: pointer;
-}
+	.fields textarea {
+		padding: var(--lead-half);
+		resize: vertical;
+	}
 
-.secret button:hover {
-	color: var(--accent);
-}
+	.secret {
+		display: flex;
+		gap: var(--lead-half);
+	}
+
+	.secret input {
+		flex: 1;
+		min-width: 0;
+	}
+
+	.secret button {
+		padding: 0 var(--lead-half);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		background: var(--surface-raised);
+		color: var(--text);
+		cursor: pointer;
+	}
+
+	.secret button:hover {
+		color: var(--accent);
+	}
 </style>
