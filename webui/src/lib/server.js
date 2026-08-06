@@ -73,6 +73,12 @@ export function runMigrations() {
 	return call("/api/install/migrations", { method: "POST" });
 }
 
+// saveOrg is the wizard's name-the-org step: the primary-org slug every later
+// panel's GitHub links are built from. The response is a fresh install-state read.
+export function saveOrg(payload) {
+	return post("/api/install/org", payload);
+}
+
 // saveApp is the wizard's create-the-App step: the trio GitHub's creation form
 // yields, entered on the install page. The response is a fresh install-state read.
 export function saveApp(payload) {

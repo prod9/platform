@@ -47,6 +47,25 @@ export function registryPayload(fields) {
 	};
 }
 
+// orgPayload shapes the name-the-org form the same way.
+export function orgPayload(fields) {
+	return { org: text(fields.org) };
+}
+
+// stepValues returns the named entry's saved non-secret values, for panel pre-fill
+// (docs/spec/installation.md §The wizard UI — secret fields always render empty and
+// never arrive here; the server puts only non-secret fields in values).
+export function stepValues(entries, name) {
+	const entry = entries.find((e) => e.name === name);
+	return entry?.values ?? {};
+}
+
+// orgSlug reads the slug the org step surfaced — the server-side source every
+// GitHub link is built from, so any tab or browser renders real links.
+export function orgSlug(entries) {
+	return stepValues(entries, "org").org ?? "";
+}
+
 // generateWebhookSecret mints the webhook secret the operator copies into GitHub's
 // creation form — 32 random bytes as hex, from the platform's CSPRNG.
 export function generateWebhookSecret() {

@@ -1,11 +1,13 @@
 <script>
-	// The install gate. GET /api/install returns the ordered checklist; the first
-	// non-fully-ready entry is the step, and this page renders it in three columns:
-	// progress on the left, the step's action in the middle, its operative
+	// The install gate. GET /api/install returns the ordered checklist; the progress
+	// list is navigation — the default selection is the first non-fully-ready entry,
+	// clicking an entry opens its panel — and the page renders three columns: progress
+	// on the left, the selected step's action in the middle, its operative
 	// instructions on the right (docs/spec/installation.md §The wizard UI).
 	import {
 		installState,
 		runMigrations,
+		saveOrg,
 		saveApp,
 		saveCredentials,
 		saveRegistryToken,
@@ -15,6 +17,9 @@
 	} from "$lib/server.js";
 	import {
 		nextStep,
+		stepValues,
+		orgSlug,
+		orgPayload,
 		appPayload,
 		credentialsPayload,
 		registryPayload,
@@ -27,8 +32,13 @@
 
 	let entries = $state([]);
 	let loaded = $state(false);
+	let selected = $state(null); // checklist navigation; null = follow the wizard
+	let redoing = $state(false); // client-side unlock of a done panel
 	let migrating = $state(false);
 	let migrateError = $state("");
+	let org = $state({ org: "" });
+	let savingOrg = $state(false);
+	let orgError = $state("");
 	let app = $state({
 		app_id: "",
 		client_id: "",
@@ -54,15 +64,6 @@
 	// landing GET only renders; the write sits behind the claim POST
 	// (docs/spec/installation.md §The install settings). Signing in bounces through GitHub
 	// and back to /, dropping the query string, so the id is stashed for the return trip.
-	// The org slug only feeds the instruction links; it survives the OAuth bounce the
-	// same way the installation id does. The server never sees it — the claim derives
-	// the real org from the installation.
-	const orgKey = "install.org";
-	let org = $state(sessionStorage.getItem(orgKey) ?? "");
-	$effect(() => sessionStorage.setItem(orgKey, org));
-	let appsNewURL = $derived(orgSettingsURL(org, "apps/new"));
-	let appsURL = $derived(orgSettingsURL(org, "apps"));
-
 	const stashKey = "install.installation_id";
 	const landed = new URLSearchParams(window.location.search).get("installation_id");
 	if (landed) {
@@ -70,10 +71,55 @@
 	}
 	const installationID = Number(landed ?? sessionStorage.getItem(stashKey));
 
+	// current is the one panel on screen: the operator's pick, or the wizard's next.
+	let current = $derived(
+		entries.find((entry) => entry.name === selected) ?? nextStep(entries),
+	);
+	// Only fully_ready locks a panel; Redo is a client-side unlock — the server learns
+	// of a redo only as an ordinary save (docs/spec/installation.md §Redo).
+	let locked = $derived(current !== null && current.state === "fully_ready" && !redoing);
+
+	// Every save's response (and every page load) is a fresh state read; adopting it
+	// drops the navigation pick and re-locks, so the wizard always converges onto the
+	// first unfinished step (§The wizard UI, restartable).
+	function converge(body) {
+		entries = body;
+		selected = null;
+		redoing = false;
+		prefill();
+	}
+
+	// Non-secret fields pre-fill from each entry's saved values; secret fields always
+	// render empty (§The wizard UI).
+	function prefill() {
+		org.org = stepValues(entries, "org").org ?? "";
+		const created = stepValues(entries, "app-created");
+		app.app_id = created.app_id ?? app.app_id;
+		app.client_id = created.client_id ?? app.client_id;
+	}
+
+	function select(name) {
+		selected = name;
+		redoing = false;
+	}
+
+	// redo unlocks the current panel. Secrets are always re-entered: they empty here,
+	// and the webhook-secret mint fires for the now-unset field (§The wizard UI).
+	function redo() {
+		redoing = true;
+		if (current.name === "app-created") {
+			app.webhook_secret = generateWebhookSecret();
+		} else if (current.name === "app-credentials") {
+			credentials = { private_key: "", client_secret: "" };
+		} else if (current.name === "registry-token") {
+			registry = { token: "" };
+		}
+	}
+
 	async function load() {
 		const result = await installState();
 		if (result.outcome === Answered) {
-			entries = result.body;
+			converge(result.body);
 		}
 		loaded = true;
 	}
@@ -84,12 +130,26 @@
 
 		const result = await runMigrations();
 		if (result.outcome === Answered) {
-			entries = result.body;
+			converge(result.body);
 		} else {
 			migrateError = errorText(result);
 		}
 
 		migrating = false;
+	}
+
+	async function submitOrg() {
+		savingOrg = true;
+		orgError = "";
+
+		const result = await saveOrg(orgPayload(org));
+		if (result.outcome === Answered) {
+			converge(result.body);
+		} else {
+			orgError = errorText(result);
+		}
+
+		savingOrg = false;
 	}
 
 	async function submitApp() {
@@ -98,7 +158,7 @@
 
 		const result = await saveApp(appPayload(app));
 		if (result.outcome === Answered) {
-			entries = result.body;
+			converge(result.body);
 		} else {
 			appError = errorText(result);
 		}
@@ -112,7 +172,7 @@
 
 		const result = await saveCredentials(credentialsPayload(credentials));
 		if (result.outcome === Answered) {
-			entries = result.body;
+			converge(result.body);
 		} else {
 			credentialsError = errorText(result);
 		}
@@ -141,7 +201,7 @@
 
 		const result = await saveRegistryToken(registryPayload(registry));
 		if (result.outcome === Answered) {
-			entries = result.body;
+			converge(result.body);
 		} else {
 			registryError = errorText(result);
 		}
@@ -163,7 +223,13 @@
 		claiming = false;
 	}
 
-	let next = $derived(nextStep(entries));
+	// Every GitHub link builds from the slug the org step saved server-side, so any
+	// tab or browser renders real links (§The state surface).
+	let slug = $derived(orgSlug(entries));
+	let appsNewURL = $derived(orgSettingsURL(slug, "apps/new"));
+	let appsURL = $derived(orgSettingsURL(slug, "apps"));
+
+	let orgReady = $derived(org.org.trim() !== "");
 	let appReady = $derived(Object.values(app).every((value) => value.trim() !== ""));
 	let credentialsReady = $derived(
 		Object.values(credentials).every((value) => value.trim() !== ""),
@@ -171,10 +237,10 @@
 	let registryReady = $derived(registry.token.trim() !== "");
 
 	function isStep(name, ...states) {
-		if (next === null) {
+		if (current === null) {
 			return false;
 		}
-		return next.name === name && states.includes(next.state);
+		return current.name === name && states.includes(current.state);
 	}
 
 	load();
@@ -192,31 +258,63 @@
 		<div class="wizard">
 			<ol class="checklist">
 				{#each entries as entry (entry.name)}
-					<li class:active={next !== null && entry.name === next.name}>
-						<span class="mono name">{entry.name}</span>
-						<span class="state state--{entry.state || 'unknown'} label"
-							>{entry.state || "unknown"}</span
-						>
-						{#if entry.message}
-							<span class="mono failed message">{entry.message}</span>
-						{/if}
+					<li class:active={current !== null && entry.name === current.name}>
+						<button type="button" class="row" onclick={() => select(entry.name)}>
+							<span class="mono name">{entry.name}</span>
+							<span class="state state--{entry.state || 'unknown'} label"
+								>{entry.state || "unknown"}</span
+							>
+							{#if entry.message}
+								<span class="mono failed message">{entry.message}</span>
+							{/if}
+						</button>
 					</li>
 				{/each}
 			</ol>
 
 			<div class="action">
-				{#if next === null}
+				{#if current === null}
 					<Panel label="Installed">
 						<p class="muted">Restart the server to start.</p>
 					</Panel>
-				{:else if next.name === "db-reachable"}
-					<Panel label="Database unreachable">
-						<p class="failed mono">{next.message}</p>
+				{:else if current.name === "db-reachable"}
+					<Panel label={locked ? "Database reachable" : "Database unreachable"}>
+						{#if locked}
+							<p class="muted">The server reaches its database. Nothing to redo.</p>
+						{:else}
+							<p class="failed mono">{current.message}</p>
+						{/if}
 					</Panel>
-				{:else if next.name === "app-created"}
+				{:else if current.name === "org"}
+					<Panel label="Name the primary org">
+						{#if current.message}
+							<p class="failed mono">{current.message}</p>
+						{/if}
+						{#if orgError}
+							<p class="failed mono">{orgError}</p>
+						{/if}
+						<div class="fields">
+							<label>
+								<span class="label">Org slug</span>
+								<input placeholder="your-org" bind:value={org.org} disabled={locked} />
+							</label>
+						</div>
+						{#if locked}
+							<Button onclick={redo}>Redo</Button>
+						{:else}
+							<Button
+								variant="primary"
+								onclick={submitOrg}
+								disabled={!orgReady || savingOrg}
+							>
+								{savingOrg ? "Saving…" : "Save org"}
+							</Button>
+						{/if}
+					</Panel>
+				{:else if current.name === "app-created"}
 					<Panel label="Create the GitHub App">
-						{#if next.message}
-							<p class="failed mono">{next.message}</p>
+						{#if current.message}
+							<p class="failed mono">{current.message}</p>
 						{/if}
 						{#if appError}
 							<p class="failed mono">{appError}</p>
@@ -225,10 +323,11 @@
 							<label>
 								<span class="label">Webhook secret (copy into GitHub's form)</span>
 								<span class="secret">
-									<input bind:value={app.webhook_secret} />
+									<input bind:value={app.webhook_secret} disabled={locked} />
 									<button
 										type="button"
 										title="Regenerate"
+										disabled={locked}
 										onclick={() => (app.webhook_secret = generateWebhookSecret())}
 										>↻</button
 									>
@@ -236,25 +335,29 @@
 							</label>
 							<label>
 								<span class="label">App id</span>
-								<input inputmode="numeric" bind:value={app.app_id} />
+								<input inputmode="numeric" bind:value={app.app_id} disabled={locked} />
 							</label>
 							<label>
 								<span class="label">Client id</span>
-								<input bind:value={app.client_id} />
+								<input bind:value={app.client_id} disabled={locked} />
 							</label>
 						</div>
-						<Button
-							variant="primary"
-							onclick={submitApp}
-							disabled={!appReady || savingApp}
-						>
-							{savingApp ? "Saving…" : "Save App"}
-						</Button>
+						{#if locked}
+							<Button onclick={redo}>Redo</Button>
+						{:else}
+							<Button
+								variant="primary"
+								onclick={submitApp}
+								disabled={!appReady || savingApp}
+							>
+								{savingApp ? "Saving…" : "Save App"}
+							</Button>
+						{/if}
 					</Panel>
-				{:else if next.name === "app-credentials"}
+				{:else if current.name === "app-credentials"}
 					<Panel label="GitHub App keys">
-						{#if next.message}
-							<p class="failed mono">{next.message}</p>
+						{#if current.message}
+							<p class="failed mono">{current.message}</p>
 						{/if}
 						{#if credentialsError}
 							<p class="failed mono">{credentialsError}</p>
@@ -262,25 +365,29 @@
 						<div class="fields">
 							<label>
 								<span class="label">Client secret</span>
-								<input bind:value={credentials.client_secret} />
+								<input bind:value={credentials.client_secret} disabled={locked} />
 							</label>
 							<label>
 								<span class="label">Private key (the downloaded .pem)</span>
-								<input type="file" accept=".pem" onchange={pickPrivateKey} />
+								<input type="file" accept=".pem" onchange={pickPrivateKey} disabled={locked} />
 							</label>
 						</div>
-						<Button
-							variant="primary"
-							onclick={submitCredentials}
-							disabled={!credentialsReady || savingCredentials}
-						>
-							{savingCredentials ? "Saving…" : "Save keys"}
-						</Button>
+						{#if locked}
+							<Button onclick={redo}>Redo</Button>
+						{:else}
+							<Button
+								variant="primary"
+								onclick={submitCredentials}
+								disabled={!credentialsReady || savingCredentials}
+							>
+								{savingCredentials ? "Saving…" : "Save keys"}
+							</Button>
+						{/if}
 					</Panel>
-				{:else if next.name === "registry-token"}
+				{:else if current.name === "registry-token"}
 					<Panel label="Registry push token">
-						{#if next.message}
-							<p class="failed mono">{next.message}</p>
+						{#if current.message}
+							<p class="failed mono">{current.message}</p>
 						{/if}
 						{#if registryError}
 							<p class="failed mono">{registryError}</p>
@@ -288,16 +395,26 @@
 						<div class="fields">
 							<label>
 								<span class="label">Classic PAT (write:packages)</span>
-								<input type="password" bind:value={registry.token} />
+								<input type="password" bind:value={registry.token} disabled={locked} />
 							</label>
 						</div>
-						<Button
-							variant="primary"
-							onclick={submitRegistry}
-							disabled={!registryReady || savingRegistry}
-						>
-							{savingRegistry ? "Saving…" : "Save token"}
-						</Button>
+						{#if locked}
+							<Button onclick={redo}>Redo</Button>
+						{:else}
+							<Button
+								variant="primary"
+								onclick={submitRegistry}
+								disabled={!registryReady || savingRegistry}
+							>
+								{savingRegistry ? "Saving…" : "Save token"}
+							</Button>
+						{/if}
+					</Panel>
+				{:else if isStep("app-installed", "fully_ready")}
+					<Panel label="Claimed">
+						<p class="muted">
+							The installation is bound to this server. Restart the server to start.
+						</p>
 					</Panel>
 				{:else if isStep("app-installed", "not_started")}
 					{#if !installationID}
@@ -327,6 +444,10 @@
 							</Button>
 						</Panel>
 					{/if}
+				{:else if isStep("migrations", "fully_ready")}
+					<Panel label="Schema is current">
+						<p class="muted">Every migration is applied. Nothing to redo.</p>
+					</Panel>
 				{:else if isStep("migrations", "not_started", "partially_ready")}
 					<Panel label="Run migrations">
 						{#if migrateError}
@@ -336,36 +457,48 @@
 							{migrating ? "Running…" : "Run migrations"}
 						</Button>
 					</Panel>
-				{:else if next.name === "migrations"}
+				{:else if current.name === "migrations"}
 					<Panel label="Migration blocked">
-						<p class="failed mono">{next.message}</p>
+						<p class="failed mono">{current.message}</p>
 					</Panel>
 				{:else}
 					<Panel label="Step failed">
-						<p class="failed mono">{next.message}</p>
+						<p class="failed mono">{current.message}</p>
 					</Panel>
 				{/if}
 			</div>
 
 			<aside class="instructions">
-				{#if next === null}
+				{#if current === null}
 					<p class="label">Done</p>
 					<p>
 						Every step is ready. Restart the server so it boots into the product —
 						the installer retires itself.
 					</p>
-				{:else if next.name === "db-reachable"}
+				{:else if current.name === "db-reachable"}
 					<p class="label">What this means</p>
 					<p>
-						The server cannot reach its database. Fix the deployment's
-						<code>DATABASE_URL</code> — this is an operator concern, not a wizard step.
+						{#if locked}
+							The deployment's <code>DATABASE_URL</code> answers. This step has no
+							saved values; it re-checks on every load.
+						{:else}
+							The server cannot reach its database. Fix the deployment's
+							<code>DATABASE_URL</code> — this is an operator concern, not a wizard step.
+						{/if}
 					</p>
-				{:else if next.name === "app-created"}
+				{:else if current.name === "org"}
+					<p class="label">Name the primary org</p>
+					<p>
+						Every GitHub link the later steps render is built from this slug — the
+						App is created wherever those links point, so it heads the settings-backed
+						steps.
+					</p>
+					<p>
+						A wrong slug simply 404s the links; redo this step to fix it. Redoing it
+						resets every later step.
+					</p>
+				{:else if current.name === "app-created"}
 					<p class="label">Create the GitHub App</p>
-					<label class="org">
-						<span class="label">Org slug</span>
-						<input placeholder="your-org" bind:value={org} />
-					</label>
 					<ol class="steps">
 						<li>
 							Create a GitHub App <strong>under the managed org</strong> at
@@ -416,7 +549,7 @@
 							</ul>
 						</li>
 					</ol>
-				{:else if next.name === "app-credentials"}
+				{:else if current.name === "app-credentials"}
 					<p class="label">Generate the App's keys</p>
 					<ol class="steps">
 						<li>
@@ -436,7 +569,7 @@
 						</li>
 						<li>Enter the secret, pick the file, and save.</li>
 					</ol>
-				{:else if next.name === "registry-token"}
+				{:else if current.name === "registry-token"}
 					<p class="label">Create the push token</p>
 					<ol class="steps">
 						<li>
@@ -458,6 +591,12 @@
 						</li>
 						<li>Paste the token into the form and save.</li>
 					</ol>
+				{:else if isStep("app-installed", "fully_ready")}
+					<p class="label">Claimed</p>
+					<p>
+						The org-owner claim is done. Re-org is a de-install + re-install — there
+						is nothing to redo here.
+					</p>
 				{:else if isStep("app-installed", "not_started")}
 					<p class="label">Install and claim</p>
 					{#if !installationID}
@@ -480,13 +619,18 @@
 							The claim verifies you are an active owner of the org.
 						</p>
 					{/if}
+				{:else if isStep("migrations", "fully_ready")}
+					<p class="label">Schema is current</p>
+					<p>
+						This step has no saved values; it re-checks the schema on every load.
+					</p>
 				{:else if isStep("migrations", "not_started", "partially_ready")}
 					<p class="label">Run migrations</p>
 					<p>
 						Creates the schema every later step stores its values in. Re-runnable;
 						it only ever applies what is missing.
 					</p>
-				{:else if next.name === "migrations"}
+				{:else if current.name === "migrations"}
 					<p class="label">What this means</p>
 					<p>
 						The database schema diverges from what this server ships. Review the
@@ -534,9 +678,6 @@
 	}
 
 	.checklist li {
-		display: grid;
-		grid-template-columns: minmax(0, 1fr) auto;
-		padding: var(--lead-half) 0 var(--lead-half) var(--lead-half);
 		box-shadow: 0 -1px 0 var(--border) inset;
 	}
 
@@ -544,6 +685,21 @@
 		box-shadow:
 			2px 0 0 var(--accent-signal) inset,
 			0 -1px 0 var(--border) inset;
+	}
+
+	/* The whole row is the navigation affordance — the progress list is clickable
+	   by spec (§The wizard UI, progress is navigation). */
+	.checklist .row {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto;
+		width: 100%;
+		padding: var(--lead-half) 0 var(--lead-half) var(--lead-half);
+		border: 0;
+		background: none;
+		font: inherit;
+		color: inherit;
+		text-align: left;
+		cursor: pointer;
 	}
 
 	.checklist .name {
@@ -587,23 +743,6 @@
 	.instructions a,
 	.instructions code {
 		overflow-wrap: anywhere;
-	}
-
-	.org {
-		display: grid;
-		gap: 2px;
-		margin-bottom: var(--lead);
-	}
-
-	.org input {
-		max-width: 24ch;
-		padding: 0 var(--lead-half);
-		border: 1px solid var(--border);
-		border-radius: var(--radius-sm);
-		background: var(--surface-raised);
-		font-family: var(--p9-mono);
-		line-height: var(--lead);
-		color: var(--text);
 	}
 
 	.instructions p {
@@ -669,6 +808,11 @@
 		outline-offset: -1px;
 	}
 
+	.fields input:disabled {
+		color: var(--text-muted);
+		cursor: not-allowed;
+	}
+
 	.secret {
 		display: flex;
 		gap: var(--lead-half);
@@ -688,7 +832,12 @@
 		cursor: pointer;
 	}
 
-	.secret button:hover {
+	.secret button:hover:not(:disabled) {
 		color: var(--accent);
+	}
+
+	.secret button:disabled {
+		color: var(--text-muted);
+		cursor: not-allowed;
 	}
 </style>

@@ -4,6 +4,9 @@ import {
 	appPayload,
 	credentialsPayload,
 	registryPayload,
+	orgPayload,
+	orgSlug,
+	stepValues,
 	generateWebhookSecret,
 	orgSettingsURL,
 } from "./install.js";
@@ -131,6 +134,48 @@ describe("orgSettingsURL", () => {
 		expect(orgSettingsURL("", "apps/new")).toBe(null);
 		expect(orgSettingsURL("   ", "apps")).toBe(null);
 		expect(orgSettingsURL(undefined, "apps")).toBe(null);
+	});
+});
+
+describe("orgPayload", () => {
+	test("trims the slug", () => {
+		expect(orgPayload({ org: "  prod9  " })).toEqual({ org: "prod9" });
+	});
+
+	test("leaves emptiness for the server to refuse", () => {
+		expect(orgPayload({})).toEqual({ org: "" });
+	});
+});
+
+describe("stepValues", () => {
+	const entries = [
+		{ name: "org", state: "fully_ready", values: { org: "prod9" } },
+		{ name: "app-created", state: "not_started" },
+	];
+
+	test("returns the named entry's saved values for pre-fill", () => {
+		expect(stepValues(entries, "org")).toEqual({ org: "prod9" });
+	});
+
+	test("an entry without values pre-fills nothing", () => {
+		expect(stepValues(entries, "app-created")).toEqual({});
+	});
+
+	test("a missing entry pre-fills nothing", () => {
+		expect(stepValues([], "org")).toEqual({});
+	});
+});
+
+describe("orgSlug", () => {
+	test("reads the slug the org step surfaced — the server-side source every link builds from", () => {
+		const entries = [{ name: "org", state: "fully_ready", values: { org: "prod9" } }];
+
+		expect(orgSlug(entries)).toBe("prod9");
+	});
+
+	test("is empty before the org step is saved", () => {
+		expect(orgSlug([{ name: "org", state: "not_started" }])).toBe("");
+		expect(orgSlug([])).toBe("");
 	});
 });
 
