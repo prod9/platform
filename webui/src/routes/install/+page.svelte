@@ -120,6 +120,21 @@
 		savingCredentials = false;
 	}
 
+	async function pickPrivateKey(event) {
+		const file = event.target.files[0];
+		if (!file) {
+			credentials.private_key = "";
+			return;
+		}
+
+		try {
+			credentials.private_key = await file.text();
+		} catch (err) {
+			credentials.private_key = "";
+			credentialsError = String(err);
+		}
+	}
+
 	async function submitRegistry() {
 		savingRegistry = true;
 		registryError = "";
@@ -246,12 +261,12 @@
 						{/if}
 						<div class="fields">
 							<label>
-								<span class="label">Private key (PEM)</span>
-								<textarea rows="6" bind:value={credentials.private_key}></textarea>
-							</label>
-							<label>
 								<span class="label">Client secret</span>
 								<input bind:value={credentials.client_secret} />
+							</label>
+							<label>
+								<span class="label">Private key (the downloaded .pem)</span>
+								<input type="file" accept=".pem" onchange={pickPrivateKey} />
 							</label>
 						</div>
 						<Button
@@ -417,9 +432,9 @@
 						</li>
 						<li>
 							Under <em>Private keys</em>, generate a <strong>private key</strong> —
-							GitHub downloads a <code>.pem</code> file; paste its contents.
+							GitHub downloads a <code>.pem</code> file; pick that file in the form.
 						</li>
-						<li>Paste both into the form and save.</li>
+						<li>Enter the secret, pick the file, and save.</li>
 					</ol>
 				{:else if next.name === "registry-token"}
 					<p class="label">Create the push token</p>
@@ -639,8 +654,7 @@
 		gap: 2px;
 	}
 
-	.fields input,
-	.fields textarea {
+	.fields input {
 		padding: 0 var(--lead-half);
 		border: 1px solid var(--border);
 		border-radius: var(--radius-sm);
@@ -650,15 +664,9 @@
 		color: var(--text);
 	}
 
-	.fields input:focus,
-	.fields textarea:focus {
+	.fields input:focus {
 		outline: 2px solid var(--accent);
 		outline-offset: -1px;
-	}
-
-	.fields textarea {
-		padding: var(--lead-half);
-		resize: vertical;
 	}
 
 	.secret {
