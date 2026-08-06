@@ -9,6 +9,7 @@ import {
 	stepValues,
 	generateWebhookSecret,
 	orgSettingsURL,
+	appSettingsURL,
 } from "./install.js";
 
 describe("nextStep", () => {
@@ -66,12 +67,14 @@ describe("appPayload", () => {
 	test("trims every field and numbers the app id", () => {
 		const payload = appPayload({
 			app_id: " 12345 ",
+			app_slug: " prodigy9-platform ",
 			client_id: " Iv1.abc ",
 			webhook_secret: " hooksec ",
 		});
 
 		expect(payload).toEqual({
 			app_id: 12345,
+			app_slug: "prodigy9-platform",
 			client_id: "Iv1.abc",
 			webhook_secret: "hooksec",
 		});
@@ -86,9 +89,36 @@ describe("appPayload", () => {
 
 		expect(payload).toEqual({
 			app_id: 7,
+			app_slug: "",
 			client_id: "",
 			webhook_secret: "",
 		});
+	});
+});
+
+describe("appSettingsURL", () => {
+	const entries = [
+		{ name: "org", state: "fully_ready", values: { org: "prod9" } },
+		{
+			name: "app-created",
+			state: "fully_ready",
+			values: { app_id: "42", app_slug: "prodigy9-platform", client_id: "Iv1.abc" },
+		},
+	];
+
+	test("builds the App's direct settings path from the saved org and slug", () => {
+		expect(appSettingsURL(entries)).toBe(
+			"https://github.com/organizations/prod9/settings/apps/prodigy9-platform",
+		);
+		expect(appSettingsURL(entries, "/installations")).toBe(
+			"https://github.com/organizations/prod9/settings/apps/prodigy9-platform/installations",
+		);
+	});
+
+	test("is null until both the org and the App slug are saved", () => {
+		expect(appSettingsURL([])).toBe(null);
+		expect(appSettingsURL([entries[0]])).toBe(null);
+		expect(appSettingsURL([entries[1]])).toBe(null);
 	});
 });
 

@@ -1,11 +1,11 @@
 <script>
 	// Renders as a link when given href, a button otherwise — the same face either way, so
 	// a navigation and an action never look like different species.
-	let { variant = "ghost", href = "", disabled = false, onclick, children } = $props();
+	let { variant = "ghost", href = "", target = "", disabled = false, onclick, children } = $props();
 </script>
 
 {#if href}
-	<a class="btn btn--{variant}" {href}>{@render children()}</a>
+	<a class="btn btn--{variant}" {href} target={target || undefined}>{@render children()}</a>
 {:else}
 	<button class="btn btn--{variant}" {disabled} {onclick}>{@render children()}</button>
 {/if}

@@ -18,6 +18,17 @@ export function orgSettingsURL(slug, path) {
 	return `https://github.com/organizations/${org}/settings/${path}`;
 }
 
+// appSettingsURL builds the created App's direct settings link — its edit page, or
+// a sub-page via the trailing path (e.g. "/installations") — from the org and App
+// slugs the server surfaced, or null until both are saved.
+export function appSettingsURL(entries, path = "") {
+	const app = text(stepValues(entries, "app-created").app_slug);
+	if (app === "") {
+		return null;
+	}
+	return orgSettingsURL(orgSlug(entries), `apps/${app}${path}`);
+}
+
 // appPayload shapes the create-the-App form — what GitHub's creation form yields —
 // into the action's wire shape: trimmed strings and a numeric app_id. Emptiness and
 // zero are left in for the server's validator to refuse — the form only decides when
@@ -25,6 +36,7 @@ export function orgSettingsURL(slug, path) {
 export function appPayload(fields) {
 	return {
 		app_id: Number(text(fields.app_id)) || 0,
+		app_slug: text(fields.app_slug),
 		client_id: text(fields.client_id),
 		webhook_secret: text(fields.webhook_secret),
 	};

@@ -25,6 +25,7 @@
 		registryPayload,
 		generateWebhookSecret,
 		orgSettingsURL,
+		appSettingsURL,
 	} from "$lib/install.js";
 	import { session } from "$lib/session.svelte.js";
 	import Panel from "$lib/components/Panel.svelte";
@@ -41,6 +42,7 @@
 	let orgError = $state("");
 	let app = $state({
 		app_id: "",
+		app_slug: "",
 		client_id: "",
 		webhook_secret: generateWebhookSecret(),
 	});
@@ -95,6 +97,7 @@
 		org.org = stepValues(entries, "org").org ?? "";
 		const created = stepValues(entries, "app-created");
 		app.app_id = created.app_id ?? app.app_id;
+		app.app_slug = created.app_slug ?? app.app_slug;
 		app.client_id = created.client_id ?? app.client_id;
 	}
 
@@ -227,7 +230,8 @@
 	// tab or browser renders real links (§The state surface).
 	let slug = $derived(orgSlug(entries));
 	let appsNewURL = $derived(orgSettingsURL(slug, "apps/new"));
-	let appsURL = $derived(orgSettingsURL(slug, "apps"));
+	let appEditURL = $derived(appSettingsURL(entries));
+	let appInstallURL = $derived(appSettingsURL(entries, "/installations"));
 
 	let orgReady = $derived(org.org.trim() !== "");
 	let appReady = $derived(Object.values(app).every((value) => value.trim() !== ""));
@@ -338,6 +342,10 @@
 								<input inputmode="numeric" bind:value={app.app_id} disabled={locked} />
 							</label>
 							<label>
+								<span class="label">App slug (from the App's URL)</span>
+								<input placeholder="my-app" bind:value={app.app_slug} disabled={locked} />
+							</label>
+							<label>
 								<span class="label">Client id</span>
 								<input bind:value={app.client_id} disabled={locked} />
 							</label>
@@ -419,12 +427,16 @@
 				{:else if isStep("app-installed", "not_started")}
 					{#if !installationID}
 						<Panel label="Install the App on the org">
-							<Button
-								variant="primary"
-								href={appsURL ?? "https://github.com/settings/organizations"}
-							>
-								{appsURL ? "Open the org's Apps" : "Open your orgs"}
-							</Button>
+							{#if appInstallURL}
+								<Button variant="primary" href={appInstallURL} target="_blank">
+									Install the App
+								</Button>
+							{:else}
+								<p class="muted">
+									The install link needs the org and App slugs — redo the org and
+									App steps if they are missing.
+								</p>
+							{/if}
 						</Panel>
 					{:else if session.user === null}
 						<Panel label="Claim the installation">
@@ -513,6 +525,11 @@
 						<li>Homepage URL: <code>{origin}</code></li>
 						<li>Callback URL: <code>{origin}/auth/github/callback</code></li>
 						<li>
+							Setup URL: <code>{origin}/install/</code>, with
+							<strong>Redirect on update</strong> checked — GitHub sends the browser
+							back here after the App is installed later.
+						</li>
+						<li>
 							Webhook:
 							<ul>
 								<li>Active: checked</li>
@@ -545,6 +562,11 @@
 							form and save:
 							<ul>
 								<li><strong>App id</strong></li>
+								<li>
+									<strong>App slug</strong> — the last segment of the created App's
+									URL (<code>…/settings/apps/&lt;slug&gt;</code>); later steps link
+									the App's pages directly through it
+								</li>
 								<li><strong>Client id</strong></li>
 							</ul>
 						</li>
@@ -554,10 +576,9 @@
 					<ol class="steps">
 						<li>
 							Open the created App's settings page —
-							{#if appsURL}
-								<a href={appsURL} target="_blank">{appsURL}</a>{:else}
-								<code>github.com/organizations/&lt;org&gt;/settings/apps</code>{/if}
-							→ the App → Edit.
+							{#if appEditURL}
+								<a href={appEditURL} target="_blank">{appEditURL}</a>{:else}
+								<code>github.com/organizations/&lt;org&gt;/settings/apps/&lt;slug&gt;</code>{/if}
 						</li>
 						<li>
 							Under <em>Client secrets</em>, generate a
@@ -601,12 +622,13 @@
 					<p class="label">Install and claim</p>
 					{#if !installationID}
 						<p>
-							In the App's settings at
-							{#if appsURL}
-								<a href={appsURL} target="_blank">{appsURL}</a>{:else}
-								<code>github.com/organizations/&lt;org&gt;/settings/apps</code>{/if},
-							set the Setup URL to <code>{origin}/install/</code>, then install the App
-							on the managed org — GitHub redirects back here to finish.
+							Install the App on the managed org — the button opens
+							{#if appInstallURL}
+								<a href={appInstallURL} target="_blank">{appInstallURL}</a>{:else}
+								<code>…/settings/apps/&lt;slug&gt;/installations</code>{/if}
+							in a new tab. Keep this tab open: when the install finishes, GitHub's
+							Setup URL redirect brings the browser back here on its own to sign in
+							and claim.
 						</p>
 					{:else if session.user === null}
 						<p>
