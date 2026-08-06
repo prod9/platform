@@ -1,5 +1,9 @@
 import { describe, expect, test } from "vitest";
 import {
+	serverPayload,
+	enginePayload,
+	publicURL,
+	originMismatch,
 	nextStep,
 	appPayload,
 	credentialsPayload,
@@ -263,5 +267,61 @@ describe("registryPayload", () => {
 
 	test("leaves emptiness for the server to refuse", () => {
 		expect(registryPayload({ token: "   " })).toEqual({ token: "" });
+	});
+});
+
+describe("serverPayload", () => {
+	test("trims the URL", () => {
+		expect(serverPayload({ public_url: "  https://p.example.com  " })).toEqual({
+			public_url: "https://p.example.com",
+		});
+	});
+
+	test("leaves emptiness for the server to refuse", () => {
+		expect(serverPayload({ public_url: "   " })).toEqual({ public_url: "" });
+	});
+});
+
+describe("enginePayload", () => {
+	test("trims the hosts", () => {
+		expect(enginePayload({ hosts: "  dagger.svc  " })).toEqual({ hosts: "dagger.svc" });
+	});
+
+	test("leaves emptiness for the server to refuse", () => {
+		expect(enginePayload({ hosts: "" })).toEqual({ hosts: "" });
+	});
+});
+
+describe("publicURL", () => {
+	test("reads the URL the server step surfaced", () => {
+		const entries = [
+			{ name: "server", state: "fully_ready", values: { public_url: "https://p.example.com" } },
+		];
+
+		expect(publicURL(entries)).toBe("https://p.example.com");
+	});
+
+	test("is empty before the server step is saved", () => {
+		expect(publicURL([{ name: "server", state: "not_started" }])).toBe("");
+		expect(publicURL([])).toBe("");
+	});
+});
+
+describe("originMismatch", () => {
+	const entries = [
+		{ name: "server", state: "fully_ready", values: { public_url: "https://p.example.com" } },
+	];
+
+	test("warns when the saved URL differs from the browser origin", () => {
+		expect(originMismatch(entries, "https://elsewhere.example.com")).toBe(true);
+	});
+
+	test("matching origin raises no warning, trailing slashes ignored", () => {
+		expect(originMismatch(entries, "https://p.example.com")).toBe(false);
+		expect(originMismatch(entries, "https://p.example.com/")).toBe(false);
+	});
+
+	test("no saved URL raises no warning — the step itself is the fix", () => {
+		expect(originMismatch([], "https://p.example.com")).toBe(false);
 	});
 });

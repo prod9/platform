@@ -7,22 +7,30 @@
 	import {
 		installState,
 		runMigrations,
+		saveServer,
 		saveOrg,
 		saveApp,
 		saveCredentials,
 		saveRegistryToken,
+		saveEngine,
 		claimInstall,
 		errorText,
+		installSignal,
 		Answered,
+		Installed,
 	} from "$lib/server.js";
 	import {
 		nextStep,
 		stepValues,
 		orgSlug,
+		publicURL,
+		originMismatch,
+		serverPayload,
 		orgPayload,
 		appPayload,
 		credentialsPayload,
 		registryPayload,
+		enginePayload,
 		generateWebhookSecret,
 		orgSettingsURL,
 		appSettingsURL,
@@ -37,9 +45,15 @@
 	let redoing = $state(false); // client-side unlock of a done panel
 	let migrating = $state(false);
 	let migrateError = $state("");
+	let server = $state({ public_url: "" });
+	let savingServer = $state(false);
+	let serverError = $state("");
 	let org = $state({ org: "" });
 	let savingOrg = $state(false);
 	let orgError = $state("");
+	let engine = $state({ hosts: "" });
+	let savingEngine = $state(false);
+	let engineError = $state("");
 	let app = $state({
 		app_id: "",
 		app_slug: "",
@@ -94,7 +108,12 @@
 	// Non-secret fields pre-fill from each entry's saved values; secret fields always
 	// render empty (§The wizard UI).
 	function prefill() {
+		// The server panel suggests the browser origin while the setting is empty — a
+		// suggestion only; the saved value is the truth (§the server step).
+		server.public_url = stepValues(entries, "server").public_url ?? origin;
 		org.org = stepValues(entries, "org").org ?? "";
+		// The engine entry's values carry the DAGGER_ENGINE env seed while unset.
+		engine.hosts = stepValues(entries, "engine").hosts ?? "";
 		const created = stepValues(entries, "app-created");
 		app.app_id = created.app_id ?? app.app_id;
 		app.app_slug = created.app_slug ?? app.app_slug;
@@ -139,6 +158,34 @@
 		}
 
 		migrating = false;
+	}
+
+	async function submitServer() {
+		savingServer = true;
+		serverError = "";
+
+		const result = await saveServer(serverPayload(server));
+		if (result.outcome === Answered) {
+			converge(result.body);
+		} else {
+			serverError = errorText(result);
+		}
+
+		savingServer = false;
+	}
+
+	async function submitEngine() {
+		savingEngine = true;
+		engineError = "";
+
+		const result = await saveEngine(enginePayload(engine));
+		if (result.outcome === Answered) {
+			converge(result.body);
+		} else {
+			engineError = errorText(result);
+		}
+
+		savingEngine = false;
 	}
 
 	async function submitOrg() {
@@ -218,21 +265,43 @@
 
 		const result = await claimInstall(installationID);
 		if (result.outcome === Answered) {
-			await load();
-		} else {
-			claimError = errorText(result);
+			await rideRestart();
+			return;
 		}
+		claimError = errorText(result);
 
+		claiming = false;
+	}
+
+	// A committed claim makes the server restart itself into the product composition
+	// (§Boot composition) — this panel rides the blip: poll the state read until its
+	// 404 says the installer is gone, then land on the product.
+	async function rideRestart() {
+		for (let attempt = 0; attempt < 30; attempt++) {
+			const result = await installState();
+			if (installSignal(result) === Installed) {
+				window.location.assign("/");
+				return;
+			}
+			await new Promise((resolve) => setTimeout(resolve, 1000));
+		}
+		claimError = "The server has not come back yet — reload this page.";
 		claiming = false;
 	}
 
 	// Every GitHub link builds from the slug the org step saved server-side, so any
 	// tab or browser renders real links (§The state surface).
 	let slug = $derived(orgSlug(entries));
+	// Instructions render the server-side public URL, never the browser origin; the
+	// origin is only the pre-save suggestion (§the server step).
+	let base = $derived(publicURL(entries) || origin);
+	let mismatch = $derived(originMismatch(entries, origin));
 	let appsNewURL = $derived(orgSettingsURL(slug, "apps/new"));
 	let appEditURL = $derived(appSettingsURL(entries));
 	let appInstallURL = $derived(appSettingsURL(entries, "/installations"));
 
+	let serverReady = $derived(server.public_url.trim() !== "");
+	let engineReady = $derived(engine.hosts.trim() !== "");
 	let orgReady = $derived(org.org.trim() !== "");
 	let appReady = $derived(Object.values(app).every((value) => value.trim() !== ""));
 	let credentialsReady = $derived(
@@ -259,6 +328,13 @@
 	{#if !loaded}
 		<p class="muted">Loading…</p>
 	{:else}
+		{#if mismatch}
+			<p class="mismatch mono">
+				This page is open on <code>{origin}</code> but the server's public URL is
+				<code>{base}</code> — values pasted into GitHub from here may point at the
+				wrong place. Prefer the canonical host, or redo the server step.
+			</p>
+		{/if}
 		<div class="wizard">
 			<ol class="checklist">
 				{#each entries as entry (entry.name)}
@@ -279,7 +355,10 @@
 			<div class="action">
 				{#if current === null}
 					<Panel label="Installed">
-						<p class="muted">Restart the server to start.</p>
+						<p class="muted">
+							Every step is ready. The server restarts itself into the product
+							after the claim — reload this page if it lingers here.
+						</p>
 					</Panel>
 				{:else if current.name === "db-reachable"}
 					<Panel label={locked ? "Database reachable" : "Database unreachable"}>
@@ -287,6 +366,36 @@
 							<p class="muted">The server reaches its database. Nothing to redo.</p>
 						{:else}
 							<p class="failed mono">{current.message}</p>
+						{/if}
+					</Panel>
+				{:else if current.name === "server"}
+					<Panel label="Name the server">
+						{#if current.message}
+							<p class="failed mono">{current.message}</p>
+						{/if}
+						{#if serverError}
+							<p class="failed mono">{serverError}</p>
+						{/if}
+						<div class="fields">
+							<label>
+								<span class="label">Public URL</span>
+								<input
+									placeholder="https://platform.example.com"
+									bind:value={server.public_url}
+									disabled={locked}
+								/>
+							</label>
+						</div>
+						{#if locked}
+							<Button onclick={redo}>Redo</Button>
+						{:else}
+							<Button
+								variant="primary"
+								onclick={submitServer}
+								disabled={!serverReady || savingServer}
+							>
+								{savingServer ? "Saving…" : "Save URL"}
+							</Button>
 						{/if}
 					</Panel>
 				{:else if current.name === "org"}
@@ -422,6 +531,36 @@
 							</Button>
 						{/if}
 					</Panel>
+				{:else if current.name === "engine"}
+					<Panel label="Bind the build engine">
+						{#if current.message}
+							<p class="failed mono">{current.message}</p>
+						{/if}
+						{#if engineError}
+							<p class="failed mono">{engineError}</p>
+						{/if}
+						<div class="fields">
+							<label>
+								<span class="label">Engine hosts (DNS name)</span>
+								<input
+									placeholder="dagger-engine.platform.svc.cluster.local"
+									bind:value={engine.hosts}
+									disabled={locked}
+								/>
+							</label>
+						</div>
+						{#if locked}
+							<Button onclick={redo}>Redo</Button>
+						{:else}
+							<Button
+								variant="primary"
+								onclick={submitEngine}
+								disabled={!engineReady || savingEngine}
+							>
+								{savingEngine ? "Saving…" : "Save engine"}
+							</Button>
+						{/if}
+					</Panel>
 				{:else if isStep("app-installed", "fully_ready")}
 					<Panel label="App installed">
 						<p class="muted">
@@ -448,7 +587,8 @@
 				{:else if isStep("claimed", "fully_ready")}
 					<Panel label="Claimed">
 						<p class="muted">
-							The installation is bound to this server. Restart the server to start.
+							The installation is bound to this server; it restarts itself into
+							the product. Reload this page if it lingers here.
 						</p>
 					</Panel>
 				{:else if isStep("claimed", "not_started")}
@@ -511,8 +651,8 @@
 				{#if current === null}
 					<p class="label">Done</p>
 					<p>
-						Every step is ready. Restart the server so it boots into the product —
-						the installer retires itself.
+						Every step is ready. The server restarts itself into the product after
+						the claim; the installer retires with it.
 					</p>
 				{:else if current.name === "db-reachable"}
 					<p class="label">What this means</p>
@@ -524,6 +664,18 @@
 							The server cannot reach its database. Fix the deployment's
 							<code>DATABASE_URL</code> — this is an operator concern, not a wizard step.
 						{/if}
+					</p>
+				{:else if current.name === "server"}
+					<p class="label">Name the server</p>
+					<p>
+						The server's public URL — the one server-side truth of where this
+						deployment lives. Login's OAuth redirect, the go-get vanity host, and
+						every "the server's URL" the later steps render come from this value,
+						not from whatever host this page happens to be open on.
+					</p>
+					<p>
+						The field suggests this page's own origin; correct it if the canonical
+						host differs. Redoing it resets every later step.
 					</p>
 				{:else if current.name === "org"}
 					<p class="label">Name the primary org</p>
@@ -549,10 +701,10 @@
 							(the org's Settings → Developer settings → GitHub Apps). The form top to
 							bottom:
 						</li>
-						<li>Homepage URL: <code>{origin}</code></li>
-						<li>Callback URL: <code>{origin}/auth/github/callback</code></li>
+						<li>Homepage URL: <code>{base}</code></li>
+						<li>Callback URL: <code>{base}/auth/github/callback</code></li>
 						<li>
-							Setup URL: <code>{origin}/install/</code>, with
+							Setup URL: <code>{base}/install/</code>, with
 							<strong>Redirect on update</strong> checked — GitHub sends the browser
 							back here after the App is installed later.
 						</li>
@@ -560,7 +712,7 @@
 							Webhook:
 							<ul>
 								<li>Active: checked</li>
-								<li>URL: <code>{origin}/hooks/github</code></li>
+								<li>URL: <code>{base}/hooks/github</code></li>
 								<li>
 									Secret: the <strong>webhook secret</strong> the form here minted —
 									regenerate it until you trust it, then copy it across
@@ -639,6 +791,14 @@
 						</li>
 						<li>Paste the token into the form and save.</li>
 					</ol>
+				{:else if current.name === "engine"}
+					<p class="label">Bind the build engine</p>
+					<p>
+						The DNS name of the Dagger engine pool infra provisioned for this
+						cluster — builds run against whatever this names. The field pre-fills
+						from the deployment's <code>DAGGER_ENGINE</code> value; saving locks it
+						in, and the server reads the saved value from then on.
+					</p>
 				{:else if isStep("app-installed", "fully_ready")}
 					<p class="label">App installed</p>
 					<p>
@@ -836,6 +996,18 @@
 
 	.failed {
 		color: var(--accent-signal);
+	}
+
+	.mismatch {
+		color: var(--accent-signal);
+		border: 1px solid var(--accent-signal);
+		border-radius: var(--radius-sm);
+		padding: var(--lead-half);
+		margin-bottom: var(--lead);
+	}
+
+	.mismatch code {
+		overflow-wrap: anywhere;
 	}
 
 	.fields {

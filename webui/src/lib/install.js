@@ -80,6 +80,31 @@ export function orgPayload(fields) {
 	return { org: text(fields.org) };
 }
 
+// serverPayload shapes the name-the-server form the same way.
+export function serverPayload(fields) {
+	return { public_url: text(fields.public_url) };
+}
+
+// enginePayload shapes the bind-the-engine form the same way.
+export function enginePayload(fields) {
+	return { hosts: text(fields.hosts) };
+}
+
+// publicURL reads the URL the server step surfaced — the server-side value every
+// instruction that says "the server's URL" renders from, never the browser origin
+// (docs/spec/installation.md, the server step).
+export function publicURL(entries) {
+	return text(stepValues(entries, "server").public_url);
+}
+
+// originMismatch reports a saved public URL that differs from the browser's origin —
+// the wizard warns then: values pasted into GitHub from a non-canonical host would
+// point at the wrong place (docs/spec/installation.md, the server step).
+export function originMismatch(entries, origin) {
+	const saved = publicURL(entries);
+	return saved !== "" && saved.replace(/\/+$/, "") !== text(origin).replace(/\/+$/, "");
+}
+
 // stepValues returns the named entry's saved non-secret values, for panel pre-fill
 // (docs/spec/installation.md §The wizard UI — secret fields always render empty and
 // never arrive here; the server puts only non-secret fields in values).
