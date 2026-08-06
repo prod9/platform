@@ -388,11 +388,6 @@
 						</li>
 						<li>Where can it be installed: Only on this account.</li>
 						<li>
-							In the org's settings, under Webhooks, add an organization webhook
-							delivering <code>registry_package</code> to the cluster's Flux
-							Receiver, so a published image pokes delivery. Org-wide, wired once.
-						</li>
-						<li>
 							Paste the created App's values (its settings page, About) into the
 							form and save:
 							<ul>

@@ -31,8 +31,7 @@ The wizard UI holds four rules:
   the one for the first non-`fully_ready` entry.
 - **Each panel is operative.** It carries the detailed instructions the human
   operator follows, direct links to the external pages the step works on (the
-  GitHub App creation page, the Apps list for the Setup URL, the org webhook
-  settings), and — where the step takes values — the input fields and a save
+  GitHub App creation page, the Apps list for the Setup URL), and — where the step takes values — the input fields and a save
   action posting the step's installer action.
 - **Restartable, always converging.** The wizard holds no step state of its
   own: every save's response (and every page load) is a fresh state read, so a
@@ -288,13 +287,14 @@ Delivery is triggered by GitHub's `registry_package` webhook firing the cluster'
 Flux `Receiver` (the **GitHub→Flux** axis — see
 [config-allocation.md](config-allocation.md) for the flow and
 [scaffolding.md](scaffolding.md) for the one-per-cluster `Receiver`). This webhook
-is **org-wide, wired once, never minted per repo** — provisioning it is a **manual
-step on the webui install page**, alongside the App-creation steps (same operative
-home). Server-automated wiring (the App creating the webhook itself) is
-**deferred to the flux-integration slice** — which will also exercise adding a
-wizard step to an already-installed server. The old per-repo
-`POST /api/repos/{owner}/{repo}/flux-webhook` endpoint is **VOID** and the
-rebuild drops it.
+is **org-wide, wired once, never minted per repo** — cluster-side delivery
+plumbing, wired by hand at cluster bring-up, **not part of the install wizard**:
+the wizard's App webhook already carries every event srv needs from all installed
+repos, and this one exists only because `registry_package` targets the Receiver,
+not srv. Server-automated wiring is **deferred to the flux-integration slice** —
+which will also exercise adding a wizard step to an already-installed server. The
+old per-repo `POST /api/repos/{owner}/{repo}/flux-webhook` endpoint is **VOID**
+and the rebuild drops it.
 
 ## Migrations — never at boot
 
