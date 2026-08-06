@@ -40,6 +40,7 @@ func TestGetStateMigratedButNotInstalled(t *testing.T) {
 		{Name: "app-credentials", State: NotStartedState},
 		{Name: "registry-token", State: NotStartedState},
 		{Name: "app-installed", State: NotStartedState},
+		{Name: "claimed", State: NotStartedState},
 	}, entries)
 	require.False(t, Complete(entries))
 }
@@ -143,6 +144,7 @@ func TestGetStateFreshDBReportsNotStarted(t *testing.T) {
 		{Name: "app-credentials", State: NotStartedState},
 		{Name: "registry-token", State: NotStartedState},
 		{Name: "app-installed", State: NotStartedState},
+		{Name: "claimed", State: NotStartedState},
 	}, entries)
 }
 
@@ -205,6 +207,46 @@ func TestCredentialsStepFullyScopedApp(t *testing.T) {
 	entries := GetState(ctx, db, migrate.Merged(Source))
 
 	require.Equal(t, FullyReadyState, entries[4].State)
+}
+
+// The app-installed check asks GitHub with the App's own credentials: the bound
+// org among the App's installations is the whole verdict, no session involved
+// (docs/spec/installation.md, the state surface).
+func TestAppInstalledSeesGitHubInstallation(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `[{"id":900,"account":{"id":1,"login":"prod9"}}]`)
+	}))
+	t.Cleanup(server.Close)
+	t.Setenv("GITHUB_API_URL", server.URL)
+
+	ctx := srvtest.SetupDB(t, Source)
+	srvtest.StubApp(t, srvtest.TestApp(t), nil)
+	require.NoError(t, github.SaveOrg(ctx, "prod9"))
+	db := data.FromContext(ctx)
+
+	entries := GetState(ctx, db, migrate.Merged(Source))
+
+	require.Equal(t, FullyReadyState, entries[6].State)
+	require.Equal(t, NotStartedState, entries[7].State)
+}
+
+// An installation on some other org is not this server's: not started, install
+// still the next move.
+func TestAppInstalledIgnoresOtherOrgs(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `[{"id":900,"account":{"id":1,"login":"someone-else"}}]`)
+	}))
+	t.Cleanup(server.Close)
+	t.Setenv("GITHUB_API_URL", server.URL)
+
+	ctx := srvtest.SetupDB(t, Source)
+	srvtest.StubApp(t, srvtest.TestApp(t), nil)
+	require.NoError(t, github.SaveOrg(ctx, "prod9"))
+	db := data.FromContext(ctx)
+
+	entries := GetState(ctx, db, migrate.Merged(Source))
+
+	require.Equal(t, NotStartedState, entries[6].State)
 }
 
 // Saving the ghcr token flips registry-token on its own — it neither needs nor

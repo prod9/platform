@@ -17,6 +17,7 @@ const (
 	stepAppCredentials = "app-credentials"
 	stepRegistryToken  = "registry-token"
 	stepAppInstalled   = "app-installed"
+	stepClaimed        = "claimed"
 )
 
 // Step is one self-contained wizard unit. Check produces the step's whole Entry,
@@ -80,6 +81,7 @@ func steps(merged migrator.Source) []Step {
 		appCredentials{},
 		registryToken{},
 		appInstalled{},
+		claimed{},
 	}
 }
 

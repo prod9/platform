@@ -27,8 +27,8 @@ func TestGetInstallReturnsOrderedEntries(t *testing.T) {
 
 	var entries []Entry
 	require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &entries))
-	require.Len(t, entries, 7)
-	for i, name := range []string{"db-reachable", "migrations", "org", "app-created", "app-credentials", "registry-token", "app-installed"} {
+	require.Len(t, entries, 8)
+	for i, name := range []string{"db-reachable", "migrations", "org", "app-created", "app-credentials", "registry-token", "app-installed", "claimed"} {
 		require.Equal(t, name, entries[i].Name)
 	}
 }

@@ -327,6 +327,46 @@ func TestAppPermissions(t *testing.T) {
 	requireAppJWT(t, seen, key)
 }
 
+func TestInstallations(t *testing.T) {
+	var seen *http.Request
+	client, key := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen = r.Clone(context.Background())
+		require.Equal(t, "GET", r.Method)
+		require.Equal(t, "/app/installations", r.URL.Path)
+		require.Equal(t, "100", r.URL.Query().Get("per_page"))
+
+		var items []string
+		switch r.URL.Query().Get("page") {
+		case "", "1":
+			for i := range 100 {
+				items = append(items, fmt.Sprintf(`{"id":%d,"account":{"id":%d,"login":"org%d"}}`, i, i, i))
+			}
+		case "2":
+			items = []string{`{"id":900,"account":{"id":900,"login":"prod9"}}`}
+		}
+		fmt.Fprintf(w, `[%s]`, strings.Join(items, ","))
+	}))
+
+	orgs, err := client.Installations(context.Background())
+	require.NoError(t, err)
+	require.Len(t, orgs, 101)
+	require.Equal(t, Org{ID: 900, Login: "prod9"}, orgs[100])
+	requireAppJWT(t, seen, key)
+}
+
+func TestInstallationsNeverEndingPagesIsAnError(t *testing.T) {
+	client, _ := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var items []string
+		for i := range 100 {
+			items = append(items, fmt.Sprintf(`{"id":%d,"account":{"id":%d,"login":"org%d"}}`, i, i, i))
+		}
+		fmt.Fprintf(w, `[%s]`, strings.Join(items, ","))
+	}))
+
+	_, err := client.Installations(context.Background())
+	require.ErrorContains(t, err, "did not end")
+}
+
 func TestMissingPermissions(t *testing.T) {
 	full := map[string]string{
 		"contents": "write", "metadata": "read",

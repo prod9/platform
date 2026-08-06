@@ -1,6 +1,6 @@
 package install
 
-// The seven wizard steps. Each check is isolated and install-safe: a missing
+// The eight wizard steps. Each check is isolated and install-safe: a missing
 // database or schema is a verdict (intervention required / not started), never a
 // query sent to fail (docs/spec/installation.md, install-safe checks).
 
@@ -172,7 +172,59 @@ type appInstalled struct{}
 
 func (appInstalled) name() string { return stepAppInstalled }
 
+// Check asks GitHub with the App's own credentials whether the bound org is among
+// the App's installations — no session involved, the truth lives on GitHub. Missing
+// prerequisites (schema, App credentials, org) read as not started: install is not
+// the next move until they exist (docs/spec/installation.md, the state surface).
 func (s appInstalled) Check(ctx context.Context, db *sqlx.DB) Entry {
+	if db == nil {
+		return entry(s.name(), UnknownState, errNoDatabase)
+	}
+
+	ready, err := settingsSchemaReady(ctx, db)
+	if err != nil {
+		return entry(s.name(), UnknownState, err)
+	}
+	if !ready {
+		return entry(s.name(), NotStartedState, nil)
+	}
+
+	dataCtx := data.NewContext(ctx, db)
+	org, err := github.LoadOrg(dataCtx)
+	if errors.Is(err, github.ErrNoOrg) {
+		return entry(s.name(), NotStartedState, nil)
+	} else if err != nil {
+		return entry(s.name(), UnknownState, err)
+	}
+
+	client, err := github.NewClient(dataCtx)
+	if errors.Is(err, github.ErrNoApp) {
+		return entry(s.name(), NotStartedState, nil)
+	} else if err != nil {
+		return entry(s.name(), UnknownState, err)
+	}
+
+	installed, err := client.Installations(ctx)
+	if err != nil {
+		return entry(s.name(), UnknownState, err)
+	}
+	for _, candidate := range installed {
+		if strings.EqualFold(candidate.Login, org) {
+			return entry(s.name(), FullyReadyState, nil)
+		}
+	}
+	return entry(s.name(), NotStartedState, nil)
+}
+
+// Reset is a no-op: the step holds no server-side values — undoing it is
+// uninstalling the App on GitHub, which the next check simply observes.
+func (appInstalled) Reset(context.Context) error { return nil }
+
+type claimed struct{}
+
+func (claimed) name() string { return stepClaimed }
+
+func (s claimed) Check(ctx context.Context, db *sqlx.DB) Entry {
 	return settingsBacked(ctx, db, s.name(), func(ctx context.Context) (map[string]string, error) {
 		_, err := Load(ctx)
 		return nil, err
@@ -181,7 +233,7 @@ func (s appInstalled) Check(ctx context.Context, db *sqlx.DB) Entry {
 
 // Reset empties the install.* values — the not-yet-claimed state, so a fresh claim
 // converges (its put-if-absent row already reads empty as unclaimed).
-func (appInstalled) Reset(ctx context.Context) error {
+func (claimed) Reset(ctx context.Context) error {
 	return data.Run(ctx, func(s data.Scope) error {
 		for _, key := range installKeys {
 			upsert := &settings.Upsert{Key: key, Value: ""}

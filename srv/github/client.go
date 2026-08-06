@@ -109,6 +109,44 @@ func (c *Client) InstallationOrg(ctx context.Context, installationID int64) (*Or
 	return &Org{installation.Account.ID, installation.Account.Login}, nil
 }
 
+// Installations lists the orgs the App is installed on, walking all pages —
+// authenticated as the App itself (GET /app/installations, JWT).
+func (c *Client) Installations(ctx context.Context) ([]Org, error) {
+	const perPage = 100
+
+	bearer, err := c.app.jwt(time.Now())
+	if err != nil {
+		return nil, err
+	}
+
+	var orgs []Org
+	for page := 1; page <= maxRepoPages; page++ {
+		path := fmt.Sprintf("/app/installations?per_page=%d&page=%d", perPage, page)
+		body, err := c.fetch(ctx, "GET", path, bearer, "installation list")
+		if err != nil {
+			return nil, err
+		}
+
+		var installations []struct {
+			Account struct {
+				ID    int64  `json:"id"`
+				Login string `json:"login"`
+			} `json:"account"`
+		}
+		if err := json.Unmarshal(body, &installations); err != nil {
+			return nil, fmt.Errorf("github: decoding installation list: %w", err)
+		}
+
+		for _, installation := range installations {
+			orgs = append(orgs, Org{installation.Account.ID, installation.Account.Login})
+		}
+		if len(installations) < perPage {
+			return orgs, nil
+		}
+	}
+	return nil, fmt.Errorf("github: installation list did not end within %d pages", maxRepoPages)
+}
+
 // AppPermissions reads the App's own permission map — slug → "read"|"write" —
 // authenticated as the App itself (GET /app, JWT).
 func (c *Client) AppPermissions(ctx context.Context) (map[string]string, error) {
