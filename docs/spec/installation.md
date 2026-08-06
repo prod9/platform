@@ -25,6 +25,11 @@ address) through fx config/env.
 
 The wizard UI holds four rules:
 
+- **A step's action completes that step.** Clicking a step's button ends with
+  that entry `fully_ready` and the wizard advanced — never a return to the same
+  step with more to do. Work that can't satisfy that in one action is two
+  steps, not one panel with phases (the install/claim split is the canonical
+  case).
 - **Progress is always visible, and it is navigation.** The full ordered state
   list renders on every step, statuses as returned by `GET /api/install`, and
   every entry is clickable — opening that step's panel. The **default**
@@ -103,7 +108,8 @@ secret's presence is implied by the step's state, never echoed.
 | `app-created`     | the creation-time values — `github.app_id`, `github.app_slug`, `github.app_client_id`, `github.app_webhook_secret` — all have values | `not_started` → the create-the-App wizard step |
 | `app-credentials` | every `github.app_*` setting has a value **and the App carries the required permissions** | `not_started` → the generated-keys wizard step; `partially_ready` → App reachable but under-scoped, message names the gap |
 | `registry-token`  | the `registry.ghcr.io.token` setting has a value | `not_started` → the registry-PAT wizard step |
-| `app-installed`   | every `install.*` setting has a value    | `not_started` → org-owner claim            |
+| `app-installed`   | `GET /app/installations` (JWT) lists an installation whose account is the bound org | `not_started` → install the App on the org |
+| `claimed`         | every `install.*` setting has a value    | `not_started` → sign-in + org-owner claim  |
 
 The `org` step names the **primary org** — the slug every later panel's GitHub
 links are built from (`github.com/organizations/<org>/…`), saved server-side so
@@ -143,8 +149,14 @@ lives in settings, and the settings table exists only once migrations ran — so
 settings-backed steps (everything after is done on pages its slug locates);
 `app-created` precedes `app-credentials` (the keys are generated on the App
 that creation produced), `registry-token` follows the App steps (it is the
-last operator-typed value), and `app-installed` stays last (the claim needs
-credentials to talk to GitHub).
+last operator-typed value), `app-installed` follows (its check asks GitHub with
+the App's own credentials — no session involved), and `claimed` stays last (the
+claim needs the installation to resolve and a signed-in org owner).
+
+`app-installed` holds no server-side values at all — its truth lives on GitHub
+(the installation exists or it doesn't), the check reads it fresh every time,
+and its `Reset` is a no-op: undoing it is uninstalling the App on GitHub, which
+the next check simply observes.
 
 ## Redo and suffix invalidation
 
@@ -296,7 +308,7 @@ with that id (session-gated: resolve installation→org via the App API, verify
 the session user is an org owner, write the values) — the write sits behind a
 POST, never the landing GET. The session requirement is why the auth fragment
 mounts pre-install. The write needs the `settings` table, so the claim runs
-**after** migrations, which is why `app-installed` is the last state entry:
+**after** migrations, which is why `claimed` is the last state entry:
 
 | Key                            | Value                          |
 |--------------------------------|--------------------------------|
@@ -374,14 +386,19 @@ the App:
   an org owner;
 - the entry form for the token, saved as `registry.ghcr.io.token`.
 
-**`app-installed` — install and claim**: a direct link to the App's install
+**`app-installed` — install the App**: a direct link to the App's install
 page — `github.com/organizations/<org>/settings/apps/<slug>/installations` —
 opened in a **new tab** (the step leaves the platform site; the wizard tab
 stays put and states why: GitHub's Setup URL redirect returns to the wizard on
-its own). The operator installs the App on the managed org there; GitHub then
-redirects to `<origin>/install/?installation_id=…`, where sign-in and the
-claim finish the flow (§The install settings). No Setup URL work happens here
-— it was set on the creation form.
+its own). The operator installs the App on the managed org there; GitHub
+redirects back to `<origin>/install/?installation_id=…`, the check sees the
+installation via the App API, and the step is done. No Setup URL work happens
+here — it was set on the creation form.
+
+**`claimed` — the org-owner claim**: sign in (session state, not step work —
+the panel offers it when no session exists), then one action: Claim, which
+binds the installation to the server (§The install settings) and completes
+the wizard.
 
 A `docs/guides/` conceptual how-to is **deferred** — a thin pre-deploy discovery
 doc, added later only if the need proves real, never a second maintained copy of
