@@ -10,6 +10,7 @@ import {
 	generateWebhookSecret,
 	orgSettingsURL,
 	appSettingsURL,
+	appSlugFromURL,
 } from "./install.js";
 
 describe("nextStep", () => {
@@ -93,6 +94,52 @@ describe("appPayload", () => {
 			client_id: "",
 			webhook_secret: "",
 		});
+	});
+});
+
+describe("appSlugFromURL", () => {
+	test("extracts the slug from the App's settings-page URL", () => {
+		expect(
+			appSlugFromURL(
+				"https://github.com/organizations/prod9/settings/apps/prodigy9-platform",
+			),
+		).toBe("prodigy9-platform");
+		expect(
+			appSlugFromURL(
+				"https://github.com/organizations/prod9/settings/apps/prodigy9-platform/permissions",
+			),
+		).toBe("prodigy9-platform");
+	});
+
+	test("extracts the slug from the App's public-page URL", () => {
+		expect(appSlugFromURL("https://github.com/apps/prodigy9-platform")).toBe(
+			"prodigy9-platform",
+		);
+	});
+
+	test("passes a bare slug through", () => {
+		expect(appSlugFromURL(" prodigy9-platform ")).toBe("prodigy9-platform");
+	});
+
+	test("creation-flow pages that carry no slug come back empty for the server to refuse", () => {
+		expect(appSlugFromURL("https://github.com/organizations/prod9/settings/apps/new")).toBe(
+			"",
+		);
+		expect(appSlugFromURL("https://github.com/organizations/prod9/settings/apps")).toBe("");
+		expect(appSlugFromURL("")).toBe("");
+	});
+});
+
+describe("appPayload slug extraction", () => {
+	test("saves the slug extracted from a pasted URL", () => {
+		const payload = appPayload({
+			app_id: "42",
+			app_slug: "https://github.com/organizations/prod9/settings/apps/prodigy9-platform",
+			client_id: "Iv1.abc",
+			webhook_secret: "whsec",
+		});
+
+		expect(payload.app_slug).toBe("prodigy9-platform");
 	});
 });
 

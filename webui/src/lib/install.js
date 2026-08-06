@@ -29,6 +29,22 @@ export function appSettingsURL(entries, path = "") {
 	return orgSettingsURL(orgSlug(entries), `apps/${app}${path}`);
 }
 
+// appSlugFromURL extracts the App's slug from whatever the operator pasted: the
+// settings-page URL (…/settings/apps/<slug>[/…]), the public-page URL
+// (github.com/apps/<slug>), or the bare slug itself. Creation-flow pages carry no
+// slug ("apps", "apps/new") and come back empty for the server to refuse.
+export function appSlugFromURL(value) {
+	const pasted = text(value);
+	if (!pasted.includes("/")) {
+		return pasted;
+	}
+
+	const segments = pasted.split("/").filter((s) => s !== "");
+	const apps = segments.lastIndexOf("apps");
+	const slug = apps === -1 ? "" : (segments[apps + 1] ?? "");
+	return slug === "new" ? "" : slug;
+}
+
 // appPayload shapes the create-the-App form — what GitHub's creation form yields —
 // into the action's wire shape: trimmed strings and a numeric app_id. Emptiness and
 // zero are left in for the server's validator to refuse — the form only decides when
@@ -36,7 +52,7 @@ export function appSettingsURL(entries, path = "") {
 export function appPayload(fields) {
 	return {
 		app_id: Number(text(fields.app_id)) || 0,
-		app_slug: text(fields.app_slug),
+		app_slug: appSlugFromURL(fields.app_slug),
 		client_id: text(fields.client_id),
 		webhook_secret: text(fields.webhook_secret),
 	};

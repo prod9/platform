@@ -342,8 +342,12 @@
 								<input inputmode="numeric" bind:value={app.app_id} disabled={locked} />
 							</label>
 							<label>
-								<span class="label">App slug (from the App's URL)</span>
-								<input placeholder="my-app" bind:value={app.app_slug} disabled={locked} />
+								<span class="label">App URL (paste from the address bar)</span>
+								<input
+									placeholder="https://github.com/organizations/…/settings/apps/my-app"
+									bind:value={app.app_slug}
+									disabled={locked}
+								/>
 							</label>
 							<label>
 								<span class="label">Client id</span>
@@ -563,9 +567,9 @@
 							<ul>
 								<li><strong>App id</strong></li>
 								<li>
-									<strong>App slug</strong> — the last segment of the created App's
-									URL (<code>…/settings/apps/&lt;slug&gt;</code>); later steps link
-									the App's pages directly through it
+									<strong>App URL</strong> — paste the created App's page URL
+									straight from the address bar; only its slug saves, and later
+									steps link the App's pages directly through it
 								</li>
 								<li><strong>Client id</strong></li>
 							</ul>
