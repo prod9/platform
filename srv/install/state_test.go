@@ -53,6 +53,7 @@ func TestCreatedStepReadyBeforeCredentials(t *testing.T) {
 
 	err := github.SaveAppCreation(ctx, &github.AppCreation{
 		AppID:         42,
+		Slug:          "prodigy9-platform",
 		ClientID:      "Iv1.abc",
 		WebhookSecret: "whsec",
 	})
@@ -62,6 +63,24 @@ func TestCreatedStepReadyBeforeCredentials(t *testing.T) {
 
 	require.Equal(t, FullyReadyState, entries[3].State)
 	require.Equal(t, NotStartedState, entries[4].State)
+}
+
+// A creation row saved before the slug existed is incomplete: the step must read
+// not-started so the wizard walks the operator back through the form.
+func TestCreatedStepWithoutSlugNotStarted(t *testing.T) {
+	ctx := srvtest.SetupDB(t, Source)
+	db := data.FromContext(ctx)
+
+	err := github.SaveAppCreation(ctx, &github.AppCreation{
+		AppID:         42,
+		ClientID:      "Iv1.abc",
+		WebhookSecret: "whsec",
+	})
+	require.NoError(t, err)
+
+	entries := GetState(ctx, db, migrate.Merged(Source))
+
+	require.Equal(t, NotStartedState, entries[3].State)
 }
 
 // The org step surfaces its saved slug in values — the non-secret form fields a
@@ -90,6 +109,7 @@ func TestCreatedStepSurfacesNonSecretValues(t *testing.T) {
 
 	err := github.SaveAppCreation(ctx, &github.AppCreation{
 		AppID:         42,
+		Slug:          "prodigy9-platform",
 		ClientID:      "Iv1.abc",
 		WebhookSecret: "whsec",
 	})
@@ -97,7 +117,11 @@ func TestCreatedStepSurfacesNonSecretValues(t *testing.T) {
 
 	entries := GetState(ctx, db, migrate.Merged(Source))
 
-	require.Equal(t, map[string]string{"app_id": "42", "client_id": "Iv1.abc"}, entries[3].Values)
+	require.Equal(t, map[string]string{
+		"app_id":    "42",
+		"app_slug":  "prodigy9-platform",
+		"client_id": "Iv1.abc",
+	}, entries[3].Values)
 }
 
 // On a fresh database nothing exists yet: every step below db-reachable is not

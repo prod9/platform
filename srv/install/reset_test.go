@@ -36,7 +36,7 @@ func TestSaveOrgResetsSuffix(t *testing.T) {
 func TestSaveAppResetsSuffixKeepsPrefix(t *testing.T) {
 	ctx := seedInstalled(t)
 
-	action := &SaveApp{AppID: 43, ClientID: "Iv1.new", WebhookSecret: "whsec2"}
+	action := &SaveApp{AppID: 43, Slug: "prodigy9-platform-new", ClientID: "Iv1.new", WebhookSecret: "whsec2"}
 	require.NoError(t, action.Execute(ctx, nil))
 
 	org, err := github.LoadOrg(ctx)
@@ -46,6 +46,7 @@ func TestSaveAppResetsSuffixKeepsPrefix(t *testing.T) {
 	creation, err := github.LoadAppCreation(ctx)
 	require.NoError(t, err)
 	require.Equal(t, int64(43), creation.AppID)
+	require.Equal(t, "prodigy9-platform-new", creation.Slug)
 
 	_, err = github.LoadApp(ctx)
 	require.ErrorIs(t, err, github.ErrNoApp)
@@ -112,7 +113,7 @@ func seedInstalled(t *testing.T) context.Context {
 	ctx := srvtest.SetupDB(t, Source)
 
 	require.NoError(t, (&SaveOrg{Org: "prod9"}).Execute(ctx, nil))
-	action := &SaveApp{AppID: 42, ClientID: "Iv1.abc", WebhookSecret: "whsec"}
+	action := &SaveApp{AppID: 42, Slug: "prodigy9-platform", ClientID: "Iv1.abc", WebhookSecret: "whsec"}
 	require.NoError(t, action.Execute(ctx, nil))
 	keys := &SaveCredentials{PrivateKey: "-----BEGIN RSA PRIVATE KEY-----", ClientSecret: "csec"}
 	require.NoError(t, keys.Execute(ctx, nil))

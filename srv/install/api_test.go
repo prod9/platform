@@ -64,6 +64,7 @@ func TestPostAppThenCredentialsSavesSettings(t *testing.T) {
 
 	resp := postJSON(ctx, router, "/api/install/app", `{
 		"app_id": 42,
+		"app_slug": "prodigy9-platform",
 		"client_id": "Iv1.abc",
 		"webhook_secret": "whsec"
 	}`)
@@ -93,6 +94,7 @@ func TestPostAppAloneLeavesCredentialsUnset(t *testing.T) {
 
 	resp := postJSON(ctx, router, "/api/install/app", `{
 		"app_id": 42,
+		"app_slug": "prodigy9-platform",
 		"client_id": "Iv1.abc",
 		"webhook_secret": "whsec"
 	}`)
@@ -102,6 +104,7 @@ func TestPostAppAloneLeavesCredentialsUnset(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, &github.AppCreation{
 		AppID:         42,
+		Slug:          "prodigy9-platform",
 		ClientID:      "Iv1.abc",
 		WebhookSecret: "whsec",
 	}, creation)
@@ -118,6 +121,13 @@ func TestPostAppAllRequired(t *testing.T) {
 	resp := postJSON(ctx, router, "/api/install/app", `{
 		"app_id": 42,
 		"client_id": "Iv1.abc"
+	}`)
+	require.Equal(t, http.StatusBadRequest, resp.Code)
+
+	resp = postJSON(ctx, router, "/api/install/app", `{
+		"app_id": 42,
+		"client_id": "Iv1.abc",
+		"webhook_secret": "whsec"
 	}`)
 	require.Equal(t, http.StatusBadRequest, resp.Code)
 

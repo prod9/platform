@@ -88,9 +88,9 @@ type appCreated struct{}
 
 func (appCreated) name() string { return stepAppCreated }
 
-// Check reads the creation-time trio — what GitHub's creation form yields; the
-// generated keys are app-credentials' concern. The app id and client id surface in
-// values; the webhook secret never does
+// Check reads the creation-time quartet — what GitHub's creation form yields; the
+// generated keys are app-credentials' concern. The app id, slug, and client id
+// surface in values; the webhook secret never does
 // (docs/spec/installation.md, the state surface).
 func (s appCreated) Check(ctx context.Context, db *sqlx.DB) Entry {
 	return settingsBacked(ctx, db, s.name(), func(ctx context.Context) (map[string]string, error) {
@@ -100,6 +100,7 @@ func (s appCreated) Check(ctx context.Context, db *sqlx.DB) Entry {
 		}
 		return map[string]string{
 			"app_id":    strconv.FormatInt(creation.AppID, 10),
+			"app_slug":  creation.Slug,
 			"client_id": creation.ClientID,
 		}, nil
 	}, github.ErrNoApp)

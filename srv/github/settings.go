@@ -30,18 +30,21 @@ var (
 const (
 	keyOrg           = "github.org"
 	keyAppID         = "github.app_id"
+	keyAppSlug       = "github.app_slug"
 	keyPrivateKey    = "github.app_private_key"
 	keyWebhookSecret = "github.app_webhook_secret"
 	keyClientID      = "github.app_client_id"
 	keyClientSecret  = "github.app_client_secret"
 )
 
-// AppCreation is what GitHub's creation form yields: the App's id and client id,
-// plus the webhook secret the wizard minted and the form was given. The generated
-// keys (private key, client secret) arrive in a later wizard step
+// AppCreation is what GitHub's creation form yields: the App's id, its URL slug
+// (what the wizard's direct App links are built from), and client id, plus the
+// webhook secret the wizard minted and the form was given. The generated keys
+// (private key, client secret) arrive in a later wizard step
 // (docs/spec/installation.md, "App creation").
 type AppCreation struct {
 	AppID         int64
+	Slug          string
 	ClientID      string
 	WebhookSecret string
 }
@@ -58,6 +61,7 @@ type AppKeys struct {
 func SaveAppCreation(ctx context.Context, creation *AppCreation) error {
 	return saveSettings(ctx, map[string]string{
 		keyAppID:         strconv.FormatInt(creation.AppID, 10),
+		keyAppSlug:       creation.Slug,
 		keyClientID:      creation.ClientID,
 		keyWebhookSecret: creation.WebhookSecret,
 	})
@@ -75,7 +79,7 @@ func SaveAppKeys(ctx context.Context, keys *AppKeys) error {
 // LoadAppCreation reads the creation-time trio, ErrNoApp when any is unset — how
 // the app-created check reaches its verdict.
 func LoadAppCreation(ctx context.Context) (*AppCreation, error) {
-	values, err := loadSettings(ctx, keyAppID, keyClientID, keyWebhookSecret)
+	values, err := loadSettings(ctx, keyAppID, keyAppSlug, keyClientID, keyWebhookSecret)
 	if err != nil {
 		return nil, err
 	}
@@ -87,6 +91,7 @@ func LoadAppCreation(ctx context.Context) (*AppCreation, error) {
 
 	return &AppCreation{
 		AppID:         appID,
+		Slug:          values[keyAppSlug],
 		ClientID:      values[keyClientID],
 		WebhookSecret: values[keyWebhookSecret],
 	}, nil
@@ -115,6 +120,7 @@ func ClearOrg(ctx context.Context) error {
 func ClearAppCreation(ctx context.Context) error {
 	return saveSettings(ctx, map[string]string{
 		keyAppID:         "",
+		keyAppSlug:       "",
 		keyClientID:      "",
 		keyWebhookSecret: "",
 	})
