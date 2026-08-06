@@ -265,10 +265,14 @@ content splits across the two App wizard steps as GitHub's flow does:
 - the entry form for what creation yields: App id, client id, and the webhook
   secret as given.
 
-**`app-credentials` — the generated keys**, on the created App's settings page:
+**`app-credentials` — the generated keys**, on the created App's settings page,
+in the order GitHub's page presents them (client secrets sit above private keys):
 
-- generate a private key (a PEM download) and a client secret;
-- the entry form for the pair, saved as their `github.app_*` settings.
+- generate a client secret, entered in a text field;
+- generate a private key — GitHub delivers it as a `.pem` **download**, so the
+  form takes a **file picker**, reads the file's text in the browser, and
+  submits it as the PEM value (the wire contract is unchanged: text in JSON);
+- the pair saves as their `github.app_*` settings.
 
 **`registry-token` — the ghcr push credential**, created on GitHub by hand like
 the App:
