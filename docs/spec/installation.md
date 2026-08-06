@@ -257,6 +257,10 @@ content splits across the two App wizard steps as GitHub's flow does:
 - exact permissions, named as GitHub's form groups them — *Repository*: Contents
   (Read and write), Metadata (Read-only); *Organization*: Members (Read-only — the
   claim reads org memberships to prove ownership);
+- the event subscription: **Push, and only Push** — GitHub delivers only
+  subscribed events, and push is the one event srv consumes (the tag-watch that
+  queues builds); an App with no subscription delivers nothing and tag pushes
+  never build;
 - restrict-to-managed-org;
 - the entry form for what creation yields: App id, client id, and the webhook
   secret as given.
