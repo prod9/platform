@@ -85,11 +85,6 @@ export function serverPayload(fields) {
 	return { public_url: text(fields.public_url) };
 }
 
-// enginePayload shapes the bind-the-engine form the same way.
-export function enginePayload(fields) {
-	return { hosts: text(fields.hosts) };
-}
-
 // publicURL reads the URL the server step surfaced — the server-side value every
 // instruction that says "the server's URL" renders from, never the browser origin
 // (docs/spec/installation.md, the server step).

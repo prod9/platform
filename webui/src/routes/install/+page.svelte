@@ -12,7 +12,6 @@
 		saveApp,
 		saveCredentials,
 		saveRegistryToken,
-		saveEngine,
 		claimInstall,
 		errorText,
 		installSignal,
@@ -30,7 +29,6 @@
 		appPayload,
 		credentialsPayload,
 		registryPayload,
-		enginePayload,
 		generateWebhookSecret,
 		orgSettingsURL,
 		appSettingsURL,
@@ -51,9 +49,6 @@
 	let org = $state({ org: "" });
 	let savingOrg = $state(false);
 	let orgError = $state("");
-	let engine = $state({ hosts: "" });
-	let savingEngine = $state(false);
-	let engineError = $state("");
 	let app = $state({
 		app_id: "",
 		app_slug: "",
@@ -112,8 +107,6 @@
 		// suggestion only; the saved value is the truth (§the server step).
 		server.public_url = stepValues(entries, "server").public_url ?? origin;
 		org.org = stepValues(entries, "org").org ?? "";
-		// The engine entry's values carry the DAGGER_ENGINE env seed while unset.
-		engine.hosts = stepValues(entries, "engine").hosts ?? "";
 		const created = stepValues(entries, "app-created");
 		app.app_id = created.app_id ?? app.app_id;
 		app.app_slug = created.app_slug ?? app.app_slug;
@@ -172,20 +165,6 @@
 		}
 
 		savingServer = false;
-	}
-
-	async function submitEngine() {
-		savingEngine = true;
-		engineError = "";
-
-		const result = await saveEngine(enginePayload(engine));
-		if (result.outcome === Answered) {
-			converge(result.body);
-		} else {
-			engineError = errorText(result);
-		}
-
-		savingEngine = false;
 	}
 
 	async function submitOrg() {
@@ -301,7 +280,6 @@
 	let appInstallURL = $derived(appSettingsURL(entries, "/installations"));
 
 	let serverReady = $derived(server.public_url.trim() !== "");
-	let engineReady = $derived(engine.hosts.trim() !== "");
 	let orgReady = $derived(org.org.trim() !== "");
 	let appReady = $derived(Object.values(app).every((value) => value.trim() !== ""));
 	let credentialsReady = $derived(
@@ -528,36 +506,6 @@
 								disabled={!registryReady || savingRegistry}
 							>
 								{savingRegistry ? "Saving…" : "Save token"}
-							</Button>
-						{/if}
-					</Panel>
-				{:else if current.name === "engine"}
-					<Panel label="Bind the build engine">
-						{#if current.message}
-							<p class="failed mono">{current.message}</p>
-						{/if}
-						{#if engineError}
-							<p class="failed mono">{engineError}</p>
-						{/if}
-						<div class="fields">
-							<label>
-								<span class="label">Engine hosts (DNS name)</span>
-								<input
-									placeholder="dagger-engine.platform.svc.cluster.local"
-									bind:value={engine.hosts}
-									disabled={locked}
-								/>
-							</label>
-						</div>
-						{#if locked}
-							<Button onclick={redo}>Redo</Button>
-						{:else}
-							<Button
-								variant="primary"
-								onclick={submitEngine}
-								disabled={!engineReady || savingEngine}
-							>
-								{savingEngine ? "Saving…" : "Save engine"}
 							</Button>
 						{/if}
 					</Panel>
@@ -791,14 +739,6 @@
 						</li>
 						<li>Paste the token into the form and save.</li>
 					</ol>
-				{:else if current.name === "engine"}
-					<p class="label">Bind the build engine</p>
-					<p>
-						The DNS name of the Dagger engine pool infra provisioned for this
-						cluster — builds run against whatever this names. The field pre-fills
-						from the deployment's <code>DAGGER_ENGINE</code> value; saving locks it
-						in, and the server reads the saved value from then on.
-					</p>
 				{:else if isStep("app-installed", "fully_ready")}
 					<p class="label">App installed</p>
 					<p>

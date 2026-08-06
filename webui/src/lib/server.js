@@ -79,12 +79,6 @@ export function saveServer(payload) {
 	return post("/api/install/server", payload);
 }
 
-// saveEngine is the wizard's bind-the-engine step: locks the infra-provided seed
-// into the engine.hosts setting. The response is a fresh install-state read.
-export function saveEngine(payload) {
-	return post("/api/install/engine", payload);
-}
-
 // saveOrg is the wizard's name-the-org step: the primary-org slug every later
 // panel's GitHub links are built from. The response is a fresh install-state read.
 export function saveOrg(payload) {

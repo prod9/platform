@@ -1,7 +1,6 @@
 import { describe, expect, test } from "vitest";
 import {
 	serverPayload,
-	enginePayload,
 	publicURL,
 	originMismatch,
 	nextStep,
@@ -279,16 +278,6 @@ describe("serverPayload", () => {
 
 	test("leaves emptiness for the server to refuse", () => {
 		expect(serverPayload({ public_url: "   " })).toEqual({ public_url: "" });
-	});
-});
-
-describe("enginePayload", () => {
-	test("trims the hosts", () => {
-		expect(enginePayload({ hosts: "  dagger.svc  " })).toEqual({ hosts: "dagger.svc" });
-	});
-
-	test("leaves emptiness for the server to refuse", () => {
-		expect(enginePayload({ hosts: "" })).toEqual({ hosts: "" });
 	});
 });
 
