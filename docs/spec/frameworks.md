@@ -175,7 +175,10 @@ in the same place: `SrcDir` (`/platform/src`, build workspace), `BinDir` (`/plat
 on `PATH`), `RunDir` (`/platform/run`, runtime workdir). Package sets are applied via
 `withBuildPkgs` (`build-base git curl bash` + extras) for the build stage and
 `withRunnerPkgs` (`ca-certificates curl mailcap netcat-openbsd tzdata` + extras) for the
-runner; `withCaddyServer` adds Caddy for the static family. `mailcap` is carried only to
+runner; `withCaddyServer` adds Caddy for the static family. The `go/basic` runner
+adds `git` — a temporary special-case for platform's own image, whose worker
+shells out to `git` at runtime; the long-term shape is a dedicated build
+framework for platform's own agent/image. `mailcap` is carried only to
 lay down `/etc/mime.types` — the Wolfi base ships neither that file nor `/etc/mailcap`, and
 a server without the table falls back to a built-in list that misses modern types (`.woff2`
 among them), so assets go out with the wrong `Content-Type`. It belongs to every runner,

@@ -115,7 +115,9 @@ lives under `/api`; GitHub-facing and health routes stay bare.
 | `POST /api/install/app`     | none (installer)          | saves the creation-time quartet — app id, app slug, client id, webhook secret — as their `github.app_*` settings | what GitHub's creation form yields, saved as its own wizard step ([installation.md](installation.md)) |
 | `POST /api/install/credentials` | none (installer)      | saves the generated pair — private key, client secret — as their `github.app_*` settings | the keys GitHub generates after creation; both App steps write before login can exist — same ungated posture as the migrations button ([installation.md](installation.md)) |
 | `POST /api/install/registry` | none (installer)         | saves the ghcr push PAT as `registry.ghcr.io.token`                                   | ghcr accepts no App-derived credential ([vendor/ghcr-auth.md](../vendor/ghcr-auth.md)); same ungated posture |
-| `GET /*?go-get=1`           | none                      | vanity go-import meta for module path `platform.prodigy9.co` (the toolchain always appends `go-get=1`) | one host serves module resolution and the product; the standalone `vanity` command and Deployment are legacy |
+| `POST /api/install/server`  | none (installer)          | saves the server's public URL as `server.public_url`                                  | the one server-side truth of where the deployment lives — OAuth redirects and the vanity host derive from it ([installation.md](installation.md)) |
+| `POST /api/install/engine`  | none (installer)          | saves the Dagger engine binding as `engine.hosts`                                     | locks the infra-provided `DAGGER_ENGINE` seed into settings; runtime reads the setting ([installation.md](installation.md)) |
+| `GET /*?go-get=1`           | none                      | vanity go-import meta — the module path is the host of `server.public_url` (the toolchain always appends `go-get=1`) | one host serves module resolution and the product; the standalone `vanity` command and Deployment are legacy |
 | `GET /*`                    | none                      | serves the embedded webui at the status the path deserves; the SPA drives installer-vs-app via `GET /api/install`  | single-binary delivery — no separate frontend deploy                                                               |
 
 Session validity and the user's profile are **two operations**, because a webui asks the two
@@ -443,7 +445,8 @@ secret, client secret** — are pasted into the wizard's credential steps and sa
 **`github.app_*` settings**. Creation is a wizard step rather than an App-Manifest
 auto-exchange: credentials live in the settings table (`srv/github`'s `LoadApp` reads
 them; srv and the worker share the rows), and the deployment's fx config carries only
-`DATABASE_URL` and the listen address. This is a *server install* concern owned by the
+`DATABASE_URL`, the listen address, `SECRET`, and the `DAGGER_ENGINE` seed
+([installation.md](installation.md)). This is a *server install* concern owned by the
 installer fragment — **not** `platform init`. See [installation.md](installation.md).
 
 ### Two token types, chosen per operation
