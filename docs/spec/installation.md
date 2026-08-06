@@ -35,8 +35,8 @@ The wizard UI holds four rules:
   — the selected entry's.
 - **Each panel is operative.** It carries the detailed instructions the human
   operator follows, direct links to the external pages the step works on (the
-  GitHub App creation page, the Apps list for the Setup URL — all built from
-  the org entry's `values`), and — where the step takes values — the input
+  GitHub App creation page, the created App's edit and install pages — all
+  built from the org and app-created entries' `values`), and — where the step takes values — the input
   fields and a save action posting the step's installer action. Non-secret
   fields pre-fill from the entry's `values`; secret fields always render
   empty.
@@ -89,7 +89,7 @@ Unknown is the **zero value** on purpose: an unset state reads as "nobody
 knows", never as a verdict. An entry carries `message` alongside the state when
 the check produced an error, and `values` — a string map of the step's
 **non-secret form fields** — so a re-opened panel can re-display what is saved
-(`org` surfaces the slug; `app-created` its app id and client id; the
+(`org` surfaces the slug; `app-created` its app id, client id, and app slug; the
 secret-only steps surface nothing). Settings never round-trip wholesale: the
 state read is ungated, so the only values that reach the wire are the ones a
 step deliberately puts in its own `values`, and secrets never qualify — a
@@ -100,7 +100,7 @@ secret's presence is implied by the step's state, never echoed.
 | `db-reachable`    | connectivity ping                        | `intervention_required` → connection fix   |
 | `migrations`      | schema is current                        | `not_started`/`partially_ready` → run button; dirty → `intervention_required` |
 | `org`             | the `github.org` setting has a value; surfaces it in `values` | `not_started` → the name-the-org wizard step |
-| `app-created`     | the creation-time values — `github.app_id`, `github.app_client_id`, `github.app_webhook_secret` — all have values | `not_started` → the create-the-App wizard step |
+| `app-created`     | the creation-time values — `github.app_id`, `github.app_slug`, `github.app_client_id`, `github.app_webhook_secret` — all have values | `not_started` → the create-the-App wizard step |
 | `app-credentials` | every `github.app_*` setting has a value **and the App carries the required permissions** | `not_started` → the generated-keys wizard step; `partially_ready` → App reachable but under-scoped, message names the gap |
 | `registry-token`  | the `registry.ghcr.io.token` setting has a value | `not_started` → the registry-PAT wizard step |
 | `app-installed`   | every `install.*` setting has a value    | `not_started` → org-owner claim            |
@@ -117,9 +117,12 @@ never validates the slug against GitHub — the claim independently derives the
 real org from the installation, and only that derived org is install-critical.
 
 The App steps are two because GitHub's flow is two: **creating** the App yields
-its id and client id (and echoes back the webhook secret the operator typed into
-the form), while the **private key and client secret are generated afterward** on
-the created App's settings page. Each step saves what its GitHub page produced,
+its id, its slug (the name-derived segment in the App's own URL), and client id
+(and echoes back the webhook secret the operator typed into the form), while the
+**private key and client secret are generated afterward** on the created App's
+settings page. The slug is what later panels build the App's **direct** links
+from — its edit page (`github.com/organizations/<org>/settings/apps/<slug>`) and
+its install page (`…/settings/apps/<slug>/installations`). Each step saves what its GitHub page produced,
 so a reload lands the operator exactly where the real-world flow stands.
 
 Two steps can be `partially_ready`: `migrations` (some applied, some pending)
@@ -242,6 +245,7 @@ operator enters them; the org-owner **claim** writes the `install.*` keys:
 | Key                         | Value                              |
 |-----------------------------|------------------------------------|
 | `github.app_id`             | the created App's id               |
+| `github.app_slug`           | the App's URL slug — direct links  |
 | `github.app_private_key`    | PEM private key (PKCS1 or PKCS8)   |
 | `github.app_webhook_secret` | webhook HMAC secret                |
 | `github.app_client_id`      | user-OAuth client id               |
@@ -272,8 +276,9 @@ settings scope — today the rows are server-global, one credential per registry
 
 The wizard's typed steps post four installer-fragment actions, one per page
 the operator works: `POST /api/install/org` writes the primary-org slug
-(`github.org`), `POST /api/install/app` writes the creation-time trio
-(`github.app_id`, `github.app_client_id`, `github.app_webhook_secret`),
+(`github.org`), `POST /api/install/app` writes the creation-time quartet
+(`github.app_id`, `github.app_slug`, `github.app_client_id`,
+`github.app_webhook_secret`),
 `POST /api/install/credentials` writes the generated pair
 (`github.app_private_key`, `github.app_client_secret`), and
 `POST /api/install/registry` writes the ghcr token — each action requires
@@ -328,6 +333,10 @@ literal placeholder forms of their URLs.
   running host is the honest value);
 - the OAuth callback and webhook URL (the srv backend's own URLs — callbacks and
   hooks target the backend directly, never the webui);
+- the **Setup URL** — `<origin>/install/`, with **Redirect on update** checked.
+  GitHub redirects here with `installation_id` after every install, which is
+  what makes the first-time install land back on the wizard unassisted — set at
+  creation time, before any install can happen;
 - the webhook secret, **minted by the wizard**: the field arrives pre-filled
   with a generated value (with a regenerate control), and the operator copies it
   into GitHub's form — the wizard saves the value GitHub was given;
@@ -339,11 +348,12 @@ literal placeholder forms of their URLs.
   queues builds); an App with no subscription delivers nothing and tag pushes
   never build;
 - restrict-to-managed-org;
-- the entry form for what creation yields: App id, client id, and the webhook
-  secret as given.
+- the entry form for what creation yields: App id, the App's slug (from the
+  created App's URL), client id, and the webhook secret as given.
 
-**`app-credentials` — the generated keys**, on the created App's settings page,
-in the order GitHub's page presents them (client secrets sit above private keys):
+**`app-credentials` — the generated keys**, on the created App's settings page —
+linked directly (`github.com/organizations/<org>/settings/apps/<slug>`) — in the
+order GitHub's page presents them (client secrets sit above private keys):
 
 - generate a client secret, entered in a text field;
 - generate a private key — GitHub delivers it as a `.pem` **download**, so the
@@ -361,6 +371,15 @@ the App:
 - the note that the token acts for whoever creates it: prefer a machine user or
   an org owner;
 - the entry form for the token, saved as `registry.ghcr.io.token`.
+
+**`app-installed` — install and claim**: a direct link to the App's install
+page — `github.com/organizations/<org>/settings/apps/<slug>/installations` —
+opened in a **new tab** (the step leaves the platform site; the wizard tab
+stays put and states why: GitHub's Setup URL redirect returns to the wizard on
+its own). The operator installs the App on the managed org there; GitHub then
+redirects to `<origin>/install/?installation_id=…`, where sign-in and the
+claim finish the flow (§The install settings). No Setup URL work happens here
+— it was set on the creation form.
 
 A `docs/guides/` conceptual how-to is **deferred** — a thin pre-deploy discovery
 doc, added later only if the need proves real, never a second maintained copy of
