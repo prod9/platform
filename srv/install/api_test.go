@@ -27,10 +27,33 @@ func TestGetInstallReturnsOrderedEntries(t *testing.T) {
 
 	var entries []Entry
 	require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &entries))
-	require.Len(t, entries, 6)
-	for i, name := range []string{"db-reachable", "migrations", "app-created", "app-credentials", "registry-token", "app-installed"} {
+	require.Len(t, entries, 7)
+	for i, name := range []string{"db-reachable", "migrations", "org", "app-created", "app-credentials", "registry-token", "app-installed"} {
 		require.Equal(t, name, entries[i].Name)
 	}
+}
+
+// The org step has its own ungated action, like every settings-backed step
+// (docs/spec/installation.md, "The install settings").
+func TestPostOrgSavesSetting(t *testing.T) {
+	ctx, router := setupAPI(t)
+
+	resp := postJSON(ctx, router, "/api/install/org", `{"org": "prod9"}`)
+	require.Equal(t, http.StatusOK, resp.Code)
+
+	org, err := github.LoadOrg(ctx)
+	require.NoError(t, err)
+	require.Equal(t, "prod9", org)
+}
+
+func TestPostOrgRequired(t *testing.T) {
+	ctx, router := setupAPI(t)
+
+	resp := postJSON(ctx, router, "/api/install/org", `{"org": ""}`)
+	require.Equal(t, http.StatusBadRequest, resp.Code)
+
+	_, err := github.LoadOrg(ctx)
+	require.ErrorIs(t, err, github.ErrNoOrg)
 }
 
 // The two App wizard steps together configure the App: the creation POST writes the

@@ -1,14 +1,16 @@
 package install
 
-// The six wizard steps. Each check is isolated and install-safe: a missing
+// The seven wizard steps. Each check is isolated and install-safe: a missing
 // database or schema is a verdict (intervention required / not started), never a
 // query sent to fail (docs/spec/installation.md, install-safe checks).
 
 import (
 	"context"
 	"errors"
+	"strconv"
 	"strings"
 
+	"fx.prodigy9.co/app/settings"
 	"fx.prodigy9.co/data"
 	"fx.prodigy9.co/data/migrator"
 	"github.com/jmoiron/sqlx"
@@ -20,148 +22,204 @@ var errNoDatabase = errors.New("no database configured")
 
 type dbReachable struct{}
 
-func (dbReachable) Name() string { return "db-reachable" }
+func (dbReachable) name() string { return stepDBReachable }
 
-func (dbReachable) Check(ctx context.Context, db *sqlx.DB) (StepState, error) {
+func (s dbReachable) Check(ctx context.Context, db *sqlx.DB) Entry {
 	if db == nil {
-		return InterventionRequiredState, errNoDatabase
+		return entry(s.name(), InterventionRequiredState, errNoDatabase)
 	}
 	if err := db.PingContext(ctx); err != nil {
-		return InterventionRequiredState, err
+		return entry(s.name(), InterventionRequiredState, err)
 	}
-	return FullyReadyState, nil
+	return entry(s.name(), FullyReadyState, nil)
 }
+
+func (dbReachable) Reset(context.Context) error { return nil }
 
 type migrations struct{ src migrator.Source }
 
-func (migrations) Name() string { return "migrations" }
+func (migrations) name() string { return stepMigrations }
 
-func (m migrations) Check(ctx context.Context, db *sqlx.DB) (StepState, error) {
+func (m migrations) Check(ctx context.Context, db *sqlx.DB) Entry {
 	if db == nil {
-		return UnknownState, errNoDatabase
+		return entry(m.name(), UnknownState, errNoDatabase)
 	}
 
 	applied, pending, dirty, err := migrate.State(ctx, db, m.src)
 	if err != nil {
-		return UnknownState, err
+		return entry(m.name(), UnknownState, err)
 	}
 	if dirty {
-		return InterventionRequiredState, errors.New("schema diverges from embedded migrations")
+		return entry(m.name(), InterventionRequiredState,
+			errors.New("schema diverges from embedded migrations"))
 	}
 
 	switch {
 	case pending == 0:
-		return FullyReadyState, nil
+		return entry(m.name(), FullyReadyState, nil)
 	case applied == 0:
-		return NotStartedState, nil
+		return entry(m.name(), NotStartedState, nil)
 	default:
-		return PartiallyReadyState, nil
+		return entry(m.name(), PartiallyReadyState, nil)
 	}
 }
 
+func (migrations) Reset(context.Context) error { return nil }
+
+type org struct{}
+
+func (org) name() string { return stepOrg }
+
+// Check reads the primary-org slug and surfaces it in values — the one field its
+// re-opened panel pre-fills (docs/spec/installation.md, the state surface).
+func (s org) Check(ctx context.Context, db *sqlx.DB) Entry {
+	return settingsBacked(ctx, db, s.name(), func(ctx context.Context) (map[string]string, error) {
+		slug, err := github.LoadOrg(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return map[string]string{"org": slug}, nil
+	}, github.ErrNoOrg)
+}
+
+func (org) Reset(ctx context.Context) error { return github.ClearOrg(ctx) }
+
 type appCreated struct{}
 
-func (appCreated) Name() string { return "app-created" }
+func (appCreated) name() string { return stepAppCreated }
 
 // Check reads the creation-time trio — what GitHub's creation form yields; the
-// generated keys are app-credentials' concern
+// generated keys are app-credentials' concern. The app id and client id surface in
+// values; the webhook secret never does
 // (docs/spec/installation.md, the state surface).
-func (appCreated) Check(ctx context.Context, db *sqlx.DB) (StepState, error) {
-	return settingsBacked(ctx, db, func(ctx context.Context) error {
-		_, err := github.LoadAppCreation(ctx)
-		return err
+func (s appCreated) Check(ctx context.Context, db *sqlx.DB) Entry {
+	return settingsBacked(ctx, db, s.name(), func(ctx context.Context) (map[string]string, error) {
+		creation, err := github.LoadAppCreation(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return map[string]string{
+			"app_id":    strconv.FormatInt(creation.AppID, 10),
+			"client_id": creation.ClientID,
+		}, nil
 	}, github.ErrNoApp)
 }
 
+func (appCreated) Reset(ctx context.Context) error { return github.ClearAppCreation(ctx) }
+
 type appCredentials struct{}
 
-func (appCredentials) Name() string { return "app-credentials" }
+func (appCredentials) name() string { return stepAppCredentials }
 
 // Check goes one step past presence: with credentials saved it reads GET /app and
 // compares the App's permissions against the required set — saved-but-under-scoped
 // is partially ready, and the message names the gap
 // (docs/spec/installation.md, the credentials check).
-func (appCredentials) Check(ctx context.Context, db *sqlx.DB) (StepState, error) {
+func (s appCredentials) Check(ctx context.Context, db *sqlx.DB) Entry {
 	if db == nil {
-		return UnknownState, errNoDatabase
+		return entry(s.name(), UnknownState, errNoDatabase)
 	}
 
 	ready, err := settingsSchemaReady(ctx, db)
 	if err != nil {
-		return UnknownState, err
+		return entry(s.name(), UnknownState, err)
 	}
 	if !ready {
-		return NotStartedState, nil
+		return entry(s.name(), NotStartedState, nil)
 	}
 
 	client, err := github.NewClient(data.NewContext(ctx, db))
 	if errors.Is(err, github.ErrNoApp) {
-		return NotStartedState, nil
+		return entry(s.name(), NotStartedState, nil)
 	} else if err != nil {
-		return UnknownState, err
+		return entry(s.name(), UnknownState, err)
 	}
 
 	perms, err := client.AppPermissions(ctx)
 	if err != nil {
-		return UnknownState, err
+		return entry(s.name(), UnknownState, err)
 	}
 	missing := github.MissingPermissions(perms)
 	if len(missing) > 0 {
-		return PartiallyReadyState,
-			errors.New("app is missing permissions — " + strings.Join(missing, ", "))
+		return entry(s.name(), PartiallyReadyState,
+			errors.New("app is missing permissions — "+strings.Join(missing, ", ")))
 	}
-	return FullyReadyState, nil
+	return entry(s.name(), FullyReadyState, nil)
 }
+
+func (appCredentials) Reset(ctx context.Context) error { return github.ClearAppKeys(ctx) }
 
 type registryToken struct{}
 
-func (registryToken) Name() string { return "registry-token" }
+func (registryToken) name() string { return stepRegistryToken }
 
 // Check requires the one ghcr key — the registry the wizard covers; presence is
 // the whole verdict, the token proves itself on the first publish
 // (docs/spec/installation.md, "The registry token").
-func (registryToken) Check(ctx context.Context, db *sqlx.DB) (StepState, error) {
-	return settingsBacked(ctx, db, func(ctx context.Context) error {
+func (s registryToken) Check(ctx context.Context, db *sqlx.DB) Entry {
+	return settingsBacked(ctx, db, s.name(), func(ctx context.Context) (map[string]string, error) {
 		_, err := github.LoadRegistryToken(ctx, ghcrHost)
-		return err
+		return nil, err
 	}, github.ErrNoRegistryToken)
+}
+
+func (registryToken) Reset(ctx context.Context) error {
+	return github.ClearRegistryToken(ctx, ghcrHost)
 }
 
 type appInstalled struct{}
 
-func (appInstalled) Name() string { return "app-installed" }
+func (appInstalled) name() string { return stepAppInstalled }
 
-func (appInstalled) Check(ctx context.Context, db *sqlx.DB) (StepState, error) {
-	return settingsBacked(ctx, db, func(ctx context.Context) error {
+func (s appInstalled) Check(ctx context.Context, db *sqlx.DB) Entry {
+	return settingsBacked(ctx, db, s.name(), func(ctx context.Context) (map[string]string, error) {
 		_, err := Load(ctx)
-		return err
+		return nil, err
 	}, ErrNotInstalled)
+}
+
+// Reset empties the install.* values — the not-yet-claimed state, so a fresh claim
+// converges (its put-if-absent row already reads empty as unclaimed).
+func (appInstalled) Reset(ctx context.Context) error {
+	return data.Run(ctx, func(s data.Scope) error {
+		for _, key := range installKeys {
+			upsert := &settings.Upsert{Key: key, Value: ""}
+			if err := upsert.Execute(s.Context(), &settings.Settings{}); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 // settingsBacked is the shared shape of the settings-reading checks: probe for
 // the settings schema first — the probe always parses, so a pre-install server never
 // sends a failing statement — then read, folding the reader's absent sentinel into
-// not started.
-func settingsBacked(ctx context.Context, db *sqlx.DB, read func(context.Context) error, absent error) (StepState, error) {
+// not started. The read returns the step's non-secret values for the ready Entry.
+func settingsBacked(ctx context.Context, db *sqlx.DB, name string,
+	read func(context.Context) (map[string]string, error), absent error) Entry {
 	if db == nil {
-		return UnknownState, errNoDatabase
+		return entry(name, UnknownState, errNoDatabase)
 	}
 
 	ready, err := settingsSchemaReady(ctx, db)
 	if err != nil {
-		return UnknownState, err
+		return entry(name, UnknownState, err)
 	}
 	if !ready {
-		return NotStartedState, nil
+		return entry(name, NotStartedState, nil)
 	}
 
-	err = read(data.NewContext(ctx, db))
+	values, err := read(data.NewContext(ctx, db))
 	if errors.Is(err, absent) {
-		return NotStartedState, nil
+		return entry(name, NotStartedState, nil)
 	} else if err != nil {
-		return UnknownState, err
+		return entry(name, UnknownState, err)
 	}
-	return FullyReadyState, nil
+
+	e := entry(name, FullyReadyState, nil)
+	e.Values = values
+	return e
 }
 
 func settingsSchemaReady(ctx context.Context, db *sqlx.DB) (bool, error) {

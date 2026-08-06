@@ -33,6 +33,11 @@ const (
 	keyInstalledAt       = "install.installed_at"
 )
 
+// installKeys is the whole install.* set — Load reads them, appInstalled.Reset
+// empties them; the claim writes every one or none.
+var installKeys = []string{keyOrgID, keyOrgLogin, keyInstallationID,
+	keyInstalledByUserID, keyInstalledByLogin, keyInstalledAt}
+
 // Record is the decoded install.* settings binding the server to one GitHub org. App
 // credentials are deliberately absent — they are the github.app_* settings, owned by
 // srv/github.

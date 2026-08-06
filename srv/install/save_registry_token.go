@@ -3,6 +3,7 @@ package install
 import (
 	"context"
 
+	"fx.prodigy9.co/data"
 	"fx.prodigy9.co/httpserver/controllers"
 	"fx.prodigy9.co/validate"
 	"platform.prodigy9.co/srv/github"
@@ -26,7 +27,14 @@ func (c *SaveRegistryToken) Validate() error {
 }
 
 // Execute writes the token through github.SaveRegistryToken — the one owner of
-// that write. The step is convergent: re-posting overwrites.
+// that write — and suffix-resets every later step in the same transaction. The
+// step is convergent: re-posting overwrites
+// (docs/spec/installation.md, §Redo and suffix invalidation).
 func (c *SaveRegistryToken) Execute(ctx context.Context, out any) error {
-	return github.SaveRegistryToken(ctx, ghcrHost, c.Token)
+	return data.Run(ctx, func(s data.Scope) error {
+		if err := github.SaveRegistryToken(s.Context(), ghcrHost, c.Token); err != nil {
+			return err
+		}
+		return resetSuffix(s.Context(), stepRegistryToken)
+	})
 }

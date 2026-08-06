@@ -3,6 +3,7 @@ package install
 import (
 	"context"
 
+	"fx.prodigy9.co/data"
 	"fx.prodigy9.co/httpserver/controllers"
 	"fx.prodigy9.co/validate"
 	"platform.prodigy9.co/srv/github"
@@ -26,10 +27,18 @@ func (c *SaveCredentials) Validate() error {
 }
 
 // Execute writes the pair through github.SaveAppKeys — the one owner of that
-// write. The step is convergent: re-posting overwrites.
+// write — and suffix-resets every later step in the same transaction. The step is
+// convergent: re-posting overwrites
+// (docs/spec/installation.md, §Redo and suffix invalidation).
 func (c *SaveCredentials) Execute(ctx context.Context, out any) error {
-	return github.SaveAppKeys(ctx, &github.AppKeys{
-		PrivateKey:   c.PrivateKey,
-		ClientSecret: c.ClientSecret,
+	return data.Run(ctx, func(s data.Scope) error {
+		err := github.SaveAppKeys(s.Context(), &github.AppKeys{
+			PrivateKey:   c.PrivateKey,
+			ClientSecret: c.ClientSecret,
+		})
+		if err != nil {
+			return err
+		}
+		return resetSuffix(s.Context(), stepAppCredentials)
 	})
 }

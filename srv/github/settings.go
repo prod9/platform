@@ -17,6 +17,10 @@ import (
 )
 
 var (
+	// ErrNoOrg reports that no primary-org slug is saved — how the installer's org
+	// check reaches not-started.
+	ErrNoOrg = errors.New("github: no org configured")
+
 	// ErrNoRegistryToken reports that no push token is saved for the registry —
 	// how the installer's registry-token check reaches not-started, and what stops
 	// a build from attempting an unauthenticated push.
@@ -24,6 +28,7 @@ var (
 )
 
 const (
+	keyOrg           = "github.org"
 	keyAppID         = "github.app_id"
 	keyPrivateKey    = "github.app_private_key"
 	keyWebhookSecret = "github.app_webhook_secret"
@@ -85,6 +90,45 @@ func LoadAppCreation(ctx context.Context) (*AppCreation, error) {
 		ClientID:      values[keyClientID],
 		WebhookSecret: values[keyWebhookSecret],
 	}, nil
+}
+
+// SaveOrg writes the primary-org slug — the org wizard step is its caller;
+// re-posting overwrites.
+func SaveOrg(ctx context.Context, org string) error {
+	return saveSettings(ctx, map[string]string{keyOrg: org})
+}
+
+// LoadOrg reads the primary-org slug, ErrNoOrg when unset.
+func LoadOrg(ctx context.Context) (string, error) {
+	return LoadSetting(ctx, keyOrg, ErrNoOrg)
+}
+
+// The Clear* writers empty a step's settings — suffix invalidation's mechanism: an
+// empty value already reads as unset, so states flip with the plain upsert and
+// nothing needs a delete verb (docs/spec/installation.md, §Redo and suffix
+// invalidation). Each clears exactly the keys its wizard step owns.
+
+func ClearOrg(ctx context.Context) error {
+	return saveSettings(ctx, map[string]string{keyOrg: ""})
+}
+
+func ClearAppCreation(ctx context.Context) error {
+	return saveSettings(ctx, map[string]string{
+		keyAppID:         "",
+		keyClientID:      "",
+		keyWebhookSecret: "",
+	})
+}
+
+func ClearAppKeys(ctx context.Context) error {
+	return saveSettings(ctx, map[string]string{
+		keyPrivateKey:   "",
+		keyClientSecret: "",
+	})
+}
+
+func ClearRegistryToken(ctx context.Context, host string) error {
+	return saveSettings(ctx, map[string]string{registryTokenKey(host): ""})
 }
 
 // SaveRegistryToken writes the push credential for one registry host — the

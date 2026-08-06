@@ -35,6 +35,7 @@ func TestGetStateMigratedButNotInstalled(t *testing.T) {
 	require.Equal(t, []Entry{
 		{Name: "db-reachable", State: FullyReadyState},
 		{Name: "migrations", State: FullyReadyState},
+		{Name: "org", State: NotStartedState},
 		{Name: "app-created", State: NotStartedState},
 		{Name: "app-credentials", State: NotStartedState},
 		{Name: "registry-token", State: NotStartedState},
@@ -59,8 +60,44 @@ func TestCreatedStepReadyBeforeCredentials(t *testing.T) {
 
 	entries := GetState(ctx, db, migrate.Merged(Source))
 
-	require.Equal(t, FullyReadyState, entries[2].State)
-	require.Equal(t, NotStartedState, entries[3].State)
+	require.Equal(t, FullyReadyState, entries[3].State)
+	require.Equal(t, NotStartedState, entries[4].State)
+}
+
+// The org step surfaces its saved slug in values — the non-secret form fields a
+// re-opened panel re-displays (docs/spec/installation.md, the state surface).
+func TestOrgStepSurfacesSlug(t *testing.T) {
+	ctx := srvtest.SetupDB(t, Source)
+	db := data.FromContext(ctx)
+
+	require.NoError(t, github.SaveOrg(ctx, "prod9"))
+
+	entries := GetState(ctx, db, migrate.Merged(Source))
+
+	require.Equal(t, Entry{
+		Name:   "org",
+		State:  FullyReadyState,
+		Values: map[string]string{"org": "prod9"},
+	}, entries[2])
+}
+
+// The creation step surfaces its app id and client id, never the webhook secret —
+// a secret's presence is implied by the state, not echoed
+// (docs/spec/installation.md, the state surface).
+func TestCreatedStepSurfacesNonSecretValues(t *testing.T) {
+	ctx := srvtest.SetupDB(t, Source)
+	db := data.FromContext(ctx)
+
+	err := github.SaveAppCreation(ctx, &github.AppCreation{
+		AppID:         42,
+		ClientID:      "Iv1.abc",
+		WebhookSecret: "whsec",
+	})
+	require.NoError(t, err)
+
+	entries := GetState(ctx, db, migrate.Merged(Source))
+
+	require.Equal(t, map[string]string{"app_id": "42", "client_id": "Iv1.abc"}, entries[3].Values)
 }
 
 // On a fresh database nothing exists yet: every step below db-reachable is not
@@ -77,6 +114,7 @@ func TestGetStateFreshDBReportsNotStarted(t *testing.T) {
 	require.Equal(t, []Entry{
 		{Name: "db-reachable", State: FullyReadyState},
 		{Name: "migrations", State: NotStartedState},
+		{Name: "org", State: NotStartedState},
 		{Name: "app-created", State: NotStartedState},
 		{Name: "app-credentials", State: NotStartedState},
 		{Name: "registry-token", State: NotStartedState},
@@ -124,8 +162,8 @@ func TestCredentialsStepFlagsUnderscopedApp(t *testing.T) {
 
 	entries := GetState(ctx, db, migrate.Merged(Source))
 
-	require.Equal(t, PartiallyReadyState, entries[3].State)
-	require.Contains(t, entries[3].Message, "contents: write")
+	require.Equal(t, PartiallyReadyState, entries[4].State)
+	require.Contains(t, entries[4].Message, "contents: write")
 }
 
 // A fully scoped App reads fully ready.
@@ -142,7 +180,7 @@ func TestCredentialsStepFullyScopedApp(t *testing.T) {
 
 	entries := GetState(ctx, db, migrate.Merged(Source))
 
-	require.Equal(t, FullyReadyState, entries[3].State)
+	require.Equal(t, FullyReadyState, entries[4].State)
 }
 
 // Saving the ghcr token flips registry-token on its own — it neither needs nor
@@ -155,7 +193,7 @@ func TestRegistryTokenStepReady(t *testing.T) {
 
 	entries := GetState(ctx, db, migrate.Merged(Source))
 
-	require.Equal(t, FullyReadyState, entries[4].State)
-	require.Equal(t, "registry-token", entries[4].Name)
-	require.Equal(t, NotStartedState, entries[3].State)
+	require.Equal(t, FullyReadyState, entries[5].State)
+	require.Equal(t, "registry-token", entries[5].Name)
+	require.Equal(t, NotStartedState, entries[4].State)
 }

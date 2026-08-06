@@ -38,11 +38,18 @@ var _ controllers.Interface = StateCtr{}
 func (c StateCtr) Mount(cfg *config.Source, router chi.Router) error {
 	router.Get("/api/install", c.getState)
 	router.Post("/api/install/migrations", c.runMigrations)
+	router.Post("/api/install/org", c.saveOrg)
 	router.Post("/api/install/app", c.saveApp)
 	router.Post("/api/install/credentials", c.saveCredentials)
 	router.Post("/api/install/registry", c.saveRegistryToken)
 	router.Post("/api/install/claim", c.claim)
 	return nil
+}
+
+// saveOrg is the wizard's name-the-org step (POST /api/install/org), saving the
+// primary-org slug the later panels' links are built from.
+func (c StateCtr) saveOrg(resp http.ResponseWriter, req *http.Request) {
+	c.runUngated(resp, req, &SaveOrg{})
 }
 
 // saveApp is the wizard's create-the-App step (POST /api/install/app), saving what
