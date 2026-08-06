@@ -423,28 +423,51 @@
 						{/if}
 					</Panel>
 				{:else if isStep("app-installed", "fully_ready")}
+					<Panel label="App installed">
+						<p class="muted">
+							GitHub reports the App installed on the org. Undoing this is
+							uninstalling it on GitHub — nothing to redo here.
+						</p>
+					</Panel>
+				{:else if isStep("app-installed", "not_started")}
+					<Panel label="Install the App on the org">
+						{#if current.message}
+							<p class="failed mono">{current.message}</p>
+						{/if}
+						{#if appInstallURL}
+							<Button variant="primary" href={appInstallURL} target="_blank">
+								Install the App
+							</Button>
+						{:else}
+							<p class="muted">
+								The install link needs the org and App slugs — redo the org and
+								App steps if they are missing.
+							</p>
+						{/if}
+					</Panel>
+				{:else if isStep("claimed", "fully_ready")}
 					<Panel label="Claimed">
 						<p class="muted">
 							The installation is bound to this server. Restart the server to start.
 						</p>
 					</Panel>
-				{:else if isStep("app-installed", "not_started")}
-					{#if !installationID}
-						<Panel label="Install the App on the org">
-							{#if appInstallURL}
-								<Button variant="primary" href={appInstallURL} target="_blank">
-									Install the App
-								</Button>
-							{:else}
-								<p class="muted">
-									The install link needs the org and App slugs — redo the org and
-									App steps if they are missing.
-								</p>
-							{/if}
-						</Panel>
-					{:else if session.user === null}
+				{:else if isStep("claimed", "not_started")}
+					{#if session.user === null}
 						<Panel label="Claim the installation">
 							<Button variant="primary" href="/auth/github">Sign in with GitHub</Button>
+						</Panel>
+					{:else if !installationID}
+						<Panel label="Claim the installation">
+							<p class="muted">
+								The claim needs GitHub's <code>installation_id</code>, which arrives
+								on the Setup URL redirect. Open the installed App's page and save its
+								repository selection to fire the redirect again.
+							</p>
+							{#if appInstallURL}
+								<Button variant="primary" href={appInstallURL} target="_blank">
+									Open the installation
+								</Button>
+							{/if}
 						</Panel>
 					{:else}
 						<Panel label="Claim the installation">
@@ -617,24 +640,31 @@
 						<li>Paste the token into the form and save.</li>
 					</ol>
 				{:else if isStep("app-installed", "fully_ready")}
+					<p class="label">App installed</p>
+					<p>
+						This step's truth lives on GitHub — the check reads it fresh every
+						load, and uninstalling the App there is what un-does it.
+					</p>
+				{:else if isStep("app-installed", "not_started")}
+					<p class="label">Install the App</p>
+					<p>
+						Install the App on the managed org — the button opens
+						{#if appInstallURL}
+							<a href={appInstallURL} target="_blank">{appInstallURL}</a>{:else}
+							<code>…/settings/apps/&lt;slug&gt;/installations</code>{/if}
+						in a new tab. Keep this tab open: when the install finishes, GitHub's
+						Setup URL redirect brings the browser back here on its own, and this
+						step turns ready.
+					</p>
+				{:else if isStep("claimed", "fully_ready")}
 					<p class="label">Claimed</p>
 					<p>
 						The org-owner claim is done. Re-org is a de-install + re-install — there
 						is nothing to redo here.
 					</p>
-				{:else if isStep("app-installed", "not_started")}
-					<p class="label">Install and claim</p>
-					{#if !installationID}
-						<p>
-							Install the App on the managed org — the button opens
-							{#if appInstallURL}
-								<a href={appInstallURL} target="_blank">{appInstallURL}</a>{:else}
-								<code>…/settings/apps/&lt;slug&gt;/installations</code>{/if}
-							in a new tab. Keep this tab open: when the install finishes, GitHub's
-							Setup URL redirect brings the browser back here on its own to sign in
-							and claim.
-						</p>
-					{:else if session.user === null}
+				{:else if isStep("claimed", "not_started")}
+					<p class="label">Claim the installation</p>
+					{#if session.user === null}
 						<p>
 							Sign in with a GitHub account that owns the org. That account becomes
 							the seed admin.
