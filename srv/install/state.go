@@ -17,7 +17,6 @@ const (
 	stepAppCreated     = "app-created"
 	stepAppCredentials = "app-credentials"
 	stepRegistryToken  = "registry-token"
-	stepEngine         = "engine"
 	stepAppInstalled   = "app-installed"
 	stepClaimed        = "claimed"
 )
@@ -84,7 +83,6 @@ func steps(merged migrator.Source) []Step {
 		appCreated{},
 		appCredentials{},
 		registryToken{},
-		engine{},
 		appInstalled{},
 		claimed{},
 	}

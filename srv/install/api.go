@@ -48,7 +48,6 @@ func (c StateCtr) Mount(cfg *config.Source, router chi.Router) error {
 	router.Post("/api/install/app", c.saveApp)
 	router.Post("/api/install/credentials", c.saveCredentials)
 	router.Post("/api/install/registry", c.saveRegistryToken)
-	router.Post("/api/install/engine", c.saveEngine)
 	router.Post("/api/install/claim", c.claim)
 	return nil
 }
@@ -57,12 +56,6 @@ func (c StateCtr) Mount(cfg *config.Source, router chi.Router) error {
 // saving the public URL the later panels' server-side URLs render from.
 func (c StateCtr) saveServer(resp http.ResponseWriter, req *http.Request) {
 	c.runUngated(resp, req, &SaveServer{})
-}
-
-// saveEngine is the wizard's bind-the-engine step (POST /api/install/engine),
-// locking the infra-provided seed into the engine.hosts setting.
-func (c StateCtr) saveEngine(resp http.ResponseWriter, req *http.Request) {
-	c.runUngated(resp, req, &SaveEngine{})
 }
 
 // saveOrg is the wizard's name-the-org step (POST /api/install/org), saving the

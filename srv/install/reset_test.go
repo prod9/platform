@@ -27,29 +27,6 @@ func TestSaveServerResetsSuffix(t *testing.T) {
 
 	_, err = github.LoadOrg(ctx)
 	require.ErrorIs(t, err, github.ErrNoOrg)
-	_, err = github.LoadEngineHosts(ctx)
-	require.ErrorIs(t, err, github.ErrNoEngineHosts)
-	_, err = Load(ctx)
-	require.ErrorIs(t, err, ErrNotInstalled)
-}
-
-// The engine step sits between registry-token and app-installed: redoing it keeps
-// the whole GitHub chain and resets only the claim.
-func TestSaveEngineResetsSuffixKeepsPrefix(t *testing.T) {
-	ctx := seedInstalled(t)
-
-	require.NoError(t, (&SaveEngine{Hosts: "other-engine.platform.svc"}).Execute(ctx, nil))
-
-	hosts, err := github.LoadEngineHosts(ctx)
-	require.NoError(t, err)
-	require.Equal(t, "other-engine.platform.svc", hosts)
-
-	_, err = github.LoadPublicURL(ctx)
-	require.NoError(t, err)
-	_, err = github.LoadApp(ctx)
-	require.NoError(t, err)
-	_, err = github.LoadRegistryToken(ctx, "ghcr.io")
-	require.NoError(t, err)
 	_, err = Load(ctx)
 	require.ErrorIs(t, err, ErrNotInstalled)
 }
@@ -73,8 +50,6 @@ func TestSaveOrgResetsSuffix(t *testing.T) {
 	require.ErrorIs(t, err, github.ErrNoApp)
 	_, err = github.LoadRegistryToken(ctx, "ghcr.io")
 	require.ErrorIs(t, err, github.ErrNoRegistryToken)
-	_, err = github.LoadEngineHosts(ctx)
-	require.ErrorIs(t, err, github.ErrNoEngineHosts)
 	_, err = Load(ctx)
 	require.ErrorIs(t, err, ErrNotInstalled)
 }
@@ -165,7 +140,6 @@ func seedInstalled(t *testing.T) context.Context {
 	keys := &SaveCredentials{PrivateKey: "-----BEGIN RSA PRIVATE KEY-----", ClientSecret: "csec"}
 	require.NoError(t, keys.Execute(ctx, nil))
 	require.NoError(t, (&SaveRegistryToken{Token: "ghp_token"}).Execute(ctx, nil))
-	require.NoError(t, (&SaveEngine{Hosts: "dagger-engine.platform.svc"}).Execute(ctx, nil))
 	claimInstalled(t, ctx)
 
 	return ctx

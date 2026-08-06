@@ -123,13 +123,13 @@ func (r *RunBuild) cleanUp(ctx context.Context, build *Build) {
 	}
 }
 
-// runConfigContext hangs the run's engine binding and publish credential on the
-// session's config: the wizard-locked engine.hosts setting, and the wizard-saved
-// token for the registry this build's images name, under the installation record's
-// login — ghcr validates the PAT, not an App credential (docs/vendor/ghcr-auth.md).
-// A missing setting fails the run outright; the server never attempts a local
-// auto-provisioned engine or an unauthenticated push. The source is a fresh env
-// read so the worker's ambient config is never mutated.
+// runConfigContext hangs the run's publish credential on the session's config: the
+// wizard-saved token for the registry this build's images name, under the
+// installation record's login — ghcr validates the PAT, not an App credential
+// (docs/vendor/ghcr-auth.md). A missing setting fails the run outright; the server
+// never attempts an unauthenticated push. The source is a fresh env read so the
+// worker's ambient config is never mutated — the engine binding rides that read
+// as-is: DAGGER_ENGINE is plain deployment env (docs/spec/engine.md).
 func runConfigContext(ctx context.Context, cfg *conf.Model) (context.Context, error) {
 	host, err := registryHost(cfg)
 	if err != nil {
@@ -139,17 +139,12 @@ func runConfigContext(ctx context.Context, cfg *conf.Model) (context.Context, er
 	if err != nil {
 		return nil, err
 	}
-	engineHosts, err := github.LoadEngineHosts(ctx)
-	if err != nil {
-		return nil, err
-	}
 	record, err := install.Load(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	src := config.Configure()
-	config.Set(src, engine.DaggerEngineConfig, engineHosts)
 	config.Set(src, engine.RegistryConfig, host)
 	config.Set(src, engine.RegistryUsernameConfig, record.InstalledByLogin)
 	config.Set(src, engine.RegistryPasswordConfig, token)
