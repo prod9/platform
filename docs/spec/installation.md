@@ -348,8 +348,10 @@ literal placeholder forms of their URLs.
   queues builds); an App with no subscription delivers nothing and tag pushes
   never build;
 - restrict-to-managed-org;
-- the entry form for what creation yields: App id, the App's slug (from the
-  created App's URL), client id, and the webhook secret as given.
+- the entry form for what creation yields: App id, the App's URL — the wizard
+  extracts the slug from either page form (`…/settings/apps/<slug>` or
+  `github.com/apps/<slug>`; a bare slug is accepted too, and only the slug is
+  what saves) — client id, and the webhook secret as given.
 
 **`app-credentials` — the generated keys**, on the created App's settings page —
 linked directly (`github.com/organizations/<org>/settings/apps/<slug>`) — in the
