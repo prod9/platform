@@ -89,12 +89,10 @@ The roster resolves the configured Dagger endpoints via DNS — no k8s API, no R
 | `DAGGER_ENGINE`      | unset   | headless-Service DNS of the engine pool            |
 | `DAGGER_ENGINE_PORT` | `1234`  | engine pod port (mirrors `apps/dagger-engine.cue`) |
 
-On an installed server the authoritative value is the **`engine.hosts` setting**
-(locked in from the deployment's `DAGGER_ENGINE` env seed by the install
-wizard — [installation.md](installation.md)); the worker's build path seeds
-`DAGGER_ENGINE` on its per-run config source from that setting, the same seam
-that carries `REGISTRY_*`. The env var remains the direct source for the CLI
-and for the wizard's pre-fill.
+`DAGGER_ENGINE` is the one source everywhere — CLI, srv, and worker read the
+env directly, and k8s DNS itself spreads connections across the pool's pods.
+No engine binding is stored server-side ([installation.md](installation.md),
+the env contract).
 
 `hosts(ctx)` looks up the DNS name and returns one `tcp://<addr>:<port>` per resolved pod.
 It reports **only what it finds**:

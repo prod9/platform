@@ -12,8 +12,8 @@ the route surface lives in [platform-server.md](platform-server.md).
 
 A platform server governs **one GitHub org**. Installation is the one-time act
 of pointing a fresh server at that org: running migrations, naming the server's
-public URL, creating the GitHub App, supplying the registry push token, binding
-the build engine, installing the App, and wiring the org-wide delivery webhook.
+public URL, creating the GitHub App, supplying the registry push token, installing the App,
+and wiring the org-wide delivery webhook.
 Until all of that
 is true, the server is **not completely installed** and serves only the installer.
 
@@ -26,8 +26,9 @@ address, and `SECRET` (the fx encryption key — it cannot live beside the
 ciphertext it protects) through fx config/env. srv refuses to boot the
 **installed** composition with `SECRET` unset — fx would otherwise silently
 derive a publicly known key. The deployment also sets
-`DAGGER_ENGINE` — not as runtime config but as the **seed** the `engine` wizard
-step pre-fills from; once installed, runtime reads the `engine.hosts` setting.
+`DAGGER_ENGINE` — plain runtime config on both srv and the worker: the Dagger
+engine pool's headless-Service DNS name, spread across pods by k8s DNS itself,
+so no engine binding is stored server-side.
 The worker clones into the fixed `/var/cache/platform` (not configurable — the
 deployment mounts a writable volume there).
 
@@ -103,8 +104,7 @@ knows", never as a verdict. An entry carries `message` alongside the state when
 the check produced an error, and `values` — a string map of the step's
 **non-secret form fields** — so a re-opened panel can re-display what is saved
 (`server` surfaces the public URL; `org` the slug; `app-created` its app id,
-client id, and app slug; `engine` its hosts; the
-secret-only steps surface nothing). Settings never round-trip wholesale: the
+client id, and app slug; the secret-only steps surface nothing). Settings never round-trip wholesale: the
 state read is ungated, so the only values that reach the wire are the ones a
 step deliberately puts in its own `values`, and secrets never qualify — a
 secret's presence is implied by the step's state, never echoed.
@@ -118,7 +118,6 @@ secret's presence is implied by the step's state, never echoed.
 | `app-created`     | the creation-time values — `github.app_id`, `github.app_slug`, `github.app_client_id`, `github.app_webhook_secret` — all have values | `not_started` → the create-the-App wizard step |
 | `app-credentials` | every `github.app_*` setting has a value **and the App carries the required permissions** | `not_started` → the generated-keys wizard step; `partially_ready` → App reachable but under-scoped, message names the gap |
 | `registry-token`  | the `registry.ghcr.io.token` setting has a value | `not_started` → the registry-PAT wizard step |
-| `engine`          | the `engine.hosts` setting has a value; surfaces it in `values`, pre-filled from the `DAGGER_ENGINE` env seed while unset | `not_started` → the bind-the-engine wizard step |
 | `app-installed`   | `GET /app/installations` (JWT) lists an installation whose account is the bound org | `not_started` → install the App on the org |
 | `claimed`         | every `install.*` setting has a value    | `not_started` → sign-in + org-owner claim  |
 
@@ -153,13 +152,6 @@ from — its edit page (`github.com/organizations/<org>/settings/apps/<slug>`) a
 its install page (`…/settings/apps/<slug>/installations`). Each step saves what its GitHub page produced,
 so a reload lands the operator exactly where the real-world flow stands.
 
-The `engine` step binds the **Dagger engine pool** the worker builds against.
-Engines are provisioned by infra, which sets `DAGGER_ENGINE` on the deployment;
-the step pre-fills from that env seed and the save **locks the value into the
-`engine.hosts` setting** — from then on runtime reads the setting and the env
-is only ever a seed for this panel. The check is presence-only: it never dials
-(checks run on every state read).
-
 Two steps can be `partially_ready`: `migrations` (some applied, some pending)
 and `app-credentials` (credentials saved, but `GET /app` reports a permission
 below the required set — the message names exactly which). The claim writes
@@ -179,7 +171,6 @@ settings-backed steps (every later panel's "the server's URL" renders from it);
 `org` follows (everything after is done on pages its slug locates);
 `app-created` precedes `app-credentials` (the keys are generated on the App
 that creation produced), `registry-token` follows the App steps,
-`engine` follows as the last operator-typed value (cluster-side, not GitHub-side),
 `app-installed` follows (its check asks GitHub with
 the App's own credentials — no session involved), and `claimed` stays last (the
 claim needs the installation to resolve and a signed-in org owner).
@@ -304,12 +295,11 @@ database, not fx config**; srv and the worker read the same rows
 Postgres is the allocation config-allocation.md already assigns the server;
 encryption at rest remains open there.
 
-**The server and engine bindings** ride the same store:
+**The server binding** rides the same store:
 
 | Key                 | Value                                                        |
 |---------------------|--------------------------------------------------------------|
 | `server.public_url` | the server's public URL — OAuth redirects, vanity host, every "the server's URL" the wizard renders |
-| `engine.hosts`      | the Dagger engine pool's DNS name(s) — locked in from the `DAGGER_ENGINE` env seed at install |
 
 **The registry token** rides the same store, keyed by registry host:
 
@@ -328,16 +318,15 @@ record:** a wizard UI for additional registries (the key shape already admits
 them), and moving the credential to project-scoped settings once projects are a
 settings scope — today the rows are server-global, one credential per registry.
 
-The wizard's typed steps post six installer-fragment actions, one per page
+The wizard's typed steps post five installer-fragment actions, one per page
 the operator works: `POST /api/install/server` writes the public URL
 (`server.public_url`), `POST /api/install/org` writes the primary-org slug
 (`github.org`), `POST /api/install/app` writes the creation-time quartet
 (`github.app_id`, `github.app_slug`, `github.app_client_id`,
 `github.app_webhook_secret`),
 `POST /api/install/credentials` writes the generated pair
-(`github.app_private_key`, `github.app_client_secret`),
-`POST /api/install/registry` writes the ghcr token, and
-`POST /api/install/engine` writes the engine binding (`engine.hosts`) — each action requires
+(`github.app_private_key`, `github.app_client_secret`), and
+`POST /api/install/registry` writes the ghcr token — each action requires
 all of its keys non-empty, writes all-or-none, and **suffix-resets every later
 step in the same transaction** (§Redo and suffix invalidation). All are
 **ungated**: no session can exist before the credentials enable login, the
@@ -435,12 +424,6 @@ the App:
 - the note that the token acts for whoever creates it: prefer a machine user or
   an org owner;
 - the entry form for the token, saved as `registry.ghcr.io.token`.
-
-**`engine` — bind the build engine**: one field, the engine pool's DNS name,
-saved as `engine.hosts`. Pre-filled from the deployment's `DAGGER_ENGINE` env
-seed while the setting is empty; the instructions say what it is — the Dagger
-engine pool infra provisioned for this cluster — and that builds run against
-whatever this names.
 
 **`app-installed` — install the App**: a direct link to the App's install
 page — `github.com/organizations/<org>/settings/apps/<slug>/installations` —
