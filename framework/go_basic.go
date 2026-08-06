@@ -72,7 +72,10 @@ func (GoBasic) Execute(ctx context.Context, client *dagger.Client, unit *BuildUn
 		// The base is a pure function of (client, unit) and Dagger dedupes it, so the
 		// runner re-derives its own rather than needing the builder's ancestor handed back.
 		runner := BaseImageForUnit(client, unit)
-		runner = withRunnerPkgs(runner)
+		// git rides along as a temporary special-case for platform's own image — its
+		// worker shells out to git at runtime (docs/spec/frameworks.md); the long-term
+		// shape is a dedicated build framework for platform's agent.
+		runner = withRunnerPkgs(runner, "git")
 		runner = withUnitEnv(runner, unit)
 		runner = runner.WithFile(BinDir+"/"+outbin, in.File(BinDir+"/"+outbin))
 		runner = withUnitAssets(runner, in, unit)
