@@ -1,6 +1,7 @@
 package srv
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -14,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"platform.prodigy9.co/srv/auth"
 	"platform.prodigy9.co/srv/builds"
+	"platform.prodigy9.co/srv/github"
 	"platform.prodigy9.co/srv/install"
 	"platform.prodigy9.co/srv/migrate"
 	"platform.prodigy9.co/srv/srvtest"
@@ -21,7 +23,7 @@ import (
 
 func TestRouterServesUIIndex(t *testing.T) {
 	for _, installed := range []bool{false, true} {
-		router, err := Router(fxtest.Configure(), nil, installed)
+		router, err := Router(fxtest.Configure(), nil, installed, nil)
 		require.NoError(t, err)
 
 		resp := httptest.NewRecorder()
@@ -34,7 +36,7 @@ func TestRouterServesUIIndex(t *testing.T) {
 
 func TestRouterServesAPIHealth(t *testing.T) {
 	for _, installed := range []bool{false, true} {
-		router, err := Router(fxtest.Configure(), nil, installed)
+		router, err := Router(fxtest.Configure(), nil, installed, nil)
 		require.NoError(t, err)
 
 		resp := httptest.NewRecorder()
@@ -55,7 +57,7 @@ func TestRouterServesAPIHealth(t *testing.T) {
 // the installed composition is the reverse. The installer state read works with a nil
 // DB (it reports db-reachable as an error), so this needs no postgres.
 func TestNotInstalledMountsInstallerNotProduct(t *testing.T) {
-	router, err := Router(fxtest.Configure(), nil, false)
+	router, err := Router(fxtest.Configure(), nil, false, nil)
 	require.NoError(t, err)
 
 	require.Equal(t, http.StatusOK, get(router, "/api/install").Code)
@@ -63,7 +65,7 @@ func TestNotInstalledMountsInstallerNotProduct(t *testing.T) {
 }
 
 func TestInstalledMountsProductNotInstaller(t *testing.T) {
-	router, err := Router(fxtest.Configure(), nil, true)
+	router, err := Router(fxtest.Configure(), nil, true, nil)
 	require.NoError(t, err)
 
 	require.Equal(t, http.StatusNotFound, get(router, "/api/install").Code)
@@ -74,7 +76,7 @@ func TestInstalledMountsProductNotInstaller(t *testing.T) {
 // through purpose-built installer actions only (platform-server.md §Operations).
 func TestNoSettingsSurface(t *testing.T) {
 	for _, installed := range []bool{false, true} {
-		router, err := Router(fxtest.Configure(), nil, installed)
+		router, err := Router(fxtest.Configure(), nil, installed, nil)
 		require.NoError(t, err)
 
 		require.Equal(t, http.StatusNotFound, get(router, "/api/settings").Code)
@@ -86,33 +88,51 @@ func TestNoSettingsSurface(t *testing.T) {
 // has no DB, reported before the body is parsed) proves the handler was reached, not
 // a gate; the installed composition drops the route outright.
 func TestCredentialsMountedUngatedInInstaller(t *testing.T) {
-	notInstalled, err := Router(fxtest.Configure(), nil, false)
+	notInstalled, err := Router(fxtest.Configure(), nil, false, nil)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusServiceUnavailable,
 		post(notInstalled, "/api/install/credentials", "{}").Code)
 
-	installed, err := Router(fxtest.Configure(), nil, true)
+	installed, err := Router(fxtest.Configure(), nil, true, nil)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusNotFound,
 		post(installed, "/api/install/credentials", "{}").Code)
 }
 
 // One host serves module resolution and the product: any path with ?go-get=1 answers
-// the go-import meta for platform.prodigy9.co in both compositions (platform-server.md
-// §Operations; the standalone vanity command is gone).
+// the go-import meta whose module host is the host of the server.public_url setting,
+// in both compositions (platform-server.md §Operations; the standalone vanity command
+// is gone).
 func TestGoGetMetaServed(t *testing.T) {
+	stubPublicURL(t, "https://platform.example.dev", nil)
 	for _, installed := range []bool{false, true} {
-		router, err := Router(fxtest.Configure(), nil, installed)
+		router, err := Router(fxtest.Configure(), nil, installed, nil)
 		require.NoError(t, err)
 
 		for _, path := range []string{"/?go-get=1", "/framework?go-get=1"} {
 			resp := get(router, path)
 			require.Equal(t, http.StatusOK, resp.Code, path)
 			require.Contains(t, resp.Body.String(), "go-import", path)
-			require.Contains(t, resp.Body.String(), "platform.prodigy9.co", path)
+			require.Contains(t, resp.Body.String(), "platform.example.dev", path)
 			require.Contains(t, resp.Body.String(), "github.com/prod9/platform", path)
 		}
 	}
+}
+
+// With no public URL saved there is no module host to answer for — a plain 404, not
+// meta for a host the server does not know (platform-server.md, the route table).
+func TestGoGetMetaWithoutPublicURL(t *testing.T) {
+	stubPublicURL(t, "", github.ErrNoPublicURL)
+	router, err := Router(fxtest.Configure(), nil, false, nil)
+	require.NoError(t, err)
+
+	require.Equal(t, http.StatusNotFound, get(router, "/?go-get=1").Code)
+}
+
+func stubPublicURL(t *testing.T, publicURL string, err error) {
+	orig := github.LoadPublicURL
+	github.LoadPublicURL = func(ctx context.Context) (string, error) { return publicURL, err }
+	t.Cleanup(func() { github.LoadPublicURL = orig })
 }
 
 // The auth fragment mounts in both compositions — the org-owner claim needs a login
@@ -120,7 +140,7 @@ func TestGoGetMetaServed(t *testing.T) {
 // and gated; 404 would mean the composition dropped it.
 func TestAuthMountsInBothCompositions(t *testing.T) {
 	for _, installed := range []bool{false, true} {
-		router, err := Router(fxtest.Configure(), nil, installed)
+		router, err := Router(fxtest.Configure(), nil, installed, nil)
 		require.NoError(t, err)
 
 		require.Equal(t, http.StatusUnauthorized, get(router, "/api/session").Code)
@@ -131,7 +151,7 @@ func TestAuthMountsInBothCompositions(t *testing.T) {
 // answers 200 is a lie (spec §The status of a page is the server's answer).
 func TestUIUnknownPathIsFallbackAt404(t *testing.T) {
 	for _, installed := range []bool{false, true} {
-		router, err := Router(fxtest.Configure(), nil, installed)
+		router, err := Router(fxtest.Configure(), nil, installed, nil)
 		require.NoError(t, err)
 
 		resp := get(router, "/no/such/page")
@@ -158,7 +178,7 @@ func TestUIBuildRouteStatusFollowsTheRecord(t *testing.T) {
 		Ref: "refs/tags/v1.2.3", SHA: "abc123"}
 	require.NoError(t, create.Execute(ctx, build))
 
-	router, err := Router(fxtest.Configure(), nil, true)
+	router, err := Router(fxtest.Configure(), nil, true, nil)
 	require.NoError(t, err)
 
 	found := httptest.NewRecorder()

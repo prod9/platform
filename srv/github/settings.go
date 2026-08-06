@@ -1,10 +1,10 @@
 package github
 
-// All GitHub-related settings live here: the github.app_* credential keys, the
-// registry.<host>.token push credentials, and the transactional load/save helpers
-// every accessor shares. No migration defines the keys — an absent key reads as
-// empty; the install wizard writes them (docs/spec/installation.md, "The install
-// settings").
+// All wizard-written settings live here: the github.app_* credential keys, the
+// registry.<host>.token push credentials, the server.public_url and engine.hosts
+// bindings, and the transactional load/save helpers every accessor shares. No
+// migration defines the keys — an absent key reads as empty; the install wizard
+// writes them (docs/spec/installation.md, "The install settings").
 
 import (
 	"context"
@@ -25,6 +25,22 @@ var (
 	// how the installer's registry-token check reaches not-started, and what stops
 	// a build from attempting an unauthenticated push.
 	ErrNoRegistryToken = errors.New("github: no registry token configured")
+
+	// ErrNoPublicURL reports that no public URL is saved — how the installer's
+	// server check reaches not-started, and what makes login refuse to run.
+	ErrNoPublicURL = errors.New("github: no public URL configured")
+
+	// ErrNoEngineHosts reports that no engine binding is saved — how the
+	// installer's engine check reaches not-started, and what stops a build from
+	// attempting a local auto-provisioned engine in-cluster.
+	ErrNoEngineHosts = errors.New("github: no engine hosts configured")
+
+	// LoadPublicURL reads the server's public URL, ErrNoPublicURL when unset. A
+	// seam like LoadApp: auth's login tests stub it, everything else uses the
+	// settings read.
+	LoadPublicURL = func(ctx context.Context) (string, error) {
+		return LoadSetting(ctx, keyPublicURL, ErrNoPublicURL)
+	}
 )
 
 const (
@@ -35,6 +51,9 @@ const (
 	keyWebhookSecret = "github.app_webhook_secret"
 	keyClientID      = "github.app_client_id"
 	keyClientSecret  = "github.app_client_secret"
+
+	keyPublicURL   = "server.public_url"
+	keyEngineHosts = "engine.hosts"
 )
 
 // AppCreation is what GitHub's creation form yields: the App's id, its URL slug
@@ -97,6 +116,23 @@ func LoadAppCreation(ctx context.Context) (*AppCreation, error) {
 	}, nil
 }
 
+// SavePublicURL writes the server's public URL — the server wizard step is its
+// caller; re-posting overwrites.
+func SavePublicURL(ctx context.Context, publicURL string) error {
+	return saveSettings(ctx, map[string]string{keyPublicURL: publicURL})
+}
+
+// SaveEngineHosts writes the engine binding — the engine wizard step is its
+// caller, locking in the DAGGER_ENGINE env seed; re-posting overwrites.
+func SaveEngineHosts(ctx context.Context, hosts string) error {
+	return saveSettings(ctx, map[string]string{keyEngineHosts: hosts})
+}
+
+// LoadEngineHosts reads the engine binding, ErrNoEngineHosts when unset.
+func LoadEngineHosts(ctx context.Context) (string, error) {
+	return LoadSetting(ctx, keyEngineHosts, ErrNoEngineHosts)
+}
+
 // SaveOrg writes the primary-org slug — the org wizard step is its caller;
 // re-posting overwrites.
 func SaveOrg(ctx context.Context, org string) error {
@@ -115,6 +151,14 @@ func LoadOrg(ctx context.Context) (string, error) {
 
 func ClearOrg(ctx context.Context) error {
 	return saveSettings(ctx, map[string]string{keyOrg: ""})
+}
+
+func ClearPublicURL(ctx context.Context) error {
+	return saveSettings(ctx, map[string]string{keyPublicURL: ""})
+}
+
+func ClearEngineHosts(ctx context.Context) error {
+	return saveSettings(ctx, map[string]string{keyEngineHosts: ""})
 }
 
 func ClearAppCreation(ctx context.Context) error {

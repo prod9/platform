@@ -9,14 +9,15 @@ import (
 	"strconv"
 	"syscall"
 
-	"fx.prodigy9.co/config"
 	"platform.prodigy9.co/git"
 	"platform.prodigy9.co/srv/github"
 )
 
-// CacheDirConfig roots the server's persistent clone cache (spec §Cache layout):
-// git/<owner>/<repo>.git bare mirrors + work/<build-id>/ per-build worktrees.
-var CacheDirConfig = config.StrDef("CACHE_DIR", "/var/cache/platform")
+// CacheDir roots the server's persistent clone cache (spec §Cache layout):
+// git/<owner>/<repo>.git bare mirrors + work/<build-id>/ per-build worktrees. The
+// path is fixed unix convention, not configuration — the deployment mounts a
+// writable volume here (docs/spec/installation.md, the env contract).
+const CacheDir = "/var/cache/platform"
 
 // PrepRepo produces a local working tree for a build (spec §Repo preparation): a full
 // bare mirror of the repo (init-bare once, credentialed mirror-fetch every sync — never

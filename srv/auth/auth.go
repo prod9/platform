@@ -173,11 +173,13 @@ func getSession(resp http.ResponseWriter, req *http.Request) {
 
 func githubLogin(resp http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
-	cfg := config.FromContext(ctx)
 
-	serverURL, ok := config.GetOK(cfg, github.ServerURLConfig)
-	if !ok {
-		render.Error(resp, req, 500, errors.New("auth: SERVER_URL must be set for GitHub login"))
+	serverURL, err := github.LoadPublicURL(ctx)
+	if errors.Is(err, github.ErrNoPublicURL) {
+		render.Error(resp, req, 503, err)
+		return
+	} else if err != nil {
+		render.Error(resp, req, 500, err)
 		return
 	}
 	serverURL = strings.TrimSuffix(serverURL, "/")
@@ -207,7 +209,7 @@ func githubLogin(resp http.ResponseWriter, req *http.Request) {
 		"redirect_uri": {serverURL + "/auth/github/callback"},
 		"state":        {state},
 	}
-	githubURL := config.Get(cfg, github.URLConfig)
+	githubURL := config.Get(config.FromContext(ctx), github.URLConfig)
 	render.Redirect(resp, req, githubURL+"/login/oauth/authorize?"+query.Encode())
 }
 

@@ -26,10 +26,11 @@ import (
 // answer is configurable, App credentials with a real signing key, and a logged-in
 // user ("chakrit") whose session token the cookie carries.
 type claimHarness struct {
-	ctx    context.Context
-	router chi.Router
-	token  string
-	userID int64
+	ctx     context.Context
+	router  chi.Router
+	token   string
+	userID  int64
+	claimed *int
 }
 
 func setupClaim(t *testing.T, membershipStatus int, membershipBody string) *claimHarness {
@@ -58,7 +59,8 @@ func setupClaim(t *testing.T, membershipStatus int, membershipBody string) *clai
 	router := chi.NewRouter()
 	router.Use(middlewares.Configure(cfg))
 	db := data.FromContext(ctx)
-	ctr := StateCtr{DB: db, Merged: migrate.Merged(Source)}
+	claimed := 0
+	ctr := StateCtr{DB: db, Merged: migrate.Merged(Source), Claimed: func() { claimed++ }}
 	require.NoError(t, ctr.Mount(cfg, router))
 
 	var userID int64
@@ -70,7 +72,7 @@ func setupClaim(t *testing.T, membershipStatus int, membershipBody string) *clai
 	}
 	require.NoError(t, create.Execute(ctx, nil))
 
-	return &claimHarness{ctx, router, "raw-session-token", userID}
+	return &claimHarness{ctx, router, "raw-session-token", userID, &claimed}
 }
 
 func (h *claimHarness) claim(withCookie bool) *httptest.ResponseRecorder {
@@ -99,6 +101,7 @@ func TestClaimWritesInstallRecord(t *testing.T) {
 	require.Equal(t, h.userID, record.InstalledByUserID)
 	require.Equal(t, "chakrit", record.InstalledByLogin)
 	require.False(t, record.InstalledAt.IsZero())
+	require.Equal(t, 1, *h.claimed)
 }
 
 func TestClaimByNonOwnerForbidden(t *testing.T) {
@@ -109,6 +112,7 @@ func TestClaimByNonOwnerForbidden(t *testing.T) {
 
 	_, err := Load(h.ctx)
 	require.ErrorIs(t, err, ErrNotInstalled)
+	require.Equal(t, 0, *h.claimed)
 }
 
 func TestClaimWithoutSessionUnauthorized(t *testing.T) {

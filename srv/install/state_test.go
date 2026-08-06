@@ -11,6 +11,7 @@ import (
 	"fx.prodigy9.co/data"
 	"fx.prodigy9.co/fxtest"
 	"github.com/stretchr/testify/require"
+	buildengine "platform.prodigy9.co/engine"
 	"platform.prodigy9.co/srv/github"
 	"platform.prodigy9.co/srv/migrate"
 	"platform.prodigy9.co/srv/srvtest"
@@ -35,10 +36,12 @@ func TestGetStateMigratedButNotInstalled(t *testing.T) {
 	require.Equal(t, []Entry{
 		{Name: "db-reachable", State: FullyReadyState},
 		{Name: "migrations", State: FullyReadyState},
+		{Name: "server", State: NotStartedState},
 		{Name: "org", State: NotStartedState},
 		{Name: "app-created", State: NotStartedState},
 		{Name: "app-credentials", State: NotStartedState},
 		{Name: "registry-token", State: NotStartedState},
+		{Name: "engine", State: NotStartedState},
 		{Name: "app-installed", State: NotStartedState},
 		{Name: "claimed", State: NotStartedState},
 	}, entries)
@@ -62,8 +65,8 @@ func TestCreatedStepReadyBeforeCredentials(t *testing.T) {
 
 	entries := GetState(ctx, db, migrate.Merged(Source))
 
-	require.Equal(t, FullyReadyState, entries[3].State)
-	require.Equal(t, NotStartedState, entries[4].State)
+	require.Equal(t, FullyReadyState, entries[4].State)
+	require.Equal(t, NotStartedState, entries[5].State)
 }
 
 // A creation row saved before the slug existed is incomplete: the step must read
@@ -81,7 +84,7 @@ func TestCreatedStepWithoutSlugNotStarted(t *testing.T) {
 
 	entries := GetState(ctx, db, migrate.Merged(Source))
 
-	require.Equal(t, NotStartedState, entries[3].State)
+	require.Equal(t, NotStartedState, entries[4].State)
 }
 
 // The org step surfaces its saved slug in values — the non-secret form fields a
@@ -98,7 +101,60 @@ func TestOrgStepSurfacesSlug(t *testing.T) {
 		Name:   "org",
 		State:  FullyReadyState,
 		Values: map[string]string{"org": "prod9"},
+	}, entries[3])
+}
+
+// The server step surfaces its saved public URL in values
+// (docs/spec/installation.md, the state surface).
+func TestServerStepSurfacesURL(t *testing.T) {
+	ctx := srvtest.SetupDB(t, Source)
+	db := data.FromContext(ctx)
+
+	require.NoError(t, github.SavePublicURL(ctx, "https://platform.example.com"))
+
+	entries := GetState(ctx, db, migrate.Merged(Source))
+
+	require.Equal(t, Entry{
+		Name:   "server",
+		State:  FullyReadyState,
+		Values: map[string]string{"public_url": "https://platform.example.com"},
 	}, entries[2])
+}
+
+// While engine.hosts is unset the not-started entry's values carry the deployment's
+// DAGGER_ENGINE seed — the wizard pre-fills what infra provisioned; the save locks
+// it in (docs/spec/installation.md, the engine step).
+func TestEngineStepPreFillsFromEnvSeed(t *testing.T) {
+	ctx := srvtest.SetupDB(t, Source)
+	db := data.FromContext(ctx)
+
+	cfg := fxtest.Configure()
+	config.Set(cfg, buildengine.DaggerEngineConfig, "dagger-engine.platform.svc")
+	entries := GetState(config.NewContext(ctx, cfg), db, migrate.Merged(Source))
+
+	require.Equal(t, Entry{
+		Name:   "engine",
+		State:  NotStartedState,
+		Values: map[string]string{"hosts": "dagger-engine.platform.svc"},
+	}, entries[7])
+}
+
+// A saved engine binding wins over the env seed and reads fully ready.
+func TestEngineStepSurfacesSavedHosts(t *testing.T) {
+	ctx := srvtest.SetupDB(t, Source)
+	db := data.FromContext(ctx)
+
+	require.NoError(t, github.SaveEngineHosts(ctx, "locked.platform.svc"))
+
+	cfg := fxtest.Configure()
+	config.Set(cfg, buildengine.DaggerEngineConfig, "seed.platform.svc")
+	entries := GetState(config.NewContext(ctx, cfg), db, migrate.Merged(Source))
+
+	require.Equal(t, Entry{
+		Name:   "engine",
+		State:  FullyReadyState,
+		Values: map[string]string{"hosts": "locked.platform.svc"},
+	}, entries[7])
 }
 
 // The creation step surfaces its app id and client id, never the webhook secret —
@@ -122,7 +178,7 @@ func TestCreatedStepSurfacesNonSecretValues(t *testing.T) {
 		"app_id":    "42",
 		"app_slug":  "prodigy9-platform",
 		"client_id": "Iv1.abc",
-	}, entries[3].Values)
+	}, entries[4].Values)
 }
 
 // On a fresh database nothing exists yet: every step below db-reachable is not
@@ -139,10 +195,12 @@ func TestGetStateFreshDBReportsNotStarted(t *testing.T) {
 	require.Equal(t, []Entry{
 		{Name: "db-reachable", State: FullyReadyState},
 		{Name: "migrations", State: NotStartedState},
+		{Name: "server", State: NotStartedState},
 		{Name: "org", State: NotStartedState},
 		{Name: "app-created", State: NotStartedState},
 		{Name: "app-credentials", State: NotStartedState},
 		{Name: "registry-token", State: NotStartedState},
+		{Name: "engine", State: NotStartedState},
 		{Name: "app-installed", State: NotStartedState},
 		{Name: "claimed", State: NotStartedState},
 	}, entries)
@@ -188,8 +246,8 @@ func TestCredentialsStepFlagsUnderscopedApp(t *testing.T) {
 
 	entries := GetState(ctx, db, migrate.Merged(Source))
 
-	require.Equal(t, PartiallyReadyState, entries[4].State)
-	require.Contains(t, entries[4].Message, "contents: write")
+	require.Equal(t, PartiallyReadyState, entries[5].State)
+	require.Contains(t, entries[5].Message, "contents: write")
 }
 
 // A fully scoped App reads fully ready.
@@ -206,7 +264,7 @@ func TestCredentialsStepFullyScopedApp(t *testing.T) {
 
 	entries := GetState(ctx, db, migrate.Merged(Source))
 
-	require.Equal(t, FullyReadyState, entries[4].State)
+	require.Equal(t, FullyReadyState, entries[5].State)
 }
 
 // The app-installed check asks GitHub with the App's own credentials: the bound
@@ -226,8 +284,8 @@ func TestAppInstalledSeesGitHubInstallation(t *testing.T) {
 
 	entries := GetState(ctx, db, migrate.Merged(Source))
 
-	require.Equal(t, FullyReadyState, entries[6].State)
-	require.Equal(t, NotStartedState, entries[7].State)
+	require.Equal(t, FullyReadyState, entries[8].State)
+	require.Equal(t, NotStartedState, entries[9].State)
 }
 
 // An installation on some other org is not this server's: not started, install
@@ -246,7 +304,7 @@ func TestAppInstalledIgnoresOtherOrgs(t *testing.T) {
 
 	entries := GetState(ctx, db, migrate.Merged(Source))
 
-	require.Equal(t, NotStartedState, entries[6].State)
+	require.Equal(t, NotStartedState, entries[8].State)
 }
 
 // Saving the ghcr token flips registry-token on its own — it neither needs nor
@@ -259,7 +317,7 @@ func TestRegistryTokenStepReady(t *testing.T) {
 
 	entries := GetState(ctx, db, migrate.Merged(Source))
 
-	require.Equal(t, FullyReadyState, entries[5].State)
-	require.Equal(t, "registry-token", entries[5].Name)
-	require.Equal(t, NotStartedState, entries[4].State)
+	require.Equal(t, FullyReadyState, entries[6].State)
+	require.Equal(t, "registry-token", entries[6].Name)
+	require.Equal(t, NotStartedState, entries[5].State)
 }

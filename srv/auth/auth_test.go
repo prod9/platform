@@ -52,8 +52,14 @@ func stubApp(t *testing.T, app *github.App, err error) {
 	t.Cleanup(func() { github.LoadApp = orig })
 }
 
+func stubPublicURL(t *testing.T, publicURL string, err error) {
+	orig := github.LoadPublicURL
+	github.LoadPublicURL = func(ctx context.Context) (string, error) { return publicURL, err }
+	t.Cleanup(func() { github.LoadPublicURL = orig })
+}
+
 func authRouter(t *testing.T, cfg *config.Source) chi.Router {
-	config.Set(cfg, github.ServerURLConfig, testServerURL)
+	stubPublicURL(t, testServerURL, nil)
 	router := chi.NewRouter()
 	router.Use(middlewares.Configure(cfg))
 	require.NoError(t, SessionCtr{}.Mount(cfg, router))
@@ -200,6 +206,22 @@ func TestGitHubLoginRedirectsToAuthorize(t *testing.T) {
 	require.Equal(t, testClientID, location.Query().Get("client_id"))
 	require.Equal(t, testServerURL+"/auth/github/callback", location.Query().Get("redirect_uri"))
 	require.Equal(t, state.Value, location.Query().Get("state"))
+}
+
+// Login refuses to run without the public URL — the redirect_uri would be a lie
+// (docs/spec/installation.md, the server step).
+func TestGitHubLoginWithoutPublicURL(t *testing.T) {
+	stubApp(t, &github.App{ClientID: testClientID}, nil)
+	router := chi.NewRouter()
+	cfg := fxtest.Configure()
+	router.Use(middlewares.Configure(cfg))
+	require.NoError(t, SessionCtr{}.Mount(cfg, router))
+	stubPublicURL(t, "", github.ErrNoPublicURL)
+
+	resp := httptest.NewRecorder()
+	router.ServeHTTP(resp, httptest.NewRequest("GET", "/auth/github", nil))
+
+	require.Equal(t, http.StatusServiceUnavailable, resp.Code)
 }
 
 func TestGitHubLoginWithoutApp(t *testing.T) {
@@ -417,7 +439,7 @@ func TestGitHubCallbackSecondLoginReusesUser(t *testing.T) {
 	}
 	require.NoError(t, data.Get(ctx, &counts, `
 		SELECT
-			(` + loginUsersCountSQL + `) AS users,
+			(`+loginUsersCountSQL+`) AS users,
 			(SELECT count(*) FROM identities WHERE provider = 'github') AS identities,
 			(SELECT count(*) FROM sessions) AS sessions`))
 	require.Equal(t, 1, counts.Users)
@@ -464,7 +486,7 @@ func TestUpsertGitHubUserFirstLoginRace(t *testing.T) {
 	}
 	require.NoError(t, data.Get(ctx, &counts, `
 		SELECT
-			(` + loginUsersCountSQL + `) AS users,
+			(`+loginUsersCountSQL+`) AS users,
 			(SELECT count(*) FROM identities WHERE provider = 'github') AS identities`))
 	require.Equal(t, 1, counts.Users)
 	require.Equal(t, 1, counts.Identities)

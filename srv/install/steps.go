@@ -1,6 +1,6 @@
 package install
 
-// The eight wizard steps. Each check is isolated and install-safe: a missing
+// The ten wizard steps. Each check is isolated and install-safe: a missing
 // database or schema is a verdict (intervention required / not started), never a
 // query sent to fail (docs/spec/installation.md, install-safe checks).
 
@@ -11,9 +11,11 @@ import (
 	"strings"
 
 	"fx.prodigy9.co/app/settings"
+	"fx.prodigy9.co/config"
 	"fx.prodigy9.co/data"
 	"fx.prodigy9.co/data/migrator"
 	"github.com/jmoiron/sqlx"
+	buildengine "platform.prodigy9.co/engine"
 	"platform.prodigy9.co/srv/github"
 	"platform.prodigy9.co/srv/migrate"
 )
@@ -65,6 +67,24 @@ func (m migrations) Check(ctx context.Context, db *sqlx.DB) Entry {
 }
 
 func (migrations) Reset(context.Context) error { return nil }
+
+type server struct{}
+
+func (server) name() string { return stepServer }
+
+// Check reads the server's public URL and surfaces it in values — the one field its
+// re-opened panel pre-fills (docs/spec/installation.md, the state surface).
+func (s server) Check(ctx context.Context, db *sqlx.DB) Entry {
+	return settingsBacked(ctx, db, s.name(), func(ctx context.Context) (map[string]string, error) {
+		publicURL, err := github.LoadPublicURL(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return map[string]string{"public_url": publicURL}, nil
+	}, github.ErrNoPublicURL)
+}
+
+func (server) Reset(ctx context.Context) error { return github.ClearPublicURL(ctx) }
 
 type org struct{}
 
@@ -167,6 +187,35 @@ func (s registryToken) Check(ctx context.Context, db *sqlx.DB) Entry {
 func (registryToken) Reset(ctx context.Context) error {
 	return github.ClearRegistryToken(ctx, ghcrHost)
 }
+
+type engine struct{}
+
+func (engine) name() string { return stepEngine }
+
+// Check reads the engine binding and surfaces it in values. While the setting is
+// unset the not-started entry's values carry the deployment's DAGGER_ENGINE env
+// seed, so the wizard panel pre-fills what infra provisioned — the save is what
+// locks it in (docs/spec/installation.md, the engine step). Presence is the whole
+// verdict: the check never dials.
+func (s engine) Check(ctx context.Context, db *sqlx.DB) Entry {
+	e := settingsBacked(ctx, db, s.name(), func(ctx context.Context) (map[string]string, error) {
+		hosts, err := github.LoadEngineHosts(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return map[string]string{"hosts": hosts}, nil
+	}, github.ErrNoEngineHosts)
+
+	cfg := config.FromContext(ctx)
+	if e.State == NotStartedState && cfg != nil {
+		if seed := config.Get(cfg, buildengine.DaggerEngineConfig); seed != "" {
+			e.Values = map[string]string{"hosts": seed}
+		}
+	}
+	return e
+}
+
+func (engine) Reset(ctx context.Context) error { return github.ClearEngineHosts(ctx) }
 
 type appInstalled struct{}
 

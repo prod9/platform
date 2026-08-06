@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -28,11 +29,13 @@ import (
 	"fx.prodigy9.co/httpserver/controllers"
 	"fx.prodigy9.co/httpserver/middlewares"
 	"fx.prodigy9.co/httpserver/render"
+	"fx.prodigy9.co/secret"
 	"github.com/go-chi/chi/v5"
 	"github.com/jmoiron/sqlx"
 	"go.jonnrb.io/vanity"
 	"platform.prodigy9.co/srv/auth"
 	"platform.prodigy9.co/srv/builds"
+	"platform.prodigy9.co/srv/github"
 	"platform.prodigy9.co/srv/install"
 	"platform.prodigy9.co/srv/migrate"
 	"platform.prodigy9.co/webui"
@@ -53,7 +56,21 @@ func Serve() error {
 	entries := install.GetState(config.NewContext(context.Background(), cfg), db, merged)
 	installed := install.Complete(entries)
 
-	router, err := Router(cfg, db, installed)
+	// The installed composition stores user tokens encrypted with SECRET; fx
+	// silently derives a publicly known key from an unset one, so refusing to boot
+	// is the only loud option (docs/spec/installation.md, the env contract).
+	if installed {
+		if _, ok := config.GetOK(cfg, secret.SecretConfig); !ok {
+			return errors.New("srv: SECRET must be set to boot the installed composition")
+		}
+	}
+
+	var server *http.Server
+	claimed := func() {
+		fxlog.Log("install complete; restarting into the product composition")
+		go server.Shutdown(context.Background())
+	}
+	router, err := Router(cfg, db, installed, claimed)
 	if err != nil {
 		return err
 	}
@@ -64,7 +81,7 @@ func Serve() error {
 	}
 
 	listenAddr := config.Get(cfg, httpserver.ListenAddrConfig)
-	server := &http.Server{Addr: listenAddr, Handler: handler}
+	server = &http.Server{Addr: listenAddr, Handler: handler}
 	ctrlc.Do(func() { server.Close() })
 
 	fxlog.Log("listening", fxlog.String("addr", listenAddr), fxlog.Bool("installed", installed))
@@ -77,8 +94,10 @@ func Serve() error {
 // Router builds the server's routes on a fresh chi router for the given install
 // decision; Serve listens with it and tests drive it directly. Both compositions serve
 // /health and the webui at /*; installed mounts the product fragments, not-installed
-// mounts only the installer. db is passed to the installer controller (it may be nil).
-func Router(cfg *config.Source, db *sqlx.DB, installed bool) (chi.Router, error) {
+// mounts only the installer. db is passed to the installer controller (it may be nil);
+// claimed is the installer's post-claim observer — Serve wires the self-restart there,
+// tests pass nil.
+func Router(cfg *config.Source, db *sqlx.DB, installed bool, claimed func()) (chi.Router, error) {
 	router := chi.NewRouter()
 	router.Use(middlewares.Configure(cfg))
 	router.Use(middlewares.LogRequests(cfg))
@@ -88,7 +107,7 @@ func Router(cfg *config.Source, db *sqlx.DB, installed bool) (chi.Router, error)
 	// server is installed (docs/spec/installation.md).
 	ctrs := []controllers.Interface{auth.SessionCtr{}}
 	if !installed {
-		ctrs = append(ctrs, install.StateCtr{DB: db, Merged: merged})
+		ctrs = append(ctrs, install.StateCtr{DB: db, Merged: merged, Claimed: claimed})
 	}
 
 	// Product fragments mount behind the install-record middleware — the bound record
@@ -187,15 +206,10 @@ func (ui UI) Mount(cfg *config.Source, router chi.Router) error {
 		return err
 	}
 
-	// One host serves module resolution and the product (platform-server.md
-	// §Operations): the go toolchain always appends ?go-get=1, so that query is the
-	// whole discriminator and the SPA never sees it.
-	goGet := vanity.GitHubHandler("platform.prodigy9.co", "prod9", "platform", "https")
-
 	files := http.FileServer(http.FS(build))
 	router.Handle("/*", http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
 		if req.URL.Query().Get("go-get") == "1" {
-			goGet.ServeHTTP(resp, req)
+			serveGoGet(resp, req)
 			return
 		}
 		if prerendered(build, req.URL.Path) {
@@ -220,6 +234,30 @@ func (ui UI) Mount(cfg *config.Source, router chi.Router) error {
 		resp.Write(fallback)
 	}))
 	return nil
+}
+
+// serveGoGet answers the go-import meta for platform's own module: one host serves
+// module resolution and the product (platform-server.md §Operations) — the go
+// toolchain always appends ?go-get=1, so that query is the whole discriminator and
+// the SPA never sees it. The module path's host is the host of the server.public_url
+// setting; with none saved there is no module host to answer for, so the reply is a
+// plain 404 (docs/spec/platform-server.md, the route table).
+func serveGoGet(resp http.ResponseWriter, req *http.Request) {
+	publicURL, err := github.LoadPublicURL(req.Context())
+	if errors.Is(err, github.ErrNoPublicURL) {
+		http.NotFound(resp, req)
+		return
+	} else if err != nil {
+		render.Error(resp, req, 500, err)
+		return
+	}
+	parsed, err := url.Parse(publicURL)
+	if err != nil || parsed.Host == "" {
+		render.Error(resp, req, 500, fmt.Errorf("srv: bad public URL %q", publicURL))
+		return
+	}
+
+	vanity.GitHubHandler(parsed.Host, "prod9", "platform", "https").ServeHTTP(resp, req)
 }
 
 // prerendered reports whether the embedded build output holds a file for the path — a

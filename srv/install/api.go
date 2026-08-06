@@ -31,6 +31,11 @@ var (
 type StateCtr struct {
 	DB     *sqlx.DB
 	Merged migrator.Source
+
+	// Claimed runs after a successful claim's response is written — Serve wires
+	// the graceful self-restart there (docs/spec/installation.md, §Boot
+	// composition); nil means no observer (tests, custom compositions).
+	Claimed func()
 }
 
 var _ controllers.Interface = StateCtr{}
@@ -38,12 +43,26 @@ var _ controllers.Interface = StateCtr{}
 func (c StateCtr) Mount(cfg *config.Source, router chi.Router) error {
 	router.Get("/api/install", c.getState)
 	router.Post("/api/install/migrations", c.runMigrations)
+	router.Post("/api/install/server", c.saveServer)
 	router.Post("/api/install/org", c.saveOrg)
 	router.Post("/api/install/app", c.saveApp)
 	router.Post("/api/install/credentials", c.saveCredentials)
 	router.Post("/api/install/registry", c.saveRegistryToken)
+	router.Post("/api/install/engine", c.saveEngine)
 	router.Post("/api/install/claim", c.claim)
 	return nil
+}
+
+// saveServer is the wizard's name-the-server step (POST /api/install/server),
+// saving the public URL the later panels' server-side URLs render from.
+func (c StateCtr) saveServer(resp http.ResponseWriter, req *http.Request) {
+	c.runUngated(resp, req, &SaveServer{})
+}
+
+// saveEngine is the wizard's bind-the-engine step (POST /api/install/engine),
+// locking the infra-provided seed into the engine.hosts setting.
+func (c StateCtr) saveEngine(resp http.ResponseWriter, req *http.Request) {
+	c.runUngated(resp, req, &SaveEngine{})
 }
 
 // saveOrg is the wizard's name-the-org step (POST /api/install/org), saving the
@@ -136,6 +155,10 @@ func (c StateCtr) claim(resp http.ResponseWriter, req *http.Request) {
 	}
 
 	render.JSON(resp, req, GetState(ctx, c.DB, c.Merged))
+
+	if c.Claimed != nil {
+		c.Claimed()
+	}
 }
 
 // claimedOrgOwner resolves the installation's org and answers whether user is an

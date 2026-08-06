@@ -60,14 +60,13 @@ func (r *RunBuild) Run(ctx context.Context) error {
 // failures the engine never got to report. A unit that failed under the engine is already
 // in the stream, so those errors are not returned twice.
 func (r *RunBuild) execute(ctx context.Context, build *Build, scribe *transcriber) error {
-	cacheDir := config.Get(config.FromContext(ctx), CacheDirConfig)
 	token, _, err := install.Token(ctx)
 	if err != nil {
 		return err
 	}
 
 	prep := &PrepRepo{
-		CacheDir: cacheDir,
+		CacheDir: CacheDir,
 		CloneURL: build.CloneURL,
 		Token:    token,
 		Owner:    build.Owner,
@@ -79,14 +78,14 @@ func (r *RunBuild) execute(ctx context.Context, build *Build, scribe *transcribe
 	if err != nil {
 		return err
 	}
-	defer r.cleanUp(ctx, cacheDir, build)
+	defer r.cleanUp(ctx, build)
 
 	cfg, err := conf.Load(workDir)
 	if err != nil {
 		return err
 	}
 
-	ctx, err = registryConfigContext(ctx, cfg)
+	ctx, err = runConfigContext(ctx, cfg)
 	if err != nil {
 		return err
 	}
@@ -110,9 +109,9 @@ func (r *RunBuild) execute(ctx context.Context, build *Build, scribe *transcribe
 // cleanUp removes the build's worktree. It is best-effort by design: the build is over and
 // its outcome is already recorded, so a stale worktree is a cache to sweep rather than a
 // reason to call a finished build failed.
-func (r *RunBuild) cleanUp(ctx context.Context, cacheDir string, build *Build) {
+func (r *RunBuild) cleanUp(ctx context.Context, build *Build) {
 	remove := &RemoveWorkTree{
-		CacheDir: cacheDir,
+		CacheDir: CacheDir,
 		Owner:    build.Owner,
 		Repo:     build.Repo,
 		BuildID:  build.ID,
@@ -124,18 +123,23 @@ func (r *RunBuild) cleanUp(ctx context.Context, cacheDir string, build *Build) {
 	}
 }
 
-// registryConfigContext hangs the publish credential on the session's config: the
-// wizard-saved token for the registry this build's images name, under the
-// installation record's login — ghcr validates the PAT, not an App credential
-// (docs/vendor/ghcr-auth.md). A missing token fails the run outright; the server
-// never attempts an unauthenticated push. The source is a fresh env read so the
-// worker's ambient config is never mutated.
-func registryConfigContext(ctx context.Context, cfg *conf.Model) (context.Context, error) {
+// runConfigContext hangs the run's engine binding and publish credential on the
+// session's config: the wizard-locked engine.hosts setting, and the wizard-saved
+// token for the registry this build's images name, under the installation record's
+// login — ghcr validates the PAT, not an App credential (docs/vendor/ghcr-auth.md).
+// A missing setting fails the run outright; the server never attempts a local
+// auto-provisioned engine or an unauthenticated push. The source is a fresh env
+// read so the worker's ambient config is never mutated.
+func runConfigContext(ctx context.Context, cfg *conf.Model) (context.Context, error) {
 	host, err := registryHost(cfg)
 	if err != nil {
 		return nil, err
 	}
 	token, err := github.LoadRegistryToken(ctx, host)
+	if err != nil {
+		return nil, err
+	}
+	engineHosts, err := github.LoadEngineHosts(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -145,6 +149,7 @@ func registryConfigContext(ctx context.Context, cfg *conf.Model) (context.Contex
 	}
 
 	src := config.Configure()
+	config.Set(src, engine.DaggerEngineConfig, engineHosts)
 	config.Set(src, engine.RegistryConfig, host)
 	config.Set(src, engine.RegistryUsernameConfig, record.InstalledByLogin)
 	config.Set(src, engine.RegistryPasswordConfig, token)

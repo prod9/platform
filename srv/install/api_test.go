@@ -27,10 +27,54 @@ func TestGetInstallReturnsOrderedEntries(t *testing.T) {
 
 	var entries []Entry
 	require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &entries))
-	require.Len(t, entries, 8)
-	for i, name := range []string{"db-reachable", "migrations", "org", "app-created", "app-credentials", "registry-token", "app-installed", "claimed"} {
+	require.Len(t, entries, 10)
+	for i, name := range []string{"db-reachable", "migrations", "server", "org", "app-created", "app-credentials", "registry-token", "engine", "app-installed", "claimed"} {
 		require.Equal(t, name, entries[i].Name)
 	}
+}
+
+// The server and engine steps have their own ungated actions, like every
+// settings-backed step (docs/spec/installation.md, "The install settings").
+func TestPostServerSavesSetting(t *testing.T) {
+	ctx, router := setupAPI(t)
+
+	resp := postJSON(ctx, router, "/api/install/server", `{"public_url": "https://platform.example.com"}`)
+	require.Equal(t, http.StatusOK, resp.Code)
+
+	publicURL, err := github.LoadPublicURL(ctx)
+	require.NoError(t, err)
+	require.Equal(t, "https://platform.example.com", publicURL)
+}
+
+func TestPostServerRequired(t *testing.T) {
+	ctx, router := setupAPI(t)
+
+	resp := postJSON(ctx, router, "/api/install/server", `{"public_url": ""}`)
+	require.Equal(t, http.StatusBadRequest, resp.Code)
+
+	_, err := github.LoadPublicURL(ctx)
+	require.ErrorIs(t, err, github.ErrNoPublicURL)
+}
+
+func TestPostEngineSavesSetting(t *testing.T) {
+	ctx, router := setupAPI(t)
+
+	resp := postJSON(ctx, router, "/api/install/engine", `{"hosts": "dagger-engine.platform.svc"}`)
+	require.Equal(t, http.StatusOK, resp.Code)
+
+	hosts, err := github.LoadEngineHosts(ctx)
+	require.NoError(t, err)
+	require.Equal(t, "dagger-engine.platform.svc", hosts)
+}
+
+func TestPostEngineRequired(t *testing.T) {
+	ctx, router := setupAPI(t)
+
+	resp := postJSON(ctx, router, "/api/install/engine", `{"hosts": ""}`)
+	require.Equal(t, http.StatusBadRequest, resp.Code)
+
+	_, err := github.LoadEngineHosts(ctx)
+	require.ErrorIs(t, err, github.ErrNoEngineHosts)
 }
 
 // The org step has its own ungated action, like every settings-backed step

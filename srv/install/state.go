@@ -12,10 +12,12 @@ import (
 const (
 	stepDBReachable    = "db-reachable"
 	stepMigrations     = "migrations"
+	stepServer         = "server"
 	stepOrg            = "org"
 	stepAppCreated     = "app-created"
 	stepAppCredentials = "app-credentials"
 	stepRegistryToken  = "registry-token"
+	stepEngine         = "engine"
 	stepAppInstalled   = "app-installed"
 	stepClaimed        = "claimed"
 )
@@ -70,16 +72,19 @@ func entry(name string, state StepState, err error) Entry {
 // walks it. The order matters twice over: it is the wizard's sequence and the
 // invalidation suffix. Every install-time value lives in settings, and the settings
 // table exists only once migrations ran, so migrations precede every settings-backed
-// entry; org heads those (everything after is done on pages its slug locates); and
+// entry; server heads those (every later panel's server-side URL renders from it),
+// org follows (everything after is done on pages its slug locates); and
 // the claim stays last (docs/spec/installation.md).
 func steps(merged migrator.Source) []Step {
 	return []Step{
 		dbReachable{},
 		migrations{src: merged},
+		server{},
 		org{},
 		appCreated{},
 		appCredentials{},
 		registryToken{},
+		engine{},
 		appInstalled{},
 		claimed{},
 	}
