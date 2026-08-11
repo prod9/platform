@@ -43,8 +43,8 @@
   404 when the repo itself is absent) — both mean the caller's ref, not a server fault.
 - Installation tokens live ~1 hour; mint per operation, never store.
 - `GET /app` permission slugs the wizard compares: `contents`, `metadata` (repository);
-  `members`, `organization_hooks` (organization). Values are only ever `read` or
-  `write`; `write` implies `read`.
+  `members` (organization). Values are only ever `read` or `write`; `write`
+  implies `read`.
 - Org webhook writes need the App's **Organization webhooks: read and write**
   permission; `registry_package` is the event a GHCR publish delivers.
 - `GET /orgs/{org}/installation` documents only 200; an org the App is not installed

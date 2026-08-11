@@ -12,10 +12,11 @@ the route surface lives in [platform-server.md](platform-server.md).
 
 A platform server governs **one GitHub org**. Installation is the one-time act
 of pointing a fresh server at that org: running migrations, naming the server's
-public URL, creating the GitHub App, supplying the registry push token, installing the App,
-and wiring the org-wide delivery webhook.
-Until all of that
-is true, the server is **not completely installed** and serves only the installer.
+public URL, creating the GitHub App, supplying the registry push token, and
+installing the App. Until all of that is true, the server is **not completely
+installed** and serves only the installer. (The org-wide delivery webhook is
+cluster-side plumbing outside the wizard — §The org-wide GitHub→Flux delivery
+webhook.)
 
 The install flow is a **wizard**: the webui walks the state entries as
 step-by-step guided pages, and every value the operator enters — the App
@@ -32,7 +33,7 @@ so no engine binding is stored server-side.
 The worker clones into the fixed `/var/cache/platform` (not configurable — the
 deployment mounts a writable volume there).
 
-The wizard UI holds four rules:
+The wizard UI holds these rules:
 
 - **A step's action completes that step.** Clicking a step's button ends with
   that entry `fully_ready` and the wizard advanced — never a return to the same
@@ -50,10 +51,10 @@ The wizard UI holds four rules:
 - **Each panel is operative.** It carries the detailed instructions the human
   operator follows, direct links to the external pages the step works on (the
   GitHub App creation page, the created App's edit and install pages — all
-  built from the org and app-created entries' `values`), and — where the step takes values — the input
-  fields and a save action posting the step's installer action. Non-secret
-  fields pre-fill from the entry's `values`; secret fields always render
-  empty.
+  built from the org and app-created entries' `values`), and — where the step
+  takes values — the input fields and a save action posting the step's
+  installer action. Non-secret fields pre-fill from the entry's `values`;
+  secret fields always render empty.
 - **A form is editable only when its values are settled.** The wizard renders
   nothing until the first state read has been adopted, and a panel's inputs are
   disabled while its own save is in flight — adopting a state response must
@@ -61,9 +62,10 @@ The wizard UI holds four rules:
   could happen are closed by construction rather than reconciled after.
 - **Done locks; Redo unlocks.** A `fully_ready` step's panel renders its form
   locked behind a **Redo** button. Redo is client-side only — it unlocks the
-  form (secret fields empty and required; the webhook-secret mint fires only
-  for an unset field); the server learns nothing until the save lands, which
-  then suffix-resets every later step (§Redo and suffix invalidation).
+  form (secret fields empty and required; the webhook secret, being generated
+  rather than recalled, re-mints fresh on every redo); the server learns
+  nothing until the save lands, which then suffix-resets every later step
+  (§Redo and suffix invalidation).
 - **Restartable, always converging.** The wizard holds no step state of its
   own: every save's response (and every page load) is a fresh state read, so a
   reload, a failure, or out-of-order work always lands the operator back on
@@ -96,41 +98,42 @@ own values — see §Redo and suffix invalidation) and reports one of five
 states; the **first non-`fully_ready` entry is the `next` step** — the webui's
 default selection (see §The wizard UI).
 
-| State                   | Meaning                                                        |
-|-------------------------|----------------------------------------------------------------|
-| `fully_ready`           | the step's condition holds                                     |
-| `partially_ready`       | some but not all of the step's work is done                    |
-| `not_started`           | none of it yet — the step's action is the next move            |
+| State                   | Meaning                                                                       |
+|-------------------------|-------------------------------------------------------------------------------|
+| `fully_ready`           | the step's condition holds                                                    |
+| `partially_ready`       | some but not all of the step's work is done                                   |
+| `not_started`           | none of it yet — the step's action is the next move                           |
 | `intervention_required` | an operator condition, not a one-click fix (dirty schema, bad `DATABASE_URL`) |
-| `""` (unknown)          | the check itself failed — indeterminable, message carries why  |
+| `""` (unknown)          | the check itself failed — indeterminable, message carries why                 |
 
 Unknown is the **zero value** on purpose: an unset state reads as "nobody
 knows", never as a verdict. An entry carries `message` alongside the state when
 the check produced an error, and `values` — a string map of the step's
 **non-secret form fields** — so a re-opened panel can re-display what is saved
 (`server` surfaces the public URL; `org` the slug; `app-created` its app id,
-client id, and app slug; the secret-only steps surface nothing). Settings never round-trip wholesale: the
-state read is ungated, so the only values that reach the wire are the ones a
-step deliberately puts in its own `values`, and secrets never qualify — a
-secret's presence is implied by the step's state, never echoed.
+client id, and app slug; the secret-only steps surface nothing). Settings never
+round-trip wholesale: the state read is ungated, so the only values that reach
+the wire are the ones a step deliberately puts in its own `values`, and secrets
+never qualify — a secret's presence is implied by the step's state, never
+echoed.
 
-| Entry             | Check                                    | Non-ready meaning                          |
-|-------------------|------------------------------------------|--------------------------------------------|
-| `db-reachable`    | connectivity ping                        | `intervention_required` → connection fix   |
-| `migrations`      | schema is current                        | `not_started`/`partially_ready` → run button; dirty → `intervention_required` |
-| `server`          | the `server.public_url` setting has a value; surfaces it in `values` | `not_started` → the name-the-server wizard step |
-| `org`             | the `github.org` setting has a value; surfaces it in `values` | `not_started` → the name-the-org wizard step |
-| `app-created`     | the creation-time values — `github.app_id`, `github.app_slug`, `github.app_client_id`, `github.app_webhook_secret` — all have values | `not_started` → the create-the-App wizard step |
-| `app-credentials` | every `github.app_*` setting has a value **and the App carries the required permissions** | `not_started` → the generated-keys wizard step; `partially_ready` → App reachable but under-scoped, message names the gap |
-| `registry-token`  | the `registry.ghcr.io.token` setting has a value | `not_started` → the registry-PAT wizard step |
-| `app-installed`   | `GET /orgs/{org}/installation` (JWT) answers 200 for the bound org; its 404 means not installed | `not_started` → install the App on the org |
-| `claimed`         | every `install.*` setting has a value    | `not_started` → sign-in + org-owner claim  |
+| Entry             | Check                                                                                                                                | Non-ready meaning                                                                                                         |
+|-------------------|--------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------|
+| `db-reachable`    | connectivity ping                                                                                                                    | `intervention_required` → connection fix                                                                                  |
+| `migrations`      | schema is current                                                                                                                    | `not_started`/`partially_ready` → run button; dirty → `intervention_required`                                             |
+| `server`          | the `server.public_url` setting has a value; surfaces it in `values`                                                                 | `not_started` → the name-the-server wizard step                                                                           |
+| `org`             | the `github.org` setting has a value; surfaces it in `values`                                                                        | `not_started` → the name-the-org wizard step                                                                              |
+| `app-created`     | the creation-time values — `github.app_id`, `github.app_slug`, `github.app_client_id`, `github.app_webhook_secret` — all have values | `not_started` → the create-the-App wizard step                                                                            |
+| `app-credentials` | every `github.app_*` setting has a value **and the App carries the required permissions**                                            | `not_started` → the generated-keys wizard step; `partially_ready` → App reachable but under-scoped, message names the gap |
+| `registry-token`  | the `registry.ghcr.io.token` setting has a value                                                                                     | `not_started` → the registry-PAT wizard step                                                                              |
+| `app-installed`   | `GET /orgs/{org}/installation` (JWT) answers 200 for the bound org; its 404 means not installed                                      | `not_started` → install the App on the org                                                                                |
+| `claimed`         | every `install.*` setting has a value                                                                                                | `not_started` → sign-in + org-owner claim                                                                                 |
 
 The `server` step names the server's **public URL** — the one server-side truth
 of where this deployment lives. It is what the OAuth `redirect_uri` is built
 from (login refuses to run without it) and what every wizard instruction that
-says "the server's own URL" renders. The webui builds its instructions from the **server's** value — not
-the browser's origin — and warns when the two differ: a mismatch usually means
+says "the server's own URL" renders. The webui builds its instructions from the
+**server's** value — not the browser's origin — and warns when the two differ: a mismatch usually means
 the operator is on a non-canonical host, and values pasted into GitHub from
 such a page would point at the wrong place. The panel pre-fills the field from
 the browser origin when the setting is empty — a suggestion, not a source of
@@ -153,8 +156,9 @@ its id, its slug (the name-derived segment in the App's own URL), and client id
 **private key and client secret are generated afterward** on the created App's
 settings page. The slug is what later panels build the App's **direct** links
 from — its edit page (`github.com/organizations/<org>/settings/apps/<slug>`) and
-its install page (`…/settings/apps/<slug>/installations`). Each step saves what its GitHub page produced,
-so a reload lands the operator exactly where the real-world flow stands.
+its install page (`…/settings/apps/<slug>/installations`). Each step saves what
+its GitHub page produced, so a reload lands the operator exactly where the
+real-world flow stands.
 
 Two steps can be `partially_ready`: `migrations` (some applied, some pending)
 and `app-credentials` (credentials saved, but `GET /app` reports a permission
@@ -301,15 +305,15 @@ encryption at rest remains open there.
 
 **The server binding** rides the same store:
 
-| Key                 | Value                                                        |
-|---------------------|--------------------------------------------------------------|
+| Key                 | Value                                                                                  |
+|---------------------|----------------------------------------------------------------------------------------|
 | `server.public_url` | the server's public URL — OAuth redirects, every "the server's URL" the wizard renders |
 
 **The registry token** rides the same store, keyed by registry host:
 
-| Key                        | Value                                        |
-|----------------------------|----------------------------------------------|
-| `registry.<host>.token`    | classic PAT with `write:packages`, per registry |
+| Key                     | Value                                           |
+|-------------------------|-------------------------------------------------|
+| `registry.<host>.token` | classic PAT with `write:packages`, per registry |
 
 ghcr accepts no App-derived credential — classic PATs are the only thing that
 works outside Actions ([vendor/ghcr-auth.md](../vendor/ghcr-auth.md)) — so the
@@ -344,8 +348,11 @@ The claim: the GitHub App Setup URL is a browser redirect, so it lands on the
 with that id (session-gated: resolve installation→org via the App API, verify
 the session user is an org owner, write the values) — the write sits behind a
 POST, never the landing GET. The session requirement is why the auth fragment
-mounts pre-install. The write needs the `settings` table, so the claim runs
-**after** migrations, which is why `claimed` is the last state entry:
+mounts pre-install. A browser that lost the id (a fresh tab, a cleared session)
+re-fires the redirect by re-saving the installed App's repository selection on
+GitHub — the claim panel says so and links the installation page. The write
+needs the `settings` table, so the claim runs **after** migrations, which is
+why `claimed` is the last state entry:
 
 | Key                            | Value                          |
 |--------------------------------|--------------------------------|

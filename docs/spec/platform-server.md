@@ -74,7 +74,8 @@ fragment-neutral test scaffolding.
 **Install state is stored in fx's settings app** (`fx.prodigy9.co/app/settings`), not a
 bespoke table ([installation.md](installation.md), "The install settings"). The settings
 app contributes its schema only — srv mounts no settings REST surface. Every write goes
-through a purpose-built installer action (`POST /api/install/app`,
+through a purpose-built installer action (`POST /api/install/server`,
+`POST /api/install/org`, `POST /api/install/app`,
 `POST /api/install/credentials`, `POST /api/install/registry`, the claim) or
 the model accessors (`settings.Get`/`Upsert`) directly; a generic key/value API would be
 an unauthenticated-write surface pre-install and has no reader post-install. The settings
@@ -116,6 +117,8 @@ lives under `/api`; GitHub-facing and health routes stay bare.
 | `POST /api/install/credentials` | none (installer)      | saves the generated pair — private key, client secret — as their `github.app_*` settings | the keys GitHub generates after creation; both App steps write before login can exist — same ungated posture as the migrations button ([installation.md](installation.md)) |
 | `POST /api/install/registry` | none (installer)         | saves the ghcr push PAT as `registry.ghcr.io.token`                                   | ghcr accepts no App-derived credential ([vendor/ghcr-auth.md](../vendor/ghcr-auth.md)); same ungated posture |
 | `POST /api/install/server`  | none (installer)          | saves the server's public URL as `server.public_url`                                  | the one server-side truth of where the deployment lives — OAuth redirects derive from it ([installation.md](installation.md)) |
+| `POST /api/install/org`     | none (installer)          | saves the primary-org slug as `github.org`                                            | the slug every wizard GitHub link is built from ([installation.md](installation.md)); same ungated posture |
+| `POST /api/install/migrations` | none (installer)       | applies pending migrations                                                            | the wizard's run-migrations button; re-runnable, applies only what is missing ([installation.md](installation.md)) |
 | `GET /*`                    | none                      | serves the embedded webui at the status the path deserves; the SPA drives installer-vs-app via `GET /api/install`  | single-binary delivery — no separate frontend deploy                                                               |
 
 **Module resolution is a static fact, not a route.** `go get platform.prodigy9.co`

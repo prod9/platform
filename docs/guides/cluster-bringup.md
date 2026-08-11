@@ -137,7 +137,8 @@ Connect repository; UI-only, no API).
    the change lands on-cluster shortly after the event arrives (GitHub-side delivery runs
    minutes behind the publish; receiver-to-cluster is seconds):
    `kubectl -n flux-system get ocirepository,kustomization` timestamps move.
-3. `https://<PLATFORM_HOSTNAME>` serves the vanity redirect; certs valid.
+3. `https://<PLATFORM_HOSTNAME>` serves the webui (every page carries the
+   go-import meta for `go get`); certs valid.
 
 Baseline is live when all three hold.
 
