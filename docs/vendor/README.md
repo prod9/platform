@@ -41,6 +41,9 @@ tables and lists; keep entries skimmable.
 - [`ghcr-auth.md`](ghcr-auth.md) — what credentials ghcr.io accepts: classic PAT only
   outside Actions; App installation / OAuth / user-access tokens all refused (staff-
   confirmed), and the unverified basic-auth-username question.
+- [`go-vanity-imports.md`](go-vanity-imports.md) — how `go get` resolves `go-import`
+  meta: the prefix re-fetch that lets one static tag cover every path, and the
+  non-200-bodies-are-parsed rule that makes a 404 fallback page resolve.
 - [`github-app-api.md`](github-app-api.md) — the GitHub endpoints `srv/github` drives: App
   JWT claims and header form, token minting, installation/org/repo/ref lookups, and what
   "org owner" means on the wire.
