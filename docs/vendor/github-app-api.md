@@ -20,8 +20,19 @@
 | Org membership              | `GET /orgs/{org}/memberships/{username}`             | installation token | 200 | `role`: `admin`\|`member`\|`billing_manager`, `state`: `active`\|`pending` |
 | Resolve ref → sha           | `GET /repos/{owner}/{repo}/commits/{ref}`            | installation token | 200 | top-level `sha`; `ref` = SHA, `heads/BRANCH`, `tags/TAG` |
 | Get the authenticated App   | `GET /app`                                           | JWT                | 200 | `permissions`: map of slug → `read`\|`write`         |
+| Get org installation        | `GET /orgs/{org}/installation`                       | JWT                | 200 | one installation object (`id`, `account`, `app_id`)  |
 | List org webhooks           | `GET /orgs/{org}/hooks`                              | installation token | 200 | `[]` of `id`, `config` (`url`), `events`, `active`   |
 | Create org webhook          | `POST /orgs/{org}/hooks`                             | installation token | 201 | `name` must be `"web"`; `config.url` + `content_type`; `events`, `active` |
+
+## Pagination — the `Link` response header
+
+- Paginated endpoints answer a `Link` header of `<url>; rel="…"` entries; the rels are
+  `prev`, `next`, `first`, `last`, and only a subset may be present.
+- **The last page is the response with no `rel="next"` entry** — that absence is the
+  end-of-list signal, not a short page.
+- **Follow the header's URLs verbatim; never construct page URLs by hand** — endpoints
+  differ in which query parameters drive paging (`page`, `before`/`after`, `since`),
+  so the header URL is the only portable cursor.
 
 ## Notes
 
@@ -37,3 +48,6 @@
   `write`; `write` implies `read`.
 - Org webhook writes need the App's **Organization webhooks: read and write**
   permission; `registry_package` is the event a GHCR publish delivers.
+- `GET /orgs/{org}/installation` documents only 200; an org the App is not installed
+  on answers GitHub's standard 404 (undocumented on this endpoint — verified against
+  the endpoint page 2026-08-11, which lists no error codes).
