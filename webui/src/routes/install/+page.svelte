@@ -360,7 +360,7 @@
 								<input
 									placeholder="https://platform.example.com"
 									bind:value={server.public_url}
-									disabled={locked}
+									disabled={locked || savingServer}
 								/>
 							</label>
 						</div>
@@ -387,7 +387,7 @@
 						<div class="fields">
 							<label>
 								<span class="label">Org slug</span>
-								<input placeholder="your-org" bind:value={org.org} disabled={locked} />
+								<input placeholder="your-org" bind:value={org.org} disabled={locked || savingOrg} />
 							</label>
 						</div>
 						{#if locked}
@@ -414,11 +414,11 @@
 							<label>
 								<span class="label">Webhook secret (copy into GitHub's form)</span>
 								<span class="secret">
-									<input bind:value={app.webhook_secret} disabled={locked} />
+									<input bind:value={app.webhook_secret} disabled={locked || savingApp} />
 									<button
 										type="button"
 										title="Regenerate"
-										disabled={locked}
+										disabled={locked || savingApp}
 										onclick={() => (app.webhook_secret = generateWebhookSecret())}
 										>↻</button
 									>
@@ -426,19 +426,19 @@
 							</label>
 							<label>
 								<span class="label">App id</span>
-								<input inputmode="numeric" bind:value={app.app_id} disabled={locked} />
+								<input inputmode="numeric" bind:value={app.app_id} disabled={locked || savingApp} />
 							</label>
 							<label>
 								<span class="label">App URL (paste from the address bar)</span>
 								<input
 									placeholder="https://github.com/organizations/…/settings/apps/my-app"
 									bind:value={app.app_slug}
-									disabled={locked}
+									disabled={locked || savingApp}
 								/>
 							</label>
 							<label>
 								<span class="label">Client id</span>
-								<input bind:value={app.client_id} disabled={locked} />
+								<input bind:value={app.client_id} disabled={locked || savingApp} />
 							</label>
 						</div>
 						{#if locked}
@@ -464,11 +464,11 @@
 						<div class="fields">
 							<label>
 								<span class="label">Client secret</span>
-								<input bind:value={credentials.client_secret} disabled={locked} />
+								<input bind:value={credentials.client_secret} disabled={locked || savingCredentials} />
 							</label>
 							<label>
 								<span class="label">Private key (the downloaded .pem)</span>
-								<input type="file" accept=".pem" onchange={pickPrivateKey} disabled={locked} />
+								<input type="file" accept=".pem" onchange={pickPrivateKey} disabled={locked || savingCredentials} />
 							</label>
 						</div>
 						{#if locked}
@@ -494,7 +494,7 @@
 						<div class="fields">
 							<label>
 								<span class="label">Classic PAT (write:packages)</span>
-								<input type="password" bind:value={registry.token} disabled={locked} />
+								<input type="password" bind:value={registry.token} disabled={locked || savingRegistry} />
 							</label>
 						</div>
 						{#if locked}
