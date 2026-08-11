@@ -228,12 +228,17 @@ func TestCredentialsStepFullyScopedApp(t *testing.T) {
 	require.Equal(t, FullyReadyState, entries[5].State)
 }
 
-// The app-installed check asks GitHub with the App's own credentials: the bound
-// org among the App's installations is the whole verdict, no session involved
-// (docs/spec/installation.md, the state surface).
+// The app-installed check asks GitHub with the App's own credentials: the direct
+// org-installation lookup for the bound org is the whole verdict, no session
+// involved (docs/spec/installation.md, the state surface).
 func TestAppInstalledSeesGitHubInstallation(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprint(w, `[{"id":900,"account":{"id":1,"login":"prod9"}}]`)
+		if r.URL.Path == "/app" {
+			fmt.Fprint(w, `{"permissions":{}}`)
+			return
+		}
+		require.Equal(t, "/orgs/prod9/installation", r.URL.Path)
+		fmt.Fprint(w, `{"id":900,"account":{"id":1,"login":"prod9"}}`)
 	}))
 	t.Cleanup(server.Close)
 	t.Setenv("GITHUB_API_URL", server.URL)
@@ -249,11 +254,12 @@ func TestAppInstalledSeesGitHubInstallation(t *testing.T) {
 	require.Equal(t, NotStartedState, entries[8].State)
 }
 
-// An installation on some other org is not this server's: not started, install
+// GitHub's 404 for the bound org means not installed: not started, install
 // still the next move.
 func TestAppInstalledIgnoresOtherOrgs(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprint(w, `[{"id":900,"account":{"id":1,"login":"someone-else"}}]`)
+		w.WriteHeader(404)
+		fmt.Fprint(w, `{"message":"Not Found"}`)
 	}))
 	t.Cleanup(server.Close)
 	t.Setenv("GITHUB_API_URL", server.URL)

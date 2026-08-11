@@ -202,16 +202,20 @@ func TestIsOrgOwner(t *testing.T) {
 	}
 }
 
+// Repos walks the Link header: the end of the list is the response with no
+// rel="next", not a short page (docs/vendor/github-app-api.md §Pagination).
 func TestRepos(t *testing.T) {
 	client, _ := testClient(t, http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
 		require.Equal(t, "GET", req.Method)
 		require.Equal(t, "/installation/repositories", req.URL.Path)
-		require.Equal(t, "100", req.URL.Query().Get("per_page"))
 		require.Equal(t, "Bearer ghs_tok", req.Header.Get("Authorization"))
 
 		var repos []string
 		switch req.URL.Query().Get("page") {
 		case "", "1":
+			require.Equal(t, "100", req.URL.Query().Get("per_page"))
+			resp.Header().Set("Link", fmt.Sprintf(
+				`<http://%s/installation/repositories?page=2>; rel="next"`, req.Host))
 			for i := range 100 {
 				repos = append(repos, fmt.Sprintf(
 					`{"name":"repo%d","full_name":"prodigy9/repo%d","owner":{"login":"prodigy9"}}`, i, i))
@@ -227,20 +231,6 @@ func TestRepos(t *testing.T) {
 	require.Len(t, repos, 101)
 	require.Equal(t, Repo{Name: "repo0", FullName: "prodigy9/repo0", Owner: "prodigy9"}, repos[0])
 	require.Equal(t, Repo{Name: "last", FullName: "prodigy9/last", Owner: "prodigy9"}, repos[100])
-}
-
-func TestReposNeverEndingPagesIsAnError(t *testing.T) {
-	client, _ := testClient(t, http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
-		var repos []string
-		for i := range 100 {
-			repos = append(repos, fmt.Sprintf(
-				`{"name":"repo%d","full_name":"prodigy9/repo%d","owner":{"login":"prodigy9"}}`, i, i))
-		}
-		fmt.Fprintf(resp, `{"total_count":10000,"repositories":[%s]}`, strings.Join(repos, ","))
-	}))
-
-	_, err := client.Repos(context.Background(), "ghs_tok")
-	require.ErrorContains(t, err, "did not end")
 }
 
 func TestRepoCloneURL(t *testing.T) {
@@ -327,44 +317,44 @@ func TestAppPermissions(t *testing.T) {
 	requireAppJWT(t, seen, key)
 }
 
-func TestInstallations(t *testing.T) {
+// Whether the App is installed on an org is the direct lookup — 200 is yes, GitHub's
+// standard 404 is no — never a walk of the installation list
+// (docs/spec/platform-server.md, the transport layer).
+func TestInstalledOnOrg(t *testing.T) {
 	var seen *http.Request
 	client, key := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		seen = r.Clone(context.Background())
 		require.Equal(t, "GET", r.Method)
-		require.Equal(t, "/app/installations", r.URL.Path)
-		require.Equal(t, "100", r.URL.Query().Get("per_page"))
+		require.Equal(t, "/orgs/prod9/installation", r.URL.Path)
 
-		var items []string
-		switch r.URL.Query().Get("page") {
-		case "", "1":
-			for i := range 100 {
-				items = append(items, fmt.Sprintf(`{"id":%d,"account":{"id":%d,"login":"org%d"}}`, i, i, i))
-			}
-		case "2":
-			items = []string{`{"id":900,"account":{"id":900,"login":"prod9"}}`}
-		}
-		fmt.Fprintf(w, `[%s]`, strings.Join(items, ","))
+		fmt.Fprint(w, `{"id":900,"account":{"id":900,"login":"prod9"},"app_id":42}`)
 	}))
 
-	orgs, err := client.Installations(context.Background())
+	installed, err := client.InstalledOnOrg(context.Background(), "prod9")
 	require.NoError(t, err)
-	require.Len(t, orgs, 101)
-	require.Equal(t, Org{ID: 900, Login: "prod9"}, orgs[100])
+	require.True(t, installed)
 	requireAppJWT(t, seen, key)
 }
 
-func TestInstallationsNeverEndingPagesIsAnError(t *testing.T) {
+func TestInstalledOnOrgAbsentInstallationIsFalse(t *testing.T) {
 	client, _ := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var items []string
-		for i := range 100 {
-			items = append(items, fmt.Sprintf(`{"id":%d,"account":{"id":%d,"login":"org%d"}}`, i, i, i))
-		}
-		fmt.Fprintf(w, `[%s]`, strings.Join(items, ","))
+		w.WriteHeader(404)
+		fmt.Fprint(w, `{"message":"Not Found"}`)
 	}))
 
-	_, err := client.Installations(context.Background())
-	require.ErrorContains(t, err, "did not end")
+	installed, err := client.InstalledOnOrg(context.Background(), "prod9")
+	require.NoError(t, err)
+	require.False(t, installed)
+}
+
+func TestInstalledOnOrgAPIError(t *testing.T) {
+	client, _ := testClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(500)
+		fmt.Fprint(w, `{"message":"boom"}`)
+	}))
+
+	_, err := client.InstalledOnOrg(context.Background(), "prod9")
+	require.ErrorContains(t, err, "boom")
 }
 
 func TestMissingPermissions(t *testing.T) {

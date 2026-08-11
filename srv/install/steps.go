@@ -222,16 +222,14 @@ func (s appInstalled) Check(ctx context.Context, db *sqlx.DB) Entry {
 		return entry(s.name(), UnknownState, err)
 	}
 
-	installed, err := client.Installations(ctx)
+	installed, err := client.InstalledOnOrg(ctx, org)
 	if err != nil {
 		return entry(s.name(), UnknownState, err)
 	}
-	for _, candidate := range installed {
-		if strings.EqualFold(candidate.Login, org) {
-			return entry(s.name(), FullyReadyState, nil)
-		}
+	if !installed {
+		return entry(s.name(), NotStartedState, nil)
 	}
-	return entry(s.name(), NotStartedState, nil)
+	return entry(s.name(), FullyReadyState, nil)
 }
 
 // Reset is a no-op: the step holds no server-side values — undoing it is
