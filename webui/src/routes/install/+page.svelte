@@ -702,9 +702,10 @@
 							<ul>
 								<li><strong>App id</strong></li>
 								<li>
-									<strong>App URL</strong> — paste the created App's page URL
-									straight from the address bar; only its slug saves, and later
-									steps link the App's pages directly through it
+									<strong>App URL</strong> — paste the URL of the settings page
+									GitHub lands you on after creation, straight from the address
+									bar (the App's public page works too); only its slug saves,
+									and later steps link the App's pages directly through it
 								</li>
 								<li><strong>Client id</strong></li>
 							</ul>
