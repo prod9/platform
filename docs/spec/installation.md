@@ -123,7 +123,7 @@ secret's presence is implied by the step's state, never echoed.
 | `app-created`     | the creation-time values — `github.app_id`, `github.app_slug`, `github.app_client_id`, `github.app_webhook_secret` — all have values | `not_started` → the create-the-App wizard step |
 | `app-credentials` | every `github.app_*` setting has a value **and the App carries the required permissions** | `not_started` → the generated-keys wizard step; `partially_ready` → App reachable but under-scoped, message names the gap |
 | `registry-token`  | the `registry.ghcr.io.token` setting has a value | `not_started` → the registry-PAT wizard step |
-| `app-installed`   | `GET /app/installations` (JWT) lists an installation whose account is the bound org | `not_started` → install the App on the org |
+| `app-installed`   | `GET /orgs/{org}/installation` (JWT) answers 200 for the bound org; its 404 means not installed | `not_started` → install the App on the org |
 | `claimed`         | every `install.*` setting has a value    | `not_started` → sign-in + org-owner claim  |
 
 The `server` step names the server's **public URL** — the one server-side truth

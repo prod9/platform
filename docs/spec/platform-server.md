@@ -461,6 +461,15 @@ installer fragment — **not** `platform init`. See [installation.md](installati
   the App-identity queries the server makes (installation→org resolution, org-owner
   check, the installation's repo list, ref→sha resolution). Fragments consume it; none
   talks to GitHub's API directly except auth's own user-OAuth exchange.
+- **The client has one transport layer.** Auth-header selection, JSON decoding, error
+  shaping, and pagination are written once, in the transport; each endpoint method
+  declares only its path, verb, and response type. Pagination follows the `Link`
+  response header — the walk ends when a response carries no `rel="next"`, following
+  the header's own URLs (never constructing page URLs) — so there is no page cap:
+  the end-of-list signal is the protocol's, not a guessed bound
+  (docs/vendor/github-app-api.md §Pagination). Whether the App is installed on an org
+  is the direct `GET /orgs/{org}/installation` lookup (404 = not installed), never a
+  walk of the installation list.
 - **User-to-server token** — obtained via the App's user OAuth flow, acts as the user.
   Used where the infra-repo commit must show as the user and be gated by *their* write
   access. It restores implicit authz (the token can't exceed the user's reach), so the
