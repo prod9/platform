@@ -15,7 +15,6 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
-	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -32,10 +31,8 @@ import (
 	"fx.prodigy9.co/secret"
 	"github.com/go-chi/chi/v5"
 	"github.com/jmoiron/sqlx"
-	"go.jonnrb.io/vanity"
 	"platform.prodigy9.co/srv/auth"
 	"platform.prodigy9.co/srv/builds"
-	"platform.prodigy9.co/srv/github"
 	"platform.prodigy9.co/srv/install"
 	"platform.prodigy9.co/srv/migrate"
 	"platform.prodigy9.co/webui"
@@ -208,10 +205,6 @@ func (ui UI) Mount(cfg *config.Source, router chi.Router) error {
 
 	files := http.FileServer(http.FS(build))
 	router.Handle("/*", http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
-		if req.URL.Query().Get("go-get") == "1" {
-			serveGoGet(resp, req)
-			return
-		}
 		if prerendered(build, req.URL.Path) {
 			files.ServeHTTP(resp, req)
 			return
@@ -234,30 +227,6 @@ func (ui UI) Mount(cfg *config.Source, router chi.Router) error {
 		resp.Write(fallback)
 	}))
 	return nil
-}
-
-// serveGoGet answers the go-import meta for platform's own module: one host serves
-// module resolution and the product (platform-server.md §Operations) — the go
-// toolchain always appends ?go-get=1, so that query is the whole discriminator and
-// the SPA never sees it. The module path's host is the host of the server.public_url
-// setting; with none saved there is no module host to answer for, so the reply is a
-// plain 404 (docs/spec/platform-server.md, the route table).
-func serveGoGet(resp http.ResponseWriter, req *http.Request) {
-	publicURL, err := github.LoadPublicURL(req.Context())
-	if errors.Is(err, github.ErrNoPublicURL) {
-		http.NotFound(resp, req)
-		return
-	} else if err != nil {
-		render.Error(resp, req, 500, err)
-		return
-	}
-	parsed, err := url.Parse(publicURL)
-	if err != nil || parsed.Host == "" {
-		render.Error(resp, req, 500, fmt.Errorf("srv: bad public URL %q", publicURL))
-		return
-	}
-
-	vanity.GitHubHandler(parsed.Host, "prod9", "platform", "https").ServeHTTP(resp, req)
 }
 
 // prerendered reports whether the embedded build output holds a file for the path — a

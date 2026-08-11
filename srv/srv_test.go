@@ -1,7 +1,6 @@
 package srv
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -15,7 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"platform.prodigy9.co/srv/auth"
 	"platform.prodigy9.co/srv/builds"
-	"platform.prodigy9.co/srv/github"
 	"platform.prodigy9.co/srv/install"
 	"platform.prodigy9.co/srv/migrate"
 	"platform.prodigy9.co/srv/srvtest"
@@ -99,40 +97,21 @@ func TestCredentialsMountedUngatedInInstaller(t *testing.T) {
 		post(installed, "/api/install/credentials", "{}").Code)
 }
 
-// One host serves module resolution and the product: any path with ?go-get=1 answers
-// the go-import meta whose module host is the host of the server.public_url setting,
-// in both compositions (platform-server.md §Operations; the standalone vanity command
-// is gone).
-func TestGoGetMetaServed(t *testing.T) {
-	stubPublicURL(t, "https://platform.example.dev", nil)
+// Module resolution is a static fact baked into the SPA's page shell: every served
+// page carries the literal go-import tag, including the 404 fallback — the toolchain
+// parses meta out of non-200 bodies (platform-server.md; vendor/go-vanity-imports.md).
+func TestGoImportMetaOnEveryPage(t *testing.T) {
+	const meta = `<meta name="go-import" content="platform.prodigy9.co git https://github.com/prod9/platform" />`
 	for _, installed := range []bool{false, true} {
 		router, err := Router(fxtest.Configure(), nil, installed, nil)
 		require.NoError(t, err)
 
-		for _, path := range []string{"/?go-get=1", "/framework?go-get=1"} {
+		for path, status := range map[string]int{"/": http.StatusOK, "/no/such/page": http.StatusNotFound} {
 			resp := get(router, path)
-			require.Equal(t, http.StatusOK, resp.Code, path)
-			require.Contains(t, resp.Body.String(), "go-import", path)
-			require.Contains(t, resp.Body.String(), "platform.example.dev", path)
-			require.Contains(t, resp.Body.String(), "github.com/prod9/platform", path)
+			require.Equal(t, status, resp.Code, path)
+			require.Contains(t, resp.Body.String(), meta, path)
 		}
 	}
-}
-
-// With no public URL saved there is no module host to answer for — a plain 404, not
-// meta for a host the server does not know (platform-server.md, the route table).
-func TestGoGetMetaWithoutPublicURL(t *testing.T) {
-	stubPublicURL(t, "", github.ErrNoPublicURL)
-	router, err := Router(fxtest.Configure(), nil, false, nil)
-	require.NoError(t, err)
-
-	require.Equal(t, http.StatusNotFound, get(router, "/?go-get=1").Code)
-}
-
-func stubPublicURL(t *testing.T, publicURL string, err error) {
-	orig := github.LoadPublicURL
-	github.LoadPublicURL = func(ctx context.Context) (string, error) { return publicURL, err }
-	t.Cleanup(func() { github.LoadPublicURL = orig })
 }
 
 // The auth fragment mounts in both compositions — the org-owner claim needs a login
