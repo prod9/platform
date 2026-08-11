@@ -92,7 +92,7 @@ func SaveAppKeys(ctx context.Context, keys *AppKeys) error {
 // LoadAppCreation reads the creation-time trio, ErrNoApp when any is unset — how
 // the app-created check reaches its verdict.
 func LoadAppCreation(ctx context.Context) (*AppCreation, error) {
-	values, err := loadSettings(ctx, keyAppID, keyAppSlug, keyClientID, keyWebhookSecret)
+	values, err := loadAppSettings(ctx, keyAppID, keyAppSlug, keyClientID, keyWebhookSecret)
 	if err != nil {
 		return nil, err
 	}
@@ -195,10 +195,10 @@ func LoadSetting(ctx context.Context, key string, absent error) (string, error) 
 	return value, nil
 }
 
-// loadSettings reads the given keys inside one transaction — the writers are
+// loadAppSettings reads the given App-credential keys inside one transaction — the writers are
 // transactional, so reading inside one snapshot is what keeps a credential set from
 // arriving torn. Any unset key is ErrNoApp.
-func loadSettings(ctx context.Context, keys ...string) (map[string]string, error) {
+func loadAppSettings(ctx context.Context, keys ...string) (map[string]string, error) {
 	values := map[string]string{}
 	err := data.Run(ctx, func(s data.Scope) error {
 		for _, key := range keys {

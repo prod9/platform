@@ -1,6 +1,6 @@
 package install
 
-// The ten wizard steps. Each check is isolated and install-safe: a missing
+// The wizard steps. Each check is isolated and install-safe: a missing
 // database or schema is a verdict (intervention required / not started), never a
 // query sent to fail (docs/spec/installation.md, install-safe checks).
 
@@ -24,7 +24,7 @@ type dbReachable struct{}
 
 func (dbReachable) name() string { return stepDBReachable }
 
-func (s dbReachable) Check(ctx context.Context, db *sqlx.DB) Entry {
+func (s dbReachable) Check(ctx context.Context, db *sqlx.DB, merged migrator.Source) Entry {
 	if db == nil {
 		return entry(s.name(), InterventionRequiredState, errNoDatabase)
 	}
@@ -36,16 +36,16 @@ func (s dbReachable) Check(ctx context.Context, db *sqlx.DB) Entry {
 
 func (dbReachable) Reset(context.Context) error { return nil }
 
-type migrations struct{ src migrator.Source }
+type migrations struct{}
 
 func (migrations) name() string { return stepMigrations }
 
-func (m migrations) Check(ctx context.Context, db *sqlx.DB) Entry {
+func (m migrations) Check(ctx context.Context, db *sqlx.DB, merged migrator.Source) Entry {
 	if db == nil {
 		return entry(m.name(), UnknownState, errNoDatabase)
 	}
 
-	applied, pending, dirty, err := migrate.State(ctx, db, m.src)
+	applied, pending, dirty, err := migrate.State(ctx, db, merged)
 	if err != nil {
 		return entry(m.name(), UnknownState, err)
 	}
@@ -72,7 +72,7 @@ func (server) name() string { return stepServer }
 
 // Check reads the server's public URL and surfaces it in values — the one field its
 // re-opened panel pre-fills (docs/spec/installation.md, the state surface).
-func (s server) Check(ctx context.Context, db *sqlx.DB) Entry {
+func (s server) Check(ctx context.Context, db *sqlx.DB, merged migrator.Source) Entry {
 	return settingsBacked(ctx, db, s.name(), func(ctx context.Context) (map[string]string, error) {
 		publicURL, err := github.LoadPublicURL(ctx)
 		if err != nil {
@@ -90,7 +90,7 @@ func (org) name() string { return stepOrg }
 
 // Check reads the primary-org slug and surfaces it in values — the one field its
 // re-opened panel pre-fills (docs/spec/installation.md, the state surface).
-func (s org) Check(ctx context.Context, db *sqlx.DB) Entry {
+func (s org) Check(ctx context.Context, db *sqlx.DB, merged migrator.Source) Entry {
 	return settingsBacked(ctx, db, s.name(), func(ctx context.Context) (map[string]string, error) {
 		slug, err := github.LoadOrg(ctx)
 		if err != nil {
@@ -110,7 +110,7 @@ func (appCreated) name() string { return stepAppCreated }
 // generated keys are app-credentials' concern. The app id, slug, and client id
 // surface in values; the webhook secret never does
 // (docs/spec/installation.md, the state surface).
-func (s appCreated) Check(ctx context.Context, db *sqlx.DB) Entry {
+func (s appCreated) Check(ctx context.Context, db *sqlx.DB, merged migrator.Source) Entry {
 	return settingsBacked(ctx, db, s.name(), func(ctx context.Context) (map[string]string, error) {
 		creation, err := github.LoadAppCreation(ctx)
 		if err != nil {
@@ -134,7 +134,7 @@ func (appCredentials) name() string { return stepAppCredentials }
 // compares the App's permissions against the required set — saved-but-under-scoped
 // is partially ready, and the message names the gap
 // (docs/spec/installation.md, the credentials check).
-func (s appCredentials) Check(ctx context.Context, db *sqlx.DB) Entry {
+func (s appCredentials) Check(ctx context.Context, db *sqlx.DB, merged migrator.Source) Entry {
 	if db == nil {
 		return entry(s.name(), UnknownState, errNoDatabase)
 	}
@@ -175,7 +175,7 @@ func (registryToken) name() string { return stepRegistryToken }
 // Check requires the one ghcr key — the registry the wizard covers; presence is
 // the whole verdict, the token proves itself on the first publish
 // (docs/spec/installation.md, "The registry token").
-func (s registryToken) Check(ctx context.Context, db *sqlx.DB) Entry {
+func (s registryToken) Check(ctx context.Context, db *sqlx.DB, merged migrator.Source) Entry {
 	return settingsBacked(ctx, db, s.name(), func(ctx context.Context) (map[string]string, error) {
 		_, err := github.LoadRegistryToken(ctx, ghcrHost)
 		return nil, err
@@ -194,7 +194,7 @@ func (appInstalled) name() string { return stepAppInstalled }
 // the App's installations — no session involved, the truth lives on GitHub. Missing
 // prerequisites (schema, App credentials, org) read as not started: install is not
 // the next move until they exist (docs/spec/installation.md, the state surface).
-func (s appInstalled) Check(ctx context.Context, db *sqlx.DB) Entry {
+func (s appInstalled) Check(ctx context.Context, db *sqlx.DB, merged migrator.Source) Entry {
 	if db == nil {
 		return entry(s.name(), UnknownState, errNoDatabase)
 	}
@@ -240,7 +240,7 @@ type claimed struct{}
 
 func (claimed) name() string { return stepClaimed }
 
-func (s claimed) Check(ctx context.Context, db *sqlx.DB) Entry {
+func (s claimed) Check(ctx context.Context, db *sqlx.DB, merged migrator.Source) Entry {
 	return settingsBacked(ctx, db, s.name(), func(ctx context.Context) (map[string]string, error) {
 		_, err := Load(ctx)
 		return nil, err
@@ -248,7 +248,10 @@ func (s claimed) Check(ctx context.Context, db *sqlx.DB) Entry {
 }
 
 // Reset empties the install.* values — the not-yet-claimed state, so a fresh claim
-// converges (its put-if-absent row already reads empty as unclaimed).
+// converges (its put-if-absent row already reads empty as unclaimed). The
+// transactional multi-upsert shape also exists in srv/github for its own keys —
+// deliberately: each fragment owns the writes to its keys (fx self-containment),
+// so the loop is not hoisted.
 func (claimed) Reset(ctx context.Context) error {
 	return data.Run(ctx, func(s data.Scope) error {
 		for _, key := range installKeys {

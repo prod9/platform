@@ -53,12 +53,6 @@ type Org struct {
 	Login string
 }
 
-// account is the wire shape shared by every installation object.
-type account struct {
-	ID    int64  `json:"id"`
-	Login string `json:"login"`
-}
-
 func NewClient(ctx context.Context) (*Client, error) {
 	app, err := LoadApp(ctx)
 	if err != nil {
@@ -86,7 +80,10 @@ func (c *Client) InstallationToken(ctx context.Context, installationID int64) (s
 // InstallationOrg resolves an installation to the org it is installed on.
 func (c *Client) InstallationOrg(ctx context.Context, installationID int64) (*Org, error) {
 	installation, err := fetchJSON[struct {
-		Account account `json:"account"`
+		Account struct {
+			ID    int64  `json:"id"`
+			Login string `json:"login"`
+		} `json:"account"`
 	}](ctx, c, request{
 		method: "GET",
 		path:   fmt.Sprintf("/app/installations/%d", installationID),

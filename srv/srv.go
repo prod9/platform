@@ -65,7 +65,11 @@ func Serve() error {
 	var server *http.Server
 	claimed := func() {
 		fxlog.Log("install complete; restarting into the product composition")
-		go server.Shutdown(context.Background())
+		go func() {
+			if err := server.Shutdown(context.Background()); err != nil {
+				fxlog.Log("shutdown after claim failed", fxlog.String("error", err.Error()))
+			}
+		}()
 	}
 	router, err := Router(cfg, db, installed, claimed)
 	if err != nil {

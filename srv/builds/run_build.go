@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 	"time"
 
@@ -157,7 +159,8 @@ func runConfigContext(ctx context.Context, cfg *conf.Model) (context.Context, er
 // (docs/spec/platform-server.md, "The publish credential").
 func registryHost(cfg *conf.Model) (string, error) {
 	host := ""
-	for name, mod := range cfg.Modules {
+	for _, name := range slices.Sorted(maps.Keys(cfg.Modules)) {
+		mod := cfg.Modules[name]
 		segment, _, found := strings.Cut(mod.ImageName, "/")
 		if !found || segment == "" {
 			return "", fmt.Errorf("module %s has no registry in image name %q", name, mod.ImageName)

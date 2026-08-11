@@ -41,7 +41,7 @@ func loadApp(ctx context.Context) (*App, error) {
 		return nil, ErrNoApp
 	}
 
-	values, err := loadSettings(ctx, keyAppID, keyPrivateKey, keyWebhookSecret, keyClientID, keyClientSecret)
+	values, err := loadAppSettings(ctx, keyAppID, keyPrivateKey, keyWebhookSecret, keyClientID, keyClientSecret)
 	if err != nil {
 		return nil, err
 	}
