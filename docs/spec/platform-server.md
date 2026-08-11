@@ -115,9 +115,17 @@ lives under `/api`; GitHub-facing and health routes stay bare.
 | `POST /api/install/app`     | none (installer)          | saves the creation-time quartet — app id, app slug, client id, webhook secret — as their `github.app_*` settings | what GitHub's creation form yields, saved as its own wizard step ([installation.md](installation.md)) |
 | `POST /api/install/credentials` | none (installer)      | saves the generated pair — private key, client secret — as their `github.app_*` settings | the keys GitHub generates after creation; both App steps write before login can exist — same ungated posture as the migrations button ([installation.md](installation.md)) |
 | `POST /api/install/registry` | none (installer)         | saves the ghcr push PAT as `registry.ghcr.io.token`                                   | ghcr accepts no App-derived credential ([vendor/ghcr-auth.md](../vendor/ghcr-auth.md)); same ungated posture |
-| `POST /api/install/server`  | none (installer)          | saves the server's public URL as `server.public_url`                                  | the one server-side truth of where the deployment lives — OAuth redirects and the vanity host derive from it ([installation.md](installation.md)) |
-| `GET /*?go-get=1`           | none                      | vanity go-import meta — the module path is the host of `server.public_url` (the toolchain always appends `go-get=1`) | one host serves module resolution and the product; the standalone `vanity` command and Deployment are legacy |
+| `POST /api/install/server`  | none (installer)          | saves the server's public URL as `server.public_url`                                  | the one server-side truth of where the deployment lives — OAuth redirects derive from it ([installation.md](installation.md)) |
 | `GET /*`                    | none                      | serves the embedded webui at the status the path deserves; the SPA drives installer-vs-app via `GET /api/install`  | single-binary delivery — no separate frontend deploy                                                               |
+
+**Module resolution is a static fact, not a route.** `go get platform.prodigy9.co`
+resolves through a `go-import` meta tag baked into the SPA's page shell — every
+served page carries it, including the 404 fallback (the toolchain parses meta out
+of non-200 bodies and re-fetches the declared prefix;
+[vendor/go-vanity-imports.md](../vendor/go-vanity-imports.md)). The tag names the
+module path and repo literally; no server code, no configuration, and no
+`?go-get=1` handling exist. The standalone `vanity` command and Deployment are
+legacy.
 
 Session validity and the user's profile are **two operations**, because a webui asks the two
 questions at different moments: `GET /api/session` answers "may I still act", `GET

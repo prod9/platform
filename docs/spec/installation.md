@@ -128,9 +128,8 @@ secret's presence is implied by the step's state, never echoed.
 
 The `server` step names the server's **public URL** — the one server-side truth
 of where this deployment lives. It is what the OAuth `redirect_uri` is built
-from (login refuses to run without it), what the vanity go-get handler serves
-as its host, and what every wizard instruction that says "the server's own URL"
-renders. The webui builds its instructions from the **server's** value — not
+from (login refuses to run without it) and what every wizard instruction that
+says "the server's own URL" renders. The webui builds its instructions from the **server's** value — not
 the browser's origin — and warns when the two differ: a mismatch usually means
 the operator is on a non-canonical host, and values pasted into GitHub from
 such a page would point at the wrong place. The panel pre-fills the field from
@@ -304,7 +303,7 @@ encryption at rest remains open there.
 
 | Key                 | Value                                                        |
 |---------------------|--------------------------------------------------------------|
-| `server.public_url` | the server's public URL — OAuth redirects, vanity host, every "the server's URL" the wizard renders |
+| `server.public_url` | the server's public URL — OAuth redirects, every "the server's URL" the wizard renders |
 
 **The registry token** rides the same store, keyed by registry host:
 
