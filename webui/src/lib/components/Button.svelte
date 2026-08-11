@@ -4,7 +4,9 @@
 	let { variant = "ghost", href = "", target = "", disabled = false, onclick, children } = $props();
 </script>
 
-{#if href}
+<!-- An <a> cannot be disabled, so a disabled link renders as the disabled button
+     face — one disabling story for both faces. -->
+{#if href && !disabled}
 	<a class="btn btn--{variant}" {href} target={target || undefined}>{@render children()}</a>
 {:else}
 	<button class="btn btn--{variant}" {disabled} {onclick}>{@render children()}</button>

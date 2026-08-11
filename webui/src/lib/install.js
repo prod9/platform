@@ -34,7 +34,7 @@ export function appSettingsURL(entries, path = "") {
 // (github.com/apps/<slug>), or the bare slug itself. Creation-flow pages carry no
 // slug ("apps", "apps/new") and come back empty for the server to refuse.
 export function appSlugFromURL(value) {
-	const pasted = text(value);
+	const pasted = text(value).split(/[?#]/, 1)[0];
 	if (!pasted.includes("/")) {
 		return pasted;
 	}

@@ -120,6 +120,17 @@ describe("appSlugFromURL", () => {
 		);
 	});
 
+	test("drops a query string or fragment glued to the pasted URL", () => {
+		expect(
+			appSlugFromURL(
+				"https://github.com/organizations/prod9/settings/apps/prodigy9-platform?tab=permissions",
+			),
+		).toBe("prodigy9-platform");
+		expect(
+			appSlugFromURL("https://github.com/apps/prodigy9-platform#readme"),
+		).toBe("prodigy9-platform");
+	});
+
 	test("passes a bare slug through", () => {
 		expect(appSlugFromURL(" prodigy9-platform ")).toBe("prodigy9-platform");
 	});

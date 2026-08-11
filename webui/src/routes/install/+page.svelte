@@ -39,6 +39,7 @@
 
 	let entries = $state([]);
 	let loaded = $state(false);
+	let loadError = $state("");
 	let selected = $state(null); // checklist navigation; null = follow the wizard
 	let redoing = $state(false); // client-side unlock of a done panel
 	let migrating = $state(false);
@@ -101,16 +102,17 @@
 	}
 
 	// Non-secret fields pre-fill from each entry's saved values; secret fields always
-	// render empty (§The wizard UI).
+	// render empty (§The wizard UI). The server state is the whole truth — an unsaved
+	// value never survives a converge.
 	function prefill() {
 		// The server panel suggests the browser origin while the setting is empty — a
 		// suggestion only; the saved value is the truth (§the server step).
 		server.public_url = stepValues(entries, "server").public_url ?? origin;
 		org.org = stepValues(entries, "org").org ?? "";
 		const created = stepValues(entries, "app-created");
-		app.app_id = created.app_id ?? app.app_id;
-		app.app_slug = created.app_slug ?? app.app_slug;
-		app.client_id = created.client_id ?? app.client_id;
+		app.app_id = created.app_id ?? "";
+		app.app_slug = created.app_slug ?? "";
+		app.client_id = created.client_id ?? "";
 	}
 
 	function select(name) {
@@ -131,12 +133,17 @@
 		}
 	}
 
+	// The wizard renders only after this first read is adopted (§The wizard UI, a
+	// form is editable only when its values are settled); a refused read renders as
+	// the error it is, never as an empty checklist masquerading as done.
 	async function load() {
 		const result = await installState();
 		if (result.outcome === Answered) {
 			converge(result.body);
+			loaded = true;
+		} else {
+			loadError = errorText(result);
 		}
-		loaded = true;
 	}
 
 	async function migrate() {
@@ -287,6 +294,8 @@
 	);
 	let registryReady = $derived(registry.token.trim() !== "");
 
+	// Panel dispatch has two idioms on purpose: a bare `current.name === …` panel
+	// covers the step in every state; isStep picks a panel for specific states only.
 	function isStep(name, ...states) {
 		if (current === null) {
 			return false;
@@ -303,7 +312,10 @@
 		<p class="label">Each step brings the server up</p>
 	</div>
 
-	{#if !loaded}
+	{#if loadError}
+		<p class="failed mono">{loadError}</p>
+		<Button onclick={() => ((loadError = ""), load())}>Retry</Button>
+	{:else if !loaded}
 		<p class="muted">Loading…</p>
 	{:else}
 		{#if mismatch}
