@@ -252,6 +252,17 @@ install is complete and **exits 0**; the supervisor (k8s) restarts the process,
 which boots into the product composition. The wizard's final panel polls
 through the blip and lands on the product UI.
 
+**Every installer-composition process converges on that same restart.** Only
+one process serves the claim; its peers learn the world changed by re-probing:
+a process booted into the installer composition re-reads `install.GetState()`
+on an interval and, the moment the state reads complete, takes the identical
+exit-0 restart. This is what converges a multi-replica deployment (the replicas
+that did not serve the claim) and a process that booted blind because the
+database was unreachable — its probe reconnects until the database answers. An
+installed process has nothing to converge and runs no probe; the only
+installed→installer transition is manual surgery plus a restart, by
+convention.
+
 ### The SvelteKit SPA drives the installer-vs-app view
 
 The redirect to the installer is **SPA code, not the backend**. The root-layout
@@ -262,6 +273,13 @@ guard probes `GET /api/install`:
 
 `GET /api/install` is deliberately **not always-available** — its presence *is*
 the signal. Depending on 404-as-signal is accepted for now.
+
+**Every state read classifies by that signal, not just the root-layout guard.**
+The install page's own read applies the same three-way classification: a 404
+means the server got installed since the shell loaded, and the page forces a
+full navigation to `/` (a fresh shell from the installed composition — never a
+client-side route, which would keep the stale shell). Only a genuinely
+troubled read — no answer, or a non-404 refusal — renders as a load error.
 
 ## First-install gate — no secret, org-owner claim
 
