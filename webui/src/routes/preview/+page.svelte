@@ -1,26 +1,10 @@
-<section>
-	<h2>Builder UI walkthrough</h2>
+<script>
+	// The walkthrough has no page of its own — Repositories is the proposed landing page,
+	// so /preview lands there the way / would.
+	import { onMount } from "svelte";
+	import { goto } from "$app/navigation";
 
-	<p class="muted">
-		Seven views over canned data, in walk order along the strip above. The proposed
-		top-level nav is <span class="mono">Repositories · Engines · Settings</span> — the
-		repo list is the landing page, builds nest under a repo, and a build's detail page
-		carries the module/step navigator.
-	</p>
+	onMount(() => goto("/preview/repos/", { replaceState: true }));
+</script>
 
-	<p class="muted">
-		Repositories here are <em>onboarded</em> repos — registered rows in the repo table —
-		with visibility still gated live by GitHub permission on every read. Manual builds
-		may pick modules; webhook builds stay whole-repo.
-	</p>
-</section>
-
-<style>
-	section {
-		max-width: 72ch;
-	}
-
-	h2 {
-		margin-bottom: var(--lead);
-	}
-</style>
+<p class="muted">Heading to Repositories…</p>

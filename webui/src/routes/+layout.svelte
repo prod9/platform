@@ -25,8 +25,19 @@
 	let phase = $state(Checking);
 	let unreachableReason = $state("");
 
-	// One destination today; the cluster view joins it when that slice lands.
-	const destinations = [{ href: "/", label: "Builds" }];
+	// One destination today; the cluster view joins it when that slice lands. On the
+	// /preview walkthrough the rail carries the proposed nav instead, so the mock is
+	// judged with the navigation it will actually ship with.
+	const productDestinations = [{ href: "/", label: "Builds" }];
+	const previewDestinations = [
+		{ href: "/preview/repos/", label: "Repositories" },
+		{ href: "/preview/engines/", label: "Engines" },
+		{ href: "/preview/settings/", label: "Settings" },
+	];
+
+	let destinations = $derived(
+		page.url.pathname.startsWith("/preview") ? previewDestinations : productDestinations,
+	);
 
 	// Install is a gate, not a destination: it never appears in the nav, and the server
 	// decides which side of it a visitor is on. GET /api/install is served only while the
@@ -65,7 +76,20 @@
 		}
 	}
 
+	// The whole repo drill-down — builds, wizards, build detail — lives under
+	// Repositories, so the rail keeps it lit anywhere in that stack.
+	const repoStack = [
+		"/preview/repos/",
+		"/preview/add-repo/",
+		"/preview/builds/",
+		"/preview/new-build/",
+		"/preview/build/",
+	];
+
 	function isCurrent(href) {
+		if (href === "/preview/repos/") {
+			return repoStack.includes(page.url.pathname);
+		}
 		return page.url.pathname === href;
 	}
 
