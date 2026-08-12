@@ -98,10 +98,6 @@
 </section>
 
 <style>
-	section {
-		max-width: 100ch;
-	}
-
 	.head {
 		display: flex;
 		align-items: baseline;
@@ -114,7 +110,6 @@
 	}
 
 	.seed {
-		max-width: 62ch;
 		margin-bottom: var(--lead);
 	}
 

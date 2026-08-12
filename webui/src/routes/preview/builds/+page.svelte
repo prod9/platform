@@ -105,10 +105,6 @@
 </section>
 
 <style>
-	section {
-		max-width: 110ch;
-	}
-
 	.head {
 		display: flex;
 		align-items: baseline;
