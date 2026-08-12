@@ -35,6 +35,13 @@
 
 	let picked = $state(null);
 	let confirmed = $state(false);
+	let filter = $state("");
+
+	let matches = $derived(
+		candidates.filter((repo) =>
+			repo.full.toLowerCase().includes(filter.trim().toLowerCase()),
+		),
+	);
 
 	const steps = [
 		{ name: "pick-repo", label: "Pick the repository" },
@@ -83,8 +90,14 @@
 		<div class="action">
 			{#if current === "pick-repo"}
 				<Panel label="Repositories the App reaches, not yet onboarded">
+					<input
+						class="mono filter"
+						type="search"
+						placeholder="Filter repositories…"
+						bind:value={filter}
+					/>
 					<ul class="candidates">
-						{#each candidates as repo (repo.full)}
+						{#each matches as repo (repo.full)}
 							<li>
 								<button class="candidate" onclick={() => pick(repo)}>
 									<span class="mono repo-name">{repo.full}</span>
@@ -92,6 +105,8 @@
 									<span class="mono chev">›</span>
 								</button>
 							</li>
+						{:else}
+							<li class="mono muted empty">Nothing matches “{filter}”.</li>
 						{/each}
 					</ul>
 				</Panel>
@@ -189,10 +204,29 @@
 		color: var(--text-muted);
 	}
 
+	.filter {
+		width: 100%;
+		padding: 0 var(--lead-half);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		background: var(--surface-raised);
+		line-height: var(--lead);
+		color: var(--text);
+	}
+
+	.filter:focus {
+		outline: 2px solid var(--accent);
+		outline-offset: -1px;
+	}
+
 	.candidates {
 		list-style: none;
 		margin: 0;
 		padding: 0;
+	}
+
+	.empty {
+		padding: var(--lead-half) 0;
 	}
 
 	.candidate {
