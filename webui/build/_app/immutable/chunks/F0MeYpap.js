@@ -1,1 +1,0 @@
-import{g as o,i as t,u as c}from"./mT4E2oro.js";function u(e){throw new Error("https://svelte.dev/e/lifecycle_outside_component")}function i(e){t===null&&u(),o(()=>{const n=c(e);if(typeof n=="function")return n})}export{i as o};
