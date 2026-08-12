@@ -1,1 +1,0 @@
-import{a as p,f as m}from"./BtitwAOC.js";import{t as v,c as t,r,s as f}from"./BdHwYWQ2.js";import{s as n}from"./DISO8D_n.js";import{s as c}from"./DeBcO72G.js";var d=m('<div class="panel svelte-hxsa5u"><p class="label svelte-hxsa5u"> </p> <!></div>');function _(l,s){var a=d(),e=t(a),i=t(e,!0);r(e);var o=f(e,2);c(o,()=>s.children),r(a),v(()=>n(i,s.label)),p(l,a)}export{_ as P};

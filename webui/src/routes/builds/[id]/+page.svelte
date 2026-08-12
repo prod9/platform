@@ -1,186 +1,126 @@
 <script>
-	// The build detail: the record, its attempts folded, and the steps with their captured
-	// output. Everything shown is derived from the event stream on every read — nothing is
-	// stored, so a running build advances by re-reading.
-	import { goto } from "$app/navigation";
-	import { page } from "$app/state";
-	import {
-		getBuild,
-		listSteps,
-		createBuild,
-		errorText,
-		Answered,
-		Refused,
-	} from "$lib/server.js";
-	import { tagOf, shortSHA, lastActivity, ranFor, byAttempt } from "$lib/build.js";
-	import { session } from "$lib/session.svelte.js";
+	// ⚠ MOCK — canned data promoted from /preview; the id param is ignored. Before the
+	// real implementation locks in: graduate the design into docs/spec, wire this back to
+	// GET /api/builds/{id} + /steps (the previous wired page is in git history at
+	// f034a5a), extract shared components (outcome mark, navigator row, terminal pane),
+	// delete canned data.
 	import StatusChip from "$lib/components/StatusChip.svelte";
 	import Button from "$lib/components/Button.svelte";
-	import Panel from "$lib/components/Panel.svelte";
 
-	let build = $state(null);
-	let steps = $state([]);
-	let loaded = $state(false);
-	let missing = $state(false);
-	let stepsError = $state("");
-	let retrying = $state(false);
-	let retryError = $state("");
+	const marks = { succeeded: "✓", failed: "✗", running: "◌", queued: "·" };
 
-	const pollMs = 5000;
-	const liveStatuses = ["queued", "running"];
+	const units = [
+		{
+			name: "platform",
+			status: "failed",
+			took: "2m 40s",
+			steps: [
+				{ name: "base", status: "succeeded", took: "0:03", output: "FROM golang:1.24-alpine\nresolved in 3s" },
+				{ name: "deps", status: "succeeded", took: "0:41", output: "$ go mod download\nall modules verified" },
+				{
+					name: "test",
+					status: "failed",
+					took: "1:48",
+					output:
+						"$ go test ./...\n" +
+						"ok      platform.prodigy9.co/conf       0.312s\n" +
+						"ok      platform.prodigy9.co/engine     4.108s\n" +
+						"ok      platform.prodigy9.co/framework  2.914s\n" +
+						"--- FAIL: TestCreatedStepSurfacesNonSecretValues (1.02s)\n" +
+						"    install_test.go:88: pq: sorry, too many clients already (SQLSTATE 53300)\n" +
+						"FAIL    platform.prodigy9.co/srv/install 6.881s\n" +
+						"FAIL\n" +
+						"exit status 1",
+				},
+				{ name: "build", status: "queued", took: "—", output: "" },
+				{ name: "publish", status: "queued", took: "—", output: "" },
+			],
+		},
+		{
+			name: "srv",
+			status: "succeeded",
+			took: "2m 05s",
+			steps: [
+				{ name: "base", status: "succeeded", took: "0:03", output: "FROM golang:1.24-alpine\nresolved in 3s" },
+				{ name: "deps", status: "succeeded", took: "0:39", output: "$ go mod download\nall modules verified" },
+				{ name: "test", status: "succeeded", took: "1:12", output: "$ go test ./...\nok — all packages" },
+				{ name: "build", status: "succeeded", took: "0:11", output: "$ go build -o srv .\ndone" },
+				{
+					name: "publish",
+					status: "succeeded",
+					took: "0:08",
+					output: "pushed ghcr.io/prod9/platform-srv:v0.9.35\ndigest sha256:19af…c2",
+				},
+			],
+		},
+	];
 
-	let id = $derived(page.params.id);
-	let attempts = $derived(byAttempt(steps));
+	let selected = $state({ unit: "platform", step: "test" });
 
-	async function load() {
-		const [detail, stepsRead] = await Promise.all([getBuild(id), listSteps(id)]);
-		if (detail.outcome === Answered) {
-			build = detail.body;
-		} else if (detail.outcome === Refused && detail.status === 404) {
-			missing = true;
-		}
-		if (stepsRead.outcome === Answered) {
-			steps = stepsRead.body;
-			stepsError = "";
-		} else {
-			stepsError = errorText(stepsRead);
-		}
-		loaded = true;
+	let current = $derived(
+		units
+			.find((unit) => unit.name === selected.unit)
+			.steps.find((step) => step.name === selected.step),
+	);
+
+	function pick(unit, step) {
+		selected = { unit: unit.name, step: step.name };
 	}
-
-	function isLive() {
-		return build !== null && liveStatuses.includes(build.status);
-	}
-
-	// A retry is just a new build: the same repo and ref, re-resolved, recorded through
-	// the manual trigger — the superseded build simply runs out (spec §Build lifecycle).
-	async function retry() {
-		retrying = true;
-		retryError = "";
-
-		try {
-			const result = await createBuild(build.owner, build.repo, build.ref);
-			if (result.outcome === Answered) {
-				await goto(`/builds/${result.body.id}/`);
-				build = null;
-				steps = [];
-				missing = false;
-				loaded = false;
-				await load();
-			} else {
-				retryError = errorText(result);
-			}
-		} finally {
-			retrying = false;
-		}
-	}
-
-	$effect(() => {
-		if (session.user === null) {
-			return;
-		}
-
-		load();
-		const timer = setInterval(() => {
-			if (isLive()) {
-				load();
-			}
-		}, pollMs);
-		return () => clearInterval(timer);
-	});
 </script>
 
-{#if session.user === null}
-	<p class="muted">Sign in to see this build.</p>
-{:else if !loaded}
-	<p class="muted">Loading…</p>
-{:else if missing}
-	<Panel label="No such build">
-		<p class="muted">Nothing here answers to #{id}. <a href="/">Back to the list.</a></p>
-	</Panel>
-{:else if build !== null}
-	<section>
-		<div class="head">
-			<h2>Build #{build.id}</h2>
-			<StatusChip status={build.status} />
-			<span class="spacer"></span>
-			<Button onclick={retry} disabled={retrying}>
-				{retrying ? "Queueing…" : "Retry"}
-			</Button>
-		</div>
+<section>
+	<div class="head">
+		<h2><a href="/builds/">platform</a> / #127</h2>
+		<StatusChip status="failed" />
+		<p class="label mono">v0.9.35 · e996f69 · webui · chakrit · 1d ago</p>
+		<span class="spacer"></span>
+		<Button href="/builds/new/">Retry</Button>
+	</div>
 
-		{#if retryError}
-			<p class="failed mono">{retryError}</p>
-		{/if}
-
-		<dl class="facts">
-			<dt class="label">Repository</dt>
-			<dd class="mono">{build.owner}/{build.repo}</dd>
-			<dt class="label">Tag</dt>
-			<dd class="mono">{tagOf(build.ref)} <span class="muted">({build.ref})</span></dd>
-			<dt class="label">Commit</dt>
-			<dd class="mono">{shortSHA(build.sha)}</dd>
-			<dt class="label">Trigger</dt>
-			<dd class="mono">{build.trigger}</dd>
-			{#if build.image}
-				<dt class="label">Image</dt>
-				<dd class="mono">{build.image}</dd>
-			{/if}
-			{#if build.error}
-				<dt class="label">Error</dt>
-				<dd class="mono failed">{build.error}</dd>
-			{/if}
-			<dt class="label">Took</dt>
-			<dd class="mono">{ranFor(build)}</dd>
-			<dt class="label">When</dt>
-			<dd class="mono">{lastActivity(build)}</dd>
-		</dl>
-
-		{#if stepsError}
-			<p class="failed mono">Steps unavailable: {stepsError}</p>
-		{/if}
-
-		{#if steps.length === 0}
-			<Panel label="No steps yet">
-				<p class="muted">The worker reports each step as it runs it.</p>
-			</Panel>
-		{:else}
-			{#each attempts as attemptSteps, ordinal (ordinal)}
-				<div class="attempt">
-					{#if attempts.length > 1}
-						<h3 class="label">Attempt {ordinal + 1}</h3>
-					{/if}
-					{#each attemptSteps as step (`${step.attempt}/${step.unit}/${step.step}`)}
-						<details class="step" open={step.error !== ""}>
-							<summary>
-								<span class="mono">{step.unit} / {step.step}</span>
-								<span class="mono muted">{ranFor(step)}</span>
-								{#if step.error}
-									<span class="failed mono">{step.error}</span>
-								{/if}
-							</summary>
-							{#if step.stdout}
-								<pre class="mono">{step.stdout}</pre>
-							{/if}
-							{#if step.stderr}
-								<pre class="mono stderr">{step.stderr}</pre>
-							{/if}
-							{#if !step.stdout && !step.stderr}
-								<p class="muted">No output captured.</p>
-							{/if}
-						</details>
-					{/each}
-				</div>
+	<div class="detail">
+		<ul class="navigator">
+			{#each units as unit (unit.name)}
+				<li class="unit">
+					<span class="nav-row">
+						<span class="mono mark mark--{unit.status}">{marks[unit.status]}</span>
+						<span class="mono unit-name">{unit.name}</span>
+						<span class="label">{unit.took}</span>
+					</span>
+					<ul class="steps">
+						{#each unit.steps as step (step.name)}
+							<li>
+								<button
+									class="nav-row step mono"
+									class:sel={selected.unit === unit.name && selected.step === step.name}
+									onclick={() => pick(unit, step)}
+								>
+									<span class="mark mark--{step.status}">{marks[step.status]}</span>
+									<span class="step-name">{step.name}</span>
+									<span class="muted">{step.took}</span>
+								</button>
+							</li>
+						{/each}
+					</ul>
+				</li>
 			{/each}
-		{/if}
-	</section>
-{/if}
+		</ul>
+
+		<div class="logpane">
+			<div class="loghead">
+				<h3>{selected.unit} · {selected.step}</h3>
+				<StatusChip status={current.status} />
+				<span class="label">attempt 1 · {current.took}</span>
+			</div>
+			{#if current.output}
+				<pre class="mono">{current.output}</pre>
+			{:else}
+				<p class="muted pad">No output yet.</p>
+			{/if}
+		</div>
+	</div>
+</section>
 
 <style>
-	section {
-		max-width: 100ch;
-	}
-
 	.head {
 		display: flex;
 		align-items: baseline;
@@ -188,55 +128,120 @@
 		margin-bottom: var(--lead);
 	}
 
+	.head h2 a {
+		text-decoration: none;
+	}
+
 	.spacer {
 		margin-left: auto;
 	}
 
-	.facts {
+	.detail {
 		display: grid;
-		grid-template-columns: 12ch minmax(0, 1fr);
-		gap: 0 var(--lead);
-		margin: 0 0 var(--lead-2);
+		grid-template-columns: 34ch minmax(0, 1fr);
+		gap: var(--lead-2);
+		align-items: start;
 	}
 
-	.facts dt,
-	.facts dd {
+	.navigator,
+	.steps {
+		list-style: none;
 		margin: 0;
-		line-height: var(--lead);
+		padding: 0;
 	}
 
-	.attempt {
-		margin-bottom: var(--lead-2);
-	}
-
-	.attempt h3 {
-		margin-bottom: var(--lead-half);
-	}
-
-	.step {
+	.unit {
+		padding: var(--lead-half) 0;
 		box-shadow: 0 -1px 0 var(--border) inset;
 	}
 
-	.step summary {
-		display: flex;
-		gap: var(--lead);
+	/* One grid for every navigator line — unit heads and steps alike — so all the marks
+	   sit in a single gutter column and all the times land on the right edge. Hierarchy
+	   comes from type, not indentation: the module speaks prose-size indigo, its steps
+	   stay in the machine's muted voice. */
+	.nav-row {
+		display: grid;
+		grid-template-columns: var(--lead) 1fr auto;
+		align-items: baseline;
+		gap: var(--lead-half);
+		width: 100%;
 		line-height: var(--lead);
+	}
+
+	.nav-row .mark {
+		text-align: center;
+	}
+
+	.unit-name {
+		font-size: var(--size-prose);
+		font-weight: 600;
+		color: var(--accent);
+	}
+
+	.step {
+		padding: 0;
+		border: 0;
+		background: none;
+		text-align: left;
+		color: var(--text-muted);
 		cursor: pointer;
 	}
 
-	.step pre {
-		margin: 0 0 var(--lead-half);
-		padding: var(--lead-half) var(--lead);
-		overflow-x: auto;
-		background: var(--surface-raised);
-		border-radius: var(--radius-md);
+	.step .step-name {
+		color: var(--text);
 	}
 
-	.stderr {
+	.step:hover .step-name {
+		color: var(--accent);
+	}
+
+	.step.sel {
+		background: var(--surface-quiet);
+		box-shadow: 2px 0 0 var(--accent) inset;
+	}
+
+	.mark--succeeded {
+		color: var(--accent-ok);
+	}
+
+	.mark--failed {
+		color: var(--accent-signal);
+	}
+
+	.mark--running {
+		color: var(--accent);
+	}
+
+	.mark--queued {
 		color: var(--text-muted);
 	}
 
-	.failed {
-		color: var(--accent-signal);
+	.logpane {
+		border: 1px solid var(--border);
+		border-radius: var(--radius-md);
+		background: var(--surface-raised);
+		overflow: hidden;
+	}
+
+	.loghead {
+		display: flex;
+		align-items: baseline;
+		gap: var(--lead);
+		padding: var(--lead-half) var(--lead);
+	}
+
+	/* The log is a terminal, and a terminal is dark — the page's one night band. It holds
+	   these pigments across modes, so it never rebinds with the theme. */
+	.logpane pre {
+		margin: 0;
+		padding: var(--lead-half) var(--lead) var(--lead);
+		overflow-x: auto;
+		line-height: var(--lead);
+		background: var(--p9-night);
+		color: var(--p9-line);
+	}
+
+	.pad {
+		padding: var(--lead-half) var(--lead) var(--lead);
 	}
 </style>

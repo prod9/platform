@@ -1,90 +1,39 @@
 <script>
-	// The build list: the server's whole point made visible. A row's outcome is folded from
-	// its events on every read — no status is stored anywhere.
-	import { goto } from "$app/navigation";
-	import { listBuilds, listRepos, createBuild, errorText, Answered } from "$lib/server.js";
-	import { tagOf, shortSHA, lastActivity, ranFor } from "$lib/build.js";
+	// ⚠ MOCK — the builder-UI target design over canned data, promoted from the /preview
+	// walkthrough so the tree carries exactly one picture of what to build. Before the
+	// real implementation locks in: graduate the design into docs/spec, wire this to
+	// GET /api/repos + the per-repo builds read, extract the shared pieces into
+	// components (outcome mark, feed row, nested sub-row list), and delete the canned
+	// data. The sign-in door below is real.
 	import { session } from "$lib/session.svelte.js";
-	import StatusChip from "$lib/components/StatusChip.svelte";
 	import Button from "$lib/components/Button.svelte";
-	import Panel from "$lib/components/Panel.svelte";
 
-	let builds = $state([]);
-	let loaded = $state(false);
+	const marks = { succeeded: "✓", failed: "✗", running: "◌", queued: "·" };
 
-	// The manual trigger: pick a repo the installation reaches, name a ref, and the
-	// controller records the same domain fact a webhook would — resolved server-side.
-	let repos = $state([]);
-	let repoFull = $state("");
-	let ref = $state("");
-	let repoError = $state("");
-	let queueing = $state(false);
-	let triggerError = $state("");
+	const repos = [
+		{
+			full: "prod9/platform",
+			modules: ["platform"],
+			recent: [
+				{ id: 128, tag: "v0.9.36", status: "succeeded", trigger: "github-push", took: "4m 12s", when: "2h ago" },
+				{ id: 127, tag: "v0.9.35", status: "failed", trigger: "webui · chakrit", took: "2m 40s", when: "1d ago" },
+				{ id: 126, tag: "2f4c1d9", status: "succeeded", trigger: "webui · chakrit · refs/heads/main", took: "3m 45s", when: "6h ago" },
+			],
+		},
+		{
+			full: "prod9/infra",
+			modules: ["infra"],
+			recent: [
+				{ id: 125, tag: "v0.3.12", status: "running", trigger: "github-push", took: "1m 03s", when: "4m ago" },
+				{ id: 121, tag: "v0.3.11", status: "succeeded", trigger: "github-push", took: "2m 21s", when: "3d ago" },
+			],
+		},
+		{ full: "prod9/fx", modules: ["docs", "site"], recent: [] },
+	];
 
-	async function loadRepos() {
-		const result = await listRepos();
-		if (result.outcome === Answered) {
-			repos = result.body;
-			repoError = "";
-		} else {
-			repoError = errorText(result);
-		}
+	function latest(repo) {
+		return repo.recent.length === 0 ? "none" : repo.recent[0].status;
 	}
-
-	async function queueBuild(event) {
-		event.preventDefault();
-		queueing = true;
-		triggerError = "";
-
-		try {
-			const repo = repos.find((entry) => entry.full_name === repoFull);
-			if (repo === undefined) {
-				triggerError = `${repoFull} is no longer in the repo list.`;
-				return;
-			}
-
-			const result = await createBuild(repo.owner, repo.name, ref);
-			if (result.outcome === Answered) {
-				await goto(`/builds/${result.body.id}/`);
-			} else {
-				triggerError = errorText(result);
-			}
-		} finally {
-			queueing = false;
-		}
-	}
-
-	// A running build advances in the database rather than in this tab, so the list
-	// re-reads while anything is live and rests when nothing is.
-	const pollMs = 5000;
-	const liveStatuses = ["queued", "running"];
-
-	async function load() {
-		const result = await listBuilds();
-		if (result.outcome === Answered) {
-			builds = result.body;
-		}
-		loaded = true;
-	}
-
-	function anyLive() {
-		return builds.some((build) => liveStatuses.includes(build.status));
-	}
-
-	$effect(() => {
-		if (session.user === null) {
-			return;
-		}
-
-		load();
-		loadRepos();
-		const timer = setInterval(() => {
-			if (anyLive()) {
-				load();
-			}
-		}, pollMs);
-		return () => clearInterval(timer);
-	});
 </script>
 
 {#if session.user === null}
@@ -96,78 +45,44 @@
 		</p>
 		<Button variant="primary" href="/auth/github">Sign in with GitHub</Button>
 	</section>
-{:else if !loaded}
-	<p class="muted">Loading…</p>
 {:else}
-	<form class="trigger" onsubmit={queueBuild}>
-		<select class="mono" bind:value={repoFull} required>
-			<option value="" disabled>Repository…</option>
-			{#each repos as repo (repo.full_name)}
-				<option value={repo.full_name}>{repo.full_name}</option>
+	<section>
+		<div class="head">
+			<h2>Repositories</h2>
+			<p class="label">{repos.length} onboarded</p>
+			<span class="spacer"></span>
+			<Button variant="primary" href="/repos/add/">Add repository</Button>
+		</div>
+
+		<ul class="repos">
+			{#each repos as repo (repo.full)}
+				<li class="repo">
+					<a class="repo-head" href="/builds/">
+						<span class="mono state state--{latest(repo)}">{marks[latest(repo)] ?? "·"}</span>
+						<span class="mono name">{repo.full}</span>
+						<span class="label">{repo.modules.join(" · ")}</span>
+						<span class="mono chev">›</span>
+					</a>
+
+					<span class="subs">
+						{#each repo.recent as build (build.id)}
+							<a class="build" href="/builds/127/">
+								<span class="mono state state--{build.status}">{marks[build.status]}</span>
+								<span class="mono tag">{build.tag}</span>
+								<span class="mono muted">#{build.id} · {build.trigger}</span>
+								<span class="mono muted timing">{build.took} · {build.when}</span>
+							</a>
+						{:else}
+							<span class="build none">
+								<span class="mono state state--none">·</span>
+								<span class="mono muted">no builds yet</span>
+							</span>
+						{/each}
+					</span>
+				</li>
 			{/each}
-		</select>
-		<input
-			class="mono"
-			type="text"
-			bind:value={ref}
-			placeholder="refs/tags/v1.2.3"
-			required
-		/>
-		<Button variant="primary" disabled={queueing}>
-			{queueing ? "Queueing…" : "Build"}
-		</Button>
-		{#if repoError}
-			<span class="error mono">Repos unavailable: {repoError}</span>
-		{/if}
-		{#if triggerError}
-			<span class="error mono">{triggerError}</span>
-		{/if}
-	</form>
-
-	{#if builds.length === 0}
-		<Panel label="No builds yet">
-			<p class="muted">Push a version tag on an installed repo and it queues one.</p>
-		</Panel>
-	{:else}
-		<section>
-			<div class="head">
-				<h2>Builds</h2>
-				<p class="label">Latest 50, newest first</p>
-			</div>
-
-			<table>
-				<thead>
-					<tr>
-						<th>Build</th>
-						<th>Repository</th>
-						<th>Tag</th>
-						<th>Commit</th>
-						<th>Status</th>
-						<th>Took</th>
-						<th>When</th>
-					</tr>
-				</thead>
-				<tbody>
-					{#each builds as build (build.id)}
-						<tr>
-							<td class="mono"><a href="/builds/{build.id}/">#{build.id}</a></td>
-							<td class="mono">{build.owner}/{build.repo}</td>
-							<td class="mono">{tagOf(build.ref)}</td>
-							<td class="mono muted">{shortSHA(build.sha)}</td>
-							<td>
-								<StatusChip status={build.status} />
-								{#if build.error}
-									<span class="error mono" title={build.error}>{build.error}</span>
-								{/if}
-							</td>
-							<td class="mono muted">{ranFor(build)}</td>
-							<td class="mono muted">{lastActivity(build)}</td>
-						</tr>
-					{/each}
-				</tbody>
-			</table>
-		</section>
-	{/if}
+		</ul>
+	</section>
 {/if}
 
 <style>
@@ -187,58 +102,93 @@
 		margin-bottom: var(--lead);
 	}
 
-	.trigger {
-		display: flex;
-		align-items: center;
+	.spacer {
+		margin-left: auto;
+	}
+
+	.repos {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+	}
+
+	.repo {
+		padding: var(--lead-half) 0;
+		box-shadow: 0 -1px 0 var(--border) inset;
+	}
+
+	.repo-head {
+		display: grid;
+		grid-template-columns: var(--lead) auto 1fr var(--lead);
+		align-items: baseline;
 		gap: var(--lead-half);
-		margin-bottom: var(--lead-2);
-	}
-
-	.trigger select,
-	.trigger input {
-		padding: 0 var(--lead-half);
-		border: 1px solid var(--border);
-		border-radius: var(--radius-sm);
-		background: var(--surface-raised);
-		line-height: var(--lead);
+		text-decoration: none;
 		color: var(--text);
+		line-height: var(--lead);
 	}
 
-	.trigger input {
-		width: 24ch;
+	.repo-head:hover .name,
+	.repo-head:hover .chev {
+		color: var(--accent-signal);
 	}
 
-	table {
-		width: 100%;
-		border-collapse: collapse;
-	}
-
-	th {
-		font-family: var(--p9-support);
-		font-size: var(--size-label);
+	/* The repo's name is the block's headline: prose-size, indigo, unmistakably not one
+	   of the builds beneath it. */
+	.name {
+		font-size: var(--size-prose);
 		font-weight: 600;
-		line-height: var(--lead);
-		letter-spacing: 0.12em;
-		text-transform: uppercase;
+		color: var(--accent);
+	}
+
+	.chev {
 		color: var(--text-muted);
-		text-align: left;
-		padding: 0 var(--lead) 0 0;
-		box-shadow: 0 -1px 0 var(--border) inset;
+		text-align: center;
 	}
 
-	td {
-		padding: 0 var(--lead) 0 0;
-		line-height: var(--lead);
-		box-shadow: 0 -1px 0 var(--border) inset;
-		vertical-align: top;
-	}
-
-	.error {
+	/* Sub-rows hang off a vertical hairline, so the nesting reads before any row does. */
+	.subs {
 		display: block;
-		max-width: 48ch;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
+		margin-left: var(--lead-half);
+		padding-left: var(--lead-half);
+		box-shadow: 1px 0 0 var(--border) inset;
+	}
+
+	.build {
+		display: grid;
+		grid-template-columns: var(--lead) 10ch 1fr auto;
+		align-items: baseline;
+		gap: var(--lead-half);
+		text-decoration: none;
+		color: var(--text);
+		line-height: var(--lead);
+	}
+
+	a.build:hover {
+		background: var(--surface-quiet);
+	}
+
+	.timing {
+		text-align: right;
+	}
+
+	.state {
+		text-align: center;
+	}
+
+	.state--succeeded {
+		color: var(--accent-ok);
+	}
+
+	.state--failed {
+		color: var(--accent-signal);
+	}
+
+	.state--running {
+		color: var(--accent);
+	}
+
+	.state--none,
+	.state--queued {
 		color: var(--text-muted);
 	}
 </style>

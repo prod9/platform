@@ -25,19 +25,12 @@
 	let phase = $state(Checking);
 	let unreachableReason = $state("");
 
-	// One destination today; the cluster view joins it when that slice lands. On the
-	// /preview walkthrough the rail carries the proposed nav instead, so the mock is
-	// judged with the navigation it will actually ship with.
-	const productDestinations = [{ href: "/", label: "Builds" }];
-	const previewDestinations = [
-		{ href: "/preview/repos/", label: "Repositories" },
-		{ href: "/preview/engines/", label: "Engines" },
-		{ href: "/preview/settings/", label: "Settings" },
+	// The builder-UI nav; the cluster view joins it when that slice lands.
+	const destinations = [
+		{ href: "/", label: "Repositories" },
+		{ href: "/engines/", label: "Engines" },
+		{ href: "/settings/", label: "Settings" },
 	];
-
-	let destinations = $derived(
-		page.url.pathname.startsWith("/preview") ? previewDestinations : productDestinations,
-	);
 
 	// Install is a gate, not a destination: it never appears in the nav, and the server
 	// decides which side of it a visitor is on. GET /api/install is served only while the
@@ -62,12 +55,6 @@
 	}
 
 	async function routeToSide(installing) {
-		// The /preview walkthrough is canned mockery with no server reads, so it stands
-		// outside the installer-vs-app decision on either side of the gate.
-		if (page.url.pathname.startsWith("/preview")) {
-			return;
-		}
-
 		const onInstall = page.url.pathname.replace(/\/+$/, "") === "/install";
 		if (installing && !onInstall) {
 			await goto("/install/");
@@ -76,24 +63,14 @@
 		}
 	}
 
-	// The whole repo drill-down — builds, wizards, build detail — lives under
-	// Repositories, so the rail keeps it lit anywhere in that stack.
-	const repoStack = [
-		"/preview/repos/",
-		"/preview/add-repo/",
-		"/preview/builds/",
-		"/preview/new-build/",
-		"/preview/build/",
-	];
-
+	// The repo drill-down — builds, wizards, build detail — lives under Repositories,
+	// so the rail keeps it lit anywhere in that stack.
 	function isCurrent(href) {
-		if (href === "/preview/repos/") {
-			return repoStack.includes(page.url.pathname);
+		const path = page.url.pathname;
+		if (href === "/") {
+			return path === "/" || path.startsWith("/repos") || path.startsWith("/builds");
 		}
-		if (href === "/preview/engines/") {
-			return page.url.pathname.startsWith("/preview/engine");
-		}
-		return page.url.pathname === href;
+		return path.startsWith(href);
 	}
 
 	onMount(() => {
@@ -104,12 +81,7 @@
 
 <div class="shell">
 	<header class="rail">
-		<a
-			class="wordmark"
-			href={page.url.pathname.startsWith("/preview") ? "/preview/" : "/"}
-		>
-			PRODIGY9
-		</a>
+		<a class="wordmark" href="/">PRODIGY9</a>
 
 		<nav>
 			{#each destinations as destination (destination.href)}
