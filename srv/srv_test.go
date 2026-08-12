@@ -179,6 +179,21 @@ func TestUIBuildRouteStatusFollowsTheRecord(t *testing.T) {
 	require.Contains(t, missing.Body.String(), "<html")
 }
 
+// An installer-composition process converges on the claim's restart by re-probing the
+// install state: the watch fires its restart exactly once, the first time the check
+// reads complete, and never while it reads incomplete (installation.md §Boot
+// composition).
+func TestWatchInstalledRestartsOnceOnComplete(t *testing.T) {
+	checks, restarts := 0, 0
+	watchInstalled(time.Millisecond, func() bool {
+		checks++
+		return checks >= 3
+	}, func() { restarts++ })
+
+	require.Equal(t, 3, checks)
+	require.Equal(t, 1, restarts)
+}
+
 func get(router http.Handler, path string) *httptest.ResponseRecorder {
 	resp := httptest.NewRecorder()
 	router.ServeHTTP(resp, httptest.NewRequest("GET", path, nil))

@@ -38,6 +38,10 @@ import (
 	"platform.prodigy9.co/webui"
 )
 
+// installedProbeInterval paces the installer composition's re-probe of the install
+// state; convergence latency after a peer's claim is at most one interval.
+const installedProbeInterval = 15 * time.Second
+
 // Serve configures and runs the platform server until interrupted, listening on
 // httpserver.ListenAddrConfig (LISTEN_ADDR). It always boots: the DB is connected
 // best-effort and its state, plus config and migration state, decides the install
@@ -85,11 +89,48 @@ func Serve() error {
 	server = &http.Server{Addr: listenAddr, Handler: handler}
 	ctrlc.Do(func() { server.Close() })
 
+	// A peer replica may serve the claim; this process converges on the same restart
+	// by re-probing (installation.md §Boot composition).
+	if !installed {
+		go watchInstalled(installedProbeInterval, func() bool { return probeInstalled(cfg, db) }, claimed)
+	}
+
 	fxlog.Log("listening", fxlog.String("addr", listenAddr), fxlog.Bool("installed", installed))
 	if err := server.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
 	return nil
+}
+
+// probeInstalled re-reads the install state exactly the way boot does. A nil boot
+// pool means the database was unreachable then — each probe opens (and closes) its
+// own attempt so a blind boot converges once the database answers.
+func probeInstalled(cfg *config.Source, boot *sqlx.DB) bool {
+	db := boot
+	if db == nil {
+		db = connectOrNil(cfg)
+		if db != nil {
+			defer db.Close()
+		}
+	}
+
+	entries := install.GetState(config.NewContext(context.Background(), cfg), db, merged)
+	return install.Complete(entries)
+}
+
+// watchInstalled re-runs check on the interval until it reports the install complete,
+// then calls restart once and returns. It converges an installer-composition process
+// whose peer served the claim (installation.md §Boot composition).
+func watchInstalled(interval time.Duration, check func() bool, restart func()) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		if check() {
+			restart()
+			return
+		}
+	}
 }
 
 // Router builds the server's routes on a fresh chi router for the given install
