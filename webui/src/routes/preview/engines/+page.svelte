@@ -56,7 +56,7 @@
 	<ul class="fleet">
 		{#each engines as engine (engine.addr)}
 			<li class="engine">
-				<span class="engine-head">
+				<a class="engine-head" href="/preview/engine/">
 					<span class="mono state" class:ok={engine.ok} class:bad={!engine.ok}>
 						{engine.ok ? "●" : "○"}
 					</span>
@@ -64,7 +64,8 @@
 					<span class="label reach" class:ok={engine.ok} class:warn={!engine.ok}>
 						{engine.ok ? "reachable" : "unreachable"}
 					</span>
-				</span>
+					<span class="mono chev">›</span>
+				</a>
 
 				<span class="subs">
 					{#if !engine.ok}
@@ -143,10 +144,22 @@
 
 	.engine-head {
 		display: grid;
-		grid-template-columns: var(--lead) auto 1fr;
+		grid-template-columns: var(--lead) auto 1fr var(--lead);
 		align-items: baseline;
 		gap: var(--lead-half);
 		line-height: var(--lead);
+		text-decoration: none;
+		color: var(--text);
+	}
+
+	.engine-head:hover .addr,
+	.engine-head:hover .chev {
+		color: var(--accent-signal);
+	}
+
+	.chev {
+		color: var(--text-muted);
+		text-align: center;
 	}
 
 	.addr {

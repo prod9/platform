@@ -1,0 +1,1 @@
+import{a as r,f as o}from"./BtitwAOC.js";import{t as p,c as m,r as f}from"./BdHwYWQ2.js";import{s as i}from"./DISO8D_n.js";import{s as c}from"./BobDlnZB.js";var n=o("<span> </span>");function _(a,s){var t=n(),e=m(t,!0);f(t),p(()=>{c(t,1,`chip chip--${s.status??""}`,"svelte-4eq9e4"),i(e,s.status)}),r(a,t)}export{_ as S};

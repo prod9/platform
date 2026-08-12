@@ -90,6 +90,9 @@
 		if (href === "/preview/repos/") {
 			return repoStack.includes(page.url.pathname);
 		}
+		if (href === "/preview/engines/") {
+			return page.url.pathname.startsWith("/preview/engine");
+		}
 		return page.url.pathname === href;
 	}
 

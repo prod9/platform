@@ -1,52 +1,127 @@
 <script>
-	// The add-repo wizard, mid-flight on step 2: the repo is picked, the server has
-	// pre-read what it can reach, and the confirm registers the row. When the App does not
-	// reach the repo yet, the confirm becomes the GitHub App-install link instead and
-	// registration completes on the setup redirect.
+	// Onboarding a repo runs as the install wizard does: a checklist on the left is the
+	// navigation, the selected step's action renders beside it. Step one picks the repo
+	// from a clickable list; step two reviews what the server pre-read and carries the
+	// confirm.
 	import Button from "$lib/components/Button.svelte";
 	import Panel from "$lib/components/Panel.svelte";
+
+	const candidates = [
+		{
+			full: "prod9/haachang",
+			meta: "private · Go · pushed 2d ago",
+			toml: true,
+			modules: "api (go/basic) · web (pnpm/static)",
+			maintainer: "chakrit <chakrit@prodigy9.co>",
+			latest: "v0.4.2",
+		},
+		{
+			full: "prod9/bluepages",
+			meta: "private · Go · pushed 6d ago",
+			toml: true,
+			modules: "bluepages (go/basic)",
+			maintainer: "chakrit <chakrit@prodigy9.co>",
+			latest: "v1.1.0",
+		},
+		{
+			full: "prod9/naxon-api",
+			meta: "private · Go · pushed 3w ago",
+			toml: false,
+			modules: "",
+			maintainer: "",
+			latest: "",
+		},
+	];
+
+	let picked = $state(null);
+	let confirmed = $state(false);
+
+	const steps = [
+		{ name: "pick-repo", label: "Pick the repository" },
+		{ name: "review", label: "Review & confirm" },
+	];
+
+	let current = $derived(picked === null ? "pick-repo" : "review");
+
+	function stateOf(step) {
+		if (step === "pick-repo") {
+			return picked === null ? "not_started" : "fully_ready";
+		}
+		return confirmed ? "fully_ready" : "not_started";
+	}
+
+	function pick(repo) {
+		picked = repo;
+	}
+
+	function back() {
+		picked = null;
+	}
 </script>
 
 <section>
 	<div class="head">
-		<h2>Add repository</h2>
+		<h2><a href="/preview/repos/">Repositories</a> / add</h2>
 		<span class="spacer"></span>
 		<Button href="/preview/repos/">Cancel</Button>
 	</div>
 
-	<ol class="wsteps">
-		<li class="done">Pick the repository</li>
-		<li class="now">Review what the server found</li>
-		<li class="todo">Confirm</li>
-	</ol>
+	<div class="wizard">
+		<ol class="checklist">
+			{#each steps as step (step.name)}
+				<li class:active={step.name === current}>
+					<span class="row">
+						<span class="mono name">{step.label}</span>
+						<span class="state state--{stateOf(step.name)} label">
+							{stateOf(step.name) === "fully_ready" ? "done" : "pending"}
+						</span>
+					</span>
+				</li>
+			{/each}
+		</ol>
 
-	<div class="stack">
-		<Panel label="Repository">
-			<select class="mono">
-				<option selected>prod9/haachang</option>
-				<option>prod9/bluepages</option>
-				<option>prod9/naxon-api</option>
-			</select>
-		</Panel>
+		<div class="action">
+			{#if current === "pick-repo"}
+				<Panel label="Repositories the App reaches, not yet onboarded">
+					<ul class="candidates">
+						{#each candidates as repo (repo.full)}
+							<li>
+								<button class="candidate" onclick={() => pick(repo)}>
+									<span class="mono repo-name">{repo.full}</span>
+									<span class="mono muted">{repo.meta}</span>
+									<span class="mono chev">›</span>
+								</button>
+							</li>
+						{/each}
+					</ul>
+				</Panel>
+			{:else}
+				<Panel label={picked.full}>
+					<dl class="kv">
+						<dt class="mono key">platform.toml</dt>
+						{#if picked.toml}
+							<dd class="mono ok">✓ present on refs/heads/main</dd>
+						{:else}
+							<dd class="mono warn">✗ not found — builds will fail until one is committed</dd>
+						{/if}
+						{#if picked.toml}
+							<dt class="mono key">modules</dt>
+							<dd class="mono">{picked.modules}</dd>
+							<dt class="mono key">maintainer</dt>
+							<dd class="mono">{picked.maintainer}</dd>
+							<dt class="mono key">latest tag</dt>
+							<dd class="mono">{picked.latest}</dd>
+						{/if}
+						<dt class="mono key">builds on</dt>
+						<dd class="mono">refs/tags/v*</dd>
+					</dl>
 
-		<Panel label="What the server found">
-			<dl class="kv">
-				<dt class="mono key">app reach</dt>
-				<dd class="mono ok">✓ installed on this repo</dd>
-				<dt class="mono key">platform.toml</dt>
-				<dd class="mono ok">✓ present on <span class="muted">refs/heads/main</span></dd>
-				<dt class="mono key">maintainer</dt>
-				<dd class="mono">chakrit &lt;chakrit@prodigy9.co&gt;</dd>
-				<dt class="mono key">modules</dt>
-				<dd class="mono">api (go/basic) · web (pnpm/static)</dd>
-				<dt class="mono key">latest tag</dt>
-				<dd class="mono">v0.4.2</dd>
-			</dl>
-		</Panel>
-
-		<div class="confirm">
-			<span class="mono">prod9/haachang · builds on <span class="muted">refs/tags/v*</span></span>
-			<Button variant="primary" href="/preview/repos/">Confirm add</Button>
+					<div class="confirm">
+						<Button onclick={back}>Back</Button>
+						<Button variant="primary" href="/preview/repos/">Confirm add</Button>
+					</div>
+				</Panel>
+			{/if}
 		</div>
 	</div>
 </section>
@@ -59,65 +134,106 @@
 		margin-bottom: var(--lead);
 	}
 
+	.head h2 a {
+		text-decoration: none;
+	}
+
 	.spacer {
 		margin-left: auto;
 	}
 
-	.wsteps {
-		list-style: none;
-		margin: 0 0 var(--lead);
-		padding: 0;
+	.wizard {
+		display: grid;
+		grid-template-columns: minmax(26ch, 1fr) minmax(0, 3fr);
+		gap: var(--lead-2);
+		align-items: start;
 	}
 
-	.wsteps li {
+	.checklist {
+		margin: 0;
+		padding: 0;
+		list-style: none;
+	}
+
+	.checklist li {
+		box-shadow: 0 -1px 0 var(--border) inset;
+	}
+
+	.checklist li.active {
+		box-shadow:
+			2px 0 0 var(--accent-signal) inset,
+			0 -1px 0 var(--border) inset;
+	}
+
+	.checklist .row {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto;
+		padding: var(--lead-half) 0 var(--lead-half) var(--lead-half);
+	}
+
+	.checklist .name,
+	.checklist .state {
 		line-height: var(--lead);
 	}
 
-	.wsteps .done::before {
-		content: "✓ ";
+	.checklist li.active .name {
+		color: var(--accent);
+		font-weight: 600;
 	}
 
-	.wsteps .now::before {
-		content: "→ ";
-		color: var(--accent-signal);
+	.state--fully_ready {
+		color: var(--accent-ok);
 	}
 
-	.wsteps .todo {
+	.state--not_started {
 		color: var(--text-muted);
 	}
 
-	.wsteps .todo::before {
-		content: "· ";
+	.candidates {
+		list-style: none;
+		margin: 0;
+		padding: 0;
 	}
 
-	.stack {
+	.candidate {
 		display: grid;
-		gap: var(--lead);
-	}
-
-	select {
-		padding: 0 var(--lead-half);
-		border: 1px solid var(--border);
-		border-radius: var(--radius-sm);
-		background: var(--surface-raised);
-		line-height: var(--lead);
-		color: var(--text);
-	}
-
-	.confirm {
-		display: flex;
+		grid-template-columns: auto 1fr var(--lead);
 		align-items: baseline;
-		justify-content: space-between;
-		gap: var(--lead);
+		gap: var(--lead-half);
+		width: 100%;
 		padding: var(--lead-half) 0;
-		box-shadow: 0 1px 0 var(--border) inset;
+		border: 0;
+		background: none;
+		text-align: left;
+		line-height: var(--lead);
+		box-shadow: 0 -1px 0 var(--border) inset;
+		cursor: pointer;
+	}
+
+	.candidate:hover {
+		background: var(--surface-quiet);
+	}
+
+	.repo-name {
+		font-size: var(--size-prose);
+		font-weight: 600;
+		color: var(--accent);
+	}
+
+	.candidate:hover .repo-name {
+		color: var(--accent-signal);
+	}
+
+	.chev {
+		color: var(--text-muted);
+		text-align: center;
 	}
 
 	.kv {
 		display: grid;
 		grid-template-columns: 18ch minmax(0, 1fr);
 		gap: 0 var(--lead);
-		margin: 0;
+		margin: 0 0 var(--lead);
 	}
 
 	.kv dt,
@@ -132,5 +248,15 @@
 
 	.ok {
 		color: var(--accent-ok);
+	}
+
+	.warn {
+		color: var(--accent-signal);
+	}
+
+	.confirm {
+		display: flex;
+		justify-content: space-between;
+		gap: var(--lead);
 	}
 </style>
