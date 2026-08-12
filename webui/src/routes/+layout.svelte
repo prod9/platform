@@ -102,11 +102,10 @@
 <div class="shell">
 	<header class="rail">
 		<a
-			class="lockup"
+			class="wordmark"
 			href={page.url.pathname.startsWith("/preview") ? "/preview/" : "/"}
 		>
-			<span class="wordmark">PRODIGY9</span>
-			<span class="mono tag">platform</span>
+			PRODIGY9
 		</a>
 
 		<nav>
@@ -155,30 +154,17 @@
 		box-shadow: 0 -1px 0 var(--border) inset;
 	}
 
-	/* One lockup, one link: the brand and the product name travel together, visually a
-	   unit apart from the nav destinations. */
-	.lockup {
-		display: inline-flex;
-		align-items: baseline;
-		gap: var(--lead-half);
-		text-decoration: none;
-	}
-
 	.wordmark {
 		font-family: var(--p9-display);
 		font-size: var(--size-prose);
 		font-weight: 700;
 		letter-spacing: 0.06em;
 		color: var(--accent);
+		text-decoration: none;
 	}
 
-	.tag {
+	.wordmark:hover {
 		color: var(--accent-signal);
-	}
-
-	.lockup:hover .wordmark,
-	.lockup:hover .tag {
-		color: var(--accent-signal-strong);
 	}
 
 	nav {
