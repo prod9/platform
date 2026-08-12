@@ -51,6 +51,12 @@
 	}
 
 	async function routeToSide(installing) {
+		// The /preview walkthrough is canned mockery with no server reads, so it stands
+		// outside the installer-vs-app decision on either side of the gate.
+		if (page.url.pathname.startsWith("/preview")) {
+			return;
+		}
+
 		const onInstall = page.url.pathname.replace(/\/+$/, "") === "/install";
 		if (installing && !onInstall) {
 			await goto("/install/");
