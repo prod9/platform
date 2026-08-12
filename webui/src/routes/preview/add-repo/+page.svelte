@@ -27,10 +27,6 @@
 				<option>prod9/bluepages</option>
 				<option>prod9/naxon-api</option>
 			</select>
-			<p class="muted gap">
-				Repos in <span class="mono">prod9</span> not yet onboarded, listed live from
-				GitHub.
-			</p>
 		</Panel>
 
 		<Panel label="What the server found">
@@ -48,14 +44,10 @@
 			</dl>
 		</Panel>
 
-		<Panel label="Confirm">
-			<p class="muted">
-				Registers <span class="mono">prod9/haachang</span> to build here. Tag pushes
-				(<span class="mono">refs/tags/v*</span>) queue builds automatically — the App
-				webhook is already live, nothing else to set up.
-			</p>
+		<div class="confirm">
+			<span class="mono">prod9/haachang · builds on <span class="muted">refs/tags/v*</span></span>
 			<Button variant="primary" href="/preview/repos/">Confirm add</Button>
-		</Panel>
+		</div>
 	</div>
 </section>
 
@@ -116,8 +108,13 @@
 		color: var(--text);
 	}
 
-	.gap {
-		margin-top: var(--lead-half);
+	.confirm {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: var(--lead);
+		padding: var(--lead-half) 0;
+		box-shadow: 0 1px 0 var(--border) inset;
 	}
 
 	.kv {

@@ -11,6 +11,7 @@
 	--p9-red-deep: #c94a43;
 	--p9-ink: #202438;
 	--p9-muted: #737b91;
+	--p9-green: #3a7d5c;
 	--p9-line: #e2e6f0;
 	--p9-paper: #fbfaf7;
 
@@ -23,6 +24,7 @@
 	--accent: var(--p9-indigo);
 	--accent-signal: var(--p9-red);
 	--accent-signal-strong: var(--p9-red-deep);
+	--accent-ok: var(--p9-green);
 
 	/* Letterpress depth belongs to warm alone; bright stays flat. */
 	--raised-shadow: none;
@@ -69,6 +71,7 @@
 	--accent: var(--p9-logo-indigo);
 	--accent-signal: #d04539;
 	--accent-signal-strong: #b93a2f;
+	--accent-ok: #2e6249;
 
 	/* Warm compresses the value range, so raised surfaces earn a letterpress cast under
 	   a lit top edge — paper laid on paper. */

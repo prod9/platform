@@ -1,46 +1,76 @@
 <script>
-	// The engine roster as the server sees it this instant: the DAGGER_ENGINE seed and
-	// what DNS resolves right now. Momentary by design — two loads a second apart may
-	// legitimately differ. The second card shows the empty-roster warning variant.
-	import Panel from "$lib/components/Panel.svelte";
+	// The engine fleet, one card per resolved instance: address, reachability, engine
+	// version, and what it is running right now. The seed line states where the roster
+	// comes from; the roster itself is DNS, read per load.
+	const engines = [
+		{
+			addr: "tcp://10.2.1.14:1234",
+			ok: true,
+			version: "dagger v0.18.5",
+			uptime: "up 6d",
+			cache: "41 GB cache",
+			work: { repo: "prod9/infra", build: 125, tag: "v0.3.12" },
+		},
+		{
+			addr: "tcp://10.2.3.87:1234",
+			ok: true,
+			version: "dagger v0.18.5",
+			uptime: "up 2d",
+			cache: "17 GB cache",
+			work: null,
+		},
+		{
+			addr: "tcp://10.2.4.2:1234",
+			ok: false,
+			version: "",
+			uptime: "",
+			cache: "",
+			work: null,
+		},
+	];
 </script>
 
 <section>
 	<div class="head">
 		<h2>Engines</h2>
-		<p class="label">resolved just now</p>
+		<p class="label">{engines.length} resolved</p>
+		<span class="spacer"></span>
+		<span class="mono muted seed">DAGGER_ENGINE = dagger-engine.platform.svc : 1234</span>
 	</div>
 
-	<div class="stack">
-		<Panel label="Roster">
-			<dl class="kv">
-				<dt class="label">Seed</dt>
-				<dd class="mono">DAGGER_ENGINE = dagger-engine.platform.svc</dd>
-				<dt class="label">Port</dt>
-				<dd class="mono">1234</dd>
-				<dt class="label">Resolves to</dt>
-				<dd class="mono">tcp://10.2.1.14:1234<br />tcp://10.2.3.87:1234</dd>
-			</dl>
-			<p class="muted gap">
-				Each build dials one endpoint chosen at random. The roster is DNS, read per
-				dial — pods joining or leaving show up as soon as records do.
-			</p>
-		</Panel>
+	<ul class="fleet">
+		{#each engines as engine (engine.addr)}
+			<li class="card" class:down={!engine.ok}>
+				<div class="top">
+					<span class="mono dot" class:ok={engine.ok}>{engine.ok ? "●" : "○"}</span>
+					<span class="mono addr">{engine.addr}</span>
+					<span class="chip label" class:bad={!engine.ok}>
+						{engine.ok ? "reachable" : "unreachable"}
+					</span>
+				</div>
 
-		<Panel label="Empty-roster variant">
-			<dl class="kv">
-				<dt class="label">Seed</dt>
-				<dd class="mono muted">(unset)</dd>
-				<dt class="label">Resolves to</dt>
-				<dd class="mono warn">nothing — builds will auto-provision a local engine inside the srv pod</dd>
-			</dl>
-		</Panel>
-	</div>
+				{#if engine.ok}
+					<div class="mono muted facts">
+						{engine.version} · {engine.uptime} · {engine.cache}
+					</div>
+					{#if engine.work}
+						<a class="mono work" href="/preview/build/">
+							◌ building {engine.work.repo} #{engine.work.build} · {engine.work.tag}
+						</a>
+					{:else}
+						<span class="mono muted">idle</span>
+					{/if}
+				{:else}
+					<span class="mono warn">did not answer the dial · last seen 41m ago</span>
+				{/if}
+			</li>
+		{/each}
+	</ul>
 </section>
 
 <style>
 	section {
-		max-width: 90ch;
+		max-width: 100ch;
 	}
 
 	.head {
@@ -50,26 +80,69 @@
 		margin-bottom: var(--lead);
 	}
 
-	.stack {
+	.spacer {
+		margin-left: auto;
+	}
+
+	.fleet {
 		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(38ch, 1fr));
 		gap: var(--lead);
-	}
-
-	.kv {
-		display: grid;
-		grid-template-columns: 18ch minmax(0, 1fr);
-		gap: 0 var(--lead);
+		list-style: none;
 		margin: 0;
+		padding: 0;
 	}
 
-	.kv dt,
-	.kv dd {
-		margin: 0;
-		line-height: var(--lead);
+	.card {
+		padding: var(--lead-half) var(--lead) var(--lead);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-md);
+		background: var(--surface-raised);
+		box-shadow: var(--raised-shadow);
 	}
 
-	.gap {
-		margin-top: var(--lead-half);
+	.card.down {
+		background: none;
+	}
+
+	.top {
+		display: flex;
+		align-items: baseline;
+		gap: var(--lead-half);
+		margin-bottom: var(--lead-half);
+	}
+
+	.dot {
+		color: var(--text-muted);
+	}
+
+	.dot.ok {
+		color: var(--accent-ok);
+	}
+
+	.addr {
+		font-weight: 600;
+	}
+
+	.chip {
+		margin-left: auto;
+	}
+
+	.chip.bad {
+		color: var(--accent-signal);
+	}
+
+	.facts {
+		margin-bottom: var(--lead-half);
+	}
+
+	.work {
+		color: var(--accent);
+		text-decoration: none;
+	}
+
+	.work:hover {
+		color: var(--accent-signal);
 	}
 
 	.warn {

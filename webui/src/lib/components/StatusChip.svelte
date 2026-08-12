@@ -1,6 +1,6 @@
 <script>
-	// A build's folded outcome. Failure is the only state that earns the red — the rest
-	// carry system colors, so a failed row is the one thing the eye lands on.
+	// A build's folded outcome, in CI semantics: green passed, red failed, indigo live,
+	// muted waiting. Red stays failure's alone, so a failed row is what the eye lands on.
 	let { status } = $props();
 </script>
 
@@ -20,14 +20,13 @@
 		color: var(--text-muted);
 	}
 
-	/* Running is the only live state, so it gets the system's authority color; success is
-	   the norm and stays quiet. */
+	/* Running is the only live state, so it gets the system's authority color. */
 	.chip--running {
 		color: var(--accent);
 	}
 
 	.chip--succeeded {
-		color: var(--text);
+		color: var(--accent-ok);
 	}
 
 	.chip--failed {

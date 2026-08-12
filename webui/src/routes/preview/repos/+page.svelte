@@ -1,33 +1,32 @@
 <script>
-	// The landing page: onboarded repos, each row folding its latest builds. A row opens
-	// the repo's build list; add-repository closes the list and is the whole page on an
-	// empty install.
-	import StatusChip from "$lib/components/StatusChip.svelte";
-	import Button from "$lib/components/Button.svelte";
-	import Panel from "$lib/components/Panel.svelte";
+	// The landing page: each onboarded repo is a block — its header opens the repo's build
+	// list, and its latest builds sit under it as sub-rows of the feed itself.
+	const marks = { succeeded: "✓", failed: "✗", running: "◌", queued: "·" };
 
 	const repos = [
 		{
 			full: "prod9/platform",
-			modules: "platform",
-			last: "2h ago",
+			modules: ["platform"],
 			recent: [
-				{ id: 128, status: "succeeded" },
-				{ id: 127, status: "failed" },
-				{ id: 126, status: "succeeded" },
+				{ id: 128, tag: "v0.9.36", status: "succeeded", trigger: "github-push", took: "4m 12s", when: "2h ago" },
+				{ id: 127, tag: "v0.9.35", status: "failed", trigger: "webui · chakrit", took: "2m 40s", when: "1d ago" },
+				{ id: 126, tag: "v0.9.34", status: "succeeded", trigger: "github-push", took: "3m 58s", when: "2d ago" },
 			],
 		},
 		{
 			full: "prod9/infra",
-			modules: "infra",
-			last: "4m ago",
+			modules: ["infra"],
 			recent: [
-				{ id: 125, status: "running" },
-				{ id: 121, status: "succeeded" },
+				{ id: 125, tag: "v0.3.12", status: "running", trigger: "github-push", took: "1m 03s", when: "4m ago" },
+				{ id: 121, tag: "v0.3.11", status: "succeeded", trigger: "github-push", took: "2m 21s", when: "3d ago" },
 			],
 		},
-		{ full: "prod9/fx", modules: "docs · site", last: "—", recent: [] },
+		{ full: "prod9/fx", modules: ["docs", "site"], recent: [] },
 	];
+
+	function latest(repo) {
+		return repo.recent.length === 0 ? "none" : repo.recent[0].status;
+	}
 </script>
 
 <section>
@@ -36,53 +35,46 @@
 		<p class="label">{repos.length} onboarded</p>
 	</div>
 
-	<table>
-		<thead>
-			<tr>
-				<th>Repository</th>
-				<th>Modules</th>
-				<th>Recent builds</th>
-				<th>Last activity</th>
-				<th></th>
-			</tr>
-		</thead>
-		<tbody>
-			{#each repos as repo (repo.full)}
-				<tr>
-					<td class="mono"><a href="/preview/builds/">{repo.full}</a></td>
-					<td class="mono muted">{repo.modules}</td>
-					<td>
-						{#if repo.recent.length === 0}
-							<span class="mono muted">no builds yet</span>
-						{:else}
-							<span class="recent">
-								{#each repo.recent as build (build.id)}
-									<a class="mono" href="/preview/build/">
-										#{build.id} <StatusChip status={build.status} />
-									</a>
-								{/each}
-							</span>
-						{/if}
-					</td>
-					<td class="mono muted">{repo.last}</td>
-					<td><a class="chev mono" href="/preview/builds/">›</a></td>
-				</tr>
-			{/each}
-		</tbody>
-	</table>
+	<ul class="repos">
+		{#each repos as repo (repo.full)}
+			<li class="repo">
+				<a class="repo-head" href="/preview/builds/">
+					<span class="mono state state--{latest(repo)}">{marks[latest(repo)] ?? "·"}</span>
+					<span class="mono name">{repo.full}</span>
+					<span class="label">{repo.modules.join(" · ")}</span>
+					<span class="mono chev">›</span>
+				</a>
 
-	<div class="add">
-		<Panel label="Add a repository">
-			<p class="muted">
-				Onboard a repo the App doesn't build yet — pick it, preview its
-				<span class="mono">platform.toml</span>, confirm.
-			</p>
-			<Button variant="primary" href="/preview/add-repo/">Add repository</Button>
-		</Panel>
-	</div>
+				{#each repo.recent as build (build.id)}
+					<a class="build" href="/preview/build/">
+						<span class="mono state state--{build.status}">{marks[build.status]}</span>
+						<span class="mono tag">{build.tag}</span>
+						<span class="mono muted">#{build.id} · {build.trigger}</span>
+						<span class="mono muted timing">{build.took} · {build.when}</span>
+					</a>
+				{:else}
+					<span class="build none">
+						<span class="mono state state--none">·</span>
+						<span class="mono muted">no builds yet</span>
+					</span>
+				{/each}
+			</li>
+		{/each}
+
+		<li class="repo">
+			<a class="repo-head add" href="/preview/add-repo/">
+				<span class="mono state state--none">+</span>
+				<span class="label">Add repository</span>
+			</a>
+		</li>
+	</ul>
 </section>
 
 <style>
+	section {
+		max-width: 100ch;
+	}
+
 	.head {
 		display: flex;
 		align-items: baseline;
@@ -90,51 +82,82 @@
 		margin-bottom: var(--lead);
 	}
 
-	table {
-		width: 100%;
-		border-collapse: collapse;
+	.repos {
+		list-style: none;
+		margin: 0;
+		padding: 0;
 	}
 
-	th {
-		font-family: var(--p9-support);
-		font-size: var(--size-label);
-		font-weight: 600;
-		line-height: var(--lead);
-		letter-spacing: 0.12em;
-		text-transform: uppercase;
-		color: var(--text-muted);
-		text-align: left;
-		padding: 0 var(--lead) 0 0;
+	.repo {
+		padding: var(--lead-half) 0;
 		box-shadow: 0 -1px 0 var(--border) inset;
 	}
 
-	td {
-		padding: 0 var(--lead) 0 0;
-		line-height: var(--lead);
-		box-shadow: 0 -1px 0 var(--border) inset;
-		vertical-align: top;
-	}
-
-	.recent {
-		display: inline-flex;
+	.repo-head {
+		display: grid;
+		grid-template-columns: var(--lead) auto 1fr var(--lead);
+		align-items: baseline;
 		gap: var(--lead-half);
+		text-decoration: none;
+		color: var(--text);
+		line-height: var(--lead);
 	}
 
-	.recent a {
-		text-decoration: none;
+	.repo-head:hover .name,
+	.repo-head:hover .chev {
+		color: var(--accent);
+	}
+
+	.name {
+		font-weight: 600;
 	}
 
 	.chev {
 		color: var(--text-muted);
-		text-decoration: none;
+		text-align: center;
 	}
 
-	.chev:hover {
+	.build {
+		display: grid;
+		grid-template-columns: var(--lead) 10ch 1fr auto;
+		align-items: baseline;
+		gap: var(--lead-half);
+		padding-left: var(--lead);
+		text-decoration: none;
+		color: var(--text);
+		line-height: var(--lead);
+	}
+
+	a.build:hover {
+		background: var(--surface-raised);
+	}
+
+	.timing {
+		text-align: right;
+	}
+
+	.state {
+		text-align: center;
+	}
+
+	.state--succeeded {
+		color: var(--accent-ok);
+	}
+
+	.state--failed {
+		color: var(--accent-signal);
+	}
+
+	.state--running {
 		color: var(--accent);
 	}
 
-	.add {
-		max-width: 62ch;
-		margin-top: var(--lead-2);
+	.state--none,
+	.state--queued {
+		color: var(--text-muted);
+	}
+
+	.add:hover .label {
+		color: var(--accent);
 	}
 </style>

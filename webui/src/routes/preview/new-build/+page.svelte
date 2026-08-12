@@ -31,20 +31,14 @@
 					<label><input type="checkbox" checked /> srv <span class="muted">— go/basic</span></label>
 				</li>
 			</ul>
-			<p class="muted">
-				All modules build by default. Tests gate every build — an image never ships
-				from red tests.
-			</p>
 		</Panel>
 
-		<Panel label="Confirm">
-			<p class="muted">
-				Queues a build of <span class="mono">prod9/platform</span> at
-				<span class="mono">8c0db6e</span>, publishing as
-				<span class="mono">v0.9.36</span>.
-			</p>
+		<div class="confirm">
+			<span class="mono">
+				prod9/platform @ 8c0db6e <span class="muted">→</span> v0.9.36
+			</span>
 			<Button variant="primary" href="/preview/build/">Queue build</Button>
-		</Panel>
+		</div>
 	</div>
 </section>
 
@@ -87,9 +81,18 @@
 		margin-top: var(--lead-half);
 	}
 
+	.confirm {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: var(--lead);
+		padding: var(--lead-half) 0;
+		box-shadow: 0 1px 0 var(--border) inset;
+	}
+
 	.modpick {
 		list-style: none;
-		margin: 0 0 var(--lead);
+		margin: 0;
 		padding: 0;
 	}
 

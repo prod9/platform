@@ -178,12 +178,20 @@
 		box-shadow: -3px 0 0 var(--accent);
 	}
 
+	.mark--succeeded {
+		color: var(--accent-ok);
+	}
+
 	.mark--failed {
 		color: var(--accent-signal);
 	}
 
 	.mark--running {
 		color: var(--accent);
+	}
+
+	.mark--queued {
+		color: var(--text-muted);
 	}
 
 	.logpane {
