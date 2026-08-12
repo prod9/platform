@@ -13,11 +13,13 @@
 	--p9-muted: #737b91;
 	--p9-green: #3a7d5c;
 	--p9-line: #e2e6f0;
+	--p9-soft: #f2f4f8;
 	--p9-paper: #fbfaf7;
 
 	/* Roles — bright is the default mode. */
 	--surface: var(--p9-paper);
 	--surface-raised: #ffffff;
+	--surface-quiet: var(--p9-soft);
 	--text: var(--p9-ink);
 	--text-muted: var(--p9-muted);
 	--border: var(--p9-line);
@@ -65,6 +67,7 @@
 :root[data-theme="warm"] {
 	--surface: #c7beb6;
 	--surface-raised: #e2dbd4;
+	--surface-quiet: #d6cec6;
 	--text: #1a1d2c;
 	--text-muted: #4b4539;
 	--border: #9f9891;

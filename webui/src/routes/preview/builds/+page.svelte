@@ -131,7 +131,7 @@
 	}
 
 	.row:hover {
-		background: var(--surface-raised);
+		background: var(--surface-quiet);
 	}
 
 	.state {
@@ -172,7 +172,9 @@
 	}
 
 	.tag {
+		font-size: var(--size-prose);
 		font-weight: 600;
+		color: var(--accent);
 	}
 
 	.subject {

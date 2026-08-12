@@ -45,26 +45,28 @@
 					<span class="mono chev">›</span>
 				</a>
 
-				{#each repo.recent as build (build.id)}
-					<a class="build" href="/preview/build/">
-						<span class="mono state state--{build.status}">{marks[build.status]}</span>
-						<span class="mono tag">{build.tag}</span>
-						<span class="mono muted">#{build.id} · {build.trigger}</span>
-						<span class="mono muted timing">{build.took} · {build.when}</span>
-					</a>
-				{:else}
-					<span class="build none">
-						<span class="mono state state--none">·</span>
-						<span class="mono muted">no builds yet</span>
-					</span>
-				{/each}
+				<span class="subs">
+					{#each repo.recent as build (build.id)}
+						<a class="build" href="/preview/build/">
+							<span class="mono state state--{build.status}">{marks[build.status]}</span>
+							<span class="mono tag">{build.tag}</span>
+							<span class="mono muted">#{build.id} · {build.trigger}</span>
+							<span class="mono muted timing">{build.took} · {build.when}</span>
+						</a>
+					{:else}
+						<span class="build none">
+							<span class="mono state state--none">·</span>
+							<span class="mono muted">no builds yet</span>
+						</span>
+					{/each}
+				</span>
 			</li>
 		{/each}
 
 		<li class="repo">
 			<a class="repo-head add" href="/preview/add-repo/">
-				<span class="mono state state--none">+</span>
-				<span class="label">Add repository</span>
+				<span class="mono state plus">+</span>
+				<span class="label act">Add repository</span>
 			</a>
 		</li>
 	</ul>
@@ -105,11 +107,15 @@
 
 	.repo-head:hover .name,
 	.repo-head:hover .chev {
-		color: var(--accent);
+		color: var(--accent-signal);
 	}
 
+	/* The repo's name is the block's headline: prose-size, indigo, unmistakably not one
+	   of the builds beneath it. */
 	.name {
+		font-size: var(--size-prose);
 		font-weight: 600;
+		color: var(--accent);
 	}
 
 	.chev {
@@ -117,19 +123,36 @@
 		text-align: center;
 	}
 
+	/* Sub-rows hang off a vertical hairline, so the nesting reads before any row does. */
+	.subs {
+		display: block;
+		margin-left: var(--lead-half);
+		padding-left: var(--lead-half);
+		box-shadow: 1px 0 0 var(--border) inset;
+	}
+
 	.build {
 		display: grid;
 		grid-template-columns: var(--lead) 10ch 1fr auto;
 		align-items: baseline;
 		gap: var(--lead-half);
-		padding-left: var(--lead);
 		text-decoration: none;
 		color: var(--text);
 		line-height: var(--lead);
 	}
 
 	a.build:hover {
-		background: var(--surface-raised);
+		background: var(--surface-quiet);
+	}
+
+	.plus,
+	.act {
+		color: var(--accent-signal);
+	}
+
+	.add:hover .act,
+	.add:hover .plus {
+		color: var(--accent-signal-strong);
 	}
 
 	.timing {
@@ -155,9 +178,5 @@
 	.state--none,
 	.state--queued {
 		color: var(--text-muted);
-	}
-
-	.add:hover .label {
-		color: var(--accent);
 	}
 </style>

@@ -3,6 +3,8 @@
 	// instance — reachability leading the header, its facts and current work as sub-rows.
 	// The seed line states where the roster comes from; the roster itself is DNS, read
 	// per load.
+	import Button from "$lib/components/Button.svelte";
+
 	const engines = [
 		{
 			addr: "tcp://10.2.1.14:1234",
@@ -37,6 +39,7 @@
 		<p class="label">{engines.length} resolved</p>
 		<span class="spacer"></span>
 		<span class="mono muted">DAGGER_ENGINE = dagger-engine.platform.svc : 1234</span>
+		<Button>Refresh</Button>
 	</div>
 
 	<ul class="fleet">
@@ -47,35 +50,37 @@
 						{engine.ok ? "●" : "○"}
 					</span>
 					<span class="mono addr">{engine.addr}</span>
-					<span class="label" class:warn={!engine.ok}>
+					<span class="label reach" class:ok={engine.ok} class:warn={!engine.ok}>
 						{engine.ok ? "reachable" : "unreachable"}
 					</span>
 				</span>
 
-				{#if !engine.ok}
-					<span class="sub">
-						<span class="mono state bad">✗</span>
-						<span class="mono warn">did not answer the dial</span>
-						<span class="mono muted timing">last seen 41m ago</span>
-					</span>
-				{:else}
-					<span class="sub">
-						<span class="mono state"></span>
-						<span class="mono muted">{engine.version} · {engine.uptime} · {engine.cache}</span>
-					</span>
-					{#if engine.work}
-						<a class="sub" href="/preview/build/">
-							<span class="mono state live">◌</span>
-							<span class="mono live">building {engine.work.repo} #{engine.work.build} · {engine.work.tag}</span>
-							<span class="mono muted timing">{engine.work.took}</span>
-						</a>
+				<span class="subs">
+					{#if !engine.ok}
+						<span class="sub">
+							<span class="mono state bad">✗</span>
+							<span class="mono warn">did not answer the dial</span>
+							<span class="mono muted timing">last seen 41m ago</span>
+						</span>
 					{:else}
 						<span class="sub">
 							<span class="mono state"></span>
-							<span class="mono muted">idle</span>
+							<span class="mono muted">{engine.version} · {engine.uptime} · {engine.cache}</span>
 						</span>
+						{#if engine.work}
+							<a class="sub" href="/preview/build/">
+								<span class="mono state live">◌</span>
+								<span class="mono live">building {engine.work.repo} #{engine.work.build} · {engine.work.tag}</span>
+								<span class="mono muted timing">{engine.work.took}</span>
+							</a>
+						{:else}
+							<span class="sub">
+								<span class="mono state"></span>
+								<span class="mono muted">idle</span>
+							</span>
+						{/if}
 					{/if}
-				{/if}
+				</span>
 			</li>
 		{/each}
 	</ul>
@@ -117,7 +122,20 @@
 	}
 
 	.addr {
+		font-size: var(--size-prose);
 		font-weight: 600;
+		color: var(--accent);
+	}
+
+	.reach.ok {
+		color: var(--accent-ok);
+	}
+
+	.subs {
+		display: block;
+		margin-left: var(--lead-half);
+		padding-left: var(--lead-half);
+		box-shadow: 1px 0 0 var(--border) inset;
 	}
 
 	.sub {
@@ -125,14 +143,13 @@
 		grid-template-columns: var(--lead) 1fr auto;
 		align-items: baseline;
 		gap: var(--lead-half);
-		padding-left: var(--lead);
 		line-height: var(--lead);
 		text-decoration: none;
 		color: var(--text);
 	}
 
 	a.sub:hover {
-		background: var(--surface-raised);
+		background: var(--surface-quiet);
 	}
 
 	.state {

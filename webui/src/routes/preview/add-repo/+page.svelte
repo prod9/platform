@@ -31,15 +31,15 @@
 
 		<Panel label="What the server found">
 			<dl class="kv">
-				<dt class="label">App reach</dt>
-				<dd class="mono">✓ installed on this repo</dd>
-				<dt class="label">platform.toml</dt>
-				<dd class="mono">✓ present on <span class="muted">refs/heads/main</span></dd>
-				<dt class="label">Maintainer</dt>
+				<dt class="mono key">app reach</dt>
+				<dd class="mono ok">✓ installed on this repo</dd>
+				<dt class="mono key">platform.toml</dt>
+				<dd class="mono ok">✓ present on <span class="muted">refs/heads/main</span></dd>
+				<dt class="mono key">maintainer</dt>
 				<dd class="mono">chakrit &lt;chakrit@prodigy9.co&gt;</dd>
-				<dt class="label">Modules</dt>
+				<dt class="mono key">modules</dt>
 				<dd class="mono">api (go/basic) · web (pnpm/static)</dd>
-				<dt class="label">Latest tag</dt>
+				<dt class="mono key">latest tag</dt>
 				<dd class="mono">v0.4.2</dd>
 			</dl>
 		</Panel>
@@ -128,5 +128,13 @@
 	.kv dd {
 		margin: 0;
 		line-height: var(--lead);
+	}
+
+	.key {
+		color: var(--text-muted);
+	}
+
+	.ok {
+		color: var(--accent-ok);
 	}
 </style>
