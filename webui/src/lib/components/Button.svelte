@@ -13,16 +13,19 @@
 {/if}
 
 <style>
+	/* A button must read as a button at a glance: a raised plate with a firm edge and a
+	   pressed state, never a caps label with a hairline around it. */
 	.btn {
 		display: inline-block;
-		padding: 0 var(--lead-half);
-		border: 1px solid var(--border);
+		padding: 0 var(--lead);
+		border: 1px solid var(--text-muted);
 		border-radius: var(--radius-sm);
-		background: none;
+		background: var(--surface-raised);
+		box-shadow: 0 1px 2px rgba(32, 36, 56, 0.16);
 		font-family: var(--p9-support);
 		font-size: var(--size-label);
 		font-weight: 600;
-		line-height: var(--lead);
+		line-height: calc(var(--lead) - 2px);
 		letter-spacing: 0.12em;
 		text-transform: uppercase;
 		text-decoration: none;
@@ -32,7 +35,13 @@
 
 	.btn:hover {
 		border-color: var(--accent);
+		background: var(--surface-quiet);
 		color: var(--accent);
+	}
+
+	.btn:active {
+		box-shadow: none;
+		transform: translateY(1px);
 	}
 
 	/* Primary is the one red note on a view — the key action, never a second one.

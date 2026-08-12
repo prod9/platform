@@ -78,11 +78,14 @@
 		<ul class="navigator">
 			{#each units as unit (unit.name)}
 				<li class="unit">
-					<span class="name label">
-						<span class="mark mark--{unit.status}">{marks[unit.status]} {unit.name}</span>
-						<span>{unit.took}</span>
+					<span class="name">
+						<span class="mono unit-name">
+							<span class="mark mark--{unit.status}">{marks[unit.status]}</span>
+							{unit.name}
+						</span>
+						<span class="label">{unit.took}</span>
 					</span>
-					<ul>
+					<ul class="steps">
 						{#each unit.steps as step (step.name)}
 							<li>
 								<button
@@ -146,12 +149,29 @@
 	}
 
 	.unit {
-		margin-bottom: var(--lead-half);
+		padding: var(--lead-half) 0;
+		box-shadow: 0 -1px 0 var(--border) inset;
 	}
 
 	.unit > .name {
 		display: flex;
 		justify-content: space-between;
+		align-items: baseline;
+		line-height: var(--lead);
+	}
+
+	/* The module is the block's headline — prose-size indigo, the same identity voice the
+	   repo list leads with; its steps hang off a hairline beneath it. */
+	.unit-name {
+		font-size: var(--size-prose);
+		font-weight: 600;
+		color: var(--accent);
+	}
+
+	.steps {
+		margin-left: var(--lead-half);
+		padding-left: var(--lead-half);
+		box-shadow: 1px 0 0 var(--border) inset;
 	}
 
 	.step {
@@ -159,7 +179,7 @@
 		justify-content: space-between;
 		gap: var(--lead-half);
 		width: 100%;
-		padding: 0 0 0 var(--lead-half);
+		padding: 0;
 		border: 0;
 		background: none;
 		text-align: left;
@@ -174,7 +194,7 @@
 
 	.step.sel {
 		color: var(--text);
-		background: var(--surface-raised);
+		background: var(--surface-quiet);
 		box-shadow: -3px 0 0 var(--accent);
 	}
 
@@ -198,20 +218,25 @@
 		border: 1px solid var(--border);
 		border-radius: var(--radius-md);
 		background: var(--surface-raised);
+		overflow: hidden;
 	}
 
 	.loghead {
 		display: flex;
 		align-items: baseline;
 		gap: var(--lead);
-		padding: var(--lead-half) var(--lead) 0;
+		padding: var(--lead-half) var(--lead);
 	}
 
+	/* The log is a terminal, and a terminal is dark — the page's one night band. It holds
+	   these pigments across modes, so it never rebinds with the theme. */
 	.logpane pre {
 		margin: 0;
 		padding: var(--lead-half) var(--lead) var(--lead);
 		overflow-x: auto;
 		line-height: var(--lead);
+		background: var(--p9-night);
+		color: var(--p9-line);
 	}
 
 	.pad {

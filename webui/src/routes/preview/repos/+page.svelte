@@ -1,6 +1,8 @@
 <script>
 	// The landing page: each onboarded repo is a block — its header opens the repo's build
 	// list, and its latest builds sit under it as sub-rows of the feed itself.
+	import Button from "$lib/components/Button.svelte";
+
 	const marks = { succeeded: "✓", failed: "✗", running: "◌", queued: "·" };
 
 	const repos = [
@@ -10,7 +12,7 @@
 			recent: [
 				{ id: 128, tag: "v0.9.36", status: "succeeded", trigger: "github-push", took: "4m 12s", when: "2h ago" },
 				{ id: 127, tag: "v0.9.35", status: "failed", trigger: "webui · chakrit", took: "2m 40s", when: "1d ago" },
-				{ id: 126, tag: "v0.9.34", status: "succeeded", trigger: "github-push", took: "3m 58s", when: "2d ago" },
+				{ id: 126, tag: "2f4c1d9", status: "succeeded", trigger: "webui · chakrit · refs/heads/main", took: "3m 45s", when: "6h ago" },
 			],
 		},
 		{
@@ -33,6 +35,8 @@
 	<div class="head">
 		<h2>Repositories</h2>
 		<p class="label">{repos.length} onboarded</p>
+		<span class="spacer"></span>
+		<Button variant="primary" href="/preview/add-repo/">Add repository</Button>
 	</div>
 
 	<ul class="repos">
@@ -63,12 +67,6 @@
 			</li>
 		{/each}
 
-		<li class="repo">
-			<a class="repo-head add" href="/preview/add-repo/">
-				<span class="mono state plus">+</span>
-				<span class="label act">Add repository</span>
-			</a>
-		</li>
 	</ul>
 </section>
 
@@ -145,14 +143,8 @@
 		background: var(--surface-quiet);
 	}
 
-	.plus,
-	.act {
-		color: var(--accent-signal);
-	}
-
-	.add:hover .act,
-	.add:hover .plus {
-		color: var(--accent-signal-strong);
+	.spacer {
+		margin-left: auto;
 	}
 
 	.timing {

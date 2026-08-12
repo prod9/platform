@@ -15,14 +15,14 @@
 			facts: [
 				{ key: "app", value: "prod9-platform (id 412887)" },
 				{ key: "client_id", value: "Iv1.8a61f9b3a7aba766" },
-				{ key: "private_key", value: "✓ saved", ok: true },
-				{ key: "webhook_secret", value: "✓ saved", ok: true },
-				{ key: "client_secret", value: "✓ saved", ok: true },
+				{ key: "private_key", value: "········································" },
+				{ key: "webhook_secret", value: "········································" },
+				{ key: "client_secret", value: "········································" },
 			],
 		},
 		{
 			name: "Registry",
-			facts: [{ key: "ghcr.io token", value: "✓ saved · pushes as chakrit", ok: true }],
+			facts: [{ key: "ghcr.io token", value: "···························· · pushes as chakrit" }],
 		},
 	];
 </script>
@@ -38,7 +38,7 @@
 			<dl class="kv">
 				{#each group.facts as fact (fact.key)}
 					<dt class="mono key">{fact.key}</dt>
-					<dd class="mono" class:ok={fact.ok}>{fact.value}</dd>
+					<dd class="mono">{fact.value}</dd>
 				{/each}
 			</dl>
 		</div>
@@ -82,9 +82,5 @@
 
 	.key {
 		color: var(--text-muted);
-	}
-
-	.ok {
-		color: var(--accent-ok);
 	}
 </style>

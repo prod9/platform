@@ -4,6 +4,7 @@
 	// The seed line states where the roster comes from; the roster itself is DNS, read
 	// per load.
 	import Button from "$lib/components/Button.svelte";
+	import Panel from "$lib/components/Panel.svelte";
 
 	const engines = [
 		{
@@ -38,8 +39,18 @@
 		<h2>Engines</h2>
 		<p class="label">{engines.length} resolved</p>
 		<span class="spacer"></span>
-		<span class="mono muted">DAGGER_ENGINE = dagger-engine.platform.svc : 1234</span>
 		<Button>Refresh</Button>
+	</div>
+
+	<div class="seed">
+		<Panel label="Roster source">
+			<dl class="kv">
+				<dt class="mono key">DAGGER_ENGINE</dt>
+				<dd class="mono">dagger-engine.platform.svc</dd>
+				<dt class="mono key">DAGGER_ENGINE_PORT</dt>
+				<dd class="mono">1234</dd>
+			</dl>
+		</Panel>
 	</div>
 
 	<ul class="fleet">
@@ -100,6 +111,28 @@
 
 	.spacer {
 		margin-left: auto;
+	}
+
+	.seed {
+		max-width: 62ch;
+		margin-bottom: var(--lead);
+	}
+
+	.kv {
+		display: grid;
+		grid-template-columns: 22ch minmax(0, 1fr);
+		gap: 0 var(--lead);
+		margin: 0;
+	}
+
+	.kv dt,
+	.kv dd {
+		margin: 0;
+		line-height: var(--lead);
+	}
+
+	.key {
+		color: var(--text-muted);
 	}
 
 	.fleet {

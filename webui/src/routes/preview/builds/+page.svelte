@@ -29,6 +29,17 @@
 			when: "1d ago",
 		},
 		{
+			id: 126,
+			tag: "",
+			sha: "2f4c1d9",
+			subject: "engine: Roster picks uniformly at random per dial",
+			status: "succeeded",
+			modules: [{ name: "platform", status: "succeeded" }],
+			trigger: "webui · chakrit · refs/heads/main",
+			took: "3m 45s",
+			when: "6h ago",
+		},
+		{
 			id: 125,
 			tag: "v0.9.34",
 			sha: "43a6928",
@@ -69,11 +80,11 @@
 
 					<span class="what">
 						<span class="line">
-							<span class="mono tag">{build.tag}</span>
+							<span class="mono tag">{build.tag || build.sha}</span>
 							<span class="subject">{build.subject}</span>
 						</span>
 						<span class="mono muted meta">
-							#{build.id} · {build.sha} · {build.trigger}
+							#{build.id}{build.tag ? ` · ${build.sha}` : ""} · {build.trigger}
 						</span>
 					</span>
 
