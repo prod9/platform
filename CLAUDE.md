@@ -247,6 +247,13 @@ long a cold-cache Dagger build takes. Just run it.
 Mechanism — the two suites, the drift-detector contract and its golden, the per-test
 timeout: [`docs/spec/testing.md`](docs/spec/testing.md).
 
+🚨 **NEVER touch the Dagger engine manually (per-repo Law).** The Dagger SDK spawns and
+manages its own engine — there is nothing to start, restart, warm, inspect, or exec into
+by hand. Banned entirely, no diagnostic exception: `docker exec`/`run`/`start`/`stop` on
+any engine container, standalone `./testbed.sh` invocations, or any other direct poke at
+the engine. All build verification goes through `./test.sh`; if a run looks wedged,
+report the output and stop — do not probe the engine to "isolate" it.
+
 ## lowfat (token saver)
 
 Command output is compacted by [lowfat](https://github.com/zdk/lowfat) via a user-scope
