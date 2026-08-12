@@ -134,10 +134,17 @@
 	}
 
 	// The wizard renders only after this first read is adopted (§The wizard UI, a
-	// form is editable only when its values are settled); a refused read renders as
-	// the error it is, never as an empty checklist masquerading as done.
+	// form is editable only when its values are settled). The read classifies by the
+	// install signal: a 404 means the server got installed since this shell loaded —
+	// force a fresh shell from the installed composition, same as rideRestart. Only a
+	// genuinely troubled read renders as the error it is, never as an empty checklist
+	// masquerading as done.
 	async function load() {
 		const result = await installState();
+		if (installSignal(result) === Installed) {
+			window.location.assign("/");
+			return;
+		}
 		if (result.outcome === Answered) {
 			converge(result.body);
 			loaded = true;
