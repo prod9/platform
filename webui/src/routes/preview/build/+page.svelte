@@ -78,22 +78,21 @@
 		<ul class="navigator">
 			{#each units as unit (unit.name)}
 				<li class="unit">
-					<span class="name">
-						<span class="mono unit-name">
-							<span class="mark mark--{unit.status}">{marks[unit.status]}</span>
-							{unit.name}
-						</span>
+					<span class="nav-row">
+						<span class="mono mark mark--{unit.status}">{marks[unit.status]}</span>
+						<span class="mono unit-name">{unit.name}</span>
 						<span class="label">{unit.took}</span>
 					</span>
 					<ul class="steps">
 						{#each unit.steps as step (step.name)}
 							<li>
 								<button
-									class="step mono"
+									class="nav-row step mono"
 									class:sel={selected.unit === unit.name && selected.step === step.name}
 									onclick={() => pick(unit, step)}
 								>
-									<span class="mark mark--{step.status}">{marks[step.status]} {step.name}</span>
+									<span class="mark mark--{step.status}">{marks[step.status]}</span>
+									<span class="step-name">{step.name}</span>
 									<span class="muted">{step.took}</span>
 								</button>
 							</li>
@@ -153,15 +152,23 @@
 		box-shadow: 0 -1px 0 var(--border) inset;
 	}
 
-	.unit > .name {
-		display: flex;
-		justify-content: space-between;
+	/* One grid for every navigator line — unit heads and steps alike — so all the marks
+	   sit in a single gutter column and all the times land on the right edge. Hierarchy
+	   comes from type, not indentation: the module speaks prose-size indigo, its steps
+	   stay in the machine's muted voice. */
+	.nav-row {
+		display: grid;
+		grid-template-columns: var(--lead) 1fr auto;
 		align-items: baseline;
+		gap: var(--lead-half);
+		width: 100%;
 		line-height: var(--lead);
 	}
 
-	/* The module is the block's headline — prose-size indigo, the same identity voice the
-	   repo list leads with; its steps hang off a hairline beneath it. */
+	.nav-row .mark {
+		text-align: center;
+	}
+
 	.unit-name {
 		font-size: var(--size-prose);
 		font-weight: 600;
@@ -169,33 +176,31 @@
 	}
 
 	.steps {
-		margin-left: var(--lead-half);
-		padding-left: var(--lead-half);
-		box-shadow: 1px 0 0 var(--border) inset;
+		list-style: none;
+		margin: 0;
+		padding: 0;
 	}
 
 	.step {
-		display: flex;
-		justify-content: space-between;
-		gap: var(--lead-half);
-		width: 100%;
 		padding: 0;
 		border: 0;
 		background: none;
 		text-align: left;
-		line-height: var(--lead);
 		color: var(--text-muted);
 		cursor: pointer;
 	}
 
-	.step:hover {
+	.step .step-name {
+		color: var(--text);
+	}
+
+	.step:hover .step-name {
 		color: var(--accent);
 	}
 
 	.step.sel {
-		color: var(--text);
 		background: var(--surface-quiet);
-		box-shadow: -3px 0 0 var(--accent);
+		box-shadow: 2px 0 0 var(--accent) inset;
 	}
 
 	.mark--succeeded {
