@@ -5,7 +5,7 @@ go 1.26.5
 require (
 	cuelang.org/go v0.15.4
 	dagger.io/dagger v0.21.7
-	fx.prodigy9.co v0.9.2
+	fx.prodigy9.co v0.10.1
 	github.com/BurntSushi/toml v1.4.0
 	github.com/go-chi/chi/v5 v5.2.2
 	github.com/jackc/pgx/v5 v5.7.5
