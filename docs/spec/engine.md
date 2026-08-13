@@ -111,6 +111,13 @@ engine." So unset `DAGGER_ENGINE` is an explicit operator choice for local, neve
 around the session that would own the result. A future consumer exports them the day it
 exists, not before.
 
+**The one endpoint fact that does cross the boundary is the dialed one.** A `Session`
+reports which endpoint it connected to — a single `host:port` string, after the fact —
+so the worker can stamp `build_events.engine` and the engine detail read can attribute
+builds to instances ([platform-server.md](platform-server.md), the `build_events`
+schema). That is attribution of a choice already made, not access to the roster: no
+list, no dialing surface, nothing a caller could route around the session with.
+
 `dial(ctx)` picks **uniformly at random** among the resolved hosts. Random replaces the
 old round-robin cursor: the distribution over a run of picks is the same, and it needs
 no state kept between calls — which is what lets the roster stay a roster.

@@ -45,6 +45,9 @@ superseded moves to `../scratch/` — `spec/` holds current design only, never h
   auth, the `/var/cache` worktree layout, the settled operations table. Route surface +
   install/boot flow settled, as is the event-sourced build lifecycle; the cluster view
   (k8s + Flux state) is held for a design pass.
+- [`webui.md`](webui.md) — the product front end: navigation, the route map, the repos /
+  builds / engines / settings pages, and the shared components; the install wizard's UI
+  stays in `installation.md`.
 - [`installation.md`](installation.md) — the server install model: the installer fragment,
   the `GET /api/install` state surface, boot composition, the org-owner first-install
   gate, the install settings, by-hand App creation, and the org-wide GitHub→Flux delivery

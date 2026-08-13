@@ -78,8 +78,12 @@ through a purpose-built installer action (`POST /api/install/server`,
 `POST /api/install/org`, `POST /api/install/app`,
 `POST /api/install/credentials`, `POST /api/install/registry`, the claim) or
 the model accessors (`settings.Get`/`Upsert`) directly; a generic key/value API would be
-an unauthenticated-write surface pre-install and has no reader post-install. The settings
-migration joins `srv/migrate.Merged` like any fragment's.
+an unauthenticated-write surface pre-install. Post-install the one reader is
+`GET /api/settings` — session-gated, read-only, and masking: a secret-valued key
+(private key, client secret, webhook secret, registry token) serves a masked
+placeholder, never the value, so the settings page can show *that* a credential is
+present without the server ever replaying it. The settings migration joins
+`srv/migrate.Merged` like any fragment's.
 
 **Data-domain structs stay flat.** There is no ORM here, so a fragment's domain models
 mirror the query or fold that produces them — a struct is one row or one reduction, never
@@ -105,11 +109,18 @@ lives under `/api`; GitHub-facing and health routes stay bare.
 | `GET /api/session`          | session                   | session state — expiry + user id; 401 when none                                       | the webui's "is my session valid" probe, distinct from the user's profile                                          |
 | `DELETE /api/session`       | none (cookie optional)    | deletes the session row, clears the cookie                                            | session revocation server-side — a stolen cookie dies with the row, not with the browser                           |
 | `GET /api/users/me`         | session                   | the session user's profile (id + name)                                                | the webui's "who am I" — profile, not session validity                                                             |
-| `GET /api/repos`            | session                   | repos the App installation reaches, listed **live from GitHub** — never stored        | the webui's repo picker; a stored repo table would be RBAC state the zero-RBAC model forbids                       |
-| `GET /api/builds`           | session                   | last 50 builds, newest first                                                          | the webui's build list — the server's whole point made visible                                                     |
+| `GET /api/repos`            | session                   | the **registered** repos, filtered live against what the session user can still reach on GitHub | the repos landing page; registration is stored, permission never is (see §Repos are registered, visibility is live) |
+| `GET /api/repos/candidates` | session                   | repos the App installation reaches that are **not yet registered**, listed live from GitHub | the onboarding wizard's pick list — the same live read the old repo picker made, minus what is already onboarded   |
+| `POST /api/repos`           | session                   | registers a repo: owner/repo, recorded with the registering user                       | the onboarding wizard's confirm — the one write the `repos` table takes                                            |
+| `GET /api/repos/{owner}/{repo}/manifest` | session      | the repo's `platform.toml` read live from GitHub at the default branch's head, parsed  | the onboarding wizard's review step shows what the server pre-read before the user confirms                        |
+| `GET /api/repos/{owner}/{repo}/builds` | session        | the repo's builds, newest first; `?limit=N` caps the page                              | builds nest under a repo in the UI; the landing page fans out `?limit=3` per visible repo                          |
+| `GET /api/builds`           | session                   | last 50 builds, newest first                                                          | the global feed — no page reads it today, but a fleet-wide view costs nothing to keep                              |
 | `GET /api/builds/{id}`      | session                   | one build plus its attempts folded — no steps                                         | the build detail view — the stream made readable, which is the reason the events are stored at all                 |
 | `GET /api/builds/{id}/steps`| session                   | the build's steps across all attempts, flat, each carrying its attempt ordinal and captured output | steps are a sub-resource: the heavy stdout/stderr payload stays off the detail read                   |
-| `POST /api/builds`          | session                   | records a `webui`-triggered build: owner/repo + ref, sha resolved server-side         | the manual trigger — the same domain fact as the webhook, authorized by session instead of HMAC                    |
+| `POST /api/builds`          | session                   | records a `webui`-triggered build: owner/repo + ref, sha resolved server-side; may carry a module list | the manual trigger — the same domain fact as the webhook, authorized by session instead of HMAC; module selection is the manual trigger's alone (§Triggering a build) |
+| `GET /api/engines`          | session                   | the engine fleet: the DNS roster resolved per request, each instance dial-checked      | the engines page — the fleet the builds run on, read from the same `DAGGER_ENGINE` source the worker dials ([engine.md](engine.md) §Runner discovery) |
+| `GET /api/engines/{addr}`   | session                   | one engine instance: reachability, version, current + recent builds (from `build_events.engine`) | the engine detail page; the instance is named by its resolved `host:port`, URL-encoded                             |
+| `GET /api/settings`         | session                   | the install-time facts, read-only; secret-valued keys are served **masked, never the value** | the settings page — the one post-install reader of the install settings                                            |
 | `POST /hooks/github`        | App webhook HMAC          | verifies signature; queues a build row per pushed `refs/tags/v*`                      | the pull-model trigger: a version tag *is* the build request (delivery-verbs ADR)                                  |
 | `GET /api/install`          | none (installer fragment) | ordered install-state list; served **only while not completely installed**            | drives the SPA installer-vs-app decision ([installation.md](installation.md)); its 404 *is* the "installed" signal |
 | `POST /api/install/claim`   | session (installer)       | org-owner claim: resolve installation→org, verify owner, write the `install.*` settings | the first-install gate; the App Setup URL lands on the webui install page, which posts here ([installation.md](installation.md)) |
@@ -135,6 +146,29 @@ questions at different moments: `GET /api/session` answers "may I still act", `G
 /api/users/me` answers "who am I". The **Flux→srv observability** endpoint `GET
 /api/repos/{owner}/{repo}/flux` is **forthcoming** — it belongs to the cluster-view pass and
 is not settled here.
+
+### Repos are registered, visibility is live
+
+The `repos` table records **registration** — *this repo is onboarded to build here* — and
+nothing else. It is a product fact, not a permission: no role, no access bit, no cached
+GitHub state lives on it. Visibility stays gated **live** per request, exactly as the
+zero-RBAC model demands — `GET /api/repos` intersects the registered set with what the
+session user can currently reach on GitHub, so losing GitHub permission on a repo loses
+its visibility on platform in the same moment, registration row or not.
+
+```
+repos                           -- registration only: this repo is onboarded to build here
+  id            bigserial
+  owner         text
+  repo          text            -- UNIQUE (owner, repo)
+  registered_by bigint          -- REFERENCES users(id)
+  created_at    timestamptz
+```
+
+Onboarding is a wizard ([webui.md](webui.md)): pick from `GET /api/repos/candidates` (the
+App-reachable repos not yet registered, live), review the server's pre-read of the repo's
+`platform.toml` (`GET /api/repos/{owner}/{repo}/manifest`), confirm with `POST /api/repos`.
+Registration is the only write; deregistration is not in this surface yet.
 
 ### `webui/build/` is committed
 
@@ -201,12 +235,16 @@ was asked for*. The webhook gets the sha from the push payload; the manual trigg
 GitHub API before recording — resolution is part of validating the request, not of
 executing it.
 
-**A build is whole-repo, so the unit set is not intent.** `platform.toml`'s `[modules]`
-defines the units and a build schedules all of them; which units exist is a property of the
-committed tree, not a choice a trigger makes. So the controller does not carry a unit list
-and the worker reads `platform.toml` from the tree it prepared — that is reading a
-definition, not re-deciding a request. Repo preparation is the same in kind: fetching the
-tree fulfils a decision rather than making one, so it belongs to the worker.
+**A webhook build is whole-repo; a manual trigger may select modules.** `platform.toml`'s
+`[modules]` defines the units — which units *exist* is a property of the committed tree,
+never a choice a trigger makes. A webhook carries no selection and builds all of them. The
+manual trigger (`POST /api/builds`) may carry a **module list** — the same capability the
+CLI has always had (`platform build <modules…>`) — recorded on the build row as
+`modules`; empty means whole-repo. The worker still reads `platform.toml` from the tree it
+prepared and schedules the intersection: a selection filters the definition, it never
+defines units. A selected name absent from the tree's `[modules]` fails the run — the
+record promised something the tree cannot deliver. Repo preparation is the same in kind:
+fetching the tree fulfils a decision rather than making one, so it belongs to the worker.
 
 ### The worker is a peer *process*, and the jobs live in their fragments
 
@@ -323,6 +361,7 @@ builds                          -- one row per trigger; immutable after insert
   clone_url     text
   ref           text            -- 'refs/heads/main' | 'refs/tags/v1.2.3'
   sha           text            -- the commit this build builds
+  modules       text[]          -- manual module selection; '{}' means whole-repo
   created_at    timestamptz
 
 build_events                    -- append-only; one row per engine Observer callback
@@ -332,6 +371,7 @@ build_events                    -- append-only; one row per engine Observer call
   unit          text            -- module name; '' for run-level events
   step          text            -- '' unless step-scoped
   at            timestamptz     -- the engine's own callback time, not the insert time
+  engine        text            -- the endpoint the worker dialed for this attempt
   error         text            -- step_done, run_done
   image         text            -- image_built, published
   hash          text            -- published only
@@ -340,9 +380,12 @@ build_events                    -- append-only; one row per engine Observer call
   created_at    timestamptz
 ```
 
-`build_events` is a transcription of the `Observer` contract ([engine.md](engine.md)) and
-nothing more — one column per callback argument, `at` preserved as the engine reported it so
-elapsed time survives a slow writer. Captured `stdout`/`stderr` ride the `step_done` row
+`build_events` is a transcription of the `Observer` contract ([engine.md](engine.md)) plus
+one column of worker context — one column per callback argument, `at` preserved as the
+engine reported it so elapsed time survives a slow writer, and `engine` stamped by the
+worker on every row it writes: the endpoint its session dialed for this attempt
+([engine.md](engine.md) §Runner discovery), the attribution the engine detail page reads
+back (`GET /api/engines/{addr}`). Captured `stdout`/`stderr` ride the `step_done` row
 rather than a kind of their own.
 
 **A `builds` row records who asked and what for, never how it went.** No `status`, no
@@ -579,6 +622,10 @@ API have shipped; what remains:
    and Flux pulls.
 
 ## Open details (not blockers)
+
+- Whether the webhook consults registration — a v-tag push on an App-installed repo
+  that nobody has registered: build it (install is the gate) or skip it (registration
+  is what "onboarded to build here" means). Unruled; decide at the wiring slice.
 
 - Where the `init` server marker lives — `platform.toml` `[server]` field vs CLI-global
   config.
