@@ -125,8 +125,34 @@ export function listSteps(id) {
 	return call(`/api/builds/${id}/steps`);
 }
 
+// listRepos is registered∩live: the onboarded repos the session user can still
+// reach on GitHub (docs/spec/platform-server.md §Repos are registered, visibility
+// is live).
 export function listRepos() {
 	return call("/api/repos");
+}
+
+// listCandidates is the onboarding wizard's pick list: App-reachable repos not yet
+// registered, live from GitHub.
+export function listCandidates() {
+	return call("/api/repos/candidates");
+}
+
+// getManifest is the wizard's review step: the server's pre-read of the repo's
+// platform.toml at the default branch's head, parsed.
+export function getManifest(owner, repo) {
+	return call(`/api/repos/${owner}/${repo}/manifest`);
+}
+
+// registerRepo is the wizard's confirm — the one write the repos table takes.
+export function registerRepo(owner, repo) {
+	return post("/api/repos", { owner, repo });
+}
+
+// listRepoBuilds reads one repo's feed, newest first; the landing page fans out
+// limit=3 per visible repo.
+export function listRepoBuilds(owner, repo, limit) {
+	return call(`/api/repos/${owner}/${repo}/builds?limit=${limit}`);
 }
 
 // createBuild records a manual trigger — and a retry is just this again with the same

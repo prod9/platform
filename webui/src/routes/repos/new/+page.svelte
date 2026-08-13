@@ -1,49 +1,38 @@
 <script>
-	// ⚠ MOCK — canned data promoted from /preview; before the real implementation
-	// locks in: graduate the design into docs/spec, wire the real reads, extract shared
-	// components (outcome mark, feed row, kv list, terminal pane), delete canned data.
-	// Onboarding a repo runs as the install wizard does: a checklist on the left is the
-	// navigation, the selected step's action renders beside it. Step one picks the repo
-	// from a clickable list; step two reviews what the server pre-read and carries the
-	// confirm.
+	// The repo onboarding wizard, run as the install wizard is: the checklist on the
+	// left is the navigation, the selected step's action renders beside it. Step one
+	// picks from the live candidate list; step two reviews what the server pre-read
+	// from the repo's platform.toml and carries the confirm (docs/spec/webui.md).
+	import { goto } from "$app/navigation";
+	import {
+		listCandidates,
+		getManifest,
+		registerRepo,
+		errorText,
+		Answered,
+		Refused,
+	} from "$lib/server.js";
+	import { filterCandidates, moduleLine } from "$lib/repos.js";
 	import Button from "$lib/components/Button.svelte";
 	import Panel from "$lib/components/Panel.svelte";
 
-	const candidates = [
-		{
-			full: "prod9/haachang",
-			meta: "private · Go · pushed 2d ago",
-			toml: true,
-			modules: "api (go/basic) · web (pnpm/static)",
-			maintainer: "chakrit <chakrit@prodigy9.co>",
-			latest: "v0.4.2",
-		},
-		{
-			full: "prod9/bluepages",
-			meta: "private · Go · pushed 6d ago",
-			toml: true,
-			modules: "bluepages (go/basic)",
-			maintainer: "chakrit <chakrit@prodigy9.co>",
-			latest: "v1.1.0",
-		},
-		{
-			full: "prod9/naxon-api",
-			meta: "private · Go · pushed 3w ago",
-			toml: false,
-			modules: "",
-			maintainer: "",
-			latest: "",
-		},
-	];
+	let candidates = $state([]);
+	let loaded = $state(false);
+	let loadError = $state("");
 
 	let picked = $state(null);
 	let filter = $state("");
+	let matches = $derived(filterCandidates(candidates, filter));
 
-	let matches = $derived(
-		candidates.filter((repo) =>
-			repo.full.toLowerCase().includes(filter.trim().toLowerCase()),
-		),
-	);
+	// The manifest pre-read: null until answered; a 404 is a repo with no
+	// platform.toml — reviewable, with the absence stated — any other refusal is an
+	// error the panel surfaces.
+	let manifest = $state(null);
+	let manifestAbsent = $state(false);
+	let manifestError = $state("");
+
+	let confirming = $state(false);
+	let confirmError = $state("");
 
 	const steps = [
 		{ name: "pick-repo", label: "Pick the repository" },
@@ -52,8 +41,8 @@
 
 	let current = $derived(picked === null ? "pick-repo" : "review");
 
-	// Review never reads done: confirming leaves the wizard, so its pending state is the
-	// only one this page ever shows.
+	// Review never reads done: confirming leaves the wizard, so its pending state is
+	// the only one this page ever shows.
 	function stateOf(name) {
 		if (name === "pick-repo") {
 			return picked === null ? "not_started" : "fully_ready";
@@ -61,13 +50,57 @@
 		return "not_started";
 	}
 
-	function pick(repo) {
+	async function load() {
+		const result = await listCandidates();
+		if (result.outcome === Answered) {
+			candidates = result.body;
+			loadError = "";
+		} else {
+			loadError = errorText(result);
+		}
+		loaded = true;
+	}
+
+	async function pick(repo) {
 		picked = repo;
+		manifest = null;
+		manifestAbsent = false;
+		manifestError = "";
+
+		const result = await getManifest(repo.owner, repo.repo);
+		if (result.outcome === Answered) {
+			manifest = result.body;
+		} else if (result.outcome === Refused && result.status === 404) {
+			manifestAbsent = true;
+		} else {
+			manifestError = errorText(result);
+		}
 	}
 
 	function back() {
 		picked = null;
+		confirmError = "";
 	}
+
+	async function confirm() {
+		confirming = true;
+		confirmError = "";
+
+		try {
+			const result = await registerRepo(picked.owner, picked.repo);
+			if (result.outcome === Answered) {
+				await goto("/");
+			} else {
+				confirmError = errorText(result);
+			}
+		} finally {
+			confirming = false;
+		}
+	}
+
+	$effect(() => {
+		load();
+	});
 </script>
 
 <section>
@@ -94,50 +127,72 @@
 		<div class="action">
 			{#if current === "pick-repo"}
 				<Panel label="Repositories the App reaches, not yet onboarded">
-					<input
-						class="mono filter"
-						type="search"
-						placeholder="Filter repositories…"
-						bind:value={filter}
-					/>
-					<ul class="candidates">
-						{#each matches as repo (repo.full)}
-							<li>
-								<button class="candidate" onclick={() => pick(repo)}>
-									<span class="mono repo-name">{repo.full}</span>
-									<span class="mono muted">{repo.meta}</span>
-									<span class="mono chev">›</span>
-								</button>
-							</li>
-						{:else}
-							<li class="mono muted empty">Nothing matches “{filter}”.</li>
-						{/each}
-					</ul>
+					{#if !loaded}
+						<p class="mono muted">Loading…</p>
+					{:else if loadError}
+						<p class="mono warn">Candidates unavailable: {loadError}</p>
+					{:else if candidates.length === 0}
+						<p class="mono muted">
+							Every repository the App reaches is already onboarded.
+						</p>
+					{:else}
+						<input
+							class="mono filter"
+							type="search"
+							placeholder="Filter repositories…"
+							bind:value={filter}
+						/>
+						<ul class="candidates">
+							{#each matches as repo (repo.full_name)}
+								<li>
+									<button class="candidate" onclick={() => pick(repo)}>
+										<span class="mono repo-name">{repo.full_name}</span>
+										<span class="mono chev">›</span>
+									</button>
+								</li>
+							{:else}
+								<li class="mono muted empty">Nothing matches “{filter}”.</li>
+							{/each}
+						</ul>
+					{/if}
 				</Panel>
 			{:else}
-				<Panel label={picked.full}>
+				<Panel label={picked.full_name}>
 					<dl class="kv">
 						<dt class="mono key">platform.toml</dt>
-						{#if picked.toml}
-							<dd class="mono ok">✓ present on refs/heads/main</dd>
-						{:else}
-							<dd class="mono warn">✗ not found — builds will fail until one is committed</dd>
-						{/if}
-						{#if picked.toml}
+						{#if manifest !== null}
+							<dd class="mono ok">✓ present on the default branch</dd>
 							<dt class="mono key">modules</dt>
-							<dd class="mono">{picked.modules}</dd>
-							<dt class="mono key">maintainer</dt>
-							<dd class="mono">{picked.maintainer}</dd>
-							<dt class="mono key">latest tag</dt>
-							<dd class="mono">{picked.latest}</dd>
+							<dd class="mono">{moduleLine(manifest.modules)}</dd>
+							{#if manifest.maintainer !== ""}
+								<dt class="mono key">maintainer</dt>
+								<dd class="mono">{manifest.maintainer}</dd>
+							{/if}
+							{#if manifest.repository !== ""}
+								<dt class="mono key">repository</dt>
+								<dd class="mono">{manifest.repository}</dd>
+							{/if}
+						{:else if manifestAbsent}
+							<dd class="mono warn">
+								✗ not found — builds will fail until one is committed
+							</dd>
+						{:else if manifestError !== ""}
+							<dd class="mono warn">{manifestError}</dd>
+						{:else}
+							<dd class="mono muted">Reading…</dd>
 						{/if}
 						<dt class="mono key">builds on</dt>
 						<dd class="mono">refs/tags/v*</dd>
 					</dl>
 
+					{#if confirmError !== ""}
+						<p class="mono warn">{confirmError}</p>
+					{/if}
 					<div class="confirm">
 						<Button onclick={back}>Back</Button>
-						<Button variant="primary" href="/">Confirm add</Button>
+						<Button variant="primary" onclick={confirm} disabled={confirming}>
+							{confirming ? "Adding…" : "Confirm add"}
+						</Button>
 					</div>
 				</Panel>
 			{/if}
@@ -230,7 +285,7 @@
 
 	.candidate {
 		display: grid;
-		grid-template-columns: auto 1fr var(--lead);
+		grid-template-columns: 1fr var(--lead);
 		align-items: baseline;
 		gap: var(--lead-half);
 		width: 100%;

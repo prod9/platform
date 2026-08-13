@@ -1,39 +1,51 @@
 <script>
-	// ⚠ MOCK — the builder-UI target design over canned data, promoted from the /preview
-	// walkthrough so the tree carries exactly one picture of what to build. Before the
-	// real implementation locks in: graduate the design into docs/spec, wire this to
-	// GET /api/repos + the per-repo builds read, extract the shared pieces into
-	// components (outcome mark, feed row, nested sub-row list), and delete the canned
-	// data. The sign-in door below is real.
+	// The repos landing: one block per registered repo the session user can still
+	// reach — the nested-feed shape, each block heading its last three builds and
+	// linking into the repo's feed (docs/spec/webui.md). Signed out, the page is the
+	// sign-in door and nothing else.
 	import { session } from "$lib/session.svelte.js";
+	import { listRepos, listRepoBuilds, errorText, Answered } from "$lib/server.js";
+	import { latestStatus } from "$lib/repos.js";
+	import { tagOf, shortSHA, lastActivity } from "$lib/build.js";
 	import Button from "$lib/components/Button.svelte";
+	import OutcomeMark from "$lib/components/OutcomeMark.svelte";
 
-	const marks = { succeeded: "✓", failed: "✗", running: "◌", queued: "·" };
+	const recentLimit = 3;
 
-	const repos = [
-		{
-			full: "prod9/platform",
-			modules: ["platform"],
-			recent: [
-				{ id: 128, tag: "v0.9.36", status: "succeeded", trigger: "github-push", took: "4m 12s", when: "2h ago" },
-				{ id: 127, tag: "v0.9.35", status: "failed", trigger: "webui · chakrit", took: "2m 40s", when: "1d ago" },
-				{ id: 126, tag: "2f4c1d9", status: "succeeded", trigger: "webui · chakrit · refs/heads/main", took: "3m 45s", when: "6h ago" },
-			],
-		},
-		{
-			full: "prod9/infra",
-			modules: ["infra"],
-			recent: [
-				{ id: 125, tag: "v0.3.12", status: "running", trigger: "github-push", took: "1m 03s", when: "4m ago" },
-				{ id: 121, tag: "v0.3.11", status: "succeeded", trigger: "github-push", took: "2m 21s", when: "3d ago" },
-			],
-		},
-		{ full: "prod9/fx", modules: ["docs", "site"], recent: [] },
-	];
+	let repos = $state([]);
+	let loaded = $state(false);
+	let loadError = $state("");
 
-	function latest(repo) {
-		return repo.recent.length === 0 ? "none" : repo.recent[0].status;
+	async function load() {
+		const result = await listRepos();
+		if (result.outcome !== Answered) {
+			loadError = errorText(result);
+			loaded = true;
+			return;
+		}
+		loadError = "";
+
+		// The fan-out is per visible repo by design (docs/spec/webui.md §Route map);
+		// a repo whose feed read fails renders with an empty feed rather than
+		// blanking the page.
+		repos = await Promise.all(
+			result.body.map(async (repo) => {
+				const feed = await listRepoBuilds(repo.owner, repo.repo, recentLimit);
+				return {
+					...repo,
+					recent: feed.outcome === Answered ? feed.body : [],
+				};
+			}),
+		);
+		loaded = true;
 	}
+
+	$effect(() => {
+		if (session.user === null) {
+			return;
+		}
+		load();
+	});
 </script>
 
 {#if session.user === null}
@@ -45,6 +57,8 @@
 		</p>
 		<Button variant="primary" href="/auth/github">Sign in with GitHub</Button>
 	</section>
+{:else if !loaded}
+	<p class="mono muted">Loading…</p>
 {:else}
 	<section>
 		<div class="head">
@@ -54,34 +68,41 @@
 			<Button variant="primary" href="/repos/new/">Add repository</Button>
 		</div>
 
-		<ul class="repos">
-			{#each repos as repo (repo.full)}
-				<li class="repo">
-					<a class="repo-head" href="/builds/">
-						<span class="mono state state--{latest(repo)}">{marks[latest(repo)] ?? "·"}</span>
-						<span class="mono name">{repo.full}</span>
-						<span class="label">{repo.modules.join(" · ")}</span>
-						<span class="mono chev">›</span>
-					</a>
+		{#if loadError}
+			<p class="mono error">Repositories unavailable: {loadError}</p>
+		{:else if repos.length === 0}
+			<p class="mono muted">
+				Nothing onboarded yet — add the first repository to start building.
+			</p>
+		{:else}
+			<ul class="repos">
+				{#each repos as repo (repo.full_name)}
+					<li class="repo">
+						<a class="repo-head" href={`/repos/${repo.owner}/${repo.repo}/`}>
+							<OutcomeMark status={latestStatus(repo.recent)} />
+							<span class="mono name">{repo.full_name}</span>
+							<span class="mono chev">›</span>
+						</a>
 
-					<span class="subs">
-						{#each repo.recent as build (build.id)}
-							<a class="build" href={`/builds/${build.id}/`}>
-								<span class="mono state state--{build.status}">{marks[build.status]}</span>
-								<span class="mono tag">{build.tag}</span>
-								<span class="mono muted">#{build.id} · {build.trigger}</span>
-								<span class="mono muted timing">{build.took} · {build.when}</span>
-							</a>
-						{:else}
-							<span class="build none">
-								<span class="mono state state--none">·</span>
-								<span class="mono muted">no builds yet</span>
-							</span>
-						{/each}
-					</span>
-				</li>
-			{/each}
-		</ul>
+						<span class="subs">
+							{#each repo.recent as build (build.id)}
+								<a class="build" href={`/builds/${build.id}/`}>
+									<OutcomeMark status={build.status} />
+									<span class="mono tag">{tagOf(build.ref)}</span>
+									<span class="mono muted">#{build.id} · {shortSHA(build.sha)}</span>
+									<span class="mono muted timing">{lastActivity(build)}</span>
+								</a>
+							{:else}
+								<span class="build none">
+									<OutcomeMark status="none" />
+									<span class="mono muted">no builds yet</span>
+								</span>
+							{/each}
+						</span>
+					</li>
+				{/each}
+			</ul>
+		{/if}
 	</section>
 {/if}
 
@@ -106,6 +127,10 @@
 		margin-left: auto;
 	}
 
+	.error {
+		color: var(--accent-signal);
+	}
+
 	.repos {
 		list-style: none;
 		margin: 0;
@@ -119,7 +144,7 @@
 
 	.repo-head {
 		display: grid;
-		grid-template-columns: var(--lead) auto 1fr var(--lead);
+		grid-template-columns: var(--lead) 1fr var(--lead);
 		align-items: baseline;
 		gap: var(--lead-half);
 		text-decoration: none;
@@ -169,26 +194,5 @@
 
 	.timing {
 		text-align: right;
-	}
-
-	.state {
-		text-align: center;
-	}
-
-	.state--succeeded {
-		color: var(--accent-ok);
-	}
-
-	.state--failed {
-		color: var(--accent-signal);
-	}
-
-	.state--running {
-		color: var(--accent);
-	}
-
-	.state--none,
-	.state--queued {
-		color: var(--text-muted);
 	}
 </style>

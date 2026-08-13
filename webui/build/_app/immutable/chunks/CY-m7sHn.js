@@ -1,0 +1,1 @@
+import{b as e}from"./CrO3Zrlc.js";import{c as r,A as o,e as t}from"./CjXsTH02.js";const n=e({user:null});async function i(){const s=await r();n.user=s.outcome===o?s.body:null}async function c(){const s=await t();if(s.outcome!==o)throw new Error(`sign out failed: ${s.outcome}`);n.user=null}export{c as a,i as l,n as s};
