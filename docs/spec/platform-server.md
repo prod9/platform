@@ -64,17 +64,23 @@ decides once from `install.Installed` (the claimed record, read install-safe —
 fragment or the
 product fragments — the **auth fragment mounts in both** compositions, because the
 org-owner claim needs a login before the server is installed (see
-[installation.md](installation.md)) — and aggregates every fragment's
-`Migrations` embed into one merged set (`system.Merged`, timestamps re-sorted across
-fragments) — run by the installer, the system fragment, or the CLI, **never at boot**.
+[installation.md](installation.md)).
+
+**Migration sources are fx's concern, not srv's.** Each fragment registers its embedded
+SQL with fx's registry (`migrator.Embed`) at init, and every migration consumer reads
+fx's default source (`migrator.FromAuto`) — the same composition fx's own CLI and
+middleware use. srv threads no `migrator.Source` values and holds no merge code; the
+only migration knowledge in srv is *clean-or-not* and *apply what is missing*, run by
+the installer, the system fragment, or the CLI, **never at boot**. The jobs table is fx
+worker's own concern (`worker.Start` creates it), not a srv migration.
 
 **`srv/system` is the post-install operational surface** — how an installed server is
 observed and kept current from inside the product composition: the masked install-facts
 read (`GET /api/settings`) and the schema state and remediation
-(`GET`/`POST /api/migrations`). It owns the migrations domain (`system.Merged`,
-`system.State`, `system.Run`) that the installer's wizard step and run-button delegate
-to — one implementation, two surfaces: the wizard remediation pre-install, operations
-post-install.
+(`GET`/`POST /api/migrations`). It owns the migrations domain (`system.State`,
+`system.Run` — thin shapes over fx's public `Plan`/`Apply`) that the installer's wizard
+step and run-button delegate to — one implementation, two surfaces: the wizard
+remediation pre-install, operations post-install.
 
 The fragment import graph
 is acyclic — `auth → github`, `builds → {auth, github, install}`, `repos → {auth,
@@ -82,8 +88,9 @@ github, install}`, `install → {auth, github, system}`, `system → {auth, gith
 (the org-owner claim is session-gated, so the installer consumes auth;
 product fragments may read the bound install settings — that edge carries the settings
 read only, never install-flow state; see [installation.md](installation.md)) —
-nothing imports `srv` back. `srv/srvtest` holds the
-fragment-neutral test scaffolding.
+nothing imports `srv` back. `srv/srvtest` holds the shared test scaffolding
+(database setup off fx's default source, the App stub); it imports `github` for the
+stub, which is why `github`'s own tests cannot use it.
 
 **Install state is stored in fx's settings app** (`fx.prodigy9.co/app/settings`), not a
 bespoke table ([installation.md](installation.md), "The install settings"). The settings
@@ -96,8 +103,8 @@ an unauthenticated-write surface pre-install. Post-install the one reader is
 `GET /api/settings` — session-gated, read-only, and masking: a secret-valued key
 (private key, client secret, webhook secret, registry token) serves a masked
 placeholder, never the value, so the settings page can show *that* a credential is
-present without the server ever replaying it. The settings migration joins
-`system.Merged` like any fragment's.
+present without the server ever replaying it. The settings migration reaches the
+merged set the same way as any fragment's — registered with `migrator.Embed`.
 
 **Data-domain structs stay flat.** There is no ORM here, so a fragment's domain models
 mirror the query or fold that produces them — a struct is one row or one reduction, never
