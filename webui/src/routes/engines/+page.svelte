@@ -1,4 +1,7 @@
 <script>
+	// ⚠ MOCK — canned data promoted from /preview; before the real implementation
+	// locks in: graduate the design into docs/spec, wire the real reads, extract shared
+	// components (outcome mark, feed row, kv list, terminal pane), delete canned data.
 	// The engine fleet as the same nested feed the repo list uses: one block per resolved
 	// instance — reachability leading the header, its facts and current work as sub-rows.
 	// The seed line states where the roster comes from; the roster itself is DNS, read

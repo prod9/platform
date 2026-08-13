@@ -1,4 +1,7 @@
 <script>
+	// ⚠ MOCK — canned data promoted from /preview; before the real implementation
+	// locks in: graduate the design into docs/spec, wire the real reads, extract shared
+	// components (outcome mark, feed row, kv list, terminal pane), delete canned data.
 	// The manual-trigger wizard: a ref in, its sha resolved server-side, the modules read
 	// from platform.toml at that commit and selectable — all on by default. Webhook builds
 	// stay whole-repo; selection is the manual trigger's alone.

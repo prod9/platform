@@ -37,7 +37,6 @@
 	];
 
 	let picked = $state(null);
-	let confirmed = $state(false);
 	let filter = $state("");
 
 	let matches = $derived(
@@ -53,11 +52,13 @@
 
 	let current = $derived(picked === null ? "pick-repo" : "review");
 
+	// Review never reads done: confirming leaves the wizard, so its pending state is the
+	// only one this page ever shows.
 	function stateOf(step) {
 		if (step === "pick-repo") {
 			return picked === null ? "not_started" : "fully_ready";
 		}
-		return confirmed ? "fully_ready" : "not_started";
+		return "not_started";
 	}
 
 	function pick(repo) {

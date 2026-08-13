@@ -1,4 +1,7 @@
 <script>
+	// ⚠ MOCK — canned data promoted from /preview; before the real implementation
+	// locks in: graduate the design into docs/spec, wire the real reads, extract shared
+	// components (outcome mark, feed row, kv list, terminal pane), delete canned data.
 	// One repo's builds as a CI feed: newest first, each row led by its outcome, carrying
 	// the tag, the commit it resolved to, per-module marks, and the trigger's provenance.
 	import Button from "$lib/components/Button.svelte";

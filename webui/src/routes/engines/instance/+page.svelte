@@ -1,4 +1,7 @@
 <script>
+	// ⚠ MOCK — canned data promoted from /preview; before the real implementation
+	// locks in: graduate the design into docs/spec, wire the real reads, extract shared
+	// components (outcome mark, feed row, kv list, terminal pane), delete canned data.
 	// One engine instance: its facts, the builds it has carried, and its live log — the
 	// same night-ground terminal the build detail uses.
 	const recent = [

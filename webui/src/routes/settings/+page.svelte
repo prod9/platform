@@ -1,5 +1,8 @@
 <script>
-	// The install-time facts, read-only, secrets shown as presence only. Section heads
+	// ⚠ MOCK — canned data promoted from /preview; before the real implementation
+	// locks in: graduate the design into docs/spec, wire the real reads, extract shared
+	// components (outcome mark, feed row, kv list, terminal pane), delete canned data.
+	// The install-time facts, read-only, secrets masked to middot runs. Section heads
 	// carry the structure in indigo; keys are the machine's voice, muted; values are the
 	// data, in ink.
 	const sections = [
