@@ -83,7 +83,7 @@
 							<span class="mono muted">{engine.version} · {engine.uptime} · {engine.cache}</span>
 						</span>
 						{#if engine.work}
-							<a class="sub" href="/builds/127/">
+							<a class="sub" href={`/builds/${engine.work.build}/`}>
 								<span class="mono state live">◌</span>
 								<span class="mono live">building {engine.work.repo} #{engine.work.build} · {engine.work.tag}</span>
 								<span class="mono muted timing">{engine.work.took}</span>
@@ -204,7 +204,6 @@
 		color: var(--accent-ok);
 	}
 
-	.state.bad,
 	.bad {
 		color: var(--accent-signal);
 	}

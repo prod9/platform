@@ -2,6 +2,9 @@
 	// ⚠ MOCK — canned data promoted from /preview; before the real implementation
 	// locks in: graduate the design into docs/spec, wire the real reads, extract shared
 	// components (outcome mark, feed row, kv list, terminal pane), delete canned data.
+	// This static path stands in for a dynamic per-engine route — when it graduates,
+	// srv's fallback classifier must learn the new shape (it knows only /builds/{id};
+	// docs/spec/platform-server.md, "The status of a page is the server's answer").
 	// One engine instance: its facts, the builds it has carried, and its live log — the
 	// same night-ground terminal the build detail uses.
 	const recent = [
@@ -45,7 +48,7 @@
 			<ul class="rows">
 				{#each recent as build (build.id)}
 					<li>
-						<a class="row" href="/builds/127/">
+						<a class="row" href={`/builds/${build.id}/`}>
 							<span class="mono state state--{build.status}">{marks[build.status]}</span>
 							<span class="mono tag">{build.tag}</span>
 							<span class="mono muted">{build.repo} · #{build.id}</span>

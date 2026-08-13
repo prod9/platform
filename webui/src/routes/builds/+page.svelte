@@ -78,7 +78,7 @@
 	<ul class="rows">
 		{#each builds as build (build.id)}
 			<li>
-				<a class="row" href="/builds/127/">
+				<a class="row" href={`/builds/${build.id}/`}>
 					<span class="mono state state--{build.status}">{marks[build.status]}</span>
 
 					<span class="what">

@@ -1,15 +1,17 @@
 <script>
 	// Renders as a link when given href, a button otherwise — the same face either way, so
 	// a navigation and an action never look like different species.
-	let { variant = "ghost", href = "", target = "", disabled = false, onclick, children } = $props();
+	// variant names only the departures from the default face; the default emits no
+	// modifier class at all.
+	let { variant = "", href = "", target = "", disabled = false, onclick, children } = $props();
 </script>
 
 <!-- An <a> cannot be disabled, so a disabled link renders as the disabled button
      face — one disabling story for both faces. -->
 {#if href && !disabled}
-	<a class="btn btn--{variant}" {href} target={target || undefined}>{@render children()}</a>
+	<a class={variant ? `btn btn--${variant}` : "btn"} {href} target={target || undefined}>{@render children()}</a>
 {:else}
-	<button class="btn btn--{variant}" {disabled} {onclick}>{@render children()}</button>
+	<button class={variant ? `btn btn--${variant}` : "btn"} {disabled} {onclick}>{@render children()}</button>
 {/if}
 
 <style>
@@ -21,7 +23,7 @@
 		border: 1px solid var(--text-muted);
 		border-radius: var(--radius-sm);
 		background: var(--surface-raised);
-		box-shadow: 0 1px 2px rgba(32, 36, 56, 0.16);
+		box-shadow: var(--button-shadow);
 		font-family: var(--p9-support);
 		font-size: var(--size-label);
 		font-weight: 600;

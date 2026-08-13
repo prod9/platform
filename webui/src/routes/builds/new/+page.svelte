@@ -102,6 +102,6 @@
 	.modpick input {
 		vertical-align: baseline;
 		margin-right: var(--lead-half);
-		accent-color: var(--p9-indigo);
+		accent-color: var(--accent);
 	}
 </style>

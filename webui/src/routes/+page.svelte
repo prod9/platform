@@ -51,7 +51,7 @@
 			<h2>Repositories</h2>
 			<p class="label">{repos.length} onboarded</p>
 			<span class="spacer"></span>
-			<Button variant="primary" href="/repos/add/">Add repository</Button>
+			<Button variant="primary" href="/repos/new/">Add repository</Button>
 		</div>
 
 		<ul class="repos">
@@ -66,7 +66,7 @@
 
 					<span class="subs">
 						{#each repo.recent as build (build.id)}
-							<a class="build" href="/builds/127/">
+							<a class="build" href={`/builds/${build.id}/`}>
 								<span class="mono state state--{build.status}">{marks[build.status]}</span>
 								<span class="mono tag">{build.tag}</span>
 								<span class="mono muted">#{build.id} · {build.trigger}</span>
