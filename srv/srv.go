@@ -35,6 +35,7 @@ import (
 	"platform.prodigy9.co/srv/builds"
 	"platform.prodigy9.co/srv/install"
 	"platform.prodigy9.co/srv/migrate"
+	"platform.prodigy9.co/srv/repos"
 	"platform.prodigy9.co/webui"
 )
 
@@ -156,7 +157,7 @@ func Router(cfg *config.Source, db *sqlx.DB, installed bool, claimed func()) (ch
 	// is ambient truth for every product route (docs/spec/installation.md).
 	if installed {
 		product := router.With(install.RecordContext)
-		for _, ctr := range []controllers.Interface{builds.BuildCtr{}, builds.WebhookCtr{}} {
+		for _, ctr := range []controllers.Interface{repos.RepoCtr{}, builds.BuildCtr{}, builds.WebhookCtr{}} {
 			if err := ctr.Mount(cfg, product); err != nil {
 				return nil, err
 			}
@@ -222,6 +223,7 @@ var merged = migrate.Merged(
 	migrate.JobsTable,
 	migrator.FromFS(auth.Migrations),
 	migrator.FromFS(builds.Migrations),
+	migrator.FromFS(repos.Migrations),
 	install.Source,
 )
 

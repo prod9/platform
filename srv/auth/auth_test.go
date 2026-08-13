@@ -303,7 +303,7 @@ func TestFetchGitHubUser(t *testing.T) {
 
 	account, err := fetchGitHubUser(t.Context(), stub.Client(), stub.URL, testAccessToken)
 	require.NoError(t, err)
-	require.Equal(t, &githubAccount{ID: 12345, Login: "octocat", Email: "octo@example.com"}, account)
+	require.Equal(t, &GitHubAccount{ID: 12345, Login: "octocat", Email: "octo@example.com"}, account)
 }
 
 func TestFetchGitHubUserHiddenEmail(t *testing.T) {
@@ -467,7 +467,7 @@ func TestUpsertGitHubUserFirstLoginRace(t *testing.T) {
 	require.NoError(t, err)
 
 	loser := &UpsertGitHubUser{
-		Account: githubAccount{ID: 12345, Login: "octocat"},
+		Account: GitHubAccount{ID: 12345, Login: "octocat"},
 		Token:   testAccessToken,
 	}
 	user := &User{}
@@ -490,6 +490,32 @@ func TestUpsertGitHubUserFirstLoginRace(t *testing.T) {
 			(SELECT count(*) FROM identities WHERE provider = 'github') AS identities`))
 	require.Equal(t, 1, counts.Users)
 	require.Equal(t, 1, counts.Identities)
+}
+
+func TestGitHubTokenRevealsStoredToken(t *testing.T) {
+	ctx := setupDB(t)
+
+	upsert, user := &UpsertGitHubUser{
+		Account: GitHubAccount{ID: 12345, Login: "octocat", Email: "octo@example.com"},
+		Token:   testAccessToken,
+	}, &User{}
+	require.NoError(t, upsert.Execute(ctx, user))
+
+	token, err := GitHubToken(ctx, user.ID)
+	require.NoError(t, err)
+	require.Equal(t, testAccessToken, token)
+}
+
+// The system principal has no login identity, so a token read for it must fail loud —
+// never fall back to some other credential.
+func TestGitHubTokenWithoutIdentity(t *testing.T) {
+	ctx := setupDB(t)
+
+	systemID, err := SystemUserID(ctx)
+	require.NoError(t, err)
+
+	_, err = GitHubToken(ctx, systemID)
+	require.Error(t, err)
 }
 
 func TestDeleteSessionInvalidatesSession(t *testing.T) {

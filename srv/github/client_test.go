@@ -233,6 +233,72 @@ func TestRepos(t *testing.T) {
 	require.Equal(t, Repo{Name: "last", FullName: "prodigy9/last", Owner: "prodigy9"}, repos[100])
 }
 
+// UserInstallationRepos authenticates with the session user's OAuth token, not an
+// installation token — the answer is what *this user* can reach through the
+// installation, which is the live half of the registered∩live visibility rule
+// (docs/spec/platform-server.md §Repos are registered, visibility is live).
+func TestUserInstallationRepos(t *testing.T) {
+	client, _ := testClient(t, http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
+		require.Equal(t, "GET", req.Method)
+		require.Equal(t, "/user/installations/7/repositories", req.URL.Path)
+		require.Equal(t, "Bearer gho_user", req.Header.Get("Authorization"))
+
+		var repos []string
+		switch req.URL.Query().Get("page") {
+		case "", "1":
+			require.Equal(t, "100", req.URL.Query().Get("per_page"))
+			resp.Header().Set("Link", fmt.Sprintf(
+				`<http://%s/user/installations/7/repositories?page=2>; rel="next"`, req.Host))
+			repos = []string{`{"name":"app","full_name":"prodigy9/app","owner":{"login":"prodigy9"}}`}
+		case "2":
+			repos = []string{`{"name":"api","full_name":"prodigy9/api","owner":{"login":"prodigy9"}}`}
+		}
+		fmt.Fprintf(resp, `{"total_count":2,"repositories":[%s]}`, strings.Join(repos, ","))
+	}))
+
+	repos, err := client.UserInstallationRepos(context.Background(), "gho_user", 7)
+	require.NoError(t, err)
+	require.Equal(t, []Repo{
+		{Name: "app", FullName: "prodigy9/app", Owner: "prodigy9"},
+		{Name: "api", FullName: "prodigy9/api", Owner: "prodigy9"},
+	}, repos)
+}
+
+func TestRepoManifest(t *testing.T) {
+	client, _ := testClient(t, http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
+		require.Equal(t, "GET", req.Method)
+		require.Equal(t, "/repos/prodigy9/app/contents/platform.toml", req.URL.Path)
+		require.Equal(t, "Bearer ghs_tok", req.Header.Get("Authorization"))
+		require.Equal(t, "application/vnd.github.raw+json", req.Header.Get("Accept"))
+		fmt.Fprint(resp, `repository = "github.com/prodigy9/app"`)
+	}))
+
+	manifest, err := client.RepoManifest(context.Background(), "ghs_tok", "prodigy9", "app")
+	require.NoError(t, err)
+	require.Equal(t, `repository = "github.com/prodigy9/app"`, string(manifest))
+}
+
+// A 404 from the contents read folds to ErrNoManifest: the repo has no platform.toml
+// at its default branch's head (or has just fallen out of reach — indistinguishable on
+// the wire, answered the same).
+func TestRepoManifestAbsent(t *testing.T) {
+	client, _ := testClient(t, http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
+		resp.WriteHeader(404)
+	}))
+
+	_, err := client.RepoManifest(context.Background(), "ghs_tok", "prodigy9", "app")
+	require.ErrorIs(t, err, ErrNoManifest)
+}
+
+func TestRepoManifestRejectsBadRepoPath(t *testing.T) {
+	client, _ := testClient(t, http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
+		t.Fatal("request must not be sent")
+	}))
+
+	_, err := client.RepoManifest(context.Background(), "ghs_tok", "prodigy9", "../secrets")
+	require.Error(t, err)
+}
+
 func TestRepoCloneURL(t *testing.T) {
 	client, _ := testClient(t, http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
 		require.Equal(t, "GET", req.Method)

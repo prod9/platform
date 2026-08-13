@@ -99,6 +99,22 @@ var (
 	}
 )
 
+// Parse decodes a platform.toml already in memory — the server's manifest read,
+// where the bytes come off the GitHub API rather than a working directory. Defaults
+// and value inference apply exactly as Load's; env overrides and filesystem paths do
+// not, because the process's own environment must never leak into a manifest parsed
+// on a repo's behalf.
+func Parse(data []byte) (*Model, error) {
+	proj := &Model{}
+	if err := toml.Unmarshal(data, proj); err != nil {
+		return nil, err
+	}
+
+	proj.assignDefaults()
+	proj.inferValues()
+	return proj, nil
+}
+
 func Load(wd string) (*Model, error) {
 	if wd == "" || wd == "." {
 		wd_, err := os.Getwd()

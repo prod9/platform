@@ -56,6 +56,27 @@ nginx_experimental   = "true"
 	r.Nil(t, proj.Vars)
 }
 
+// TestParse pins the byte-level entry the server's manifest read uses: full defaults
+// and inference, no filesystem paths and no env overrides — a server env var must
+// never leak into a manifest parsed on a repo's behalf.
+func TestParse(t *testing.T) {
+	proj, err := Parse([]byte(`
+repository = "github.com/prod9/app"
+
+[modules.web]
+framework = "pnpm/basic"
+`))
+	r.NoError(t, err)
+	r.Equal(t, "github.com/prod9/app", proj.Repository)
+	r.Equal(t, "pnpm/basic", proj.Modules["web"].Framework)
+	r.Equal(t, ".", proj.Modules["web"].WorkDir)
+	r.Equal(t, "ghcr.io/prod9/app", proj.Modules["web"].ImageName)
+	r.Equal(t, timeouts.From(1*time.Minute), proj.Modules["web"].Timeout)
+
+	_, err = Parse([]byte(`modules = `))
+	r.Error(t, err)
+}
+
 func testProject(modCount int) *Model {
 	proj := &Model{
 		Repository: "github.com/prod9/platform",

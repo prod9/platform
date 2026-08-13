@@ -96,35 +96,47 @@ func startTestSession(t *testing.T, ctx context.Context) string {
 	return token
 }
 
-func TestReposWithoutCookie(t *testing.T) {
+func TestRepoBuildsWithoutCookie(t *testing.T) {
 	router := apiRouter(t, nil)
 
 	resp := httptest.NewRecorder()
-	router.ServeHTTP(resp, httptest.NewRequest("GET", "/api/repos", nil))
+	router.ServeHTTP(resp, httptest.NewRequest("GET", "/api/repos/prodigy9/app/builds", nil))
 
 	require.Equal(t, http.StatusUnauthorized, resp.Code)
 }
 
-func TestReposListsLiveFromGitHub(t *testing.T) {
+// The per-repo feed filters to one repo, newest first, and ?limit=N caps the page —
+// the landing page fans out ?limit=3 per visible repo (spec §Operations).
+func TestRepoBuildsFiltersAndLimits(t *testing.T) {
 	ctx, cfg := setupInstalled(t)
 	token := startTestSession(t, ctx)
 	router := apiRouter(t, cfg)
 
-	req := httptest.NewRequest("GET", "/api/repos", nil).WithContext(ctx)
+	for i, repo := range []string{"app", "app", "api"} {
+		create := &Create{
+			Owner: "prodigy9", Repo: repo, Ref: "refs/heads/main",
+			Trigger: TriggerWebUI, UserID: 1,
+			CloneURL: "https://github.com/prodigy9/" + repo + ".git",
+			SHA:      fmt.Sprintf("sha%d", i),
+		}
+		require.NoError(t, create.Execute(ctx, &Build{}))
+	}
+
+	req := httptest.NewRequest("GET", "/api/repos/prodigy9/app/builds?limit=1", nil).WithContext(ctx)
 	req.AddCookie(&http.Cookie{Name: "platform_session", Value: token})
 	resp := httptest.NewRecorder()
 	router.ServeHTTP(resp, req)
 	require.Equal(t, http.StatusOK, resp.Code)
 
-	var repos []struct {
-		Name     string `json:"name"`
-		FullName string `json:"full_name"`
-		Owner    string `json:"owner"`
+	var listing []struct {
+		Owner string `json:"owner"`
+		Repo  string `json:"repo"`
+		SHA   string `json:"sha"`
 	}
-	require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &repos))
-	require.Len(t, repos, 2)
-	require.Equal(t, "prodigy9/app", repos[0].FullName)
-	require.Equal(t, "prodigy9", repos[0].Owner)
+	require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &listing))
+	require.Len(t, listing, 1)
+	require.Equal(t, "app", listing[0].Repo)
+	require.Equal(t, "sha1", listing[0].SHA)
 }
 
 func TestTriggerWithoutCookie(t *testing.T) {
@@ -430,7 +442,7 @@ func appendTestEvents(t *testing.T, ctx context.Context, buildID int64, records 
 
 // eventsFor reads one build's stream through the same reader the handler uses.
 func eventsFor(t *testing.T, ctx context.Context, buildID int64) []*BuildEvent {
-	streams, err := streamsFor(ctx, listLimit)
+	streams, err := streamsFor(ctx, []*Build{{ID: buildID}})
 	require.NoError(t, err)
 	return streams[buildID]
 }

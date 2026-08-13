@@ -21,6 +21,11 @@ var (
 	// likely typo, answered as the caller's error rather than the server's.
 	ErrRefUnresolvable = errors.New("github: ref does not resolve to a commit")
 
+	// ErrNoManifest reports a repo with no platform.toml at its default branch's
+	// head — or one that just fell out of reach; GitHub answers both 404 and the
+	// wizard treats both as "nothing to review".
+	ErrNoManifest = errors.New("github: repo has no platform.toml")
+
 	// errNotMember folds the membership endpoint's 404 — "not a member" — into
 	// IsOrgOwner's false.
 	errNotMember = errors.New("github: not an org member")
@@ -175,6 +180,54 @@ func (c *Client) Repos(ctx context.Context, token string) ([]Repo, error) {
 		return nil, err
 	}
 	return repos, nil
+}
+
+// UserInstallationRepos lists the repositories the given user can reach through one
+// installation, authenticated with the user's own OAuth token — the live half of the
+// registered∩live visibility rule (spec §Repos are registered, visibility is live).
+func (c *Client) UserInstallationRepos(ctx context.Context, userToken string, installationID int64) ([]Repo, error) {
+	type repoPage struct {
+		Repositories []struct {
+			Name     string `json:"name"`
+			FullName string `json:"full_name"`
+			Owner    struct {
+				Login string `json:"login"`
+			} `json:"owner"`
+		} `json:"repositories"`
+	}
+
+	var repos []Repo
+	err := fetchPaged(ctx, c, request{
+		method: "GET",
+		path:   fmt.Sprintf("/user/installations/%d/repositories?per_page=100", installationID),
+		auth:   asToken(userToken),
+		op:     "user installation repo list",
+	}, func(page repoPage) {
+		for _, repo := range page.Repositories {
+			repos = append(repos, Repo{repo.Name, repo.FullName, repo.Owner.Login})
+		}
+	})
+	if err != nil {
+		return nil, err
+	}
+	return repos, nil
+}
+
+// RepoManifest reads the repo's platform.toml at the default branch's head, raw.
+// 404 folds to ErrNoManifest.
+func (c *Client) RepoManifest(ctx context.Context, token, owner, repo string) ([]byte, error) {
+	if err := CheckRepoPath(owner, repo); err != nil {
+		return nil, err
+	}
+
+	return fetchRaw(ctx, c, request{
+		method: "GET",
+		path:   fmt.Sprintf("/repos/%s/%s/contents/platform.toml", owner, repo),
+		auth:   asToken(token),
+		accept: "application/vnd.github.raw+json",
+		op:     "manifest read",
+		status: map[int]error{http.StatusNotFound: ErrNoManifest},
+	})
 }
 
 // RepoCloneURL fetches the repo's clone URL. It doubles as the reachability check for

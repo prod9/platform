@@ -21,6 +21,8 @@
 | Get the authenticated App   | `GET /app`                                           | JWT                | 200 | `permissions`: map of slug → `read`\|`write`         |
 | Get org installation        | `GET /orgs/{org}/installation`                       | JWT                | 200 | one installation object (`id`, `account`, `app_id`)  |
 | List org webhooks           | `GET /orgs/{org}/hooks`                              | installation token | 200 | `[]` of `id`, `config` (`url`), `events`, `active`   |
+| List user-reachable repos   | `GET /user/installations/{id}/repositories`          | user OAuth token   | 200 | `total_count`, `repositories[]` — the repos *this user* reaches through the installation (owner, collaborator, or org member); `per_page` ≤ 100 |
+| Read a file, raw            | `GET /repos/{owner}/{repo}/contents/{path}`          | installation token | 200 | raw bytes with `Accept: application/vnd.github.raw+json`; `ref` param defaults to the default branch; absent file → 404 |
 | Create org webhook          | `POST /orgs/{org}/hooks`                             | installation token | 201 | `name` must be `"web"`; `config.url` + `content_type`; `events`, `active` |
 
 ## Pagination — the `Link` response header

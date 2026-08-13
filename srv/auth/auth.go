@@ -63,6 +63,26 @@ func SystemUserID(ctx context.Context) (int64, error) {
 	return id, err
 }
 
+// GitHubToken reveals the user's stored GitHub OAuth token — the credential for
+// user-scoped GitHub reads, where the answer must be what *this user* can see rather
+// than what the App can (spec §Repos are registered, visibility is live). A user with
+// no GitHub login identity is an error, never a fallback credential.
+func GitHubToken(ctx context.Context, userID int64) (string, error) {
+	var metadata []byte
+	err := data.Get(ctx, &metadata, `
+		SELECT metadata FROM identities
+		WHERE user_id = $1 AND provider = 'github' AND kind = 'login'`, userID)
+	if err != nil {
+		return "", err
+	}
+
+	stored := map[string]string{}
+	if err := json.Unmarshal(metadata, &stored); err != nil {
+		return "", err
+	}
+	return secret.Reveal(config.FromContext(ctx), stored["token"])
+}
+
 // Session is a live platform session's identity and lifetime — what the webui's
 // validity probe needs, distinct from the user's profile.
 type Session struct {
@@ -356,15 +376,15 @@ func exchangeOAuthCode(ctx context.Context, client *http.Client, githubURL, clie
 	return token.AccessToken, nil
 }
 
-// githubAccount is the subset of GET /user the login flow needs. GitHub reports null
+// GitHubAccount is the subset of GET /user the login flow needs. GitHub reports null
 // for a hidden email; null decodes to "".
-type githubAccount struct {
+type GitHubAccount struct {
 	ID    int64  `json:"id"`
 	Login string `json:"login"`
 	Email string `json:"email"`
 }
 
-func fetchGitHubUser(ctx context.Context, client *http.Client, apiURL, token string) (*githubAccount, error) {
+func fetchGitHubUser(ctx context.Context, client *http.Client, apiURL, token string) (*GitHubAccount, error) {
 	userURL := strings.TrimSuffix(apiURL, "/") + "/user"
 	req, err := http.NewRequestWithContext(ctx, "GET", userURL, nil)
 	if err != nil {
@@ -382,7 +402,7 @@ func fetchGitHubUser(ctx context.Context, client *http.Client, apiURL, token str
 		return nil, github.RespError("fetching github user", resp)
 	}
 
-	account := &githubAccount{}
+	account := &GitHubAccount{}
 	if err := json.NewDecoder(resp.Body).Decode(account); err != nil {
 		return nil, err
 	}
@@ -396,7 +416,7 @@ func fetchGitHubUser(ctx context.Context, client *http.Client, apiURL, token str
 // are later slices: an existing identity is matched, never updated, and no email
 // lookup happens.
 type UpsertGitHubUser struct {
-	Account githubAccount
+	Account GitHubAccount
 	Token   string
 }
 

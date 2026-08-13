@@ -37,7 +37,7 @@ func (BuildCtr) Mount(cfg *config.Source, router chi.Router) error {
 	router.Get("/api/builds/{id}", get)
 	router.Get("/api/builds/{id}/steps", listSteps)
 	router.Post("/api/builds", trigger)
-	router.Get("/api/repos", listRepos)
+	router.Get("/api/repos/{owner}/{repo}/builds", listForRepo)
 	return nil
 }
 
@@ -103,36 +103,37 @@ func renderCreated(resp http.ResponseWriter, req *http.Request, obj any) {
 	}
 }
 
-// listRepos serves the webui's repo picker, listed live from GitHub — a stored repo
-// table would be RBAC state the zero-RBAC model forbids (spec §Operations).
-func listRepos(resp http.ResponseWriter, req *http.Request) {
+// listForRepo serves one repo's build feed, newest first; ?limit=N caps the page —
+// builds nest under a repo in the UI, and the landing page fans out ?limit=3 per
+// visible repo (spec §Operations).
+func listForRepo(resp http.ResponseWriter, req *http.Request) {
 	if _, ok := auth.RequireUser(resp, req); !ok {
 		return
 	}
 	ctx := req.Context()
 
-	token, client, err := install.Token(ctx)
-	if err != nil {
-		render.Error(resp, req, 500, err)
-		return
+	limit := listLimit
+	if requested := req.URL.Query().Get("limit"); requested != "" {
+		parsed, err := strconv.Atoi(requested)
+		if err != nil || parsed < 1 {
+			render.Error(resp, req, 400, httperrors.ErrBadRequest)
+			return
+		}
+		limit = min(parsed, listLimit)
 	}
-	repos, err := client.Repos(ctx, token)
+
+	builds := []*Build{}
+	err := data.Select(ctx, &builds, `
+		SELECT `+buildColumns+` FROM builds
+		WHERE owner = $1 AND repo = $2
+		ORDER BY id DESC LIMIT $3`,
+		chi.URLParam(req, "owner"), chi.URLParam(req, "repo"), limit)
 	if err != nil {
 		render.Error(resp, req, 500, err)
 		return
 	}
 
-	listing := make([]repoResponse, 0, len(repos))
-	for _, repo := range repos {
-		listing = append(listing, repoResponse{repo.Name, repo.FullName, repo.Owner})
-	}
-	render.JSON(resp, req, listing)
-}
-
-type repoResponse struct {
-	Name     string `json:"name"`
-	FullName string `json:"full_name"`
-	Owner    string `json:"owner"`
+	renderList(resp, req, builds)
 }
 
 // buildResponse is the record as stored plus the fold of its events. The fold is computed
@@ -171,7 +172,13 @@ func list(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	streams, err := streamsFor(ctx, listLimit)
+	renderList(resp, req, builds)
+}
+
+// renderList folds each listed build's events and renders the page — the shared back
+// half of the global and per-repo lists.
+func renderList(resp http.ResponseWriter, req *http.Request, builds []*Build) {
+	streams, err := streamsFor(req.Context(), builds)
 	if err != nil {
 		render.Error(resp, req, 500, err)
 		return
@@ -184,14 +191,19 @@ func list(resp http.ResponseWriter, req *http.Request) {
 	render.JSON(resp, req, out)
 }
 
-// streamsFor reads the events of the newest builds in one query and groups them by build,
+// streamsFor reads the listed builds' events in one query and groups them by build,
 // so a list of n builds costs two queries rather than n+1.
-func streamsFor(ctx context.Context, limit int) (map[int64][]*BuildEvent, error) {
+func streamsFor(ctx context.Context, builds []*Build) (map[int64][]*BuildEvent, error) {
+	ids := make([]int64, len(builds))
+	for i, build := range builds {
+		ids[i] = build.ID
+	}
+
 	events := []*BuildEvent{}
 	err := data.Select(ctx, &events, `
 		SELECT * FROM build_events
-		WHERE build_id IN (SELECT id FROM builds ORDER BY id DESC LIMIT $1)
-		ORDER BY build_id, id`, limit)
+		WHERE build_id = ANY($1)
+		ORDER BY build_id, id`, ids)
 	if err != nil {
 		return nil, err
 	}

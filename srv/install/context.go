@@ -58,6 +58,15 @@ func RecordContext(next http.Handler) http.Handler {
 	})
 }
 
+// Bound resolves the install record: from the context when RecordContext seeded it,
+// loaded otherwise — the one fallback every out-of-HTTP caller shares.
+func Bound(ctx context.Context) (*Record, error) {
+	if record, ok := FromContext(ctx); ok {
+		return record, nil
+	}
+	return Load(ctx)
+}
+
 // Token mints a fresh ~1h installation token for one autonomous operation — mint per
 // use, never store (docs/spec/platform-server.md §Two token types). It returns the App
 // client that minted the token alongside it, so callers with further installation-scoped
@@ -65,13 +74,9 @@ func RecordContext(next http.Handler) http.Handler {
 // context when RecordContext seeded it; the worker path, which runs outside HTTP, falls
 // back to loading it.
 func Token(ctx context.Context) (string, *github.Client, error) {
-	record, ok := FromContext(ctx)
-	if !ok {
-		loaded, err := Load(ctx)
-		if err != nil {
-			return "", nil, err
-		}
-		record = loaded
+	record, err := Bound(ctx)
+	if err != nil {
+		return "", nil, err
 	}
 
 	client, err := github.NewClient(ctx)
