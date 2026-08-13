@@ -265,8 +265,10 @@ unclaimed.
 
 The **installer→product transition is a process restart** — boot decides
 composition, there is no in-process hot-swap. The restart is self-inflicted:
-once the claim's write commits and its response is sent, srv logs that the
-install is complete and **exits 0**; the supervisor (k8s) restarts the process,
+once the claim's write commits and its response is flushed to the client, srv
+logs that the install is complete and **exits 0** — a plain `os.Exit(0)`, no
+graceful drain (the only traffic at claim time is the wizard itself, and its
+poll retries through the blip); the supervisor (k8s) restarts the process,
 which boots into the product composition. The wizard's final panel polls
 through the blip and lands on the product UI.
 

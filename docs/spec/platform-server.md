@@ -68,9 +68,21 @@ because the org-owner claim needs a login before the server is installed (see
 [installation.md](installation.md)). A hand-rolled router composition outside the fx
 builder is a defect, not a style choice — `srv/` answers to fx. The seams the fx shape
 must still carry: platform's own cobra root (fx must not take over the CLI), the
-boot-time composition decision and exit-0 restart, DB-less boot, and the webui
-fallback-status handler; where fx lacks an affordance, the fix routes to fx, never a
-local workaround.
+boot-time composition decision, and the webui fallback-status handler; where fx lacks
+an affordance, the fix routes to fx, never a local workaround.
+
+Two seams once thought to need fx affordances are settled as needing **none** — do not
+re-open them:
+
+- **The claim's exit-0 restart needs no shutdown affordance.** The claim handler
+  flushes its response and calls `os.Exit(0)` — a graceful drain buys nothing at claim
+  time (the only traffic is the wizard, whose poll loop retries through the blip;
+  [installation.md](installation.md) §Boot composition), and exit 0 keeps the restart
+  reading as intentional to the supervisor.
+- **DB-less boot sits on the existing surface.** fx's `AddDataContext` connects lazily
+  and fails per-request, and middleware stacks are per-fragment — so the installer
+  fragment simply omits the data-context middleware while product fragments carry it;
+  no conditional composition is required.
 
 **Migration sources are fx's concern, not srv's.** Each fragment's SQL reaches fx's
 registry through its own `EmbedMigrations` declaration, walked by fx's app composition
