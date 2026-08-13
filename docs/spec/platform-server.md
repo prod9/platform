@@ -55,20 +55,34 @@ concerns** — no `fx/data`/`sqlx`/migrations, no `net/http` server, no auth, no
 that `srv` exists.
 
 Internally `srv` is organized as **self-contained fx-style fragments** — one subpackage
-per concern (`srv/auth`, `srv/github`, `srv/builds`, `srv/install`), each carrying its own
+per concern (`srv/auth`, `srv/github`, `srv/builds`, `srv/repos`, `srv/install`,
+`srv/system`), each carrying its own
 domain models and controllers (and, where it owns tables, embedded migration SQL — `github`
 is config-only, no schema). The root package composes them **per install state**: boot
-decides once from `install.GetState()` whether to mount the installer fragment or the
+decides once from `install.Installed` (the claimed record, read install-safe —
+[installation.md](installation.md) §Boot composition) whether to mount the installer
+fragment or the
 product fragments — the **auth fragment mounts in both** compositions, because the
 org-owner claim needs a login before the server is installed (see
 [installation.md](installation.md)) — and aggregates every fragment's
-`Migrations` embed into one merged set (`srv/migrate.Merged`, timestamps re-sorted across
-fragments) — run by the installer or the CLI, **never at boot**. The fragment import graph
-is acyclic — `auth → github`, `builds → {auth, github, install}`, `install → {auth,
-github, migrate}` (the org-owner claim is session-gated, so the installer consumes auth;
+`Migrations` embed into one merged set (`system.Merged`, timestamps re-sorted across
+fragments) — run by the installer, the system fragment, or the CLI, **never at boot**.
+
+**`srv/system` is the post-install operational surface** — how an installed server is
+observed and kept current from inside the product composition: the masked install-facts
+read (`GET /api/settings`) and the schema state and remediation
+(`GET`/`POST /api/migrations`). It owns the migrations domain (`system.Merged`,
+`system.State`, `system.Run`) that the installer's wizard step and run-button delegate
+to — one implementation, two surfaces: the wizard remediation pre-install, operations
+post-install.
+
+The fragment import graph
+is acyclic — `auth → github`, `builds → {auth, github, install}`, `repos → {auth,
+github, install}`, `install → {auth, github, system}`, `system → {auth, github}`
+(the org-owner claim is session-gated, so the installer consumes auth;
 product fragments may read the bound install settings — that edge carries the settings
 read only, never install-flow state; see [installation.md](installation.md)) —
-nothing imports `srv` back, and `srv/migrate` is a leaf. `srv/srvtest` holds the
+nothing imports `srv` back. `srv/srvtest` holds the
 fragment-neutral test scaffolding.
 
 **Install state is stored in fx's settings app** (`fx.prodigy9.co/app/settings`), not a
@@ -83,7 +97,7 @@ an unauthenticated-write surface pre-install. Post-install the one reader is
 (private key, client secret, webhook secret, registry token) serves a masked
 placeholder, never the value, so the settings page can show *that* a credential is
 present without the server ever replaying it. The settings migration joins
-`srv/migrate.Merged` like any fragment's.
+`system.Merged` like any fragment's.
 
 **Data-domain structs stay flat.** There is no ORM here, so a fragment's domain models
 mirror the query or fold that produces them — a struct is one row or one reduction, never
@@ -120,9 +134,11 @@ lives under `/api`; GitHub-facing and health routes stay bare.
 | `POST /api/builds`          | session                   | records a `webui`-triggered build: owner/repo + ref, sha resolved server-side; may carry a module list | the manual trigger — the same domain fact as the webhook, authorized by session instead of HMAC; module selection is the manual trigger's alone (§Triggering a build) |
 | `GET /api/engines`          | session                   | the engine fleet: the DNS roster resolved per request, each instance dial-checked      | the engines page — the fleet the builds run on, read from the same `DAGGER_ENGINE` source the worker dials ([engine.md](engine.md) §Runner discovery) |
 | `GET /api/engines/{addr}`   | session                   | one engine instance: reachability, version, current + recent builds (from `build_events.engine`) | the engine detail page; the instance is named by its resolved `host:port`, URL-encoded                             |
-| `GET /api/settings`         | session                   | the install-time facts, read-only; secret-valued keys are served **masked, never the value** | the settings page — the one post-install reader of the install settings                                            |
+| `GET /api/settings`         | session                   | the install-time facts, read-only; secret-valued keys are served **masked, never the value** | the settings page — the one post-install reader of the install settings (`srv/system`)                             |
+| `GET /api/migrations`       | session                   | schema state: applied, pending, dirty                                                 | the settings page's Database section — a new release's pending migration is an operational fact of an installed server, never a demotion to the wizard ([installation.md](installation.md) §Boot composition) |
+| `POST /api/migrations`      | session                   | applies pending migrations; response is the fresh schema state                        | the post-install run button (`srv/system`); re-runnable, applies only what is missing — same domain code as the wizard's button |
 | `POST /hooks/github`        | App webhook HMAC          | verifies signature; queues a build row per pushed `refs/tags/v*`                      | the pull-model trigger: a version tag *is* the build request (delivery-verbs ADR)                                  |
-| `GET /api/install`          | none (installer fragment) | ordered install-state list; served **only while not completely installed**            | drives the SPA installer-vs-app decision ([installation.md](installation.md)); its 404 *is* the "installed" signal |
+| `GET /api/install`          | none (installer fragment) | ordered install-state list; served **only while the server is unclaimed**             | drives the SPA installer-vs-app decision ([installation.md](installation.md)); its 404 *is* the "installed" signal |
 | `POST /api/install/claim`   | session (installer)       | org-owner claim: resolve installation→org, verify owner, write the `install.*` settings | the first-install gate; the App Setup URL lands on the webui install page, which posts here ([installation.md](installation.md)) |
 | `POST /api/install/app`     | none (installer)          | saves the creation-time quartet — app id, app slug, client id, webhook secret — as their `github.app_*` settings | what GitHub's creation form yields, saved as its own wizard step ([installation.md](installation.md)) |
 | `POST /api/install/credentials` | none (installer)      | saves the generated pair — private key, client secret — as their `github.app_*` settings | the keys GitHub generates after creation; both App steps write before login can exist — same ungated posture as the migrations button ([installation.md](installation.md)) |
@@ -201,10 +217,11 @@ infer. A wrong URL that answers 200 is a lie told to every crawler, monitor, and
 ever reads it.
 
 **The server always boots.** A DB it cannot reach is an install-state error rather than a
-boot failure, and **migrations never run at boot** — they are the installer's button or
+boot failure, and **migrations never run at boot** — they are the installer's button, the
+settings page's Database section (`POST /api/migrations`), or
 `./platform srv data migrate` ([installation.md](installation.md)). Boot's one decision is
-the API composition, taken once from `install.GetState()`: the installer fragment while the
-server is incomplete, the product fragments once it is installed. Nothing at boot touches the
+the API composition, taken once from `install.Installed` (the claimed record): the
+installer fragment while the server is unclaimed, the product fragments once claimed. Nothing at boot touches the
 build queue; executing builds is the worker's, and the queue is the records themselves.
 
 ## Triggering a build

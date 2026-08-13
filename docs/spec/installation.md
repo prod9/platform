@@ -73,7 +73,7 @@ The wizard UI holds these rules:
 
 The whole concern lives in a single **installer fragment** (an fx app fragment).
 Product fragments — hooks, builds — have **zero install *flow* awareness**: they
-are mounted only once the server is completely installed and never ask "am I
+are mounted only once the server is claimed and never ask "am I
 installed" — boot answers that exactly once. The **bound install settings are
 ambient truth**, though: any product fragment may read them (`install.Load`) —
 that is consuming the binding, not install awareness. When HTTP handlers need
@@ -170,7 +170,11 @@ The credentials check compares `GET /app` (JWT auth) against the required set:
 `read` requirement. An App whose credentials fail JWT/API entirely is
 `unknown` with the error, not partially ready.
 
-"Completely installed" is the conjunction: **every entry `fully_ready`**. The
+The wizard is **complete** when the conjunction holds: **every entry
+`fully_ready`**. Completion is the wizard's own notion — what the final panel
+waits for — and is distinct from **installed**, the durable fact boot reads
+(§Boot composition): once the claim has written the `install.*` record, the
+server is installed regardless of what any live check reports later. The
 order matters twice over — it is both the wizard's sequence and the
 invalidation suffix (§Redo and suffix invalidation): every install-time value
 lives in settings, and the settings table exists only once migrations ran — so
@@ -235,15 +239,29 @@ table as the genuine fault it is post-install.
 
 ## Boot composition — the installer gates the product API
 
-Boot decides the API composition **once**, from `install.GetState()`:
+Boot decides the API composition **once**, from the **claimed record alone**
+(`install.Installed` — every `install.*` setting non-empty, read install-safe:
+settings-schema probe first, so a pre-schema database answers "not installed"
+rather than eating a failing query). Installed-ness is the durable fact that
+the claim completed, **not** the live all-steps conjunction — a server that
+was claimed stays in the product composition whatever the checks would say
+today:
 
 - **Webui `GET /*` and the auth fragment are mounted unconditionally** in both
   states. They never need remounting.
-- **Not completely installed** → installer *action* endpoints are mounted;
-  product `/api/*` is **not**. `GET /api/install` is served here — it is **part
-  of the gated installer fragment, not an always-available endpoint**.
-- **Completely installed** → product `/api/*` is mounted; the installer actions
-  are gone.
+- **Not claimed** → installer *action* endpoints are mounted; product `/api/*`
+  is **not**. `GET /api/install` is served here — it is **part of the gated
+  installer fragment, not an always-available endpoint**.
+- **Claimed** → product `/api/*` is mounted; the installer actions are gone.
+
+**Post-install conditions never demote the server to the wizard.** A new
+release shipping a migration, a database blip, an App permission drifting on
+GitHub — these are operational states of an installed server, surfaced and
+remedied inside the product composition (the `srv/system` fragment's
+`GET /api/settings` and `GET`/`POST /api/migrations` —
+[platform-server.md](platform-server.md) §Operations), never by re-entering
+the install flow. The wizard's live checks run only while the server is
+unclaimed.
 
 The **installer→product transition is a process restart** — boot decides
 composition, there is no in-process hot-swap. The restart is self-inflicted:
@@ -254,8 +272,8 @@ through the blip and lands on the product UI.
 
 **Every installer-composition process converges on that same restart.** Only
 one process serves the claim; its peers learn the world changed by re-probing:
-a process booted into the installer composition re-reads `install.GetState()`
-on an interval and, the moment the state reads complete, takes the identical
+a process booted into the installer composition re-reads `install.Installed`
+on an interval and, the moment the record reads claimed, takes the identical
 exit-0 restart. This is what converges a multi-replica deployment (the replicas
 that did not serve the claim) and a process that booted blind because the
 database was unreachable — its probe reconnects until the database answers. An
@@ -269,7 +287,7 @@ The redirect to the installer is **SPA code, not the backend**. The root-layout
 guard probes `GET /api/install`:
 
 - **200 + not-installed** → the SPA redirects to `/install` and runs the flow.
-- **404** (installer fragment absent) → completely installed → render the app.
+- **404** (installer fragment absent) → installed (claimed) → render the app.
 
 `GET /api/install` is deliberately **not always-available** — its presence *is*
 the signal. Depending on 404-as-signal is accepted for now.

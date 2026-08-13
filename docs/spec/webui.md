@@ -29,7 +29,7 @@ does not introduce itself.
 | `/builds/{id}`                   | build detail: navigator + terminal      | `GET /api/builds/{id}`, `GET /api/builds/{id}/steps`                   |
 | `/engines/`                      | engine fleet                            | `GET /api/engines`                                                     |
 | `/engines/{addr}`                | one engine instance                     | `GET /api/engines/{addr}`                                              |
-| `/settings/`                     | install facts, read-only                | `GET /api/settings`                                                    |
+| `/settings/`                     | install facts + database state          | `GET /api/settings`, `GET /api/migrations`; runs `POST /api/migrations` |
 
 Build detail stays `/builds/{id}` — the id is global, and a build link must survive
 being pasted without its repo context.
@@ -91,8 +91,16 @@ view held for its own design pass) and is out of this surface.
 
 **Settings (`/settings/`).** The install-time facts, read-only, grouped in sections
 (server, GitHub App, registry). Secrets render as middot runs — the server already
-serves them masked and never the value (`GET /api/settings`). Changing a value is not in
-this surface; the settings page states, it does not edit.
+serves them masked and never the value (`GET /api/settings`). Changing an install fact
+is not in this surface; those sections state, they do not edit.
+
+A **Database** section follows: the schema state from `GET /api/migrations` (applied,
+pending, dirty), with a **Run migrations** action when migrations are pending — a new
+release shipping a migration is remedied here, inside the product composition, never by
+demotion to the install wizard ([installation.md](installation.md) §Boot composition).
+A dirty schema renders its message and offers no button — that is operator surgery. A
+failed read renders its error; no separate reachability probe is built, the read
+failing *is* the reachability signal.
 
 ## Shared components
 
