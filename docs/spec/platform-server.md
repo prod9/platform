@@ -54,25 +54,32 @@ packages are the leaves and must never import server
 concerns** — no `fx/data`/`sqlx`/migrations, no `net/http` server, no auth, no knowledge
 that `srv` exists.
 
-Internally `srv` is organized as **self-contained fx-style fragments** — one subpackage
-per concern (`srv/auth`, `srv/github`, `srv/builds`, `srv/repos`, `srv/install`,
-`srv/system`), each carrying its own
-domain models and controllers (and, where it owns tables, embedded migration SQL — `github`
-is config-only, no schema). The root package composes them **per install state**: boot
-decides once from `install.Installed` (the claimed record, read install-safe —
-[installation.md](installation.md) §Boot composition) whether to mount the installer
-fragment or the
-product fragments — the **auth fragment mounts in both** compositions, because the
-org-owner claim needs a login before the server is installed (see
-[installation.md](installation.md)).
+Internally `srv` is an **fx application, composed with fx's app builder** — one
+self-contained fragment subpackage per concern (`srv/auth`, `srv/github`, `srv/builds`,
+`srv/repos`, `srv/install`, `srv/system`), each declaring an fx app fragment
+(`app.Build()`) that carries its controllers and, where it owns tables, its
+`EmbedMigrations` (`github` is config-only, no schema; the fx settings app's schema
+arrives by mounting `settings.App`, never by reaching into its migrations accessor).
+The root composes fragments by mounting them; boot decides **per install state** — from
+`install.Installed` (the claimed record, read install-safe —
+[installation.md](installation.md) §Boot composition) — whether the installer fragment
+or the product fragments mount. The **auth fragment mounts in both** compositions,
+because the org-owner claim needs a login before the server is installed (see
+[installation.md](installation.md)). A hand-rolled router composition outside the fx
+builder is a defect, not a style choice — `srv/` answers to fx. The seams the fx shape
+must still carry: platform's own cobra root (fx must not take over the CLI), the
+boot-time composition decision and exit-0 restart, DB-less boot, and the webui
+fallback-status handler; where fx lacks an affordance, the fix routes to fx, never a
+local workaround.
 
-**Migration sources are fx's concern, not srv's.** Each fragment registers its embedded
-SQL with fx's registry (`migrator.Embed`) at init, and every migration consumer reads
-fx's default source (`migrator.FromAuto`) — the same composition fx's own CLI and
-middleware use. srv threads no `migrator.Source` values and holds no merge code; the
-only migration knowledge in srv is *clean-or-not* and *apply what is missing*, run by
-the installer, the system fragment, or the CLI, **never at boot**. The jobs table is fx
-worker's own concern (`worker.Start` creates it), not a srv migration.
+**Migration sources are fx's concern, not srv's.** Each fragment's SQL reaches fx's
+registry through its own `EmbedMigrations` declaration, walked by fx's app composition
+— srv never calls `migrator.Embed`, threads no `migrator.Source` values, and holds no
+merge code. Every migration consumer reads fx's default source (`migrator.FromAuto`) —
+the same composition fx's own CLI and middleware use. The only migration knowledge in
+srv is *clean-or-not* and *apply what is missing*, run by the installer, the system
+fragment, or the CLI, **never at boot**. The jobs table is fx worker's own concern
+(`worker.Start` creates it), not a srv migration.
 
 **`srv/system` is the post-install operational surface** — how an installed server is
 observed and kept current from inside the product composition: the masked install-facts
