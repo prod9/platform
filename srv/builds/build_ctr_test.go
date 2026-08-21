@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"fx.prodigy9.co/app/settings"
 	"fx.prodigy9.co/config"
 	"fx.prodigy9.co/data"
 	"fx.prodigy9.co/data/migrator"
@@ -45,17 +44,10 @@ func setupInstalled(t *testing.T) (context.Context, *config.Source) {
 		migrator.FromFS(Migrations),
 		migrator.FromFS(auth.Migrations),
 		install.Source)
-	require.NoError(t, data.Run(ctx, func(scope data.Scope) error {
-		for key, value := range map[string]string{
-			"install.installation_id": "7", "install.org_id": "9", "install.org_login": "prodigy9",
-			"install.installed_by_user_id": "1", "install.installed_by_login": "chakrit",
-			"install.installed_at": "2026-08-21T00:00:00Z",
-		} {
-			if err := (&settings.Upsert{Key: key, Value: value}).Execute(scope.Context(), &settings.Settings{}); err != nil {
-				return err
-			}
-		}
-		return nil
+	require.NoError(t, srvtest.SeedSettings(ctx, map[string]string{
+		"install.installation_id": "7", "install.org_id": "9", "install.org_login": "prodigy9",
+		"install.installed_by_user_id": "1", "install.installed_by_login": "chakrit",
+		"install.installed_at": "2026-08-21T00:00:00Z",
 	}))
 
 	mux := http.NewServeMux()

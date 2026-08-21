@@ -8,6 +8,7 @@ import (
 	"context"
 	"testing"
 
+	"fx.prodigy9.co/app/settings"
 	"fx.prodigy9.co/config"
 	"fx.prodigy9.co/data"
 	"fx.prodigy9.co/data/dbname"
@@ -35,6 +36,18 @@ func SetupDB(t *testing.T, sources ...migrator.Source) context.Context {
 		require.NoError(t, m.Apply(ctx, plan))
 	}
 	return ctx
+}
+
+// SeedSettings writes settings required by a test fixture.
+func SeedSettings(ctx context.Context, values map[string]string) error {
+	return data.Run(ctx, func(scope data.Scope) error {
+		for key, value := range values {
+			if err := (&settings.Upsert{Key: key, Value: value}).Execute(scope.Context(), &settings.Settings{}); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 // SkipWithoutPostgres skips the test unless DATABASE_URL points at a reachable
