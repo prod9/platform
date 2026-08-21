@@ -18,7 +18,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"platform.prodigy9.co/srv/auth"
 	"platform.prodigy9.co/srv/github"
-	"platform.prodigy9.co/srv/migrate"
 	"platform.prodigy9.co/srv/srvtest"
 )
 
@@ -26,11 +25,11 @@ import (
 // answer is configurable, App credentials with a real signing key, and a logged-in
 // user ("chakrit") whose session token the cookie carries.
 type claimHarness struct {
-	ctx     context.Context
-	router  chi.Router
-	token   string
-	userID  int64
-	claimed *int
+	ctx    context.Context
+	router chi.Router
+	token  string
+	userID int64
+	gate   *Gate
 }
 
 func setupClaim(t *testing.T, membershipStatus int, membershipBody string) *claimHarness {
@@ -58,9 +57,8 @@ func setupClaim(t *testing.T, membershipStatus int, membershipBody string) *clai
 	config.Set(cfg, github.APIURLConfig, server.URL)
 	router := chi.NewRouter()
 	router.Use(middlewares.Configure(cfg))
-	db := data.FromContext(ctx)
-	claimed := 0
-	ctr := StateCtr{DB: db, Merged: migrate.Merged(Source), Claimed: func() { claimed++ }}
+	gate := NewGate(false)
+	ctr := InstallCtr{Gate: gate}
 	require.NoError(t, ctr.Mount(cfg, router))
 
 	var userID int64
@@ -72,7 +70,7 @@ func setupClaim(t *testing.T, membershipStatus int, membershipBody string) *clai
 	}
 	require.NoError(t, create.Execute(ctx, nil))
 
-	return &claimHarness{ctx, router, "raw-session-token", userID, &claimed}
+	return &claimHarness{ctx, router, "raw-session-token", userID, gate}
 }
 
 func (h *claimHarness) claim(withCookie bool) *httptest.ResponseRecorder {
@@ -101,7 +99,7 @@ func TestClaimWritesInstallRecord(t *testing.T) {
 	require.Equal(t, h.userID, record.InstalledByUserID)
 	require.Equal(t, "chakrit", record.InstalledByLogin)
 	require.False(t, record.InstalledAt.IsZero())
-	require.Equal(t, 1, *h.claimed)
+	require.True(t, h.gate.Read())
 }
 
 func TestClaimByNonOwnerForbidden(t *testing.T) {
@@ -112,7 +110,7 @@ func TestClaimByNonOwnerForbidden(t *testing.T) {
 
 	_, err := Load(h.ctx)
 	require.ErrorIs(t, err, ErrNotInstalled)
-	require.Equal(t, 0, *h.claimed)
+	require.False(t, h.gate.Read())
 }
 
 func TestClaimWithoutSessionUnauthorized(t *testing.T) {
@@ -140,13 +138,13 @@ func TestClaimExecuteConcurrentOneWins(t *testing.T) {
 	start := make(chan struct{})
 	errs := make(chan error, 2)
 	for i := range 2 {
-		claim := &ClaimInstall{
-			InstallationID: 7, OrgID: 9, OrgLogin: "prodigy9",
-			UserID: int64(i + 1), UserLogin: fmt.Sprintf("user%d", i+1),
+		claim := &Claim{
+			GitHubInstallationID: 7, GitHubOrgID: 9, GitHubOrgLogin: "prodigy9",
+			PlatformUserID: int64(i + 1), PlatformUserLogin: fmt.Sprintf("user%d", i+1),
 		}
 		go func() {
 			<-start
-			errs <- claim.Execute(ctx, nil)
+			errs <- claim.claimInstall(ctx)
 		}()
 	}
 	close(start)

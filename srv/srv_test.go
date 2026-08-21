@@ -21,7 +21,7 @@ import (
 
 func TestRouterServesUIIndex(t *testing.T) {
 	for _, installed := range []bool{false, true} {
-		router, err := Router(fxtest.Configure(), nil, installed, nil)
+		router, err := Router(fxtest.Configure(), installed)
 		require.NoError(t, err)
 
 		resp := httptest.NewRecorder()
@@ -34,7 +34,7 @@ func TestRouterServesUIIndex(t *testing.T) {
 
 func TestRouterServesAPIHealth(t *testing.T) {
 	for _, installed := range []bool{false, true} {
-		router, err := Router(fxtest.Configure(), nil, installed, nil)
+		router, err := Router(fxtest.Configure(), installed)
 		require.NoError(t, err)
 
 		resp := httptest.NewRecorder()
@@ -51,19 +51,19 @@ func TestRouterServesAPIHealth(t *testing.T) {
 	}
 }
 
-// The not-installed composition mounts the installer surface and no product /api/*;
-// the installed composition is the reverse. The installer state read works with a nil
-// DB (it reports db-reachable as an error), so this needs no postgres.
-func TestNotInstalledMountsInstallerNotProduct(t *testing.T) {
-	router, err := Router(fxtest.Configure(), nil, false, nil)
+// The installer fragment remains mounted permanently, but product APIs are gated until
+// the install claim exists. The installer state read works with a nil DB (it reports
+// db-reachable as an error), so this needs no postgres.
+func TestNotInstalledGatesProductAndServesInstaller(t *testing.T) {
+	router, err := Router(fxtest.Configure(), false)
 	require.NoError(t, err)
 
 	require.Equal(t, http.StatusOK, get(router, "/api/install").Code)
-	require.Equal(t, http.StatusNotFound, get(router, "/api/builds").Code)
+	require.Equal(t, http.StatusConflict, get(router, "/api/builds").Code)
 }
 
-func TestInstalledMountsProductNotInstaller(t *testing.T) {
-	router, err := Router(fxtest.Configure(), nil, true, nil)
+func TestInstalledHidesInstallerAndServesProduct(t *testing.T) {
+	router, err := Router(fxtest.Configure(), true)
 	require.NoError(t, err)
 
 	require.Equal(t, http.StatusNotFound, get(router, "/api/install").Code)
@@ -74,7 +74,7 @@ func TestInstalledMountsProductNotInstaller(t *testing.T) {
 // through purpose-built installer actions only (platform-server.md §Operations).
 func TestNoSettingsSurface(t *testing.T) {
 	for _, installed := range []bool{false, true} {
-		router, err := Router(fxtest.Configure(), nil, installed, nil)
+		router, err := Router(fxtest.Configure(), installed)
 		require.NoError(t, err)
 
 		require.Equal(t, http.StatusNotFound, get(router, "/api/settings").Code)
@@ -84,14 +84,14 @@ func TestNoSettingsSurface(t *testing.T) {
 // The wizard's credential step is ungated in the installer composition — no session
 // can exist before the credentials enable login (installation.md). 503 (this router
 // has no DB, reported before the body is parsed) proves the handler was reached, not
-// a gate; the installed composition drops the route outright.
+// a gate; the installed composition hides the route with a not-found response.
 func TestCredentialsMountedUngatedInInstaller(t *testing.T) {
-	notInstalled, err := Router(fxtest.Configure(), nil, false, nil)
+	notInstalled, err := Router(fxtest.Configure(), false)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusServiceUnavailable,
 		post(notInstalled, "/api/install/credentials", "{}").Code)
 
-	installed, err := Router(fxtest.Configure(), nil, true, nil)
+	installed, err := Router(fxtest.Configure(), true)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusNotFound,
 		post(installed, "/api/install/credentials", "{}").Code)
@@ -103,7 +103,7 @@ func TestCredentialsMountedUngatedInInstaller(t *testing.T) {
 func TestGoImportMetaOnEveryPage(t *testing.T) {
 	const meta = `<meta name="go-import" content="platform.prodigy9.co git https://github.com/prod9/platform" />`
 	for _, installed := range []bool{false, true} {
-		router, err := Router(fxtest.Configure(), nil, installed, nil)
+		router, err := Router(fxtest.Configure(), installed)
 		require.NoError(t, err)
 
 		for path, status := range map[string]int{"/": http.StatusOK, "/no/such/page": http.StatusNotFound} {
@@ -119,7 +119,7 @@ func TestGoImportMetaOnEveryPage(t *testing.T) {
 // and gated; 404 would mean the composition dropped it.
 func TestAuthMountsInBothCompositions(t *testing.T) {
 	for _, installed := range []bool{false, true} {
-		router, err := Router(fxtest.Configure(), nil, installed, nil)
+		router, err := Router(fxtest.Configure(), installed)
 		require.NoError(t, err)
 
 		require.Equal(t, http.StatusUnauthorized, get(router, "/api/session").Code)
@@ -130,7 +130,7 @@ func TestAuthMountsInBothCompositions(t *testing.T) {
 // answers 200 is a lie (spec §The status of a page is the server's answer).
 func TestUIUnknownPathIsFallbackAt404(t *testing.T) {
 	for _, installed := range []bool{false, true} {
-		router, err := Router(fxtest.Configure(), nil, installed, nil)
+		router, err := Router(fxtest.Configure(), installed)
 		require.NoError(t, err)
 
 		resp := get(router, "/no/such/page")
@@ -157,7 +157,7 @@ func TestUIBuildRouteStatusFollowsTheRecord(t *testing.T) {
 		Ref: "refs/tags/v1.2.3", SHA: "abc123"}
 	require.NoError(t, create.Execute(ctx, build))
 
-	router, err := Router(fxtest.Configure(), nil, true, nil)
+	router, err := Router(fxtest.Configure(), true)
 	require.NoError(t, err)
 
 	found := httptest.NewRecorder()
@@ -177,21 +177,6 @@ func TestUIBuildRouteStatusFollowsTheRecord(t *testing.T) {
 	router.ServeHTTP(missing, httptest.NewRequest("GET", "/builds/999999", nil).WithContext(ctx))
 	require.Equal(t, http.StatusNotFound, missing.Code)
 	require.Contains(t, missing.Body.String(), "<html")
-}
-
-// An installer-composition process converges on the claim's restart by re-probing the
-// install state: the watch fires its restart exactly once, the first time the check
-// reads complete, and never while it reads incomplete (installation.md §Boot
-// composition).
-func TestWatchInstalledRestartsOnceOnComplete(t *testing.T) {
-	checks, restarts := 0, 0
-	watchInstalled(time.Millisecond, func() bool {
-		checks++
-		return checks >= 3
-	}, func() { restarts++ })
-
-	require.Equal(t, 3, checks)
-	require.Equal(t, 1, restarts)
 }
 
 func get(router http.Handler, path string) *httptest.ResponseRecorder {

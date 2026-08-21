@@ -82,12 +82,11 @@ func TestRecordContextFailsClosedWhenNotInstalled(t *testing.T) {
 // helper: srvtest would have to import install, and this package's internal tests
 // import srvtest — the test binary would cycle.)
 func claimInstalled(t *testing.T, ctx context.Context) {
-	claim := &ClaimInstall{
-		InstallationID: 7,
-		OrgID:          9, OrgLogin: "prodigy9",
-		UserID: 1, UserLogin: "chakrit",
+	claim := &Claim{
+		GitHubInstallationID: 7, GitHubOrgID: 9, GitHubOrgLogin: "prodigy9",
+		PlatformUserID: 1, PlatformUserLogin: "chakrit",
 	}
-	require.NoError(t, claim.Execute(ctx, nil))
+	require.NoError(t, claim.claimInstall(ctx))
 }
 
 // setupToken provides Token's two collaborators: stubbed App credentials and a fake

@@ -119,6 +119,18 @@ settle an `srv` question is a category error. Load the `prod9-fx` skill before s
 anything there. The one rule that does cross the line is directional and guarded by
 `srv/boundary_test.go`: shared packages are leaves and never import server concerns.
 
+🚨 **fx is consumed on its sanctioned surface only (per-repo Law).** Platform uses fx the
+way a documented fx application does — the app builder, the public cmd builders, the
+public packages — and nothing else. Never reach into fx internals, never re-implement a
+private fx mechanism on this side (a hand-rolled composition walk, a shadow registry, a
+copied-out routine), and never hack around a missing affordance — not with keyhole
+exports of fx internals, not with shims, not with "as little as possible" bridging code.
+A capability fx lacks is a **stop-and-surface**: name the gap as a proper fx-shaped
+feature, get chakrit's ruling, and the fix lands in fx — designed by fx's own
+conventions — before srv builds on it. Architectural purity outranks slice progress;
+hackish bridging code is a Violation anywhere in this repo, and "it unblocks the slice"
+is never grounds.
+
 **Background jobs live in the fragment that owns their domain; the worker is a process.**
 Platform writes no worker — `fx.prodigy9.co/worker` supplies the loop, the `jobs` table,
 claim and status. `platform worker` runs them as its own process beside `platform srv`.

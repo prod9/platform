@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"fx.prodigy9.co/app/settings"
 	"fx.prodigy9.co/config"
 	"fx.prodigy9.co/data"
 	"fx.prodigy9.co/data/migrator"
@@ -44,12 +45,18 @@ func setupInstalled(t *testing.T) (context.Context, *config.Source) {
 		migrator.FromFS(Migrations),
 		migrator.FromFS(auth.Migrations),
 		install.Source)
-	claim := &install.ClaimInstall{
-		InstallationID: 7,
-		OrgID:          9, OrgLogin: "prodigy9",
-		UserID: 1, UserLogin: "chakrit",
-	}
-	require.NoError(t, claim.Execute(ctx, nil))
+	require.NoError(t, data.Run(ctx, func(scope data.Scope) error {
+		for key, value := range map[string]string{
+			"install.installation_id": "7", "install.org_id": "9", "install.org_login": "prodigy9",
+			"install.installed_by_user_id": "1", "install.installed_by_login": "chakrit",
+			"install.installed_at": "2026-08-21T00:00:00Z",
+		} {
+			if err := (&settings.Upsert{Key: key, Value: value}).Execute(scope.Context(), &settings.Settings{}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}))
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /app/installations/7/access_tokens", func(resp http.ResponseWriter, req *http.Request) {

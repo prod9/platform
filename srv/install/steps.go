@@ -18,15 +18,13 @@ import (
 	"platform.prodigy9.co/srv/migrate"
 )
 
-var errNoDatabase = errors.New("no database configured")
-
 type dbReachable struct{}
 
 func (dbReachable) name() string { return stepDBReachable }
 
 func (s dbReachable) Check(ctx context.Context, db *sqlx.DB, merged migrator.Source) Entry {
 	if db == nil {
-		return entry(s.name(), InterventionRequiredState, errNoDatabase)
+		return entry(s.name(), InterventionRequiredState, errNoDB)
 	}
 	if err := db.PingContext(ctx); err != nil {
 		return entry(s.name(), InterventionRequiredState, err)
@@ -42,7 +40,7 @@ func (migrations) name() string { return stepMigrations }
 
 func (m migrations) Check(ctx context.Context, db *sqlx.DB, merged migrator.Source) Entry {
 	if db == nil {
-		return entry(m.name(), UnknownState, errNoDatabase)
+		return entry(m.name(), UnknownState, errNoDB)
 	}
 
 	applied, pending, dirty, err := migrate.State(ctx, db, merged)
@@ -136,7 +134,7 @@ func (appCredentials) name() string { return stepAppCredentials }
 // (docs/spec/installation.md, the credentials check).
 func (s appCredentials) Check(ctx context.Context, db *sqlx.DB, merged migrator.Source) Entry {
 	if db == nil {
-		return entry(s.name(), UnknownState, errNoDatabase)
+		return entry(s.name(), UnknownState, errNoDB)
 	}
 
 	ready, err := settingsSchemaReady(ctx, db)
@@ -196,7 +194,7 @@ func (appInstalled) name() string { return stepAppInstalled }
 // the next move until they exist (docs/spec/installation.md, the state surface).
 func (s appInstalled) Check(ctx context.Context, db *sqlx.DB, merged migrator.Source) Entry {
 	if db == nil {
-		return entry(s.name(), UnknownState, errNoDatabase)
+		return entry(s.name(), UnknownState, errNoDB)
 	}
 
 	ready, err := settingsSchemaReady(ctx, db)
@@ -271,7 +269,7 @@ func (claimed) Reset(ctx context.Context) error {
 func settingsBacked(ctx context.Context, db *sqlx.DB, name string,
 	read func(context.Context) (map[string]string, error), absent error) Entry {
 	if db == nil {
-		return entry(name, UnknownState, errNoDatabase)
+		return entry(name, UnknownState, errNoDB)
 	}
 
 	ready, err := settingsSchemaReady(ctx, db)

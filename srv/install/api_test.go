@@ -8,13 +8,11 @@ import (
 	"strings"
 	"testing"
 
-	"fx.prodigy9.co/data"
 	"fx.prodigy9.co/fxtest"
 	"fx.prodigy9.co/httpserver/middlewares"
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/require"
 	"platform.prodigy9.co/srv/github"
-	"platform.prodigy9.co/srv/migrate"
 	"platform.prodigy9.co/srv/srvtest"
 )
 
@@ -176,7 +174,7 @@ func TestPostCredentialsWithoutDBUnavailable(t *testing.T) {
 	cfg := fxtest.Configure()
 	router := chi.NewRouter()
 	router.Use(middlewares.Configure(cfg))
-	ctr := StateCtr{DB: nil, Merged: migrate.Merged(Source)}
+	ctr := InstallCtr{}
 	require.NoError(t, ctr.Mount(cfg, router))
 
 	resp := postJSON(context.Background(), router, "/api/install/credentials", `{"private_key": "x"}`)
@@ -188,12 +186,10 @@ func TestPostCredentialsWithoutDBUnavailable(t *testing.T) {
 
 func setupAPI(t *testing.T) (context.Context, chi.Router) {
 	ctx := srvtest.SetupDB(t, Source)
-	db := data.FromContext(ctx)
-
 	cfg := fxtest.Configure()
 	router := chi.NewRouter()
 	router.Use(middlewares.Configure(cfg))
-	ctr := StateCtr{DB: db, Merged: migrate.Merged(Source)}
+	ctr := InstallCtr{}
 	require.NoError(t, ctr.Mount(cfg, router))
 	return ctx, router
 }

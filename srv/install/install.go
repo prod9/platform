@@ -1,8 +1,7 @@
 // Package install is the platform server's installer fragment: the install.* settings
 // binding the server to one org, the ordered install-state surface (GET /api/install),
-// the migrations remediation, and the org-owner claim (POST /api/install/claim). Boot
-// mounts this fragment only while the server is not completely installed; product
-// fragments have zero install awareness.
+// the migrations remediation, and the org-owner claim (POST /api/install/claim). The
+// fragment remains mounted after claim and its routes are gated by install state.
 package install
 
 import (
@@ -14,12 +13,23 @@ import (
 
 	"fx.prodigy9.co/app/settings"
 	"fx.prodigy9.co/data/migrator"
+	"fx.prodigy9.co/errutil"
 	"platform.prodigy9.co/srv/github"
 )
 
 // ErrNotInstalled reports that the server is not bound to an org yet — the install.*
 // settings are absent or still empty.
-var ErrNotInstalled = errors.New("install: not installed")
+var (
+	// ErrNotInstalled reports that the server is not bound to an org yet — the install.*
+	// settings are absent or still empty.
+	ErrNotInstalled         = errors.New("install: not installed")
+	errNoDB                 = errors.New("install: no database configured")
+	errNotOrgOwner          = errors.New("install: session user is not an owner of the installation's org")
+	ErrAlreadyInstalled     = errors.New("install: already installed")
+	ErrInstallationRequired = errutil.NewCoded(
+		"installation_required", "platform installation is incomplete", nil,
+	)
+)
 
 // The hard-coded settings keys install state lives under (docs/spec/installation.md,
 // "The install settings"). No migration defines them — an absent key reads as empty;

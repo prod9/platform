@@ -1,12 +1,10 @@
 // Package srv is the platform server: the API + webhook processor layer above the
 // shared build/render/publish packages (docs/spec/platform-server.md). It serves the
-// embedded web UI at / and gates the API by install state — boot decides the
-// composition once from install.GetState (docs/spec/installation.md): while the server
-// is not completely installed it mounts only the installer fragment; once installed it
-// mounts the product fragments (auth, builds). Executing queued builds belongs to a
-// worker peer, not to this process (docs/spec/platform-server.md). The server always
-// boots — a DB unreachable is an install-state error, not a boot failure — and
-// migrations never auto-run at boot.
+// embedded web UI at / and gates the API by install state. Installer and product
+// fragments stay mounted; the gate changes behavior after claim. Executing queued builds
+// belongs to a worker peer, not to this process (docs/spec/platform-server.md). The
+// server always boots — a DB unreachable is an install-state error, not a boot failure
+// — and migrations never auto-run at boot.
 package srv
 
 import (
@@ -39,14 +37,9 @@ import (
 	"platform.prodigy9.co/webui"
 )
 
-// installedProbeInterval paces the installer composition's re-probe of the install
-// state; convergence latency after a peer's claim is at most one interval.
-const installedProbeInterval = 15 * time.Second
-
 // Serve configures and runs the platform server until interrupted, listening on
 // httpserver.ListenAddrConfig (LISTEN_ADDR). It always boots: the DB is connected
-// best-effort and its state, plus config and migration state, decides the install
-// composition once (installer vs product fragments).
+// best-effort and its state seeds the shared install gate.
 func Serve() error {
 	cfg := config.Configure()
 
@@ -68,15 +61,7 @@ func Serve() error {
 	}
 
 	var server *http.Server
-	claimed := func() {
-		fxlog.Log("install complete; restarting into the product composition")
-		go func() {
-			if err := server.Shutdown(context.Background()); err != nil {
-				fxlog.Log("shutdown after claim failed", fxlog.String("error", err.Error()))
-			}
-		}()
-	}
-	router, err := Router(cfg, db, installed, claimed)
+	router, err := Router(cfg, installed)
 	if err != nil {
 		return err
 	}
@@ -90,12 +75,6 @@ func Serve() error {
 	server = &http.Server{Addr: listenAddr, Handler: handler}
 	ctrlc.Do(func() { server.Close() })
 
-	// A peer replica may serve the claim; this process converges on the same restart
-	// by re-probing (installation.md §Boot composition).
-	if !installed {
-		go watchInstalled(installedProbeInterval, func() bool { return probeInstalled(cfg, db) }, claimed)
-	}
-
 	fxlog.Log("listening", fxlog.String("addr", listenAddr), fxlog.Bool("installed", installed))
 	if err := server.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
 		return err
@@ -103,45 +82,14 @@ func Serve() error {
 	return nil
 }
 
-// probeInstalled re-reads the install state exactly the way boot does. A nil boot
-// pool means the database was unreachable then — each probe opens (and closes) its
-// own attempt so a blind boot converges once the database answers.
-func probeInstalled(cfg *config.Source, boot *sqlx.DB) bool {
-	db := boot
-	if db == nil {
-		db = connectOrNil(cfg)
-		if db != nil {
-			defer db.Close()
-		}
-	}
-
-	entries := install.GetState(config.NewContext(context.Background(), cfg), db, merged)
-	return install.Complete(entries)
-}
-
-// watchInstalled re-runs check on the interval until it reports the install complete,
-// then calls restart once and returns. It converges an installer-composition process
-// whose peer served the claim (installation.md §Boot composition).
-func watchInstalled(interval time.Duration, check func() bool, restart func()) {
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-
-	for range ticker.C {
-		if check() {
-			restart()
-			return
-		}
-	}
-}
-
 // Router builds the server's routes on a fresh chi router for the given install
-// decision; Serve listens with it and tests drive it directly. Both compositions serve
-// /health and the webui at /*; installed mounts the product fragments, not-installed
-// mounts only the installer. db is passed to the installer controller (it may be nil);
-// claimed is the installer's post-claim observer — Serve wires the self-restart there,
-// tests pass nil.
-func Router(cfg *config.Source, db *sqlx.DB, installed bool, claimed func()) (chi.Router, error) {
+// decision; Serve listens with it and tests drive it directly. Both compositions mount
+// the installer and product fragments; gates hide the installer after claim and return
+// installation_required for product APIs before claim. db is passed to the installer
+// controller (it may be nil); claimed is retained for the install action observer.
+func Router(cfg *config.Source, installed bool) (chi.Router, error) {
 	router := chi.NewRouter()
+	installState := install.NewGate(installed)
 	router.Use(middlewares.Configure(cfg))
 	router.Use(middlewares.LogRequests(cfg))
 	router.Get("/health", health)
@@ -149,23 +97,25 @@ func Router(cfg *config.Source, db *sqlx.DB, installed bool, claimed func()) (ch
 	// Auth mounts in both compositions: the org-owner claim needs a login before the
 	// server is installed (docs/spec/installation.md).
 	ctrs := []controllers.Interface{auth.SessionCtr{}}
-	if !installed {
-		ctrs = append(ctrs, install.StateCtr{DB: db, Merged: merged, Claimed: claimed})
-	}
 
-	// Product fragments mount behind the install-record middleware — the bound record
-	// is ambient truth for every product route (docs/spec/installation.md).
-	if installed {
-		product := router.With(install.RecordContext)
-		for _, ctr := range []controllers.Interface{repos.RepoCtr{}, builds.BuildCtr{}, builds.WebhookCtr{}} {
-			if err := ctr.Mount(cfg, product); err != nil {
-				return nil, err
-			}
+	// Product fragments are always mounted. The gate keeps pre-claim APIs from reaching
+	// handlers; after claim, RecordContext supplies the ambient install record.
+	product := router.With(install.ProductGate(installState))
+	product = product.With(install.RecordContext)
+	for _, ctr := range []controllers.Interface{repos.RepoCtr{}, builds.BuildCtr{}, builds.WebhookCtr{}} {
+		if err := ctr.Mount(cfg, product); err != nil {
+			return nil, err
 		}
 	}
 
-	// Catch-all /* mounts last; the record lookup for dynamic-route statuses is wired
-	// only when the product fragments are — the installer composition 404s them all.
+	// The installer fragment remains mounted permanently. Its gate makes the whole
+	// surface disappear with 404 after the claim, without a process restart.
+	installer := router.With(install.InstallerGate(installState))
+	if err := (install.InstallCtr{Gate: installState}).Mount(cfg, installer); err != nil {
+		return nil, err
+	}
+
+	// Catch-all /* mounts last; dynamic-route status lookup is available only after claim.
 	ui := UI{}
 	if installed {
 		ui.BuildExists = builds.Exists
@@ -191,7 +141,7 @@ func health(resp http.ResponseWriter, req *http.Request) {
 func connectOrNil(cfg *config.Source) *sqlx.DB {
 	db, err := connectDB(cfg)
 	if err != nil {
-		fxlog.Log("database unavailable at boot; serving installer only",
+		fxlog.Log("database unavailable at boot; serving install-gated application",
 			fxlog.String("error", err.Error()))
 		return nil
 	}
