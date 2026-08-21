@@ -24,6 +24,12 @@ File new docs by the routing gate in [`docs/README.md`](docs/README.md): a rulin
 `spec/`; unsettled exploration → `scratch/` (residual, opened with a "not spec/decision
 because ___" line). Nothing defaults to `scratch/`. Each dir's README indexes its files.
 
+## Cutting a release
+
+Release work for this repository follows [`docs/guides/cutting-a-release.md`](docs/guides/cutting-a-release.md)
+end to end. Read that runbook before cutting a tag: its clean-tree, test, smoke, tag,
+branch-push, golden, and GitHub-release steps are the repository's release procedure.
+
 ## ⚠️ Active rework — read before touching infra / delivery
 
 *Session Law (rework supersedes legacy) — binds until platformv2 ships, then expires.*
