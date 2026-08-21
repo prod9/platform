@@ -144,6 +144,9 @@ func migrationSource(ctx context.Context) migrator.Source {
 }
 
 func requestDB(ctx context.Context) *sqlx.DB {
-	db, _ := data.LookupFromContext(ctx)
+	db, ok := data.LookupFromContext(ctx)
+	if !ok {
+		return nil
+	}
 	return db
 }
