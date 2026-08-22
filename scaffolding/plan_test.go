@@ -1,4 +1,4 @@
-package initcmd
+package scaffolding
 
 import (
 	"os"
@@ -8,8 +8,8 @@ import (
 	r "github.com/stretchr/testify/require"
 )
 
-func testInfo() *Info {
-	return &Info{
+func testInfo() Info {
+	return Info{
 		Maintainer:      "A",
 		MaintainerEmail: "a@b.co",
 		Repository:      "github.com/prod9/app",
@@ -17,7 +17,7 @@ func testInfo() *Info {
 }
 
 // stubVersions pins the build-info seams: test binaries carry no versions in their build
-// info, so every Analyze test stubs the linked-SDK and platform-release lookups.
+// info, so every Plan test stubs the linked-SDK and platform-release lookups.
 func stubVersions(t *testing.T) {
 	t.Helper()
 	origDagger, origPlatform := daggerVersion, platformVersion
@@ -26,11 +26,13 @@ func stubVersions(t *testing.T) {
 	t.Cleanup(func() { daggerVersion, platformVersion = origDagger, origPlatform })
 }
 
-func TestAnalyze_freshRepoWritesEverything(t *testing.T) {
+func TestPlan_freshRepoWritesEverything(t *testing.T) {
 	dir := gitRepo(t)
 	stubVersions(t)
 
-	plan, err := Analyze(dir, testInfo(), nil)
+	target, err := Discover(dir)
+	r.NoError(t, err)
+	plan, err := target.Plan(testInfo(), nil)
 	r.NoError(t, err)
 
 	// Every expected output is a fresh write, never an overwrite.
@@ -46,13 +48,14 @@ func TestAnalyze_freshRepoWritesEverything(t *testing.T) {
 	r.Contains(t, string(byPath["platform"].Content), `PLATFORM_VERSION="v0.9.1"`)
 
 	// Apply lands them on disk; the platform script is executable.
-	r.NoError(t, plan.Apply())
+	_, err = plan.Apply()
+	r.NoError(t, err)
 	info, err := os.Stat(filepath.Join(dir, "platform"))
 	r.NoError(t, err)
 	r.NotZero(t, info.Mode()&0100, "platform script must be executable")
 }
 
-func TestAnalyze_infraGetsBaselineUniformly(t *testing.T) {
+func TestPlan_infraGetsBaselineUniformly(t *testing.T) {
 	// A dir the Infra framework discovers (name glob) gets its full baseline contribution
 	// through the same driver path as every other framework — no infra branch. Like every
 	// target, it must already be a git repo root (platform never runs `git init`).
@@ -63,7 +66,9 @@ func TestAnalyze_infraGetsBaselineUniformly(t *testing.T) {
 	stubVersions(t)
 
 	// The CUE module path is a greenfield scaffold input, not a platform.toml key.
-	plan, err := Analyze(dir, testInfo(), map[string]string{"CUE_MOD_PREFIX": "example.com"})
+	target, err := Discover(dir)
+	r.NoError(t, err)
+	plan, err := target.Plan(testInfo(), map[string]string{"CUE_MOD_PREFIX": "example.com"})
 	r.NoError(t, err)
 
 	byPath := map[string]FileChange{}
@@ -89,12 +94,12 @@ func TestAnalyze_infraGetsBaselineUniformly(t *testing.T) {
 	r.NotContains(t, cuemod, testInfo().Repository)
 }
 
-func TestAnalyze_rejectsNonGitDir(t *testing.T) {
-	_, err := Analyze(t.TempDir(), testInfo(), nil)
-	r.ErrorIs(t, err, ErrWDNotGit)
+func TestDiscover_rejectsNonGitDir(t *testing.T) {
+	_, err := Discover(t.TempDir())
+	r.ErrorIs(t, err, ErrTargetNotGit)
 }
 
-func TestAnalyze_rescaffoldPreservesExisting(t *testing.T) {
+func TestPlan_rescaffoldPreservesExisting(t *testing.T) {
 	dir := gitRepo(t)
 	stubVersions(t)
 	existing := `maintainer = "operator <op@b.co>"
@@ -105,7 +110,9 @@ cert_manager_version = "v1.16.0"
 `
 	r.NoError(t, os.WriteFile(filepath.Join(dir, "platform.toml"), []byte(existing), 0644))
 
-	plan, err := Analyze(dir, testInfo(), nil)
+	target, err := Discover(dir)
+	r.NoError(t, err)
+	plan, err := target.Plan(testInfo(), nil)
 	r.NoError(t, err)
 
 	// An existing platform.toml is rewritten via surgical merge, never regenerated — with no
@@ -125,20 +132,47 @@ func TestApply_keepsExistingWhenNotReplacing(t *testing.T) {
 	dir := gitRepo(t)
 	stubVersions(t)
 	existing := `maintainer = "operator <op@b.co>"`
-	path := filepath.Join(dir, "platform.toml")
-	r.NoError(t, os.WriteFile(path, []byte(existing), 0644))
+	projectPath := filepath.Join(dir, "platform.toml")
+	launcherPath := filepath.Join(dir, "platform")
+	r.NoError(t, os.WriteFile(projectPath, []byte(existing), 0o644))
+	r.NoError(t, os.WriteFile(launcherPath, []byte("operator launcher\n"), 0o744))
 
-	plan, err := Analyze(dir, testInfo(), nil)
+	target, err := Discover(dir)
+	r.NoError(t, err)
+	plan, err := target.Plan(testInfo(), nil)
 	r.NoError(t, err)
 	r.Positive(t, plan.Overwrites())
 
 	// replace=false leaves the existing overwrite target untouched while still
 	// landing the fresh writes.
-	r.NoError(t, plan.Apply())
-	got, err := os.ReadFile(path)
+	applied, err := plan.Apply()
+	r.NoError(t, err)
+	r.Len(t, applied, 0)
+	got, err := os.ReadFile(projectPath)
 	r.NoError(t, err)
 	r.Equal(t, existing, string(got))
 
-	_, err = os.Stat(filepath.Join(dir, "platform"))
+	got, err = os.ReadFile(launcherPath)
 	r.NoError(t, err)
+	r.Equal(t, "operator launcher\n", string(got))
+}
+
+func TestForceApply_replacesExisting(t *testing.T) {
+	dir := gitRepo(t)
+	stubVersions(t)
+	path := filepath.Join(dir, "platform")
+	r.NoError(t, os.WriteFile(path, []byte("old launcher\n"), 0o744))
+
+	target, err := Discover(dir)
+	r.NoError(t, err)
+	plan, err := target.Plan(testInfo(), nil)
+	r.NoError(t, err)
+	applied, err := plan.ForceApply()
+	r.NoError(t, err)
+	r.Len(t, applied, len(plan.Files))
+
+	content, err := os.ReadFile(path)
+	r.NoError(t, err)
+	r.NotContains(t, string(content), "old launcher")
+	r.Contains(t, string(content), `PLATFORM_VERSION="v0.9.1"`)
 }

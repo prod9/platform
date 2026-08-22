@@ -1,6 +1,5 @@
 // Package cmd wires the platform CLI: the root Cobra command, its persistent flags, and
-// every subcommand. Single-file subcommands live in the package itself; a subcommand
-// with its own file cluster gets a subpackage (cmd/init).
+// every subcommand. Single-file subcommands live in the package itself.
 package cmd
 
 import (
@@ -9,7 +8,6 @@ import (
 
 	fxcmd "fx.prodigy9.co/cmd"
 	"github.com/spf13/cobra"
-	initcmd "platform.prodigy9.co/cmd/init"
 	"platform.prodigy9.co/conf"
 	"platform.prodigy9.co/internal/termlog"
 )
@@ -43,7 +41,7 @@ func init() {
 		conf.PlatformFilename, "specify a different platform.toml to load")
 
 	rootCmd.AddCommand(
-		initcmd.Cmd,
+		InitCmd,
 		BuildCmd,
 		CleanCmd,
 		ConfigureCmd,

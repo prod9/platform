@@ -1,4 +1,4 @@
-package initcmd
+package scaffolding
 
 import (
 	"errors"
@@ -8,8 +8,8 @@ import (
 )
 
 var (
-	ErrWDNotDir = errors.New("scaffold: target path is not a directory")
-	ErrWDNotGit = errors.New("scaffold: target directory is not a git repository (run `git init` first)")
+	ErrTargetNotDir = errors.New("scaffold: target path is not a directory")
+	ErrTargetNotGit = errors.New("scaffold: target directory is not a git repository (run `git init` first)")
 )
 
 // validateDir checks the directory scaffold is about to write into: it exists, is a
@@ -23,10 +23,10 @@ func validateDir(dir string) error {
 		return err
 	}
 	if !info.IsDir() {
-		return ErrWDNotDir
+		return ErrTargetNotDir
 	}
 	if !git.IsRoot(dir) {
-		return ErrWDNotGit
+		return ErrTargetNotGit
 	}
 	return nil
 }

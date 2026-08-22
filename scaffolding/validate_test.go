@@ -1,4 +1,4 @@
-package initcmd
+package scaffolding
 
 import (
 	"os"
@@ -17,11 +17,11 @@ func TestValidateDir(t *testing.T) {
 	// A path that resolves to a file, not a directory, is rejected.
 	file := filepath.Join(t.TempDir(), "afile")
 	r.NoError(t, os.WriteFile(file, []byte("x"), 0644))
-	r.ErrorIs(t, validateDir(file), ErrWDNotDir)
+	r.ErrorIs(t, validateDir(file), ErrTargetNotDir)
 
 	// A plain directory that is not a git root is rejected — platform never runs
 	// `git init`, the operator must have done it first.
-	r.ErrorIs(t, validateDir(t.TempDir()), ErrWDNotGit)
+	r.ErrorIs(t, validateDir(t.TempDir()), ErrTargetNotGit)
 
 	// A git repo root passes.
 	r.NoError(t, validateDir(gitRepo(t)))

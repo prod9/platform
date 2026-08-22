@@ -1,4 +1,4 @@
-package initcmd
+package scaffolding
 
 import (
 	"context"
@@ -15,14 +15,19 @@ import (
 	"platform.prodigy9.co/framework/skel"
 )
 
-// FileAction distinguishes a fresh write from replacing an existing file, so
-// the plan can warn the operator before an overwrite.
-type FileAction int
+var (
+	daggerVersion   = framework.DaggerVersion
+	platformVersion = framework.PlatformVersion
+)
 
 const (
 	FileWrite FileAction = iota
 	FileOverwrite
 )
+
+// FileAction distinguishes a fresh write from replacing an existing file, so
+// the plan can warn the operator before an overwrite.
+type FileAction int
 
 func (a FileAction) String() string {
 	if a == FileOverwrite {
@@ -40,7 +45,7 @@ type FileChange struct {
 	Mode    fs.FileMode
 }
 
-// Plan is the result of the scaffold analysis pass: every file to write and
+// Plan is the result of the scaffold planning pass: every file to write and
 // the disposition of every default var. Computing it is pure (reads only) so a
 // caller can print and confirm it before Apply mutates the tree.
 type Plan struct {
@@ -49,30 +54,25 @@ type Plan struct {
 	Vars  []conf.VarChange
 }
 
-// Analyze computes the scaffold plan for a repo without writing anything — one uniform
-// path for every framework. It discovers the framework, folds in its scaffold
-// contribution (platform.toml module + default [vars] + files, resolved), and writes
-// the version-pinned launcher. What a repo gets is entirely the framework's Scaffold
-// output — there is no app-vs-infra branch.
-func Analyze(dir string, info *Info, inputs map[string]string) (*Plan, error) {
-	dir, err := resolveWD(dir)
-	if err != nil {
-		return nil, err
+// Plan computes the scaffold plan without writing anything. The target carries the
+// framework resolved by Discover, so repository changes between prompting and planning
+// cannot silently select a different framework.
+func (t *Target) Plan(info Info, inputs map[string]string) (*Plan, error) {
+	spec := fwscaffold.Spec{}
+	if t.framework != nil {
+		env := fwscaffold.Env{
+			Repository:      info.Repository,
+			MaintainerEmail: info.MaintainerEmail,
+			DaggerVersion:   daggerVersion(),
+		}
+		var err error
+		spec, err = t.framework.Scaffold(context.Background(), t.dir, env, inputs)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	if err := validateDir(dir); err != nil {
-		return nil, err
-	}
-	fw, err := discover(dir)
-	if err != nil {
-		return nil, err
-	}
-	spec, err := scaffoldSpec(fw, dir, info, inputs)
-	if err != nil {
-		return nil, err
-	}
-
-	projFile, vars, err := planProjectFile(dir, info, spec)
+	projFile, vars, err := planProjectFile(t.dir, info, spec)
 	if err != nil {
 		return nil, err
 	}
@@ -84,10 +84,12 @@ func Analyze(dir string, info *Info, inputs map[string]string) (*Plan, error) {
 
 	files := []FileChange{
 		projFile,
-		fileChange(dir, launcher.Path, launcher.Content, 0744),
+		fileChange(t.dir, launcher.Path, launcher.Content, 0744),
 	}
-	files = append(files, specFileChanges(dir, spec)...)
-	return &Plan{Dir: dir, Files: files, Vars: vars}, nil
+	for _, file := range spec.Files {
+		files = append(files, fileChange(t.dir, file.Path, file.Content, file.Mode))
+	}
+	return &Plan{Dir: t.dir, Files: files, Vars: vars}, nil
 }
 
 // resolveLauncher fills the launcher's version hole with the release this binary descends
@@ -107,36 +109,10 @@ func resolveLauncher() (fwscaffold.File, error) {
 	return resolved[0], nil
 }
 
-// discoverSpec finds the framework rooting dir and returns its scaffold contribution. A
-// missing framework is not an error (an unrecognised repo still gets platform.toml +
-// launcher); the zero spec carries no module, vars, or files.
-func discover(dir string) (framework.Framework, error) {
-	fw, err := framework.Discover(dir)
-	if err != nil && !errors.Is(err, framework.ErrNoFramework) {
-		return nil, err
-	}
-	return fw, nil
-}
-
-// scaffoldSpec runs the framework's Scaffold with the operator inputs and the environment facts
-// it may need (repository, maintainer email, the linked SDK version). The framework returns its
-// complete, resolved contribution; an unrecognized repo (nil framework) contributes nothing.
-func scaffoldSpec(fw framework.Framework, dir string, info *Info, inputs map[string]string) (fwscaffold.Spec, error) {
-	if fw == nil {
-		return fwscaffold.Spec{}, nil
-	}
-	env := fwscaffold.Env{
-		Repository:      info.Repository,
-		MaintainerEmail: info.MaintainerEmail,
-		DaggerVersion:   daggerVersion(),
-	}
-	return fw.Scaffold(context.Background(), dir, env, inputs)
-}
-
 // planProjectFile decides how platform.toml changes: a surgical [vars]
 // merge when it already exists (preserving operator edits), or a freshly
 // generated file otherwise, seeded with the framework's strategy value.
-func planProjectFile(dir string, info *Info, spec fwscaffold.Spec) (FileChange, []conf.VarChange, error) {
+func planProjectFile(dir string, info Info, spec fwscaffold.Spec) (FileChange, []conf.VarChange, error) {
 	path := filepath.Join(dir, "platform.toml")
 
 	existing, err := os.ReadFile(path)
@@ -159,40 +135,31 @@ func planProjectFile(dir string, info *Info, spec fwscaffold.Spec) (FileChange, 
 	return FileChange{Path: "platform.toml", Action: FileWrite, Content: content, Mode: 0644}, vars, nil
 }
 
-// daggerVersion and platformVersion are framework.DaggerVersion/PlatformVersion, seamed
-// because `go test` binaries carry no versions in their build info — tests stub them;
-// production reads the real build info.
-var (
-	daggerVersion   = framework.DaggerVersion
-	platformVersion = framework.PlatformVersion
-)
-
-// specFileChanges turns the framework's already-resolved files into planned writes. Resolution
-// (which input fills which hole, reading an existing cue.mod) happened inside Scaffold — the
-// driver never sees a template hole, only finished bytes.
-func specFileChanges(dir string, spec fwscaffold.Spec) []FileChange {
-	files := make([]FileChange, 0, len(spec.Files))
-	for _, f := range spec.Files {
-		files = append(files, fileChange(dir, f.Path, f.Content, f.Mode))
-	}
-	return files
-}
-
-// Apply writes the plan's files, skipping any that would overwrite an existing file.
-func (p *Plan) Apply() error {
-	return p.write(false)
-}
-
-// ApplyOverwrite writes the plan's files, replacing existing files in place.
-func (p *Plan) ApplyOverwrite() error {
-	return p.write(true)
-}
-
-func (p *Plan) write(replace bool) error {
-	for _, f := range p.Files {
-		if f.Action == FileOverwrite && !replace {
-			continue
+// Apply writes fresh files and returns the changes it applied, skipping overwrites.
+func (p *Plan) Apply() ([]FileChange, error) {
+	freshFiles := make([]FileChange, 0, len(p.Files))
+	for _, file := range p.Files {
+		if file.Action == FileWrite {
+			freshFiles = append(freshFiles, file)
 		}
+	}
+
+	if err := p.write(freshFiles); err != nil {
+		return nil, err
+	}
+	return freshFiles, nil
+}
+
+// ForceApply writes every planned file, replacing existing files, and returns the changes.
+func (p *Plan) ForceApply() ([]FileChange, error) {
+	if err := p.write(p.Files); err != nil {
+		return nil, err
+	}
+	return p.Files, nil
+}
+
+func (p *Plan) write(files []FileChange) error {
+	for _, f := range files {
 		dest := filepath.Join(p.Dir, f.Path)
 		if err := os.MkdirAll(filepath.Dir(dest), 0755); err != nil {
 			return err
