@@ -67,7 +67,7 @@ and HTTP application. The data command is built with those registered migration 
 srv never reaches into fx internals or recreates an fx composition walk.
 
 Every fragment — installer and product alike — is composed permanently. A request-time
-gate reads `install.Installed` (the claimed record, read install-safe —
+gate reads `install.IsInstalled` (the claimed record, read install-safe —
 [installation.md](installation.md) §Boot composition): before claim it exposes
 the installer UI/API and auth while gating product API requests; after claim it exposes
 the product and returns 404 from installer UI/API routes. The claim changes the reachable
@@ -239,7 +239,7 @@ ever reads it.
 boot failure, and **migrations never run at boot** — they are the installer's button, the
 settings page's Database section (`POST /api/migrations`), or
 `./platform srv data migrate` ([installation.md](installation.md)). The full fx application
-is composed regardless of install state; `install.Installed` controls the request-time
+is composed regardless of install state; `install.IsInstalled` controls the request-time
 surface, not boot. Nothing at boot touches the build queue; executing builds is the
 worker's, and the queue is the records themselves.
 

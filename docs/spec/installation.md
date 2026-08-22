@@ -244,7 +244,7 @@ table as the genuine fault it is post-install.
 ## Boot composition — the application is permanent
 
 The application composes **every fragment once and permanently**. Installed-ness comes
-from the **claimed record alone** (`install.Installed` — every `install.*` setting
+from the **claimed record alone** (`install.IsInstalled` — every `install.*` setting
 non-empty, read install-safe: settings-schema probe first, so a pre-schema database
 answers "not installed" rather than eating a failing query). It is the durable fact that
 the claim completed, **not** the live all-steps conjunction — a server that was claimed
