@@ -2,6 +2,10 @@ import { describe, expect, test } from "vitest";
 import {
 	errorText,
 	installSignal,
+	systemSettings,
+	systemMigrations,
+	runSystemMigrations,
+	classifyMigrationPlan,
 	Answered,
 	Refused,
 	Offline,
@@ -9,6 +13,66 @@ import {
 	Installed,
 	Unknown,
 } from "./server.js";
+
+describe("system operations", () => {
+	test("reads the settings and migration surfaces", async () => {
+		const requested = [];
+		globalThis.fetch = async (path, options) => {
+			requested.push({ path, options });
+			return { ok: true, json: async () => [] };
+		};
+
+		await systemSettings();
+		await systemMigrations();
+
+		expect(requested).toEqual([
+			{ path: "/api/system/settings", options: undefined },
+			{ path: "/api/system/migrations", options: undefined },
+		]);
+	});
+
+	test("runs migrations through the system operation", async () => {
+		let request;
+		globalThis.fetch = async (path, options) => {
+			request = { path, options };
+			return { ok: true, json: async () => [] };
+		};
+
+		await runSystemMigrations();
+
+		expect(request).toEqual({
+			path: "/api/system/migrations",
+			options: { method: "POST" },
+		});
+	});
+});
+
+describe("classifyMigrationPlan", () => {
+	test("an empty plan is current", () => {
+		expect(classifyMigrationPlan([])).toBe("current");
+	});
+
+	test("migrate-only plans are runnable", () => {
+		expect(classifyMigrationPlan([{ action: "migrate", migration: "repos" }])).toBe(
+			"runnable",
+		);
+	});
+
+	test.each(["update sql", "remove"])("%s requires manual recovery", (action) => {
+		expect(classifyMigrationPlan([{ action, migration: "repos" }])).toBe(
+			"intervention_required",
+		);
+	});
+
+	test("manual recovery takes precedence over runnable lines", () => {
+		expect(
+			classifyMigrationPlan([
+				{ action: "migrate", migration: "repos" },
+				{ action: "update sql", migration: "settings" },
+			]),
+		).toBe("intervention_required");
+	});
+});
 
 describe("errorText", () => {
 	test("gives Offline a human-readable message", () => {

@@ -73,6 +73,31 @@ export function runMigrations() {
 	return call("/api/install/migrations", { method: "POST" });
 }
 
+export function systemSettings() {
+	return call("/api/system/settings");
+}
+
+export function systemMigrations() {
+	return call("/api/system/migrations");
+}
+
+export function runSystemMigrations() {
+	return call("/api/system/migrations", { method: "POST" });
+}
+
+export function classifyMigrationPlan(plan) {
+	const interventionRequired = plan.some(
+		(item) => item.action === "update sql" || item.action === "remove",
+	);
+	if (interventionRequired) {
+		return "intervention_required";
+	}
+	if (plan.some((item) => item.action === "migrate")) {
+		return "runnable";
+	}
+	return "current";
+}
+
 // saveServer is the wizard's name-the-server step: the public URL every later
 // panel's server-side URL renders from. The response is a fresh install-state read.
 export function saveServer(payload) {

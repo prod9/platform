@@ -29,7 +29,7 @@
 	const destinations = [
 		{ href: "/", label: "Repositories" },
 		{ href: "/engines/", label: "Engines" },
-		{ href: "/settings/", label: "Settings" },
+		{ href: "/system/settings/", label: "System" },
 	];
 
 	// Install is a gate, not a destination: it never appears in the nav, and the server
@@ -69,6 +69,9 @@
 		const path = page.url.pathname;
 		if (href === "/") {
 			return path === "/" || path.startsWith("/repos") || path.startsWith("/builds");
+		}
+		if (href.startsWith("/system/")) {
+			return path.startsWith("/system/");
 		}
 		return path.startsWith(href);
 	}
