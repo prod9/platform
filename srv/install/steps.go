@@ -14,7 +14,6 @@ import (
 	"fx.prodigy9.co/data"
 	"github.com/jmoiron/sqlx"
 	"platform.prodigy9.co/srv/github"
-	"platform.prodigy9.co/srv/system"
 )
 
 type dbReachable struct{}
@@ -42,7 +41,7 @@ func (m migrations) Check(ctx context.Context, db *sqlx.DB) Entry {
 		return entry(m.name(), UnknownState, errNoDB)
 	}
 
-	applied, pending, dirty, err := system.State(ctx, db)
+	applied, pending, dirty, err := migrationState(ctx, db)
 	if err != nil {
 		return entry(m.name(), UnknownState, err)
 	}

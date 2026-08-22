@@ -13,7 +13,6 @@ import (
 	"github.com/jmoiron/sqlx"
 	"platform.prodigy9.co/srv/auth"
 	"platform.prodigy9.co/srv/github"
-	"platform.prodigy9.co/srv/system"
 )
 
 // InstallCtr serves the gated installer surface. The fragment stays mounted after
@@ -122,7 +121,7 @@ func (c InstallCtr) runMigrations(resp http.ResponseWriter, req *http.Request) {
 	}
 
 	ctx := req.Context()
-	if err := system.Run(ctx, db); err != nil {
+	if err := runMigrations(ctx, db); err != nil {
 		render.Error(resp, req, http.StatusInternalServerError, err)
 		return
 	}
