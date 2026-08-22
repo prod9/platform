@@ -24,7 +24,7 @@ func TestTokenMintsFromContextRecord(t *testing.T) {
 }
 
 func TestTokenFallsBackToLoad(t *testing.T) {
-	ctx := srvtest.SetupDB(t, Source)
+	ctx := srvtest.SetupDB(t)
 	claimInstalled(t, ctx)
 
 	token, _, err := Token(setupToken(t, ctx))
@@ -33,17 +33,17 @@ func TestTokenFallsBackToLoad(t *testing.T) {
 }
 
 func TestTokenFailsWhenNotInstalled(t *testing.T) {
-	ctx := srvtest.SetupDB(t, Source)
+	ctx := srvtest.SetupDB(t)
 
 	_, _, err := Token(setupToken(t, ctx))
 	require.ErrorIs(t, err, ErrNotInstalled)
 }
 
 func TestRecordContextSeedsRequests(t *testing.T) {
-	ctx := srvtest.SetupDB(t, Source)
+	ctx := srvtest.SetupDB(t)
 	claimInstalled(t, ctx)
 
-	handler := RecordContext(http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
+	handler := RecordContext(nil)(http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
 		record, ok := FromContext(req.Context())
 		require.True(t, ok)
 		require.Equal(t, int64(7), record.InstallationID)
@@ -56,7 +56,7 @@ func TestRecordContextSeedsRequests(t *testing.T) {
 }
 
 func TestRecordContextFailsClosedWithoutDataContext(t *testing.T) {
-	handler := RecordContext(http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
+	handler := RecordContext(nil)(http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
 		t.Error("handler must not run without a data context")
 	}))
 
@@ -66,9 +66,9 @@ func TestRecordContextFailsClosedWithoutDataContext(t *testing.T) {
 }
 
 func TestRecordContextFailsClosedWhenNotInstalled(t *testing.T) {
-	ctx := srvtest.SetupDB(t, Source)
+	ctx := srvtest.SetupDB(t)
 
-	handler := RecordContext(http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
+	handler := RecordContext(nil)(http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
 		t.Error("handler must not run without an install record")
 	}))
 

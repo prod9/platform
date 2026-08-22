@@ -12,25 +12,46 @@ import (
 	"fx.prodigy9.co/fxtest"
 	"github.com/stretchr/testify/require"
 	"platform.prodigy9.co/srv/github"
-	"platform.prodigy9.co/srv/migrate"
 	"platform.prodigy9.co/srv/srvtest"
 )
 
-func TestComplete(t *testing.T) {
-	require.True(t, Complete([]Entry{{State: FullyReadyState}, {State: FullyReadyState}}))
-	require.False(t, Complete([]Entry{{State: FullyReadyState}, {State: NotStartedState}}))
-	require.False(t, Complete([]Entry{{State: PartiallyReadyState}}))
-	require.False(t, Complete([]Entry{{State: UnknownState}}))
+// Installed-ness is the durable claim alone, not the live conjunction of wizard
+// checks (docs/spec/installation.md, "Boot composition — the application is permanent").
+func TestIsInstalledReadsClaimedRecord(t *testing.T) {
+	ctx := srvtest.SetupDB(t)
+	db := data.FromContext(ctx)
+
+	installed, err := IsInstalled(ctx, db)
+	require.NoError(t, err)
+	require.False(t, installed)
+
+	claimInstalled(t, ctx)
+	installed, err = IsInstalled(ctx, db)
+	require.NoError(t, err)
+	require.True(t, installed)
+}
+
+// The installed predicate probes the settings schema before reading install.* so a
+// pre-schema database is a normal uninstalled state, not a failing SQL query
+// (docs/spec/installation.md, install-safe checks).
+func TestIsInstalledIsSafeBeforeSettingsSchema(t *testing.T) {
+	srvtest.SkipWithoutPostgres(t)
+	ctx := fxtest.ConnectTestDatabase(t)
+	db := data.FromContext(ctx)
+
+	installed, err := IsInstalled(ctx, db)
+	require.NoError(t, err)
+	require.False(t, installed)
 }
 
 // With the schema migrated but no credentials entered and no org bound, the ordered
 // state reports db/migrations ready and both settings-backed entries not started —
 // the wizard's remaining steps (docs/spec/installation.md, the state surface).
 func TestGetStateMigratedButNotInstalled(t *testing.T) {
-	ctx := srvtest.SetupDB(t, Source)
+	ctx := srvtest.SetupDB(t)
 	db := data.FromContext(ctx)
 
-	entries := GetState(ctx, db, migrate.Merged(Source))
+	entries := GetState(ctx, db)
 
 	require.Equal(t, []Entry{
 		{Name: "db-reachable", State: FullyReadyState},
@@ -43,14 +64,13 @@ func TestGetStateMigratedButNotInstalled(t *testing.T) {
 		{Name: "app-installed", State: NotStartedState},
 		{Name: "claimed", State: NotStartedState},
 	}, entries)
-	require.False(t, Complete(entries))
 }
 
 // The creation step turns ready on its own trio — the generated keys are the next
 // step's concern, so app-credentials stays not started
 // (docs/spec/installation.md, the state surface).
 func TestCreatedStepReadyBeforeCredentials(t *testing.T) {
-	ctx := srvtest.SetupDB(t, Source)
+	ctx := srvtest.SetupDB(t)
 	db := data.FromContext(ctx)
 
 	err := github.SaveAppCreation(ctx, &github.AppCreation{
@@ -61,7 +81,7 @@ func TestCreatedStepReadyBeforeCredentials(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	entries := GetState(ctx, db, migrate.Merged(Source))
+	entries := GetState(ctx, db)
 
 	require.Equal(t, FullyReadyState, entries[4].State)
 	require.Equal(t, NotStartedState, entries[5].State)
@@ -70,7 +90,7 @@ func TestCreatedStepReadyBeforeCredentials(t *testing.T) {
 // A creation row saved before the slug existed is incomplete: the step must read
 // not-started so the wizard walks the operator back through the form.
 func TestCreatedStepWithoutSlugNotStarted(t *testing.T) {
-	ctx := srvtest.SetupDB(t, Source)
+	ctx := srvtest.SetupDB(t)
 	db := data.FromContext(ctx)
 
 	err := github.SaveAppCreation(ctx, &github.AppCreation{
@@ -80,7 +100,7 @@ func TestCreatedStepWithoutSlugNotStarted(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	entries := GetState(ctx, db, migrate.Merged(Source))
+	entries := GetState(ctx, db)
 
 	require.Equal(t, NotStartedState, entries[4].State)
 }
@@ -88,12 +108,12 @@ func TestCreatedStepWithoutSlugNotStarted(t *testing.T) {
 // The org step surfaces its saved slug in values — the non-secret form fields a
 // re-opened panel re-displays (docs/spec/installation.md, the state surface).
 func TestOrgStepSurfacesSlug(t *testing.T) {
-	ctx := srvtest.SetupDB(t, Source)
+	ctx := srvtest.SetupDB(t)
 	db := data.FromContext(ctx)
 
 	require.NoError(t, github.SaveOrg(ctx, "prod9"))
 
-	entries := GetState(ctx, db, migrate.Merged(Source))
+	entries := GetState(ctx, db)
 
 	require.Equal(t, Entry{
 		Name:   "org",
@@ -105,12 +125,12 @@ func TestOrgStepSurfacesSlug(t *testing.T) {
 // The server step surfaces its saved public URL in values
 // (docs/spec/installation.md, the state surface).
 func TestServerStepSurfacesURL(t *testing.T) {
-	ctx := srvtest.SetupDB(t, Source)
+	ctx := srvtest.SetupDB(t)
 	db := data.FromContext(ctx)
 
 	require.NoError(t, github.SavePublicURL(ctx, "https://platform.example.com"))
 
-	entries := GetState(ctx, db, migrate.Merged(Source))
+	entries := GetState(ctx, db)
 
 	require.Equal(t, Entry{
 		Name:   "server",
@@ -123,7 +143,7 @@ func TestServerStepSurfacesURL(t *testing.T) {
 // a secret's presence is implied by the state, not echoed
 // (docs/spec/installation.md, the state surface).
 func TestCreatedStepSurfacesNonSecretValues(t *testing.T) {
-	ctx := srvtest.SetupDB(t, Source)
+	ctx := srvtest.SetupDB(t)
 	db := data.FromContext(ctx)
 
 	err := github.SaveAppCreation(ctx, &github.AppCreation{
@@ -134,7 +154,7 @@ func TestCreatedStepSurfacesNonSecretValues(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	entries := GetState(ctx, db, migrate.Merged(Source))
+	entries := GetState(ctx, db)
 
 	require.Equal(t, map[string]string{
 		"app_id":    "42",
@@ -152,7 +172,7 @@ func TestGetStateFreshDBReportsNotStarted(t *testing.T) {
 	ctx := fxtest.ConnectTestDatabase(t)
 	db := data.FromContext(ctx)
 
-	entries := GetState(ctx, db, migrate.Merged(Source))
+	entries := GetState(ctx, db)
 
 	require.Equal(t, []Entry{
 		{Name: "db-reachable", State: FullyReadyState},
@@ -167,29 +187,17 @@ func TestGetStateFreshDBReportsNotStarted(t *testing.T) {
 	}, entries)
 }
 
-// With only part of the merged set applied, migrations report partially ready —
-// the one step that can be (docs/spec/installation.md, the state surface).
-func TestGetStatePartialMigrationsIsPartiallyReady(t *testing.T) {
-	ctx := srvtest.SetupDB(t, migrate.JobsTable)
-	db := data.FromContext(ctx)
-
-	entries := GetState(ctx, db, migrate.Merged(migrate.JobsTable, Source))
-
-	require.Equal(t, PartiallyReadyState, entries[1].State)
-}
-
 // Without a database nothing downstream is determinable: db-reachable is the
 // operator's to fix, and every later check is unknown rather than a verdict.
 func TestGetStateNilDB(t *testing.T) {
 	ctx := config.NewContext(context.Background(), fxtest.Configure())
-	entries := GetState(ctx, nil, migrate.Merged(Source))
+	entries := GetState(ctx, nil)
 
 	require.Equal(t, InterventionRequiredState, entries[0].State)
 	for _, entry := range entries[1:] {
 		require.Equal(t, UnknownState, entry.State)
 		require.NotEmpty(t, entry.Message)
 	}
-	require.False(t, Complete(entries))
 }
 
 // Credentials saved but the App under-scoped: the check reads GET /app and reports
@@ -201,11 +209,11 @@ func TestCredentialsStepFlagsUnderscopedApp(t *testing.T) {
 	t.Cleanup(server.Close)
 	t.Setenv("GITHUB_API_URL", server.URL)
 
-	ctx := srvtest.SetupDB(t, Source)
+	ctx := srvtest.SetupDB(t)
 	srvtest.StubApp(t, srvtest.TestApp(t), nil)
 	db := data.FromContext(ctx)
 
-	entries := GetState(ctx, db, migrate.Merged(Source))
+	entries := GetState(ctx, db)
 
 	require.Equal(t, PartiallyReadyState, entries[5].State)
 	require.Contains(t, entries[5].Message, "contents: write")
@@ -219,11 +227,11 @@ func TestCredentialsStepFullyScopedApp(t *testing.T) {
 	t.Cleanup(server.Close)
 	t.Setenv("GITHUB_API_URL", server.URL)
 
-	ctx := srvtest.SetupDB(t, Source)
+	ctx := srvtest.SetupDB(t)
 	srvtest.StubApp(t, srvtest.TestApp(t), nil)
 	db := data.FromContext(ctx)
 
-	entries := GetState(ctx, db, migrate.Merged(Source))
+	entries := GetState(ctx, db)
 
 	require.Equal(t, FullyReadyState, entries[5].State)
 }
@@ -243,12 +251,12 @@ func TestAppInstalledSeesGitHubInstallation(t *testing.T) {
 	t.Cleanup(server.Close)
 	t.Setenv("GITHUB_API_URL", server.URL)
 
-	ctx := srvtest.SetupDB(t, Source)
+	ctx := srvtest.SetupDB(t)
 	srvtest.StubApp(t, srvtest.TestApp(t), nil)
 	require.NoError(t, github.SaveOrg(ctx, "prod9"))
 	db := data.FromContext(ctx)
 
-	entries := GetState(ctx, db, migrate.Merged(Source))
+	entries := GetState(ctx, db)
 
 	require.Equal(t, FullyReadyState, entries[7].State)
 	require.Equal(t, NotStartedState, entries[8].State)
@@ -264,12 +272,12 @@ func TestAppInstalledIgnoresOtherOrgs(t *testing.T) {
 	t.Cleanup(server.Close)
 	t.Setenv("GITHUB_API_URL", server.URL)
 
-	ctx := srvtest.SetupDB(t, Source)
+	ctx := srvtest.SetupDB(t)
 	srvtest.StubApp(t, srvtest.TestApp(t), nil)
 	require.NoError(t, github.SaveOrg(ctx, "prod9"))
 	db := data.FromContext(ctx)
 
-	entries := GetState(ctx, db, migrate.Merged(Source))
+	entries := GetState(ctx, db)
 
 	require.Equal(t, NotStartedState, entries[7].State)
 }
@@ -277,12 +285,12 @@ func TestAppInstalledIgnoresOtherOrgs(t *testing.T) {
 // Saving the ghcr token flips registry-token on its own — it neither needs nor
 // affects the App steps (docs/spec/installation.md, the state surface).
 func TestRegistryTokenStepReady(t *testing.T) {
-	ctx := srvtest.SetupDB(t, Source)
+	ctx := srvtest.SetupDB(t)
 	db := data.FromContext(ctx)
 
 	require.NoError(t, github.SaveRegistryToken(ctx, "ghcr.io", "ghp_token"))
 
-	entries := GetState(ctx, db, migrate.Merged(Source))
+	entries := GetState(ctx, db)
 
 	require.Equal(t, FullyReadyState, entries[6].State)
 	require.Equal(t, "registry-token", entries[6].Name)

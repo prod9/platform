@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"fx.prodigy9.co/app"
 	"fx.prodigy9.co/config"
 	"fx.prodigy9.co/data"
-	"fx.prodigy9.co/data/migrator"
 	"fx.prodigy9.co/fxtest"
 	"fx.prodigy9.co/httpserver/middlewares"
 	"github.com/go-chi/chi/v5"
@@ -22,6 +22,12 @@ import (
 	"platform.prodigy9.co/srv/install"
 	"platform.prodigy9.co/srv/srvtest"
 )
+
+func init() {
+	app.RegisterMigrations(App.App())
+	app.RegisterMigrations(auth.App.App())
+	app.RegisterMigrations(install.App.App())
+}
 
 func apiRouter(t *testing.T, cfg *config.Source) chi.Router {
 	if cfg == nil {
@@ -39,10 +45,7 @@ func apiRouter(t *testing.T, cfg *config.Source) chi.Router {
 // serving token mints, the installation repo list, the user-scoped repo list, the
 // repo lookup, and the manifest read.
 func setupInstalled(t *testing.T) (context.Context, *config.Source) {
-	ctx := srvtest.SetupDB(t,
-		migrator.FromFS(Migrations),
-		migrator.FromFS(auth.Migrations),
-		install.Source)
+	ctx := srvtest.SetupDB(t)
 	require.NoError(t, srvtest.SeedSettings(ctx, map[string]string{
 		"install.installation_id": "7", "install.org_id": "9", "install.org_login": "prodigy9",
 		"install.installed_by_user_id": "1", "install.installed_by_login": "chakrit",

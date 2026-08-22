@@ -131,7 +131,7 @@ func TestClaimAfterResetSucceeds(t *testing.T) {
 // writers, per the fixture-through-the-writer discipline — landing the server
 // completely installed.
 func seedInstalled(t *testing.T) context.Context {
-	ctx := srvtest.SetupDB(t, Source)
+	ctx := srvtest.SetupDB(t)
 
 	require.NoError(t, (&SaveServer{PublicURL: "https://platform.example.com"}).Execute(ctx, nil))
 	require.NoError(t, (&SaveOrg{Org: "prod9"}).Execute(ctx, nil))

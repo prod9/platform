@@ -7,13 +7,22 @@ package builds
 
 import (
 	"context"
-	"embed"
 	"time"
 
+	"fx.prodigy9.co/app"
 	"fx.prodigy9.co/data"
 	"fx.prodigy9.co/httpserver/controllers"
 	"fx.prodigy9.co/validate"
+	"platform.prodigy9.co/srv/install"
 )
+
+var App = app.Build().
+	Name("builds").
+	EmbedMigrations(Migrations).
+	Middlewares(install.ProductGate, install.RecordContext).
+	Controllers(BuildCtr{}, WebhookCtr{}).
+	Job(&ScanBuilds{}).
+	Job(&RunBuild{})
 
 // Trigger is how a build came to be asked for. Every trigger records the same domain fact
 // and differs only in how it was authorized, so the vocabulary is closed here rather than
@@ -96,8 +105,3 @@ func Exists(ctx context.Context, id int64) (bool, error) {
 	err := data.Get(ctx, &found, `SELECT EXISTS (SELECT 1 FROM builds WHERE id = $1)`, id)
 	return found, err
 }
-
-// Migrations is this fragment's schema; srv aggregates every fragment's SQL at boot.
-//
-//go:embed *.sql
-var Migrations embed.FS

@@ -7,21 +7,18 @@ import (
 
 	"fx.prodigy9.co/config"
 	"fx.prodigy9.co/data"
-	"fx.prodigy9.co/data/migrator"
 	"fx.prodigy9.co/httpserver/controllers"
 	"fx.prodigy9.co/httpserver/render"
 	"github.com/go-chi/chi/v5"
 	"github.com/jmoiron/sqlx"
 	"platform.prodigy9.co/srv/auth"
 	"platform.prodigy9.co/srv/github"
-	"platform.prodigy9.co/srv/migrate"
+	"platform.prodigy9.co/srv/system"
 )
 
 // InstallCtr serves the gated installer surface. The fragment stays mounted after
 // claim; InstallerGate hides it with a 404.
-type InstallCtr struct {
-	Gate *Gate
-}
+type InstallCtr struct{}
 
 var _ controllers.Interface = InstallCtr{}
 
@@ -75,7 +72,7 @@ func (c InstallCtr) runUngated(resp http.ResponseWriter, req *http.Request, acti
 		render.Error(resp, req, http.StatusInternalServerError, err)
 		return
 	}
-	render.JSON(resp, req, GetState(ctx, db, migrationSource(ctx)))
+	render.JSON(resp, req, GetState(ctx, db))
 }
 
 func (c InstallCtr) claim(resp http.ResponseWriter, req *http.Request) {
@@ -109,15 +106,12 @@ func (c InstallCtr) claim(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	render.JSON(resp, req, GetState(ctx, requestDB(ctx), migrationSource(ctx)))
-	if c.Gate != nil {
-		c.Gate.Flip()
-	}
+	render.JSON(resp, req, GetState(ctx, requestDB(ctx)))
 }
 
 func (c InstallCtr) getState(resp http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
-	render.JSON(resp, req, GetState(ctx, requestDB(ctx), migrationSource(ctx)))
+	render.JSON(resp, req, GetState(ctx, requestDB(ctx)))
 }
 
 func (c InstallCtr) runMigrations(resp http.ResponseWriter, req *http.Request) {
@@ -128,19 +122,11 @@ func (c InstallCtr) runMigrations(resp http.ResponseWriter, req *http.Request) {
 	}
 
 	ctx := req.Context()
-	if err := migrate.Run(ctx, db, migrationSource(ctx)); err != nil {
+	if err := system.Run(ctx, db); err != nil {
 		render.Error(resp, req, http.StatusInternalServerError, err)
 		return
 	}
-	render.JSON(resp, req, GetState(ctx, db, migrationSource(ctx)))
-}
-
-func migrationSource(ctx context.Context) migrator.Source {
-	cfg := config.FromContext(ctx)
-	if cfg == nil {
-		cfg = config.Configure()
-	}
-	return migrator.FromAuto(cfg)
+	render.JSON(resp, req, GetState(ctx, db))
 }
 
 func requestDB(ctx context.Context) *sqlx.DB {

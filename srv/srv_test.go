@@ -1,153 +1,151 @@
 package srv
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
-	"fx.prodigy9.co/data/migrator"
+	"fx.prodigy9.co/app"
+	"fx.prodigy9.co/config"
+	"fx.prodigy9.co/data"
 	"fx.prodigy9.co/fxtest"
+	"fx.prodigy9.co/secret"
+	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/require"
 	"platform.prodigy9.co/srv/auth"
 	"platform.prodigy9.co/srv/builds"
-	"platform.prodigy9.co/srv/install"
-	"platform.prodigy9.co/srv/migrate"
 	"platform.prodigy9.co/srv/srvtest"
 )
 
-func TestRouterServesUIIndex(t *testing.T) {
-	for _, installed := range []bool{false, true} {
-		router, err := Router(fxtest.Configure(), installed)
-		require.NoError(t, err)
+func init() {
+	app.RegisterMigrations(App)
+}
 
-		resp := httptest.NewRecorder()
-		router.ServeHTTP(resp, httptest.NewRequest("GET", "/", nil))
+func TestAppCollectsPermanentServerConcerns(t *testing.T) {
+	children := App.Children()
+	require.Equal(t, []string{"github", "auth", "builds", "repos", "install", "system", "webui"},
+		appNames(children))
+	require.NotNil(t, children[1].EmbeddedMigrations())
+	require.NotNil(t, children[2].EmbeddedMigrations())
+	require.NotNil(t, children[3].EmbeddedMigrations())
+	require.Len(t, children[2].Middlewares(), 2)
+	require.Len(t, children[3].Middlewares(), 2)
+	require.Len(t, children[4].Middlewares(), 1)
 
-		require.Equal(t, http.StatusOK, resp.Code)
-		require.Contains(t, resp.Body.String(), "platform")
+	jobs := app.CollectJobs(App)
+	require.Len(t, jobs, 2)
+	require.IsType(t, &builds.ScanBuilds{}, jobs[0])
+	require.IsType(t, &builds.RunBuild{}, jobs[1])
+	require.False(t, app.CollectFragment(App).IsEmpty())
+}
+
+func TestUIServesIndex(t *testing.T) {
+	resp := get(uiRouter(t), "/")
+
+	require.Equal(t, http.StatusOK, resp.Code)
+	require.Contains(t, resp.Body.String(), "platform")
+}
+
+func TestUIHidesInstallerRouteAfterClaim(t *testing.T) {
+	ctx := srvtest.SetupDB(t)
+	seedClaim(t, ctx)
+
+	resp := serve(ctx, uiRouter(t), "/install/")
+	require.Equal(t, http.StatusNotFound, resp.Code)
+}
+
+func TestUIHidesProductRouteBeforeClaim(t *testing.T) {
+	ctx := srvtest.SetupDB(t)
+
+	resp := serve(ctx, uiRouter(t), "/builds/")
+	require.Equal(t, http.StatusNotFound, resp.Code)
+}
+
+func TestHealth(t *testing.T) {
+	resp := httptest.NewRecorder()
+	health(resp, httptest.NewRequest(http.MethodGet, "/health", nil))
+
+	require.Equal(t, http.StatusOK, resp.Code)
+	require.Equal(t, "application/json", resp.Header().Get("Content-Type"))
+
+	var body struct {
+		Time time.Time `json:"time"`
 	}
+	require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &body))
+	require.False(t, body.Time.IsZero())
 }
 
-func TestRouterServesAPIHealth(t *testing.T) {
-	for _, installed := range []bool{false, true} {
-		router, err := Router(fxtest.Configure(), installed)
-		require.NoError(t, err)
+func TestValidateBootRequiresSecretAfterClaim(t *testing.T) {
+	ctx := srvtest.SetupDB(t)
+	seedClaim(t, ctx)
+	cfg := config.FromContext(ctx)
+	config.Set(cfg, secret.SecretConfig, "")
 
-		resp := httptest.NewRecorder()
-		router.ServeHTTP(resp, httptest.NewRequest("GET", "/health", nil))
-
-		require.Equal(t, http.StatusOK, resp.Code)
-		require.Equal(t, "application/json", resp.Header().Get("Content-Type"))
-
-		var health struct {
-			Time time.Time `json:"time"`
-		}
-		require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &health))
-		require.False(t, health.Time.IsZero())
-	}
+	require.EqualError(t, ValidateBoot(ctx, cfg), "srv: SECRET must be set to boot the claimed server")
 }
 
-// The installer fragment remains mounted permanently, but product APIs are gated until
-// the install claim exists. The installer state read works with a nil DB (it reports
-// db-reachable as an error), so this needs no postgres.
-func TestNotInstalledGatesProductAndServesInstaller(t *testing.T) {
-	router, err := Router(fxtest.Configure(), false)
-	require.NoError(t, err)
+func TestValidateBootAllowsUnclaimedServerWithoutSecret(t *testing.T) {
+	ctx := srvtest.SetupDB(t)
+	cfg := config.FromContext(ctx)
+	config.Set(cfg, secret.SecretConfig, "")
 
-	require.Equal(t, http.StatusOK, get(router, "/api/install").Code)
-	require.Equal(t, http.StatusConflict, get(router, "/api/builds").Code)
+	require.NoError(t, ValidateBoot(ctx, cfg))
 }
 
-func TestInstalledHidesInstallerAndServesProduct(t *testing.T) {
-	router, err := Router(fxtest.Configure(), true)
-	require.NoError(t, err)
+func TestValidateBootAllowsClaimedServerWithSecret(t *testing.T) {
+	ctx := srvtest.SetupDB(t)
+	seedClaim(t, ctx)
+	cfg := config.FromContext(ctx)
+	config.Set(cfg, secret.SecretConfig, "test-secret")
 
-	require.Equal(t, http.StatusNotFound, get(router, "/api/install").Code)
-	require.NotEqual(t, http.StatusNotFound, get(router, "/api/builds").Code)
+	require.NoError(t, ValidateBoot(ctx, cfg))
 }
 
-// There is no generic settings REST surface in either composition — settings writes go
-// through purpose-built installer actions only (platform-server.md §Operations).
-func TestNoSettingsSurface(t *testing.T) {
-	for _, installed := range []bool{false, true} {
-		router, err := Router(fxtest.Configure(), installed)
-		require.NoError(t, err)
+func TestValidateBootAllowsInvalidDatabaseURL(t *testing.T) {
+	cfg := fxtest.Configure()
+	config.Set(cfg, data.DatabaseURLConfig, "://invalid")
 
-		require.Equal(t, http.StatusNotFound, get(router, "/api/settings").Code)
-	}
+	require.NoError(t, ValidateBoot(t.Context(), cfg))
 }
 
-// The wizard's credential step is ungated in the installer composition — no session
-// can exist before the credentials enable login (installation.md). 503 (this router
-// has no DB, reported before the body is parsed) proves the handler was reached, not
-// a gate; the installed composition hides the route with a not-found response.
-func TestCredentialsMountedUngatedInInstaller(t *testing.T) {
-	notInstalled, err := Router(fxtest.Configure(), false)
-	require.NoError(t, err)
-	require.Equal(t, http.StatusServiceUnavailable,
-		post(notInstalled, "/api/install/credentials", "{}").Code)
+func TestValidateBootAllowsUnreachableDatabase(t *testing.T) {
+	cfg := fxtest.Configure()
+	config.Set(cfg, data.DatabaseURLConfig,
+		"postgres://postgres@127.0.0.1:1/platform?sslmode=disable&connect_timeout=1")
 
-	installed, err := Router(fxtest.Configure(), true)
-	require.NoError(t, err)
-	require.Equal(t, http.StatusNotFound,
-		post(installed, "/api/install/credentials", "{}").Code)
+	require.NoError(t, ValidateBoot(t.Context(), cfg))
 }
 
-// Module resolution is a static fact baked into the SPA's page shell: every served
-// page carries the literal go-import tag, including the 404 fallback — the toolchain
-// parses meta out of non-200 bodies (platform-server.md; vendor/go-vanity-imports.md).
+// Module resolution is a static fact baked into every SPA shell, including the 404
+// fallback parsed by the Go toolchain (platform-server.md; vendor/go-vanity-imports.md).
 func TestGoImportMetaOnEveryPage(t *testing.T) {
 	const meta = `<meta name="go-import" content="platform.prodigy9.co git https://github.com/prod9/platform" />`
-	for _, installed := range []bool{false, true} {
-		router, err := Router(fxtest.Configure(), installed)
-		require.NoError(t, err)
+	router := uiRouter(t)
 
-		for path, status := range map[string]int{"/": http.StatusOK, "/no/such/page": http.StatusNotFound} {
-			resp := get(router, path)
-			require.Equal(t, status, resp.Code, path)
-			require.Contains(t, resp.Body.String(), meta, path)
-		}
+	for path, status := range map[string]int{"/": http.StatusOK, "/no/such/page": http.StatusNotFound} {
+		resp := get(router, path)
+		require.Equal(t, status, resp.Code, path)
+		require.Contains(t, resp.Body.String(), meta, path)
 	}
 }
 
-// The auth fragment mounts in both compositions — the org-owner claim needs a login
-// before the server is installed (installation.md). 401 proves the route is mounted
-// and gated; 404 would mean the composition dropped it.
-func TestAuthMountsInBothCompositions(t *testing.T) {
-	for _, installed := range []bool{false, true} {
-		router, err := Router(fxtest.Configure(), installed)
-		require.NoError(t, err)
-
-		require.Equal(t, http.StatusUnauthorized, get(router, "/api/session").Code)
-	}
-}
-
-// A path with no prerendered file gets the SPA fallback at 404 — a wrong URL that
-// answers 200 is a lie (spec §The status of a page is the server's answer).
 func TestUIUnknownPathIsFallbackAt404(t *testing.T) {
-	for _, installed := range []bool{false, true} {
-		router, err := Router(fxtest.Configure(), installed)
-		require.NoError(t, err)
+	resp := get(uiRouter(t), "/no/such/page")
 
-		resp := get(router, "/no/such/page")
-		require.Equal(t, http.StatusNotFound, resp.Code)
-		require.Contains(t, resp.Header().Get("Content-Type"), "text/html")
-		require.Contains(t, resp.Body.String(), "<html")
-	}
+	require.Equal(t, http.StatusNotFound, resp.Code)
+	require.Contains(t, resp.Header().Get("Content-Type"), "text/html")
+	require.Contains(t, resp.Body.String(), "<html")
 }
 
 // The dynamic /builds/{id} route answers with the status the record deserves: 404 when
 // the build does not exist, 200 when it does — the fallback supplies only the body.
 func TestUIBuildRouteStatusFollowsTheRecord(t *testing.T) {
-	ctx := srvtest.SetupDB(t,
-		migrate.JobsTable,
-		migrator.FromFS(auth.Migrations),
-		migrator.FromFS(builds.Migrations),
-		install.Source)
+	ctx := srvtest.SetupDB(t)
+	seedClaim(t, ctx)
 	systemUser, err := auth.SystemUserID(ctx)
 	require.NoError(t, err)
 
@@ -157,36 +155,51 @@ func TestUIBuildRouteStatusFollowsTheRecord(t *testing.T) {
 		Ref: "refs/tags/v1.2.3", SHA: "abc123"}
 	require.NoError(t, create.Execute(ctx, build))
 
-	router, err := Router(fxtest.Configure(), true)
-	require.NoError(t, err)
-
-	found := httptest.NewRecorder()
-	router.ServeHTTP(found, httptest.NewRequest("GET",
-		fmt.Sprintf("/builds/%d", build.ID), nil).WithContext(ctx))
+	router := uiRouter(t)
+	found := serve(ctx, router, fmt.Sprintf("/builds/%d", build.ID))
 	require.Equal(t, http.StatusOK, found.Code)
 	require.Contains(t, found.Body.String(), "<html")
 
-	// The SPA links with a trailing slash (trailingSlash = "always"), so the shape
-	// matches with or without one.
-	slashed := httptest.NewRecorder()
-	router.ServeHTTP(slashed, httptest.NewRequest("GET",
-		fmt.Sprintf("/builds/%d/", build.ID), nil).WithContext(ctx))
+	slashed := serve(ctx, router, fmt.Sprintf("/builds/%d/", build.ID))
 	require.Equal(t, http.StatusOK, slashed.Code)
 
-	missing := httptest.NewRecorder()
-	router.ServeHTTP(missing, httptest.NewRequest("GET", "/builds/999999", nil).WithContext(ctx))
+	missing := serve(ctx, router, "/builds/999999")
 	require.Equal(t, http.StatusNotFound, missing.Code)
 	require.Contains(t, missing.Body.String(), "<html")
 }
 
-func get(router http.Handler, path string) *httptest.ResponseRecorder {
-	resp := httptest.NewRecorder()
-	router.ServeHTTP(resp, httptest.NewRequest("GET", path, nil))
-	return resp
+func seedClaim(t *testing.T, ctx context.Context) {
+	require.NoError(t, srvtest.SeedSettings(ctx, map[string]string{
+		"install.org_id":               "42",
+		"install.org_login":            "prod9",
+		"install.installation_id":      "84",
+		"install.installed_by_user_id": "21",
+		"install.installed_by_login":   "owner",
+		"install.installed_at":         "2026-08-22T00:00:00Z",
+	}))
 }
 
-func post(router http.Handler, path, body string) *httptest.ResponseRecorder {
+func appNames(fragments []app.Interface) []string {
+	names := make([]string, len(fragments))
+	for i, fragment := range fragments {
+		names[i] = fragment.Name()
+	}
+	return names
+}
+
+func uiRouter(t *testing.T) chi.Router {
+	router := chi.NewRouter()
+	require.NoError(t, (UI{}).Mount(fxtest.Configure(), router))
+	return router
+}
+
+func get(handler http.Handler, path string) *httptest.ResponseRecorder {
+	return serve(context.Background(), handler, path)
+}
+
+func serve(ctx context.Context, handler http.Handler, path string) *httptest.ResponseRecorder {
 	resp := httptest.NewRecorder()
-	router.ServeHTTP(resp, httptest.NewRequest("POST", path, strings.NewReader(body)))
+	req := httptest.NewRequest(http.MethodGet, path, nil).WithContext(ctx)
+	handler.ServeHTTP(resp, req)
 	return resp
 }

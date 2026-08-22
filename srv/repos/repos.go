@@ -7,16 +7,18 @@ package repos
 
 import (
 	"context"
-	"embed"
 	"time"
 
+	"fx.prodigy9.co/app"
 	"fx.prodigy9.co/data"
+	"platform.prodigy9.co/srv/install"
 )
 
-// Migrations is this fragment's schema; srv aggregates every fragment's SQL at boot.
-//
-//go:embed *.sql
-var Migrations embed.FS
+var App = app.Build().
+	Name("repos").
+	EmbedMigrations(Migrations).
+	Middlewares(install.ProductGate, install.RecordContext).
+	Controllers(RepoCtr{})
 
 // Repo is one registration row.
 type Repo struct {

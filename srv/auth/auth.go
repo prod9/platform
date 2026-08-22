@@ -7,7 +7,6 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
-	"embed"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -18,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	"fx.prodigy9.co/app"
 	"fx.prodigy9.co/config"
 	"fx.prodigy9.co/data"
 	"fx.prodigy9.co/httpserver/controllers"
@@ -29,18 +29,23 @@ import (
 	"platform.prodigy9.co/srv/github"
 )
 
+var (
+	App = app.Build().
+		Name("auth").
+		EmbedMigrations(Migrations).
+		Controllers(SessionCtr{})
+
+	ErrNoSession     = errors.New("auth: no session")
+	errBadOAuthState = errors.New("auth: oauth state mismatch")
+	errNoOAuthToken  = errors.New("auth: oauth code exchange returned no access token")
+)
+
 const (
 	oauthStateCookie = "oauth_state"
 	oauthStateTTL    = 10 * time.Minute
 
 	sessionCookie = "platform_session"
 	sessionTTL    = 30 * 24 * time.Hour
-)
-
-var (
-	ErrNoSession     = errors.New("auth: no session")
-	errBadOAuthState = errors.New("auth: oauth state mismatch")
-	errNoOAuthToken  = errors.New("auth: oauth code exchange returned no access token")
 )
 
 // User is an internal platform user, the anchor of the identity ADR's model; external
@@ -512,8 +517,3 @@ func hashSessionToken(token string) string {
 	sum := sha256.Sum256([]byte(token))
 	return hex.EncodeToString(sum[:])
 }
-
-// Migrations is this fragment's schema; srv aggregates every fragment's SQL at boot.
-//
-//go:embed *.sql
-var Migrations embed.FS

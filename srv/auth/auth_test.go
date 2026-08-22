@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
+	"fx.prodigy9.co/app"
 	"fx.prodigy9.co/config"
 	"fx.prodigy9.co/data"
-	"fx.prodigy9.co/data/migrator"
 	"fx.prodigy9.co/fxtest"
 	"fx.prodigy9.co/httpserver/middlewares"
 	"fx.prodigy9.co/secret"
@@ -20,6 +20,10 @@ import (
 	"platform.prodigy9.co/srv/github"
 	"platform.prodigy9.co/srv/srvtest"
 )
+
+func init() {
+	app.RegisterMigrations(App.App())
+}
 
 // githubUsersSQL selects the users a GitHub login created. Tests scope by provider
 // because the users table is never empty: the migration seeds the system principal.
@@ -43,7 +47,7 @@ const (
 )
 
 func setupDB(t *testing.T) context.Context {
-	return srvtest.SetupDB(t, migrator.FromFS(Migrations))
+	return srvtest.SetupDB(t)
 }
 
 func stubApp(t *testing.T, app *github.App, err error) {

@@ -10,123 +10,77 @@ package srv
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io/fs"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
+	"fx.prodigy9.co/app"
+	fxcmd "fx.prodigy9.co/cmd"
 	"fx.prodigy9.co/config"
-	"fx.prodigy9.co/ctrlc"
 	"fx.prodigy9.co/data"
-	"fx.prodigy9.co/data/migrator"
 	"fx.prodigy9.co/fxlog"
-	"fx.prodigy9.co/httpserver"
 	"fx.prodigy9.co/httpserver/controllers"
-	"fx.prodigy9.co/httpserver/middlewares"
+	"fx.prodigy9.co/httpserver/httperrors"
 	"fx.prodigy9.co/httpserver/render"
 	"fx.prodigy9.co/secret"
 	"github.com/go-chi/chi/v5"
-	"github.com/jmoiron/sqlx"
 	"platform.prodigy9.co/srv/auth"
 	"platform.prodigy9.co/srv/builds"
+	"platform.prodigy9.co/srv/github"
 	"platform.prodigy9.co/srv/install"
-	"platform.prodigy9.co/srv/migrate"
 	"platform.prodigy9.co/srv/repos"
+	"platform.prodigy9.co/srv/system"
 	"platform.prodigy9.co/webui"
 )
 
-// Serve configures and runs the platform server until interrupted, listening on
-// httpserver.ListenAddrConfig (LISTEN_ADDR). It always boots: the DB is connected
-// best-effort and its state seeds the shared install gate.
-func Serve() error {
-	cfg := config.Configure()
+// App is the permanent fx application tree consumed by Platform's Cobra root through
+// fx's public collectors. Install state changes which routes are reachable, never which
+// fragments are composed.
+var App app.Interface = app.Build().
+	Name("srv").
+	AddDefaultMiddlewares().
+	Command(fxcmd.BuildDataCommand()).
+	Mount(github.Fragment).
+	Mount(auth.App).
+	Mount(builds.App).
+	Mount(repos.App).
+	Mount(install.App).
+	Mount(system.App).
+	Mount(app.Build().
+		Name("webui").
+		Controllers(controllers.FromFunc("/health", health), UI{})).
+	App()
 
-	db := connectOrNil(cfg)
-	if db != nil {
-		defer db.Close() // boot pool only — AddDataContext owns HTTP's own
+// ValidateBoot enforces boot-only configuration that depends on durable install state.
+// An unavailable database remains a request-time condition, so it is logged and softened.
+func ValidateBoot(ctx context.Context, cfg *config.Source) (err error) {
+	db, err := data.Connect(cfg)
+	if err != nil {
+		fxlog.Log("database unavailable at boot", fxlog.String("error", err.Error()))
+		return nil
+	}
+	defer func() {
+		err = errors.Join(err, db.Close())
+	}()
+
+	ctx = data.NewContext(config.NewContext(ctx, cfg), db)
+	if err := db.PingContext(ctx); err != nil {
+		fxlog.Log("database unavailable at boot", fxlog.String("error", err.Error()))
+		return nil
 	}
 
-	entries := install.GetState(config.NewContext(context.Background(), cfg), db, merged)
-	installed := install.Complete(entries)
-
-	// The installed composition stores user tokens encrypted with SECRET; fx
-	// silently derives a publicly known key from an unset one, so refusing to boot
-	// is the only loud option (docs/spec/installation.md, the env contract).
-	if installed {
-		if _, ok := config.GetOK(cfg, secret.SecretConfig); !ok {
-			return errors.New("srv: SECRET must be set to boot the installed composition")
-		}
-	}
-
-	var server *http.Server
-	router, err := Router(cfg, installed)
+	installed, err := install.IsInstalled(ctx, db)
 	if err != nil {
 		return err
 	}
-
-	handler := http.Handler(router)
-	if db != nil {
-		handler = middlewares.AddDataContext(cfg)(router)
-	}
-
-	listenAddr := config.Get(cfg, httpserver.ListenAddrConfig)
-	server = &http.Server{Addr: listenAddr, Handler: handler}
-	ctrlc.Do(func() { server.Close() })
-
-	fxlog.Log("listening", fxlog.String("addr", listenAddr), fxlog.Bool("installed", installed))
-	if err := server.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
-		return err
+	if installed {
+		if _, ok := config.GetOK(cfg, secret.SecretConfig); !ok {
+			return errors.New("srv: SECRET must be set to boot the claimed server")
+		}
 	}
 	return nil
-}
-
-// Router builds the server's routes on a fresh chi router for the given install
-// decision; Serve listens with it and tests drive it directly. Both compositions mount
-// the installer and product fragments; gates hide the installer after claim and return
-// installation_required for product APIs before claim. db is passed to the installer
-// controller (it may be nil); claimed is retained for the install action observer.
-func Router(cfg *config.Source, installed bool) (chi.Router, error) {
-	router := chi.NewRouter()
-	installState := install.NewGate(installed)
-	router.Use(middlewares.Configure(cfg))
-	router.Use(middlewares.LogRequests(cfg))
-	router.Get("/health", health)
-
-	// Auth mounts in both compositions: the org-owner claim needs a login before the
-	// server is installed (docs/spec/installation.md).
-	ctrs := []controllers.Interface{auth.SessionCtr{}}
-
-	// Product fragments are always mounted. The gate keeps pre-claim APIs from reaching
-	// handlers; after claim, RecordContext supplies the ambient install record.
-	product := router.With(install.ProductGate(installState))
-	product = product.With(install.RecordContext)
-	for _, ctr := range []controllers.Interface{repos.RepoCtr{}, builds.BuildCtr{}, builds.WebhookCtr{}} {
-		if err := ctr.Mount(cfg, product); err != nil {
-			return nil, err
-		}
-	}
-
-	// The installer fragment remains mounted permanently. Its gate makes the whole
-	// surface disappear with 404 after the claim, without a process restart.
-	installer := router.With(install.InstallerGate(installState))
-	if err := (install.InstallCtr{Gate: installState}).Mount(cfg, installer); err != nil {
-		return nil, err
-	}
-
-	// Catch-all /* mounts last; dynamic-route status lookup is available only after claim.
-	ui := UI{}
-	if installed {
-		ui.BuildExists = builds.Exists
-	}
-	ctrs = append(ctrs, ui)
-	for _, ctr := range ctrs {
-		if err := ctr.Mount(cfg, router); err != nil {
-			return nil, err
-		}
-	}
-	return router, nil
 }
 
 func health(resp http.ResponseWriter, req *http.Request) {
@@ -135,62 +89,17 @@ func health(resp http.ResponseWriter, req *http.Request) {
 	}{time.Now()})
 }
 
-// connectOrNil connects the boot DB pool best-effort: an unset DATABASE_URL or an
-// unreachable database is a soft nil (the server still boots and serves the installer,
-// which surfaces the condition as a db-reachable error), not a fatal boot error.
-func connectOrNil(cfg *config.Source) *sqlx.DB {
-	db, err := connectDB(cfg)
-	if err != nil {
-		fxlog.Log("database unavailable at boot; serving install-gated application",
-			fxlog.String("error", err.Error()))
-		return nil
-	}
-	return db
-}
-
-// connectDB opens and verifies the boot DB pool. A missing DATABASE_URL or an
-// unreachable database is reported as an error for connectOrNil to soften.
-func connectDB(cfg *config.Source) (*sqlx.DB, error) {
-	if _, ok := config.GetOK(cfg, data.DatabaseURLConfig); !ok {
-		return nil, errors.New("srv: DATABASE_URL is not set")
-	}
-
-	db, err := data.Connect(cfg)
-	if err != nil {
-		return nil, err
-	}
-	if err := db.Ping(); err != nil {
-		db.Close()
-		return nil, fmt.Errorf("srv: database unreachable: %w", err)
-	}
-	return db, nil
-}
-
-// merged aggregates every fragment's embedded SQL — the srv-side equivalent of fx's
-// Mount collecting fragment migrations. Migrations run via the installer or the CLI,
-// never at boot (docs/spec/installation.md).
-var merged = migrate.Merged(
-	migrate.JobsTable,
-	migrator.FromFS(auth.Migrations),
-	migrator.FromFS(builds.Migrations),
-	migrator.FromFS(repos.Migrations),
-	install.Source,
-)
-
 // UI serves the embedded web UI (webui.Assets) at the site root; requests not matched
 // by an API route fall through to it. The server decides every page's status itself
 // (docs/spec/platform-server.md §The status of a page is the server's answer): a
 // prerendered file is served as-is, the known dynamic route /builds/{id} gets the SPA
 // fallback at the status the record deserves, and anything unrecognized gets the
-// fallback at 404. BuildExists is that record lookup — nil (the installer composition)
-// makes every dynamic path a 404.
-type UI struct {
-	BuildExists func(ctx context.Context, id int64) (bool, error)
-}
+// fallback at 404.
+type UI struct{}
 
 var _ controllers.Interface = UI{}
 
-func (ui UI) Mount(cfg *config.Source, router chi.Router) error {
+func (UI) Mount(_ *config.Source, router chi.Router) error {
 	build, err := fs.Sub(webui.Assets, "build")
 	if err != nil {
 		return err
@@ -202,14 +111,37 @@ func (ui UI) Mount(cfg *config.Source, router chi.Router) error {
 
 	files := http.FileServer(http.FS(build))
 	router.Handle("/*", http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
-		if prerendered(build, req.URL.Path) {
+		prerenderedPath := prerendered(build, req.URL.Path)
+		installerPath := installRoute(req.URL.Path)
+		_, dynamicBuildPath := buildRoute(req.URL.Path)
+		productPath := dynamicBuildPath || productPage(req.URL.Path, prerenderedPath)
+		if installerPath || productPath {
+			db, ok := data.LookupFromContext(req.Context())
+			if !ok {
+				render.Error(resp, req, http.StatusInternalServerError, errors.New("srv: UI route requires database context"))
+				return
+			}
+			installed, err := install.IsInstalled(req.Context(), db)
+			if err != nil {
+				render.Error(resp, req, http.StatusInternalServerError, err)
+				return
+			}
+			hideInstaller := installerPath && installed
+			hideProduct := productPath && !installed
+			if hideInstaller || hideProduct {
+				render.Error(resp, req, http.StatusNotFound, httperrors.ErrNotFound)
+				return
+			}
+		}
+
+		if prerenderedPath {
 			files.ServeHTTP(resp, req)
 			return
 		}
 
 		status := http.StatusNotFound
-		if id, ok := buildRoute(req.URL.Path); ok && ui.BuildExists != nil {
-			exists, err := ui.BuildExists(req.Context(), id)
+		if id, ok := buildRoute(req.URL.Path); ok {
+			exists, err := builds.Exists(req.Context(), id)
 			if err != nil {
 				render.Error(resp, req, 500, err)
 				return
@@ -221,9 +153,22 @@ func (ui UI) Mount(cfg *config.Source, router chi.Router) error {
 
 		resp.Header().Set("Content-Type", "text/html; charset=utf-8")
 		resp.WriteHeader(status)
-		resp.Write(fallback)
+		if _, err := resp.Write(fallback); err != nil {
+			fxlog.Error(err)
+		}
 	}))
 	return nil
+}
+
+func installRoute(path string) bool {
+	return path == "/install" || strings.HasPrefix(path, "/install/")
+}
+
+func productPage(path string, prerendered bool) bool {
+	if !prerendered || path == "/" || strings.HasPrefix(path, "/_app/") {
+		return false
+	}
+	return !installRoute(path)
 }
 
 // prerendered reports whether the embedded build output holds a file for the path — a

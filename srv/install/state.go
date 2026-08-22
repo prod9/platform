@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"fx.prodigy9.co/data/migrator"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -26,14 +25,14 @@ const (
 // running under the install-time assumption — the world may be partially built (no
 // database, no schema, unset keys) — and must reach its verdict without issuing a
 // query it can predict will fail (docs/spec/installation.md, install-safe checks).
-// Checks share one environment (the boot DB and the merged migration source); each
-// uses what it needs. Steps are isolated: no check assumes another ran. Reset clears
+// Checks share one request context and database; each uses what it needs. Steps are
+// isolated: no check assumes another ran. Reset clears
 // the step's own operator-entered values — suffix invalidation calls it on every
 // step after a save (§Redo and suffix invalidation); steps with nothing
 // operator-entered no-op.
 type Step interface {
 	name() string
-	Check(ctx context.Context, db *sqlx.DB, merged migrator.Source) Entry
+	Check(ctx context.Context, db *sqlx.DB) Entry
 	Reset(ctx context.Context) error
 }
 
@@ -91,10 +90,10 @@ var wizard = []Step{
 
 // GetState checks every step in wizard order; db may be nil (no database
 // configured).
-func GetState(ctx context.Context, db *sqlx.DB, merged migrator.Source) []Entry {
+func GetState(ctx context.Context, db *sqlx.DB) []Entry {
 	entries := make([]Entry, len(wizard))
 	for i, step := range wizard {
-		entries[i] = step.Check(ctx, db, merged)
+		entries[i] = step.Check(ctx, db)
 	}
 	return entries
 }
@@ -119,15 +118,4 @@ func resetSuffix(ctx context.Context, after string) error {
 		return fmt.Errorf("install: resetSuffix: no wizard step named %q", after)
 	}
 	return nil
-}
-
-// Complete reports whether every step is fully ready — the "completely installed"
-// conjunction.
-func Complete(entries []Entry) bool {
-	for _, entry := range entries {
-		if entry.State != FullyReadyState {
-			return false
-		}
-	}
-	return true
 }

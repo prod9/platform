@@ -11,24 +11,33 @@ import (
 	"strconv"
 	"time"
 
+	"fx.prodigy9.co/app"
 	"fx.prodigy9.co/app/settings"
-	"fx.prodigy9.co/data/migrator"
+	"fx.prodigy9.co/data"
 	"fx.prodigy9.co/errutil"
+	"github.com/jmoiron/sqlx"
 	"platform.prodigy9.co/srv/github"
 )
 
-// ErrNotInstalled reports that the server is not bound to an org yet — the install.*
-// settings are absent or still empty.
 var (
-	// ErrNotInstalled reports that the server is not bound to an org yet — the install.*
-	// settings are absent or still empty.
-	ErrNotInstalled         = errors.New("install: not installed")
-	errNoDB                 = errors.New("install: no database configured")
-	errNotOrgOwner          = errors.New("install: session user is not an owner of the installation's org")
+	App = app.Build().
+		Name("install").
+		Mount(settings.App).
+		Middlewares(InstallerGate).
+		Controllers(InstallCtr{})
+
 	ErrAlreadyInstalled     = errors.New("install: already installed")
 	ErrInstallationRequired = errutil.NewCoded(
 		"installation_required", "platform installation is incomplete", nil,
 	)
+	// ErrNotInstalled reports that the server is not bound to an org yet — the install.*
+	// settings are absent or still empty.
+	ErrNotInstalled = errors.New("install: not installed")
+
+	errNoDB        = errors.New("install: no database configured")
+	errNotOrgOwner = errors.New("install: session user is not an owner of the installation's org")
+	installKeys    = []string{keyOrgID, keyOrgLogin, keyInstallationID,
+		keyInstalledByUserID, keyInstalledByLogin, keyInstalledAt}
 )
 
 // The hard-coded settings keys install state lives under (docs/spec/installation.md,
@@ -42,11 +51,6 @@ const (
 	keyInstalledByLogin  = "install.installed_by_login"
 	keyInstalledAt       = "install.installed_at"
 )
-
-// installKeys is the whole install.* set — Load reads them, appInstalled.Reset
-// empties them; the claim writes every one or none.
-var installKeys = []string{keyOrgID, keyOrgLogin, keyInstallationID,
-	keyInstalledByUserID, keyInstalledByLogin, keyInstalledAt}
 
 // Record is the decoded install.* settings binding the server to one GitHub org. App
 // credentials are deliberately absent — they are the github.app_* settings, owned by
@@ -89,6 +93,28 @@ func Load(ctx context.Context) (*Record, error) {
 	return record, nil
 }
 
+// IsInstalled reads the durable claim alone. It probes the settings schema before
+// loading install.* so a fresh database is a normal uninstalled state.
+func IsInstalled(ctx context.Context, db *sqlx.DB) (bool, error) {
+	if db == nil {
+		return false, errNoDB
+	}
+
+	ready, err := settingsSchemaReady(ctx, db)
+	if err != nil || !ready {
+		return false, err
+	}
+
+	_, err = Load(data.NewContext(ctx, db))
+	if errors.Is(err, ErrNotInstalled) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 func intField(out *int64) func(string) error {
 	return func(value string) (err error) {
 		*out, err = strconv.ParseInt(value, 10, 64)
@@ -109,9 +135,3 @@ func timeField(out *time.Time) func(string) error {
 		return err
 	}
 }
-
-// Source is the install fragment's migration set: fx's settings schema, the storage
-// the install.* keys live in. The fragment carries no SQL of its own — no migration
-// defines the keys; they are hard-coded here and written by the claim
-// (docs/spec/installation.md, "The install settings").
-var Source = migrator.FromFS(*settings.App.EmbeddedMigrations())

@@ -11,7 +11,6 @@ import (
 
 	"fx.prodigy9.co/config"
 	"fx.prodigy9.co/data"
-	"fx.prodigy9.co/data/migrator"
 	"fx.prodigy9.co/fxtest"
 	"fx.prodigy9.co/httpserver/middlewares"
 	"github.com/go-chi/chi/v5"
@@ -29,11 +28,10 @@ type claimHarness struct {
 	router chi.Router
 	token  string
 	userID int64
-	gate   *Gate
 }
 
 func setupClaim(t *testing.T, membershipStatus int, membershipBody string) *claimHarness {
-	ctx := srvtest.SetupDB(t, Source, migrator.FromFS(auth.Migrations))
+	ctx := srvtest.SetupDB(t)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /app/installations/7/access_tokens", func(resp http.ResponseWriter, req *http.Request) {
@@ -57,8 +55,7 @@ func setupClaim(t *testing.T, membershipStatus int, membershipBody string) *clai
 	config.Set(cfg, github.APIURLConfig, server.URL)
 	router := chi.NewRouter()
 	router.Use(middlewares.Configure(cfg))
-	gate := NewGate(false)
-	ctr := InstallCtr{Gate: gate}
+	ctr := InstallCtr{}
 	require.NoError(t, ctr.Mount(cfg, router))
 
 	var userID int64
@@ -70,7 +67,7 @@ func setupClaim(t *testing.T, membershipStatus int, membershipBody string) *clai
 	}
 	require.NoError(t, create.Execute(ctx, nil))
 
-	return &claimHarness{ctx, router, "raw-session-token", userID, gate}
+	return &claimHarness{ctx, router, "raw-session-token", userID}
 }
 
 func (h *claimHarness) claim(withCookie bool) *httptest.ResponseRecorder {
@@ -99,7 +96,6 @@ func TestClaimWritesInstallRecord(t *testing.T) {
 	require.Equal(t, h.userID, record.InstalledByUserID)
 	require.Equal(t, "chakrit", record.InstalledByLogin)
 	require.False(t, record.InstalledAt.IsZero())
-	require.True(t, h.gate.Read())
 }
 
 func TestClaimByNonOwnerForbidden(t *testing.T) {
@@ -110,7 +106,6 @@ func TestClaimByNonOwnerForbidden(t *testing.T) {
 
 	_, err := Load(h.ctx)
 	require.ErrorIs(t, err, ErrNotInstalled)
-	require.False(t, h.gate.Read())
 }
 
 func TestClaimWithoutSessionUnauthorized(t *testing.T) {
@@ -133,7 +128,7 @@ func TestClaimTwiceConflicts(t *testing.T) {
 // Two truly concurrent claims serialize on the FOR UPDATE row: exactly one fills the
 // install.* settings, the other blocks on the lock and then finds the first one's write.
 func TestClaimExecuteConcurrentOneWins(t *testing.T) {
-	ctx := srvtest.SetupDB(t, Source)
+	ctx := srvtest.SetupDB(t)
 
 	start := make(chan struct{})
 	errs := make(chan error, 2)

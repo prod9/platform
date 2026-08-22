@@ -5,21 +5,16 @@ import (
 	"testing"
 
 	"fx.prodigy9.co/data"
-	"fx.prodigy9.co/data/migrator"
 	"github.com/stretchr/testify/require"
 	"platform.prodigy9.co/srv/auth"
-	"platform.prodigy9.co/srv/migrate"
 	"platform.prodigy9.co/srv/srvtest"
 )
 
 // setupDB migrates the auth schema too: builds reference the user who asked for them, and
-// the /api/builds endpoint tests seed sessions. The jobs table comes along because the scan
-// schedules into it.
+// the /api/builds endpoint tests seed sessions. fx worker creates its own jobs table
+// lazily when the scan schedules work.
 func setupDB(t *testing.T) context.Context {
-	return srvtest.SetupDB(t,
-		migrate.JobsTable,
-		migrator.FromFS(Migrations),
-		migrator.FromFS(auth.Migrations))
+	return srvtest.SetupDB(t)
 }
 
 func queueTestBuild(t *testing.T, ctx context.Context, repo string) *Build {

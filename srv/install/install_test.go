@@ -3,15 +3,22 @@ package install
 import (
 	"testing"
 
+	"fx.prodigy9.co/app"
 	"fx.prodigy9.co/app/settings"
 	"github.com/stretchr/testify/require"
+	"platform.prodigy9.co/srv/auth"
 	"platform.prodigy9.co/srv/srvtest"
 )
+
+func init() {
+	app.RegisterMigrations(App.App())
+	app.RegisterMigrations(auth.App.App())
+}
 
 // A corrupt value under an install.* key must name the key it came from — the settings
 // rows are hand-inspectable state, and a bare strconv error points at nothing.
 func TestLoadBadFieldNamesKey(t *testing.T) {
-	ctx := srvtest.SetupDB(t, Source)
+	ctx := srvtest.SetupDB(t)
 	for key, value := range map[string]string{
 		keyOrgID:             "not-a-number",
 		keyOrgLogin:          "prodigy9",

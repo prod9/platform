@@ -31,6 +31,17 @@ func TestGetInstallReturnsOrderedEntries(t *testing.T) {
 	}
 }
 
+// The installer controller has no process-local installation state. Its visibility
+// belongs to the request-time durable gate around the fragment
+// (docs/spec/installation.md, "Boot composition — the application is permanent").
+func TestInstallControllerMountsWithoutProcessLocalGate(t *testing.T) {
+	cfg := fxtest.Configure()
+	router := chi.NewRouter()
+	ctr := InstallCtr{}
+
+	require.NoError(t, ctr.Mount(cfg, router))
+}
+
 // The server step has its own ungated action, like every settings-backed step
 // (docs/spec/installation.md, "The install settings").
 func TestPostServerSavesSetting(t *testing.T) {
@@ -185,7 +196,7 @@ func TestPostCredentialsWithoutDBUnavailable(t *testing.T) {
 }
 
 func setupAPI(t *testing.T) (context.Context, chi.Router) {
-	ctx := srvtest.SetupDB(t, Source)
+	ctx := srvtest.SetupDB(t)
 	cfg := fxtest.Configure()
 	router := chi.NewRouter()
 	router.Use(middlewares.Configure(cfg))

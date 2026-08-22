@@ -1,7 +1,7 @@
 // Package srvtest is the shared test scaffolding for srv fragments: postgres
-// availability gating and per-test database setup. It imports no fragment — each
-// fragment's tests pass in the migration sources they need, so srvtest stays usable
-// from every fragment without import cycles.
+// availability gating and per-test database setup. It imports no fragment: test
+// packages register their application trees, and SetupDB consumes fx's registered
+// migration source without creating fragment import cycles.
 package srvtest
 
 import (
@@ -16,18 +16,19 @@ import (
 	"fx.prodigy9.co/fxtest"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/require"
-	"platform.prodigy9.co/srv/migrate"
 )
 
-// SetupDB connects a fresh test database and applies the given migration sources,
-// skipping the test when postgres is unreachable. SECRET is set so fragments using
-// fx secret encryption work without per-test env plumbing.
-func SetupDB(t *testing.T, sources ...migrator.Source) context.Context {
+// SetupDB connects a fresh test database and applies the migrations registered by the
+// composed fx application, skipping when postgres is unreachable. SECRET is set so
+// fragments using fx secret encryption work without per-test env plumbing.
+func SetupDB(t *testing.T) context.Context {
 	SkipWithoutPostgres(t)
 	t.Setenv("SECRET", "the cake is a lie")
+	t.Chdir(t.TempDir())
 	ctx := fxtest.ConnectTestDatabase(t)
 
-	m := migrator.New(data.FromContext(ctx), migrate.Merged(sources...))
+	source := migrator.FromAuto(config.FromContext(ctx))
+	m := migrator.New(data.FromContext(ctx), source)
 	plans, dirty, err := m.Plan(ctx, migrator.IntentMigrate)
 	require.NoError(t, err)
 	require.False(t, dirty)
@@ -67,5 +68,5 @@ func SkipWithoutPostgres(t *testing.T) {
 	if err != nil {
 		t.Skipf("postgres unreachable: %s", err)
 	}
-	db.Close()
+	require.NoError(t, db.Close())
 }

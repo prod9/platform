@@ -12,17 +12,16 @@ import (
 
 	"fx.prodigy9.co/app/settings"
 	"fx.prodigy9.co/data"
-	"fx.prodigy9.co/data/migrator"
 	"github.com/jmoiron/sqlx"
 	"platform.prodigy9.co/srv/github"
-	"platform.prodigy9.co/srv/migrate"
+	"platform.prodigy9.co/srv/system"
 )
 
 type dbReachable struct{}
 
 func (dbReachable) name() string { return stepDBReachable }
 
-func (s dbReachable) Check(ctx context.Context, db *sqlx.DB, merged migrator.Source) Entry {
+func (s dbReachable) Check(ctx context.Context, db *sqlx.DB) Entry {
 	if db == nil {
 		return entry(s.name(), InterventionRequiredState, errNoDB)
 	}
@@ -38,12 +37,12 @@ type migrations struct{}
 
 func (migrations) name() string { return stepMigrations }
 
-func (m migrations) Check(ctx context.Context, db *sqlx.DB, merged migrator.Source) Entry {
+func (m migrations) Check(ctx context.Context, db *sqlx.DB) Entry {
 	if db == nil {
 		return entry(m.name(), UnknownState, errNoDB)
 	}
 
-	applied, pending, dirty, err := migrate.State(ctx, db, merged)
+	applied, pending, dirty, err := system.State(ctx, db)
 	if err != nil {
 		return entry(m.name(), UnknownState, err)
 	}
@@ -70,7 +69,7 @@ func (server) name() string { return stepServer }
 
 // Check reads the server's public URL and surfaces it in values — the one field its
 // re-opened panel pre-fills (docs/spec/installation.md, the state surface).
-func (s server) Check(ctx context.Context, db *sqlx.DB, merged migrator.Source) Entry {
+func (s server) Check(ctx context.Context, db *sqlx.DB) Entry {
 	return settingsBacked(ctx, db, s.name(), func(ctx context.Context) (map[string]string, error) {
 		publicURL, err := github.LoadPublicURL(ctx)
 		if err != nil {
@@ -88,7 +87,7 @@ func (org) name() string { return stepOrg }
 
 // Check reads the primary-org slug and surfaces it in values — the one field its
 // re-opened panel pre-fills (docs/spec/installation.md, the state surface).
-func (s org) Check(ctx context.Context, db *sqlx.DB, merged migrator.Source) Entry {
+func (s org) Check(ctx context.Context, db *sqlx.DB) Entry {
 	return settingsBacked(ctx, db, s.name(), func(ctx context.Context) (map[string]string, error) {
 		slug, err := github.LoadOrg(ctx)
 		if err != nil {
@@ -108,7 +107,7 @@ func (appCreated) name() string { return stepAppCreated }
 // generated keys are app-credentials' concern. The app id, slug, and client id
 // surface in values; the webhook secret never does
 // (docs/spec/installation.md, the state surface).
-func (s appCreated) Check(ctx context.Context, db *sqlx.DB, merged migrator.Source) Entry {
+func (s appCreated) Check(ctx context.Context, db *sqlx.DB) Entry {
 	return settingsBacked(ctx, db, s.name(), func(ctx context.Context) (map[string]string, error) {
 		creation, err := github.LoadAppCreation(ctx)
 		if err != nil {
@@ -132,7 +131,7 @@ func (appCredentials) name() string { return stepAppCredentials }
 // compares the App's permissions against the required set — saved-but-under-scoped
 // is partially ready, and the message names the gap
 // (docs/spec/installation.md, the credentials check).
-func (s appCredentials) Check(ctx context.Context, db *sqlx.DB, merged migrator.Source) Entry {
+func (s appCredentials) Check(ctx context.Context, db *sqlx.DB) Entry {
 	if db == nil {
 		return entry(s.name(), UnknownState, errNoDB)
 	}
@@ -173,7 +172,7 @@ func (registryToken) name() string { return stepRegistryToken }
 // Check requires the one ghcr key — the registry the wizard covers; presence is
 // the whole verdict, the token proves itself on the first publish
 // (docs/spec/installation.md, "The registry token").
-func (s registryToken) Check(ctx context.Context, db *sqlx.DB, merged migrator.Source) Entry {
+func (s registryToken) Check(ctx context.Context, db *sqlx.DB) Entry {
 	return settingsBacked(ctx, db, s.name(), func(ctx context.Context) (map[string]string, error) {
 		_, err := github.LoadRegistryToken(ctx, ghcrHost)
 		return nil, err
@@ -192,7 +191,7 @@ func (appInstalled) name() string { return stepAppInstalled }
 // the App's installations — no session involved, the truth lives on GitHub. Missing
 // prerequisites (schema, App credentials, org) read as not started: install is not
 // the next move until they exist (docs/spec/installation.md, the state surface).
-func (s appInstalled) Check(ctx context.Context, db *sqlx.DB, merged migrator.Source) Entry {
+func (s appInstalled) Check(ctx context.Context, db *sqlx.DB) Entry {
 	if db == nil {
 		return entry(s.name(), UnknownState, errNoDB)
 	}
@@ -238,7 +237,7 @@ type claimed struct{}
 
 func (claimed) name() string { return stepClaimed }
 
-func (s claimed) Check(ctx context.Context, db *sqlx.DB, merged migrator.Source) Entry {
+func (s claimed) Check(ctx context.Context, db *sqlx.DB) Entry {
 	return settingsBacked(ctx, db, s.name(), func(ctx context.Context) (map[string]string, error) {
 		_, err := Load(ctx)
 		return nil, err

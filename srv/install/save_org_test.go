@@ -14,7 +14,7 @@ func TestSaveOrgRequiresOrg(t *testing.T) {
 }
 
 func TestSaveOrgWritesSetting(t *testing.T) {
-	ctx := srvtest.SetupDB(t, Source)
+	ctx := srvtest.SetupDB(t)
 
 	require.NoError(t, (&SaveOrg{Org: "prod9"}).Execute(ctx, nil))
 

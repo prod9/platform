@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"fx.prodigy9.co/app"
 	"fx.prodigy9.co/config"
 	"fx.prodigy9.co/data"
-	"fx.prodigy9.co/data/migrator"
 	"fx.prodigy9.co/fxtest"
 	"fx.prodigy9.co/httpserver/middlewares"
 	"github.com/go-chi/chi/v5"
@@ -20,9 +20,14 @@ import (
 	"platform.prodigy9.co/srv/auth"
 	"platform.prodigy9.co/srv/github"
 	"platform.prodigy9.co/srv/install"
-	"platform.prodigy9.co/srv/migrate"
 	"platform.prodigy9.co/srv/srvtest"
 )
+
+func init() {
+	app.RegisterMigrations(App.App())
+	app.RegisterMigrations(auth.App.App())
+	app.RegisterMigrations(install.App.App())
+}
 
 func apiRouter(t *testing.T, cfg *config.Source) chi.Router {
 	if cfg == nil {
@@ -39,11 +44,7 @@ func apiRouter(t *testing.T, cfg *config.Source) chi.Router {
 // with the install.* settings claimed, stubbed App credentials, and a fake GitHub
 // serving token mints, the repo lookup, ref resolution, and the installation repo list.
 func setupInstalled(t *testing.T) (context.Context, *config.Source) {
-	ctx := srvtest.SetupDB(t,
-		migrate.JobsTable,
-		migrator.FromFS(Migrations),
-		migrator.FromFS(auth.Migrations),
-		install.Source)
+	ctx := srvtest.SetupDB(t)
 	require.NoError(t, srvtest.SeedSettings(ctx, map[string]string{
 		"install.installation_id": "7", "install.org_id": "9", "install.org_login": "prodigy9",
 		"install.installed_by_user_id": "1", "install.installed_by_login": "chakrit",

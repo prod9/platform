@@ -3,8 +3,8 @@ package install
 import (
 	"context"
 	"net/http"
-	"sync"
 
+	"fx.prodigy9.co/config"
 	"fx.prodigy9.co/data"
 	"fx.prodigy9.co/httpserver/render"
 	"platform.prodigy9.co/srv/github"
@@ -23,39 +23,28 @@ func FromContext(ctx context.Context) (*Record, bool) {
 	return record, ok
 }
 
-// RecordContext seeds every request with the bound install record — the ambient-truth
-// delivery for product fragments (docs/spec/installation.md). The record is written
-// once at claim and never updated, so it is loaded on first use and cached for the
-// router's lifetime. Fails closed: a product route never runs uninstalled.
-func RecordContext(next http.Handler) http.Handler {
-	var (
-		mu     sync.Mutex
-		cached *Record
-	)
+// RecordContext seeds every request with the current bound install record — the
+// ambient-truth delivery for product fragments (docs/spec/installation.md). It fails
+// closed: a product route never runs uninstalled.
+func RecordContext(*config.Source) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
+			if _, ok := data.LookupFromContext(req.Context()); !ok {
+				// data.Get panics without a data context, and a route behind this
+				// middleware must never run without the record — 500, not a crash.
+				render.Error(resp, req, 500, ErrNotInstalled)
+				return
+			}
 
-	return http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
-		if _, ok := data.LookupFromContext(req.Context()); !ok {
-			// data.Get panics without a data context, and a route behind this
-			// middleware must never run without the record — 500, not a crash.
-			render.Error(resp, req, 500, ErrNotInstalled)
-			return
-		}
-
-		mu.Lock()
-		record := cached
-		if record == nil {
-			loaded, err := Load(req.Context())
+			record, err := Load(req.Context())
 			if err != nil {
-				mu.Unlock()
 				render.Error(resp, req, 500, err)
 				return
 			}
-			record, cached = loaded, loaded
-		}
-		mu.Unlock()
 
-		next.ServeHTTP(resp, req.WithContext(NewContext(req.Context(), record)))
-	})
+			next.ServeHTTP(resp, req.WithContext(NewContext(req.Context(), record)))
+		})
+	}
 }
 
 // Bound resolves the install record: from the context when RecordContext seeded it,

@@ -17,7 +17,7 @@ func TestSaveRegistryTokenRequiresToken(t *testing.T) {
 // registries are the punted multi-registry UI (docs/spec/installation.md,
 // "The registry token").
 func TestSaveRegistryTokenWritesGHCRKey(t *testing.T) {
-	ctx := srvtest.SetupDB(t, Source)
+	ctx := srvtest.SetupDB(t)
 
 	action := &SaveRegistryToken{Token: "ghp_token"}
 	require.NoError(t, action.Execute(ctx, nil))
