@@ -1,10 +1,12 @@
 # Installation
 
-Status: **built.** The installer fragment, the `GET /api/install` state surface,
-the migrations, App-creation, and credentials actions, the boot-composition gating, the
-org-owner claim, and the wizard install page
-(`webui/src/routes/install/+page.svelte`) all ship today (`srv/install`,
-`srv.Router`). The auth model this sits on is frozen in
+Status: **partly built; composition rework intended.** The installer fragment, the
+`GET /api/install` state surface, the migrations, App-creation and credentials actions,
+the org-owner claim, and the wizard install page
+(`webui/src/routes/install/+page.svelte`) ship today (`srv/install`, `srv.Router`). The
+permanently composed fx application and request-time install gate specified below are the
+intended replacement for the current boot-selected router. The auth model this sits on is
+frozen in
 [platform-server-github-app-zero-rbac](../decisions/2026-06-29-platform-server-github-app-zero-rbac.md);
 the route surface lives in [platform-server.md](platform-server.md).
 
@@ -24,8 +26,8 @@ credentials, then the org binding — is saved into the settings app as its step
 completes, advancing the wizard to the next step. **All install-time settings
 live in settings**; the deployment supplies only `DATABASE_URL`, the listen
 address, and `SECRET` (the fx encryption key — it cannot live beside the
-ciphertext it protects) through fx config/env. srv refuses to boot the
-**installed** composition with `SECRET` unset — fx would otherwise silently
+ciphertext it protects) through fx config/env. srv refuses to boot while
+**claimed** with `SECRET` unset — fx would otherwise silently
 derive a publicly known key. The deployment also sets
 `DAGGER_ENGINE` — plain runtime config on both srv and the worker: the Dagger
 engine pool's headless-Service DNS name, spread across pods by k8s DNS itself,
@@ -72,15 +74,16 @@ The wizard UI holds these rules:
   the first unfinished step, with the progress list telling the truth.
 
 The whole concern lives in a single **installer fragment** (an fx app fragment).
-Product fragments — hooks, builds — have **zero install *flow* awareness**: they
-are mounted only once the server is claimed and never ask "am I
-installed" — boot answers that exactly once. The **bound install settings are
-ambient truth**, though: any product fragment may read them (`install.Load`) —
+Product fragments — hooks, builds — have **zero install *flow* awareness**: every
+fragment is composed permanently, and a request-time gate keeps product API requests out
+of the unclaimed installation flow. Product fragments never ask "am I installed". The
+**bound install settings are ambient truth**, though: any product fragment may read them
+(`install.Load`) —
 that is consuming the binding, not install awareness. When HTTP handlers need
 it, the install fragment delivers it as request-context middleware (the fx
 data-context pattern); until then the worker path reads the settings per job.
 
-**The auth fragment is the exception: it mounts in both compositions.** The
+**The auth fragment remains reachable on both sides of the gate.** The
 org-owner claim requires a logged-in GitHub user *before* the server is
 installed, so login (`/auth/github`, its callback, and the session endpoints)
 cannot sit behind the installed gate. Login still has real prerequisites — the
@@ -112,8 +115,9 @@ the check produced an error, and `values` — a string map of the step's
 **non-secret form fields** — so a re-opened panel can re-display what is saved
 (`server` surfaces the public URL; `org` the slug; `app-created` its app id,
 client id, and app slug; the secret-only steps surface nothing). Settings never
-round-trip wholesale: the state read is ungated, so the only values that reach
-the wire are the ones a step deliberately puts in its own `values`, and secrets
+round-trip wholesale: the state read requires no authentication while the installer gate
+exposes it, so the only values that reach the wire are the ones a step deliberately puts
+in its own `values`, and secrets
 never qualify — a secret's presence is implied by the step's state, never
 echoed.
 
@@ -237,22 +241,27 @@ tolerate-the-unbuilt-world assumption is the install fragment's alone: product
 packages (the App client's settings reads included) treat a missing settings
 table as the genuine fault it is post-install.
 
-## Boot composition — the installer gates the product API
+## Boot composition — the application is permanent
 
-Boot decides the API composition **once**, from the **claimed record alone**
-(`install.Installed` — every `install.*` setting non-empty, read install-safe:
-settings-schema probe first, so a pre-schema database answers "not installed"
-rather than eating a failing query). Installed-ness is the durable fact that
-the claim completed, **not** the live all-steps conjunction — a server that
-was claimed stays in the product composition whatever the checks would say
-today:
+The application composes **every fragment once and permanently**. Installed-ness comes
+from the **claimed record alone** (`install.Installed` — every `install.*` setting
+non-empty, read install-safe: settings-schema probe first, so a pre-schema database
+answers "not installed" rather than eating a failing query). It is the durable fact that
+the claim completed, **not** the live all-steps conjunction — a server that was claimed
+stays installed whatever the checks would say today.
 
-- **Webui `GET /*` and the auth fragment are mounted unconditionally** in both
-  states. They never need remounting.
-- **Not claimed** → installer *action* endpoints are mounted; product `/api/*`
-  is **not**. `GET /api/install` is served here — it is **part of the gated
-  installer fragment, not an always-available endpoint**.
-- **Claimed** → product `/api/*` is mounted; the installer actions are gone.
+A request-time install gate reads that fact and exposes one side of the application:
+
+- **Not claimed** → webui install routes, auth, and installer API endpoints are reachable;
+  product `/api/*` is gated out. `GET /api/install` is part of the installer fragment.
+- **Claimed** → product API and webui routes are reachable; installer UI and API routes,
+  including `GET /api/install`, return 404. The installer fragment remains composed but
+  disappears from the HTTP surface.
+
+fx's lazy `AddDataContext` middleware stays on the full HTTP stack. A database that is
+absent or unreachable therefore does not prevent boot; a DB-dependent request receives
+the ordinary connection error when it is handled. The installer checks remain responsible
+for tolerating the unbuilt schema where their contract requires it.
 
 **Post-install conditions never demote the server to the wizard.** A new
 release shipping a migration, a database blip, an App permission drifting on
@@ -263,25 +272,11 @@ remedied inside the product composition (the `srv/system` fragment's
 the install flow. The wizard's live checks run only while the server is
 unclaimed.
 
-The **installer→product transition is a process restart** — boot decides
-composition, there is no in-process hot-swap. The restart is self-inflicted:
-once the claim's write commits and its response is flushed to the client, srv
-logs that the install is complete and **exits 0** — a plain `os.Exit(0)`, no
-graceful drain (the only traffic at claim time is the wizard itself, and its
-poll retries through the blip); the supervisor (k8s) restarts the process,
-which boots into the product composition. The wizard's final panel polls
-through the blip and lands on the product UI.
-
-**Every installer-composition process converges on that same restart.** Only
-one process serves the claim; its peers learn the world changed by re-probing:
-a process booted into the installer composition re-reads `install.Installed`
-on an interval and, the moment the record reads claimed, takes the identical
-exit-0 restart. This is what converges a multi-replica deployment (the replicas
-that did not serve the claim) and a process that booted blind because the
-database was unreachable — its probe reconnects until the database answers. An
-installed process has nothing to converge and runs no probe; the only
-installed→installer transition is manual surgery plus a restart, by
-convention.
+The **installer→product transition happens in process**. The claim commits the durable
+record; subsequent requests on every replica read that record through the gate and see
+the product surface. No process exits, no supervisor restart participates, and no
+convergence probe is needed. Clearing the claim record makes the installer surface
+reachable again on subsequent requests; doing so remains manual surgery by convention.
 
 ### The SvelteKit SPA drives the installer-vs-app view
 
@@ -289,7 +284,7 @@ The redirect to the installer is **SPA code, not the backend**. The root-layout
 guard probes `GET /api/install`:
 
 - **200 + not-installed** → the SPA redirects to `/install` and runs the flow.
-- **404** (installer fragment absent) → installed (claimed) → render the app.
+- **404** (installer fragment gated out) → installed (claimed) → render the app.
 
 `GET /api/install` is deliberately **not always-available** — its presence *is*
 the signal. Depending on 404-as-signal is accepted for now.
@@ -297,8 +292,8 @@ the signal. Depending on 404-as-signal is accepted for now.
 **Every state read classifies by that signal, not just the root-layout guard.**
 The install page's own read applies the same three-way classification: a 404
 means the server got installed since the shell loaded, and the page forces a
-full navigation to `/` (a fresh shell from the installed composition — never a
-client-side route, which would keep the stale shell). Only a genuinely
+full navigation to `/` (a fresh product shell — never a client-side route,
+which would keep the stale shell). Only a genuinely
 troubled read — no answer, or a non-404 refusal — renders as a load error.
 
 ## First-install gate — no secret, org-owner claim
@@ -386,7 +381,7 @@ The claim: the GitHub App Setup URL is a browser redirect, so it lands on the
 with that id (session-gated: resolve installation→org via the App API, verify
 the session user is an org owner, write the values) — the write sits behind a
 POST, never the landing GET. The session requirement is why the auth fragment
-mounts pre-install. A browser that lost the id (a fresh tab, a cleared session)
+remains reachable pre-install. A browser that lost the id (a fresh tab, a cleared session)
 re-fires the redirect by re-saving the installed App's repository selection on
 GitHub — the claim panel says so and links the installation page. The write
 needs the `settings` table, so the claim runs **after** migrations, which is
@@ -486,7 +481,7 @@ here — it was set on the creation form.
 **`claimed` — the org-owner claim**: sign in (session state, not step work —
 the panel offers it when no session exists), then one action: Claim, which
 binds the installation to the server (§The install settings) and completes
-the wizard — the server then restarts itself into the product composition
+the wizard — subsequent requests pass through the gate to the product surface
 (§Boot composition).
 
 A `docs/guides/` conceptual how-to is **deferred** — a thin pre-deploy discovery
@@ -517,11 +512,11 @@ Migrations **never auto-run at boot**. Two paths reach the same schema:
 - **Installer button** — the `migrations` remediation on the install page, which `POST`s
   `/api/install/migrations` (an installer-fragment action). Installer actions —
   migrations and credentials alike — are **deliberately ungated**: the deployment
-  URL is treated as secret until the install record exists, and the boot
-  install-route switch removes the exposure once the server is completely
+  URL is treated as secret until the install record exists, and the request-time
+  install gate removes the exposure once the server is completely
   installed. No session requirement applies.
 
-Because a pending migration drops the **whole product to the installer** (intended
-— the product API refuses to mount against an out-of-date schema), the CLI pre-run
-is the standard mitigation: migrate first, then deploy, and the new process boots
-straight into the product.
+After claim, pending migrations are an operational condition of the installed product.
+They never demote it to the installer: `GET`/`POST /api/migrations` in `srv/system`
+reports and remediates them. The CLI pre-run remains the standard deployment practice:
+migrate first, then deploy, so the new process begins against the current schema.

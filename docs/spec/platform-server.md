@@ -54,35 +54,28 @@ packages are the leaves and must never import server
 concerns** — no `fx/data`/`sqlx`/migrations, no `net/http` server, no auth, no knowledge
 that `srv` exists.
 
-Internally `srv` is an **fx application, composed with fx's app builder** — one
+Internally `srv` is an **fx application composed on fx's sanctioned public surface** — one
 self-contained fragment subpackage per concern (`srv/auth`, `srv/github`, `srv/builds`,
 `srv/repos`, `srv/install`, `srv/system`), each declaring an fx app fragment
 (`app.Build()`) that carries its controllers and, where it owns tables, its
 `EmbedMigrations` (`github` is config-only, no schema; the fx settings app's schema
 arrives by mounting `settings.App`, never by reaching into its migrations accessor).
-The root composes fragments by mounting them; boot decides **per install state** — from
-`install.Installed` (the claimed record, read install-safe —
-[installation.md](installation.md) §Boot composition) — whether the installer fragment
-or the product fragments mount. The **auth fragment mounts in both** compositions,
-because the org-owner claim needs a login before the server is installed (see
-[installation.md](installation.md)). A hand-rolled router composition outside the fx
-builder is a defect, not a style choice — `srv/` answers to fx. The seams the fx shape
-must still carry: platform's own cobra root (fx must not take over the CLI), the
-boot-time composition decision, and the webui fallback-status handler; where fx lacks
-an affordance, the fix routes to fx, never a local workaround.
+Platform retains its own Cobra root and composes fx manually through the public
+collectors: `RegisterMigrations` registers the complete fragment tree, while
+`CollectCommands`, `CollectJobs`, and `CollectFragment` supply its commands, worker jobs,
+and HTTP application. The data command is built with those registered migration sources;
+srv never reaches into fx internals or recreates an fx composition walk.
 
-Two seams once thought to need fx affordances are settled as needing **none** — do not
-re-open them:
-
-- **The claim's exit-0 restart needs no shutdown affordance.** The claim handler
-  flushes its response and calls `os.Exit(0)` — a graceful drain buys nothing at claim
-  time (the only traffic is the wizard, whose poll loop retries through the blip;
-  [installation.md](installation.md) §Boot composition), and exit 0 keeps the restart
-  reading as intentional to the supervisor.
-- **DB-less boot sits on the existing surface.** fx's `AddDataContext` connects lazily
-  and fails per-request, and middleware stacks are per-fragment — so the installer
-  fragment simply omits the data-context middleware while product fragments carry it;
-  no conditional composition is required.
+Every fragment — installer and product alike — is composed permanently. A request-time
+gate reads `install.Installed` (the claimed record, read install-safe —
+[installation.md](installation.md) §Boot composition): before claim it exposes
+the installer UI/API and auth while gating product API requests; after claim it exposes
+the product and returns 404 from installer UI/API routes. The claim changes the reachable
+surface without restarting the process. fx's lazy `AddDataContext` middleware remains on
+the full HTTP stack, so DB-less boot uses the framework's ordinary per-request connection
+failure rather than a second composition. The webui fallback-status handler remains the
+other platform-specific seam. Where fx lacks an affordance, the fix routes to fx, never a
+local workaround.
 
 **Migration sources are fx's concern, not srv's.** Each fragment's SQL reaches fx's
 registry through its own `EmbedMigrations` declaration, walked by fx's app composition
@@ -245,10 +238,10 @@ ever reads it.
 **The server always boots.** A DB it cannot reach is an install-state error rather than a
 boot failure, and **migrations never run at boot** — they are the installer's button, the
 settings page's Database section (`POST /api/migrations`), or
-`./platform srv data migrate` ([installation.md](installation.md)). Boot's one decision is
-the API composition, taken once from `install.Installed` (the claimed record): the
-installer fragment while the server is unclaimed, the product fragments once claimed. Nothing at boot touches the
-build queue; executing builds is the worker's, and the queue is the records themselves.
+`./platform srv data migrate` ([installation.md](installation.md)). The full fx application
+is composed regardless of install state; `install.Installed` controls the request-time
+surface, not boot. Nothing at boot touches the build queue; executing builds is the
+worker's, and the queue is the records themselves.
 
 ## Triggering a build
 
