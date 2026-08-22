@@ -11,8 +11,10 @@ Scaffolding has exactly three concerns, each with one home:
 - **The `Infra` framework** — owns the cluster baseline it scaffolds: its component set,
   version pins, and destination routing (the bytes ship in the `framework/skel`
   collection, alongside the universal launcher). There is no standalone `baseline/` package.
-- **`cmd/init`** — the human orchestration: gather operator inputs → `framework.Discover`
-  → `fw.Scaffold` → confirm → write.
+- **`scaffolding/`** — the initialization domain: target validation, framework discovery,
+  operator input data, plan construction, and file application. The thin Cobra adapter is
+  `cmd/init_cmd.go` and owns prompt/session wiring; the domain package owns no command
+  registration.
 
 A `Framework` is the sole owner of a project type, so what a repo scaffolds is
 `fw.Scaffold`'s output — nothing branches on app-vs-infra. An **app repo** gets a
@@ -147,22 +149,24 @@ evaluator's language version (so render never demands a newer language than it l
 module is the operator's truth — read its path (`ModulePath`, `@vN` suffix stripped), never
 rewritten.
 
-## `cmd/init` — orchestration
+## `scaffolding/` — initialization domain
 
-`cmd/init` (alias `scaffold`) drives the flow and owns every mutation. It is
-**plan-then-apply**: computing the plan reads only, so `init` prints and confirms it before
-touching the tree.
+`cmd/init_cmd.go` (aliases `init` and `scaffold`) drives the flow through `scaffolding/`,
+which owns every mutation. It is **discover-then-plan-then-apply**: discovery validates the
+target and resolves its framework once; planning reads only; the command prints and confirms
+the plan before touching the tree.
 
-1. `init` validates the target: it exists, is a directory, and is its own git repo root
+1. `scaffolding.Discover(wd)` validates the target: it exists, is a directory, and is its
+   own git repo root
    (`git.IsRoot` — a `.git` **directly** in `wd`, no walk-up, so a standalone repo nested
    inside another checkout counts only with its own `.git`).
-2. `framework.Discover(wd)` resolves the owning framework, and `init` prompts for the
-   inputs its `RequiredScaffoldInputs(wd)` declares.
-3. `fw.Scaffold(ctx, wd, env, inputs)` — `env` is `scaffold.Env` (repository, maintainer
-   email, dagger SDK version) — returns the `scaffold.Spec` —
-   module, vars, files (resolved), the seeded `strategy` value. `init` computes the
-   `platform.toml` disposition (below) and builds a plan.
-4. It prints the plan, confirms, then writes finished bytes.
+2. The same call resolves the owning framework and returns a `Target` that retains it. The
+   command prompts for the additional inputs `Target.ScaffoldVars()` reports.
+3. `Target.Plan(info, vars)` calls the retained framework's `Scaffold` once. Its
+   `scaffold.Spec` carries the module, vars, resolved files, and seeded `strategy`; the target
+   computes the `platform.toml` disposition and returns a read-only plan.
+4. The command prints and confirms the plan, then calls `Plan.Apply()` or, for `--force`,
+   `Plan.ForceApply()`.
 
 **The git precondition is uniform, not framework-set.** Platform never runs `git init` —
 the operator creates the repo (or clones) first, for every framework alike: delivery is
@@ -170,18 +174,20 @@ git-based end to end, so a non-repo target is always a mistake.
 
 The plan carries `Files []FileChange` and `Vars []VarChange`. Each `FileChange` records
 `FileWrite` vs `FileOverwrite` (decided by an existence stat at plan time) so `Print` can
-warn before an overwrite. `Apply` writes, **skipping overwrites**; `ApplyOverwrite` replaces
-in place. `Overwrites()` counts replacements so `init` prompts only when some exist. `init`
+warn before an overwrite. `Apply` writes, **skipping overwrites**; `ForceApply` replaces in
+place. `Overwrites()` counts replacements so `init` prompts only when some exist. `init`
 closes by encoding the effective parsed config (`conf.Load`, same view as
 `configure`) so the operator sees the resolved result of the freshly written `platform.toml`.
 
 ### Non-interactive drive
 
-Drive `init` non-interactively with **`ALWAYS_YES=1`**, not `--force`. They are orthogonal:
+Drive `init` non-interactively with positional values **and** `ALWAYS_YES=1`. `--force` is
+orthogonal:
 
-- `ALWAYS_YES=1` — the fx prompt session auto-answers every prompt (`YesNo` returns yes).
-  This is how you script an init.
-- `--force` — sets `ApplyOverwrite`: **replace existing files** instead of keeping them.
+- Positional arguments supply the value prompts in order: maintainer, email, repository,
+  then any framework `ScaffoldVars`.
+- `ALWAYS_YES=1` — the fx prompt session auto-answers only yes/no confirmation gates.
+- `--force` — selects `ForceApply`: **replace existing files** instead of keeping them.
   Purely about the write disposition, not about suppressing prompts.
 
 ### `platform.toml` disposition

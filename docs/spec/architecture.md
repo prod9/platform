@@ -80,7 +80,7 @@ above — say nothing about it. See [platform-server.md](platform-server.md).
 A **`Framework` is the sole owner of a project type** — it recognizes itself, scaffolds
 itself, and builds itself. Only two things sit outside a framework: the `platform.toml`
 data model, and the `init` command's human orchestration. The packages form an acyclic
-graph `conf ← framework/scaffold ← framework ← cmd`:
+graph `conf ← framework/scaffold ← framework ← scaffolding ← cmd`:
 
 - `conf/` — the `platform.toml` model, both directions: `Generate` and the surgical
   `[vars]` merge. The publish target is not a stored section: a module's image is inferred
@@ -110,16 +110,15 @@ graph `conf ← framework/scaffold ← framework ← cmd`:
   `framework/` like `gowork`, its stack-specific companion. Publishing is the ordinary
   `publish` path now that infra is a framework; the oras packer is retired.
 - `cmd/` — `main.go` defers to `cmd.Execute()`. `cmd` holds the root Cobra command
-  (persistent `-q`/`-v`, and `-f` for an alt `platform.toml`) plus **one file per
-  single-file subcommand**. A subcommand only earns its own subpackage (exporting `Cmd`)
-  once it grows a file cluster — today `cmd/init` alone (package `initcmd`; Go reserves
-  `init`). Single-file subcommands stay flat in `package cmd`. All read the config first.
+  (persistent `-q`/`-v`, and `-f` for an alt `platform.toml`) plus one file per command.
+  The `init` command's adapter lives at `cmd/init_cmd.go`; it presents prompts and the
+  plan, confirms, and calls `Apply` or `ForceApply`. Command-domain logic does not live here.
   **A file here is a command; anything package-generic goes in `cmd/cmd.go`** — the Go
-  convention of naming the package-level file after the package. Never invent a
-  topic-named third kind of file (`progress.go`, `helpers.go`).
-- `cmd/init` — the human orchestration of `platform init`: gather operator inputs →
-  `framework.Discover` → `fw.Scaffold` → confirm → write. No app-vs-infra branch; the
-  distinction is pure `Scaffold` polymorphism (`Infra.Scaffold` simply contributes more).
+  convention of naming the package-level file after the package.
+- `scaffolding/` — the platform-initialization domain: `Discover` validates the target and
+  resolves its framework once; the resulting `Target` exposes its `ScaffoldVars` and builds
+  a read-only `Plan`; `Apply` preserves existing files and `ForceApply` overwrites them. Its
+  Cobra adapter remains in `cmd/init_cmd.go`; the package owns no command registration.
 - `engine/` — the Dagger runtime: discovers the available Dagger **runners**, and drives
   one unit's planned steps per `Run` across them, reporting to a caller-supplied
   `Observer`. Multi-unit fan-out lives **here**, behind domain verbs (`Build`,
@@ -145,7 +144,7 @@ The former `baseline/` and top-level `scaffold/` packages are **absorbed**, not 
 packages: `baseline/`'s templating folds into `framework/scaffold/` and its embedded infra
 files + version pins + routing move into the `Infra` framework; `scaffold/`'s mechanism
 folds into `framework/scaffold/`, its discovery into `framework/`, and its orchestration
-into `cmd/init`.
+into `scaffolding/`, behind the `cmd/init_cmd.go` adapter.
 
 Command surface: `init  build  configure  exec  export  ls  preview  publish  release
 render  clean  srv  versions`. `clean` prunes the local Dagger build cache

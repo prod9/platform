@@ -7,7 +7,8 @@ This spec owns the per-stack strategies, stack discovery, and the shared Wolfi b
 sits at the `interpret`/`strategies` stages of the pipeline. The
 [architecture spec](architecture.md) frames the pipeline and the two data models,
 [engine](engine.md) owns execution, and [scaffolding](scaffolding.md) owns the scaffold
-mechanism and `cmd/init` orchestration — read [architecture.md](architecture.md) first.
+mechanism and `scaffolding/` orchestration behind `cmd/init_cmd.go` — read
+[architecture.md](architecture.md) first.
 
 ## The `Framework` contract
 
@@ -20,7 +21,7 @@ state. Seven methods:
 | `Name() string`                                           | id        | Stable id (`go/basic`, `pnpm/static`, …); `[modules]` key |
 | `Layout() Layout`                                         | shape     | `basic` \| `workspace` — module topology                  |
 | `Discover(wd string) bool`                                | detect    | True if this stack owns `wd` (scaffold-time only)         |
-| `RequiredScaffoldInputs(wd) []string`                     | inputs    | Operator inputs to prompt at init, by name (usually nil)  |
+| `ScaffoldVars(wd) []string`                               | inputs    | Operator inputs to prompt at init, by name (usually nil)  |
 | `Scaffold(ctx, wd, env, inputs) Spec`                     | seed      | The framework's full, **resolved** contribution (below)   |
 | `Plan(*BuildUnit) []Step`                                 | steps     | The ordered steps this unit's build is made of            |
 | `Execute(ctx, client, *BuildUnit, Step, in) (out, error)` | container | Run **one** step: container in → container out            |
@@ -68,8 +69,9 @@ they are simply silent.
 contribution to a fresh repo (`scaffold.Spec`): its `platform.toml` module, the default
 `[vars]` it seeds, the files it ships, and the default `strategy` value it seeds. The
 framework owns resolution — which operator input fills which template hole, reading an
-existing `cue.mod` — so the files come back **resolved** and `cmd/init` gathers the inputs
-`RequiredScaffoldInputs` declares, generates `platform.toml`, and writes finished bytes.
+existing `cue.mod` — so the files come back **resolved** and `scaffolding.Target` carries the
+framework resolved by `Discover`; `cmd/init_cmd.go` prompts for the `ScaffoldVars` it exposes,
+then asks the target to plan `platform.toml` and the finished bytes.
 There is **no `IsInfra` / app-vs-infra predicate**: `Infra.Scaffold` simply *does more*
 (it contributes the whole cluster baseline and a `strategy="rolling"` seed), so the
 app/infra distinction is pure `Scaffold` polymorphism. The `scaffold.Spec`/`scaffold.File`
