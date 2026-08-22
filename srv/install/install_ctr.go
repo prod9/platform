@@ -121,7 +121,8 @@ func (c InstallCtr) runMigrations(resp http.ResponseWriter, req *http.Request) {
 	}
 
 	ctx := req.Context()
-	if err := runMigrations(ctx, db); err != nil {
+	action := &RunMigrations{}
+	if err := action.Execute(ctx, nil); err != nil {
 		render.Error(resp, req, http.StatusInternalServerError, err)
 		return
 	}

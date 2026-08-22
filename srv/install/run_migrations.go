@@ -6,16 +6,18 @@ import (
 	"fmt"
 
 	"fx.prodigy9.co/config"
+	"fx.prodigy9.co/data"
 	"fx.prodigy9.co/data/migrator"
 	"fx.prodigy9.co/fxlog"
-	"github.com/jmoiron/sqlx"
 )
 
-// runMigrations applies the complete clean bootstrap plan before the installer writes
+// RunMigrations applies the complete clean bootstrap plan before the installer writes
 // settings-backed state.
-func runMigrations(ctx context.Context, db *sqlx.DB) error {
+type RunMigrations struct{}
+
+func (*RunMigrations) Execute(ctx context.Context, out any) error {
 	source := migrator.FromAuto(config.FromContext(ctx))
-	runner := migrator.New(db, source)
+	runner := migrator.New(data.FromContext(ctx), source)
 
 	plans, dirty, err := runner.Plan(ctx, migrator.IntentMigrate)
 	if err != nil {
