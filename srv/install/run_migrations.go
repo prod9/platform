@@ -9,11 +9,14 @@ import (
 	"fx.prodigy9.co/data"
 	"fx.prodigy9.co/data/migrator"
 	"fx.prodigy9.co/fxlog"
+	"fx.prodigy9.co/httpserver/controllers"
 )
 
 // RunMigrations applies the complete clean bootstrap plan before the installer writes
 // settings-backed state.
 type RunMigrations struct{}
+
+var _ controllers.Action = (*RunMigrations)(nil)
 
 func (*RunMigrations) Execute(ctx context.Context, out any) error {
 	source := migrator.FromAuto(config.FromContext(ctx))

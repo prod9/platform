@@ -179,9 +179,9 @@ func TestPostCredentialsAllRequired(t *testing.T) {
 	require.ErrorIs(t, err, github.ErrNoApp)
 }
 
-// Without a database no credential post can succeed, whatever the body says — the
-// missing DB is reported before the body is even parsed, matching runMigrations.
-func TestPostCredentialsWithoutDBUnavailable(t *testing.T) {
+// Without a database no ungated installer mutation can succeed. The controller reports
+// the missing DB before parsing a credential body or executing the no-body migration action.
+func TestUngatedPostWithoutDBUnavailable(t *testing.T) {
 	cfg := fxtest.Configure()
 	router := chi.NewRouter()
 	router.Use(middlewares.Configure(cfg))
@@ -192,6 +192,9 @@ func TestPostCredentialsWithoutDBUnavailable(t *testing.T) {
 	require.Equal(t, http.StatusServiceUnavailable, resp.Code)
 
 	resp = postJSON(context.Background(), router, "/api/install/app", `{"app_id": 1}`)
+	require.Equal(t, http.StatusServiceUnavailable, resp.Code)
+
+	resp = postJSON(context.Background(), router, "/api/install/migrations", "")
 	require.Equal(t, http.StatusServiceUnavailable, resp.Code)
 }
 
