@@ -267,7 +267,7 @@ for tolerating the unbuilt schema where their contract requires it.
 release shipping a migration, a database blip, an App permission drifting on
 GitHub — these are operational states of an installed server, surfaced and
 remedied inside the product composition (the `srv/system` fragment's
-`GET /api/settings` and `GET`/`POST /api/migrations` —
+`GET /api/system/settings` and `GET`/`POST /api/system/migrations` —
 [platform-server.md](platform-server.md) §Operations), never by re-entering
 the install flow. The wizard's live checks run only while the server is
 unclaimed.
@@ -505,7 +505,8 @@ and the rebuild drops it.
 
 ## Migrations — never at boot
 
-Migrations **never auto-run at boot**. Two paths reach the same schema:
+Migrations **never auto-run at boot**. Installation and steady-state operation are
+separate phases with separate migration operations:
 
 - **CLI** — `./platform srv data migrate`, run before a deploy so the new boot
   comes up already migrated.
@@ -514,9 +515,17 @@ Migrations **never auto-run at boot**. Two paths reach the same schema:
   migrations and credentials alike — are **deliberately ungated**: the deployment
   URL is treated as secret until the install record exists, and the request-time
   install gate removes the exposure once the server is completely
-  installed. No session requirement applies.
+  installed. No session requirement applies. This is a bootstrap pass over the complete
+  registered pending set, starting from an empty or partially built database. A successful
+  pass leaves the fx settings migration applied; only then do the settings-backed wizard
+  steps have durable storage. The response is the refreshed ordered install state.
 
 After claim, pending migrations are an operational condition of the installed product.
-They never demote it to the installer: `GET`/`POST /api/migrations` in `srv/system`
-reports and remediates them. The CLI pre-run remains the standard deployment practice:
+They never demote it to the installer: `GET`/`POST /api/system/migrations` in `srv/system`
+reports and remediates them through its own post-install operation; it does not reuse or
+import the installer action. A small amount of duplicated fx migration plumbing between
+the fragments is acceptable to preserve those ownership boundaries. The system operation
+is the day-to-day upgrade flow for an already claimed installation and returns its fresh
+operational migration state, not the installer checklist. The CLI pre-run
+remains the standard deployment practice:
 migrate first, then deploy, so the new process begins against the current schema.

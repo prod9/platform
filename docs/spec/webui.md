@@ -12,7 +12,7 @@ pages a signed-in user works in. The install wizard is specced separately in
 
 ## Navigation
 
-Three sections: **Repositories · Engines · Settings.** The repositories page is the
+Three sections: **Repositories · Engines · System.** The repositories page is the
 landing page — builds are not a top-level section because a build belongs to a repo, and
 the pages nest the same way. The left rail carries the wordmark only, and the wordmark
 goes home. Pages run full-width and carry no explainer copy — the UI states facts, it
@@ -29,7 +29,8 @@ does not introduce itself.
 | `/builds/{id}`                   | build detail: navigator + terminal      | `GET /api/builds/{id}`, `GET /api/builds/{id}/steps`                   |
 | `/engines/`                      | engine fleet                            | `GET /api/engines`                                                     |
 | `/engines/{addr}`                | one engine instance                     | `GET /api/engines/{addr}`                                              |
-| `/settings/`                     | install facts + database state          | `GET /api/settings`, `GET /api/migrations`; runs `POST /api/migrations` |
+| `/system/settings/`              | System / Settings                       | `GET /api/system/settings`                                              |
+| `/system/migrations/`            | System / Migrations                     | `GET /api/system/migrations`; runs `POST /api/system/migrations`        |
 
 Build detail stays `/builds/{id}` — the id is global, and a build link must survive
 being pasted without its repo context.
@@ -89,18 +90,25 @@ engine-log terminal; engine logs are pod logs, which is k8s ground — that pane
 to the **cluster-view slice** ([platform-server.md](platform-server.md), the cluster
 view held for its own design pass) and is out of this surface.
 
-**Settings (`/settings/`).** The install-time facts, read-only, grouped in sections
+**System** is one top-level destination with two peer subviews. Its shared subnavigation
+keeps Settings and Migrations visible on both pages.
+
+**System / Settings (`/system/settings/`).** The install-time facts, read-only, grouped in sections
 (server, GitHub App, registry). Secrets render as middot runs — the server already
-serves them masked and never the value (`GET /api/settings`). Changing an install fact
+serves them masked and never the value (`GET /api/system/settings`). Changing an install fact
 is not in this surface; those sections state, they do not edit.
 
-A **Database** section follows: the schema state from `GET /api/migrations` (applied,
-pending, dirty), with a **Run migrations** action when migrations are pending — a new
-release shipping a migration is remedied here, inside the product composition, never by
-demotion to the install wizard ([installation.md](installation.md) §Boot composition).
-A dirty schema renders its message and offers no button — that is operator surgery. A
-failed read renders its error; no separate reachability probe is built, the read
-failing *is* the reachability signal.
+**System / Migrations (`/system/migrations/`).** `GET /api/system/migrations` returns the
+ordered fx migration plan, rendered one item per line with its action and migration
+name. An empty plan says the schema is current. `migrate` lines enable **Run
+migrations**; a new release shipping a migration is remedied here, inside the product
+composition, never by demotion to the install wizard
+([installation.md](installation.md) §Boot composition). `update sql` (resync) and
+`remove` (prune) actions are classified by the client and render as warnings. Their
+presence removes the run button and gives one manual recovery instruction:
+shell into the server and run `./platform srv data resync-migrations --force`, then
+refresh. A failed read renders its error; no separate reachability probe is built, the
+read failing *is* the reachability signal.
 
 ## Shared components
 

@@ -82,21 +82,40 @@ registry through its own `EmbedMigrations` declaration, walked by fx's app compo
 — srv never calls `migrator.Embed`, threads no `migrator.Source` values, and holds no
 merge code. Every migration consumer reads fx's default source (`migrator.FromAuto`) —
 the same composition fx's own CLI and middleware use. The only migration knowledge in
-srv is *clean-or-not* and *apply what is missing*, run by the installer, the system
-fragment, or the CLI, **never at boot**. The jobs table is fx worker's own concern
+srv lives in two deliberately separate operations: the install fragment owns its
+pre-install migration step, while the system fragment owns post-install schema
+observation and remediation. They may duplicate the small amount of fx `Plan`/`Apply`
+plumbing rather than importing one another. The CLI remains a third entry point, and
+none runs **at boot**. The jobs table is fx worker's own concern
 (`worker.Start` creates it), not a srv migration.
+
+The two HTTP operations share fx's migration mechanism, not one domain action. The
+installer operation is **bootstrap**: against an empty or partially built database it
+applies the complete pending set, and success must leave the fx settings migration
+applied so the following wizard steps have somewhere durable to store credentials. Its
+response is the refreshed installer checklist. The system operation is **steady-state
+upgrade remediation**: against an already claimed installation it reports and applies
+newly shipped pending migrations, and responds only with the fresh operational migration
+plan. The response preserves fx's ordered, line-by-line plan: one item per
+`migrator.Plan`, projected as `{action,migration}` without exposing
+the migration's SQL. The server assigns no presentation category to an item: action is
+the fact, and the client decides how each action renders. A dirty plan still makes the
+HTTP run action refuse rather than applying resync or prune remotely; recovery is the
+operator deliberately running `./platform srv data resync-migrations --force` in a
+server shell. Platform neither folds the plan into aggregate counts nor performs resync
+over HTTP. An empty plan means the schema is current; a successful POST returns the newly
+empty plan.
 
 **`srv/system` is the post-install operational surface** — how an installed server is
 observed and kept current from inside the product composition: the masked install-facts
-read (`GET /api/settings`) and the schema state and remediation
-(`GET`/`POST /api/migrations`). It owns the migrations domain (`system.State`,
-`system.Run` — thin shapes over fx's public `Plan`/`Apply`) that the installer's wizard
-step and run-button delegate to — one implementation, two surfaces: the wizard
-remediation pre-install, operations post-install.
+read (`GET /api/system/settings`) and the schema state and remediation
+(`GET`/`POST /api/system/migrations`). Its migration operation is post-install product behavior;
+the installer's pre-install migration step remains owned and implemented by
+`srv/install`. Neither fragment delegates migration execution to the other.
 
 The fragment import graph
 is acyclic — `auth → github`, `builds → {auth, github, install}`, `repos → {auth,
-github, install}`, `install → {auth, github, system}`, `system → {auth, github}`
+github, install}`, `install → {auth, github}`, `system → {auth, github, install}`
 (the org-owner claim is session-gated, so the installer consumes auth;
 product fragments may read the bound install settings — that edge carries the settings
 read only, never install-flow state; see [installation.md](installation.md)) —
@@ -112,7 +131,7 @@ through a purpose-built installer action (`POST /api/install/server`,
 `POST /api/install/credentials`, `POST /api/install/registry`, the claim) or
 the model accessors (`settings.Get`/`Upsert`) directly; a generic key/value API would be
 an unauthenticated-write surface pre-install. Post-install the one reader is
-`GET /api/settings` — session-gated, read-only, and masking: a secret-valued key
+`GET /api/system/settings` — session-gated, read-only, and masking: a secret-valued key
 (private key, client secret, webhook secret, registry token) serves a masked
 placeholder, never the value, so the settings page can show *that* a credential is
 present without the server ever replaying it. The settings migration reaches the
@@ -153,9 +172,9 @@ lives under `/api`; GitHub-facing and health routes stay bare.
 | `POST /api/builds`          | session                   | records a `webui`-triggered build: owner/repo + ref, sha resolved server-side; may carry a module list | the manual trigger — the same domain fact as the webhook, authorized by session instead of HMAC; module selection is the manual trigger's alone (§Triggering a build) |
 | `GET /api/engines`          | session                   | the engine fleet: the DNS roster resolved per request, each instance dial-checked      | the engines page — the fleet the builds run on, read from the same `DAGGER_ENGINE` source the worker dials ([engine.md](engine.md) §Runner discovery) |
 | `GET /api/engines/{addr}`   | session                   | one engine instance: reachability, version, current + recent builds (from `build_events.engine`) | the engine detail page; the instance is named by its resolved `host:port`, URL-encoded                             |
-| `GET /api/settings`         | session                   | the install-time facts, read-only; secret-valued keys are served **masked, never the value** | the settings page — the one post-install reader of the install settings (`srv/system`)                             |
-| `GET /api/migrations`       | session                   | schema state: applied, pending, dirty                                                 | the settings page's Database section — a new release's pending migration is an operational fact of an installed server, never a demotion to the wizard ([installation.md](installation.md) §Boot composition) |
-| `POST /api/migrations`      | session                   | applies pending migrations; response is the fresh schema state                        | the post-install run button (`srv/system`); re-runnable, applies only what is missing — same domain code as the wizard's button |
+| `GET /api/system/settings`         | session                   | the install-time facts, read-only; secret-valued keys are served **masked, never the value** | the System / Settings page — the one post-install reader of the install settings (`srv/system`)                             |
+| `GET /api/system/migrations`       | session                   | the ordered migration plan, one projected fx plan item per line; empty means current | the System / Migrations page; the client interprets each action for presentation |
+| `POST /api/system/migrations`      | session                   | applies a clean pending migrate plan; response is the freshly planned result           | the post-install run button owned by `srv/system`; distinct from the installer's pre-install migration operation |
 | `POST /hooks/github`        | App webhook HMAC          | verifies signature; queues a build row per pushed `refs/tags/v*`                      | the pull-model trigger: a version tag *is* the build request (delivery-verbs ADR)                                  |
 | `GET /api/install`          | none (installer fragment) | ordered install-state list; served **only while the server is unclaimed**             | drives the SPA installer-vs-app decision ([installation.md](installation.md)); its 404 *is* the "installed" signal |
 | `POST /api/install/claim`   | session (installer)       | org-owner claim: resolve installation→org, verify owner, write the `install.*` settings | the first-install gate; the App Setup URL lands on the webui install page, which posts here ([installation.md](installation.md)) |
@@ -237,7 +256,7 @@ ever reads it.
 
 **The server always boots.** A DB it cannot reach is an install-state error rather than a
 boot failure, and **migrations never run at boot** — they are the installer's button, the
-settings page's Database section (`POST /api/migrations`), or
+System / Migrations page (`POST /api/system/migrations`), or
 `./platform srv data migrate` ([installation.md](installation.md)). The full fx application
 is composed regardless of install state; `install.IsInstalled` controls the request-time
 surface, not boot. Nothing at boot touches the build queue; executing builds is the
