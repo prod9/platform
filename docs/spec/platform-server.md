@@ -89,6 +89,13 @@ plumbing rather than importing one another. The CLI remains a third entry point,
 none runs **at boot**. The jobs table is fx worker's own concern
 (`worker.Start` creates it), not a srv migration.
 
+Every migration carried by a published platform release is treated as applied to a live
+installation and is immutable: its filename, sequence, up SQL, and down SQL never change.
+Later schema or data work is always a new forward migration. Editing a published migration
+requires chakrit's explicit approval for that specific edit; refactors and general migration
+work do not grant it. `resync-migrations` is an operator recovery mechanism, never an
+authoring workflow or permission to rewrite migration history.
+
 The two HTTP operations share fx's migration mechanism, not one domain action. The
 installer operation is **bootstrap**: against an empty or partially built database it
 applies the complete pending set, and success must leave the fx settings migration

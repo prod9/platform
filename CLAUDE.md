@@ -144,6 +144,13 @@ There is no central jobs package. A job's success means *the job did its work*, 
 the same as the work succeeding: a build that failed and was correctly recorded is a
 successful job (`docs/spec/platform-server.md`).
 
+🚨 **Published migrations have run on real live installations (per-repo Law).** Treat every
+migration included in any published platform release as already applied to production data.
+Never modify, delete, rename, reorder, or replace a published migration — its up SQL, down
+SQL, filename, and sequence are immutable. Schema changes go in a new forward migration.
+The only exception is chakrit's explicit approval for the specific published-migration edit
+in the current session; no standing grant or general refactor authorization covers it.
+
 **Container build steps read top-to-bottom, one call per line.** Our helpers take the
 container in the argument position, so nesting them (`withRunnerPkgs(withDeps(withBase(x)))`)
 grows rightward and hides the order. Each helper gets its own `x = helper(x)` line; native
