@@ -669,25 +669,30 @@ the mirror cache makes full clones cheap, so shallow buys nothing.
 ## Sequencing
 
 Each layer consumes the one below *after* it works. The CLI delivery path, the `srv`
-wrap (webhook ingest, auth, the build pipeline), the **App API client** (`srv/github`:
-JWT, installation token, the App-identity queries), the **org-owner claim** (the
-first path to a completely-installed server), the **credentialed clone** (repo-prep
-authenticating with a per-sync installation token), the **manual trigger + repo
-list** (`POST /api/builds`, `GET /api/repos`), and **build detail + truthful
-statuses** (`GET /api/builds/{id}`, the `/steps` sub-resource, the SPA fallback
-served at the status the record deserves), and the **webui** on top of the proven
-API have shipped; what remains:
+wrap (webhook ingest, auth, and the build pipeline), the App API client, org-owner claim,
+credentialed clone, repository registration, whole-repository manual trigger,
+repository/build reads, build detail/steps, and truthful `/builds/{id}` status have
+shipped. The intended server surface is not complete: manual module selection is absent
+from the stored build and client request, no read resolves a ref and manifest before
+queueing, build events do not record engine attribution, engine reads do not exist, and
+repository/engine dynamic routes have no truthful fallback classifier. The repository
+landing, onboarding, and System pages have real client reads in source, but the live
+product does not yet present the repository experience; the repository build feed, manual
+trigger, build detail, and engine pages remain mocks.
 
-1. **Cluster install** — declared in the `prod9/infra` GitOps repo. The srv pod runs as
-   its own **ServiceAccount** with read-only RBAC on the Flux CRs (the forthcoming
-   cluster-view surface reads them); platform deploys nothing — publish pushes the image
-   and Flux pulls.
+The next planning pass maps the complete CI/CD experience over `platform srv` and its
+existing tooling into implementation slices. It starts from the live product experience,
+not from the completed builder internals, and includes the forthcoming cluster-view
+capability without pre-cutting that work here. Cluster installation and delivery already
+live in the `prod9/infra` GitOps repo; platform deploys nothing — publish pushes the image
+and Flux pulls.
 
 ## Open details (not blockers)
 
 - Whether the webhook consults registration — a v-tag push on an App-installed repo
   that nobody has registered: build it (install is the gate) or skip it (registration
-  is what "onboarded to build here" means). Unruled; decide at the wiring slice.
+  is what "onboarded to build here" means). Unruled; decide during the CI/CD experience
+  planning pass.
 
 - Where the `init` server marker lives — `platform.toml` `[server]` field vs CLI-global
   config.

@@ -1,7 +1,14 @@
 # Webui
 
-Status: accepted — designed 2026-08-12; the product routes currently carry this design
-over canned data (⚠ MOCK notes in each page), wiring lands next.
+Status: accepted intended surface; implementation is partial. The repository landing,
+repository-onboarding, and System pages have real client reads in source. The repository
+build feed, manual trigger, build detail, and engine pages remain mock presentations, and
+the live product does not yet deliver the repository experience this spec describes.
+The supporting server surface is partial too: repository/build reads, whole-repository
+manual triggers, build detail, and steps exist; pre-queue ref/module resolution, manual
+module selection, engine reads, engine attribution, and truthful repository/engine
+dynamic-route classification do not. Of the four planned shared components, only the
+outcome mark exists.
 
 The webui is the platform server's front end: a SvelteKit app built with
 `adapter-static`, prerendered into `webui/build/` and embedded into the `platform`
@@ -38,8 +45,9 @@ being pasted without its repo context.
 Every dynamic route here is a shape `srv`'s fallback classifier must know
 ([platform-server.md](platform-server.md), "The status of a page is the server's
 answer"): `/builds/{id}`, `/repos/{owner}/{repo}/…`, and `/engines/{addr}` all serve the
-fallback at the status the record deserves. The mock tree stands in with static paths
-(`/builds/`, `/engines/instance/`); the dynamic shapes above are the target.
+fallback at the status the record deserves. Only `/builds/{id}` is implemented today.
+The mock tree stands in with static paths (`/builds/`, `/engines/instance/`); the dynamic
+shapes above are the target.
 
 ## Pages
 
