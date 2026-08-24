@@ -19,6 +19,74 @@ async function send(path, options) {
 	}
 }
 
+const fragmentKeyPrefix = "auth.fragment:";
+let recoveryStarted = false;
+
+// The server can bind path and query into OAuth state; only the browser can preserve
+// the fragment because it never crosses the HTTP boundary (docs/spec/webui.md §Session
+// expiry and return).
+export function prepareReauthentication() {
+	const returnLocation = window.location.pathname + window.location.search;
+	if (window.location.hash !== "") {
+		window.sessionStorage.setItem(
+			fragmentKeyPrefix + returnLocation,
+			window.location.hash,
+		);
+	}
+
+	const params = new URLSearchParams({ return: returnLocation });
+	const installationID = new URLSearchParams(window.location.search).get(
+		"installation_id",
+	);
+	if (installationID !== null) {
+		params.set("installation_id", installationID);
+	}
+	return `/auth/github?${params}`;
+}
+
+export function restoreFragment() {
+	const returnLocation = window.location.pathname + window.location.search;
+	const key = fragmentKeyPrefix + returnLocation;
+	const fragment = window.sessionStorage.getItem(key);
+	if (fragment === null) {
+		return;
+	}
+
+	window.sessionStorage.removeItem(key);
+	window.location.hash = fragment;
+}
+
+export function signInRetryURL(search) {
+	const failed = new URLSearchParams(search);
+	const requestedReturn = failed.get("return");
+	const safeReturn =
+		requestedReturn !== null &&
+		requestedReturn.startsWith("/") &&
+		!requestedReturn.startsWith("//")
+			? requestedReturn
+			: "/";
+	const retry = new URLSearchParams({ return: safeReturn });
+
+	const installationID = failed.get("installation_id");
+	if (installationID !== null && /^\d+$/.test(installationID)) {
+		retry.set("installation_id", installationID);
+	}
+	return `/auth/github?${retry}`;
+}
+
+function recoverSession() {
+	if (recoveryStarted) {
+		return;
+	}
+	recoveryStarted = true;
+	window.location.assign(prepareReauthentication());
+}
+
+export function shouldRecoverSession(status, pathname) {
+	const normalizedPath = pathname.replace(/\/+$/, "");
+	return status === 401 && normalizedPath !== "/signin";
+}
+
 // A refusal's body is the handler's plain-text reason; a successful body is JSON. Reading
 // the wrong one throws, so the outcome decides which reader runs.
 async function call(path, options) {
@@ -27,6 +95,21 @@ async function call(path, options) {
 		return { outcome: Offline, body: "" };
 	}
 
+	if (!resp.ok) {
+		if (shouldRecoverSession(resp.status, window.location.pathname)) {
+			recoverSession();
+		}
+		return { outcome: Refused, body: await resp.text(), status: resp.status };
+	}
+	restoreFragment();
+	return { outcome: Answered, body: await resp.json() };
+}
+
+async function probe(path) {
+	const resp = await send(path);
+	if (resp === null) {
+		return { outcome: Offline, body: "" };
+	}
 	if (!resp.ok) {
 		return { outcome: Refused, body: await resp.text(), status: resp.status };
 	}
@@ -66,7 +149,7 @@ export function installSignal(result) {
 
 // installState reads the ordered checklist; installSignal above interprets the result.
 export function installState() {
-	return call("/api/install");
+	return probe("/api/install");
 }
 
 export function runMigrations() {
