@@ -75,16 +75,26 @@ action leads to the onboarding wizard. Signed-out, the page is the sign-in door 
 nothing else.
 
 **Repo onboarding (`/repos/new/`).** Runs as the install wizard does: a checklist on the
-left is the navigation, the selected step's action renders beside it. Step one picks the
-repo from a clickable, filterable candidate list. Step two reviews what the server
-pre-read from the repo's `platform.toml` — resolved commit sha, modules, framework
-detections, and resolved `[server].publish` policy — and carries the confirm. Confirmation
-sends that sha, not manifest content; the server re-reads the immutable commit and
-atomically stores the repository, exact raw manifest, parsed policy, and parsed modules.
-An accessible repository without `platform.toml` directs the user to initialize it;
-repository access failure remains a separate error. Registration model:
-[platform-server.md](platform-server.md) §Repos are registered, authorization is
-GitHub-derived.
+left is the navigation, the selected step's action renders beside it, and operative
+instructions render on the right. The wizard separates three concerns:
+
+1. **Repository access.** Pick from a clickable, filterable list containing only repos
+   reachable by both the signed-in GitHub user and the App. The instructions explain that
+   intersection and direct a user whose repo is missing to verify their own GitHub access,
+   then the App installation's repository access in the organization settings.
+2. **Load `platform.toml`.** Read the selected repo's default-branch manifest as its own
+   step. An accessible repository without the file stays here with instructions to run
+   `platform init` in the repository and commit the result, or author and commit
+   `platform.toml` manually. Repository access failure remains a separate error.
+3. **Review and confirm.** Present the resolved commit sha, modules, framework detections,
+   and resolved `[server].publish` policy. Policy is stated as behavior: which successful
+   builds publish and which image tag they receive, not merely the config value. The
+   confirm sends the reviewed sha, not manifest content; the server re-reads the immutable
+   commit and atomically stores the repository, exact raw manifest, parsed policy, and
+   parsed modules.
+
+Registration model: [platform-server.md](platform-server.md) §Repos are registered,
+authorization is GitHub-derived.
 
 **Repo build feed (`/repos/{owner}/{repo}/`).** The repo's builds as a CI feed: newest
 first, each row led by its outcome mark, carrying the tag, the commit it resolved to,
