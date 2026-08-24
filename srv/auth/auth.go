@@ -21,6 +21,7 @@ import (
 	"fx.prodigy9.co/app"
 	"fx.prodigy9.co/config"
 	"fx.prodigy9.co/data"
+	"fx.prodigy9.co/fxlog"
 	"fx.prodigy9.co/httpserver/controllers"
 	"fx.prodigy9.co/httpserver/httperrors"
 	"fx.prodigy9.co/httpserver/render"
@@ -36,9 +37,12 @@ var (
 		EmbedMigrations(Migrations).
 		Controllers(SessionCtr{})
 
-	ErrNoSession     = errors.New("auth: no session")
-	errBadOAuthState = errors.New("auth: oauth state mismatch")
-	errNoOAuthToken  = errors.New("auth: oauth code exchange returned no access token")
+	ErrNoSession            = errors.New("auth: no session")
+	errBadOAuthState        = errors.New("auth: oauth state mismatch")
+	errInstallationNotBound = errors.New("auth: installation not bound")
+	errNoOAuthToken         = errors.New("auth: oauth code exchange returned no access token")
+	logOAuthFailure         = fxlog.Error
+	loadBoundInstallationID = loadBoundInstallation
 )
 
 const (
@@ -281,8 +285,14 @@ func githubLogin(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	requestedInstallationID, _ := strconv.ParseInt(req.URL.Query().Get("installation_id"), 10, 64)
+	installationID, err := resolveInstallationID(ctx, requestedInstallationID)
+	if err != nil {
+		render.Error(resp, req, http.StatusInternalServerError, err)
+		return
+	}
 	bound := oauthState{Nonce: randomToken(), Return: safeReturn(req.URL.Query().Get("return"))}
-	if installationID, err := strconv.ParseInt(req.URL.Query().Get("installation_id"), 10, 64); err == nil && installationID > 0 {
+	if installationID > 0 {
 		bound.InstallationID = installationID
 	}
 	state := encodeOAuthState(bound)
@@ -313,17 +323,18 @@ func githubLoginCallback(resp http.ResponseWriter, req *http.Request) {
 	stateCookie, err := req.Cookie(oauthStateCookie)
 	bound, decodeErr := decodeOAuthState(stateCookieValue(stateCookie, err))
 	if state == "" || decodeErr != nil || bound.Nonce != state {
-		redirectSignIn(resp, req, safeReturn(bound.Return), bound.InstallationID)
+		failOAuth(resp, req, bound, errBadOAuthState)
 		return
 	}
 	if req.URL.Query().Get("error") != "" || req.URL.Query().Get("code") == "" {
-		redirectSignIn(resp, req, bound.Return, bound.InstallationID)
+		failOAuth(resp, req, bound, fmt.Errorf("auth: oauth callback denied or missing code: %s",
+			req.URL.Query().Get("error")))
 		return
 	}
 
 	app, err := github.LoadApp(ctx)
 	if err != nil {
-		redirectSignIn(resp, req, bound.Return, bound.InstallationID)
+		failOAuth(resp, req, bound, err)
 		return
 	}
 
@@ -331,33 +342,31 @@ func githubLoginCallback(resp http.ResponseWriter, req *http.Request) {
 	token, err := exchangeOAuthCode(ctx, http.DefaultClient, githubURL,
 		app.ClientID, app.ClientSecret, req.URL.Query().Get("code"))
 	if err != nil {
-		redirectSignIn(resp, req, bound.Return, bound.InstallationID)
+		failOAuth(resp, req, bound, err)
 		return
 	}
 
 	apiURL := config.Get(cfg, github.APIURLConfig)
 	account, err := fetchGitHubUser(ctx, http.DefaultClient, apiURL, token)
 	if err != nil {
-		redirectSignIn(resp, req, bound.Return, bound.InstallationID)
+		failOAuth(resp, req, bound, err)
 		return
 	}
 
-	installationID := bound.InstallationID
-	if installationID == 0 {
-		installationID, err = loadBoundInstallationID(ctx)
-	}
+	installationID, err := resolveInstallationID(ctx, bound.InstallationID)
 	if err != nil {
-		redirectSignIn(resp, req, bound.Return, bound.InstallationID)
+		failOAuth(resp, req, bound, err)
 		return
 	}
+	bound.InstallationID = installationID
 	client, err := github.NewClient(ctx)
 	if err != nil {
-		redirectSignIn(resp, req, bound.Return, installationID)
+		failOAuth(resp, req, bound, err)
 		return
 	}
 	repositories, err := client.UserInstallationRepos(ctx, token, installationID)
 	if err != nil {
-		redirectSignIn(resp, req, bound.Return, installationID)
+		failOAuth(resp, req, bound, err)
 		return
 	}
 
@@ -370,7 +379,7 @@ func githubLoginCallback(resp http.ResponseWriter, req *http.Request) {
 		ExpiresAt:    time.Now().Add(sessionTTL),
 	}
 	if err := login.Execute(ctx, nil); err != nil {
-		redirectSignIn(resp, req, bound.Return, installationID)
+		failOAuth(resp, req, bound, err)
 		return
 	}
 
@@ -445,12 +454,28 @@ func redirectSignIn(resp http.ResponseWriter, req *http.Request, returnTo string
 	render.Redirect(resp, req, "/signin/?"+query.Encode())
 }
 
-func loadBoundInstallationID(ctx context.Context) (int64, error) {
-	value, err := github.LoadSetting(ctx, "install.installation_id", errors.New("auth: installation not bound"))
+func failOAuth(resp http.ResponseWriter, req *http.Request, bound oauthState, err error) {
+	logOAuthFailure(err)
+	redirectSignIn(resp, req, safeReturn(bound.Return), bound.InstallationID)
+}
+
+func loadBoundInstallation(ctx context.Context) (int64, error) {
+	if _, ok := data.LookupFromContext(ctx); !ok {
+		return 0, errInstallationNotBound
+	}
+	value, err := github.LoadSetting(ctx, "install.installation_id", errInstallationNotBound)
 	if err != nil {
 		return 0, err
 	}
 	return strconv.ParseInt(value, 10, 64)
+}
+
+func resolveInstallationID(ctx context.Context, requested int64) (int64, error) {
+	bound, err := loadBoundInstallationID(ctx)
+	if errors.Is(err, errInstallationNotBound) {
+		return requested, nil
+	}
+	return bound, err
 }
 
 func deleteSession(resp http.ResponseWriter, req *http.Request) {

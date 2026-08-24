@@ -259,6 +259,40 @@ func TestGitHubLoginRedirectsToAuthorize(t *testing.T) {
 	require.Equal(t, "/", bound.Return)
 }
 
+func TestGitHubLoginUsesBoundInstallationInsteadOfRequest(t *testing.T) {
+	stubApp(t, &github.App{ClientID: testClientID}, nil)
+	router := authRouter(t, fxtest.Configure())
+	original := loadBoundInstallationID
+	loadBoundInstallationID = func(context.Context) (int64, error) { return 7, nil }
+	t.Cleanup(func() { loadBoundInstallationID = original })
+	req := httptest.NewRequest("GET", "/auth/github?installation_id=99&return=%2Frepos%2F", nil)
+
+	resp := httptest.NewRecorder()
+	router.ServeHTTP(resp, req)
+
+	bound, err := decodeOAuthState(responseCookie(t, resp, oauthStateCookie).Value)
+	require.NoError(t, err)
+	require.Equal(t, int64(7), bound.InstallationID)
+	require.Equal(t, "/repos/", bound.Return)
+}
+
+func TestGitHubLoginUsesRequestedInstallationBeforeClaim(t *testing.T) {
+	stubApp(t, &github.App{ClientID: testClientID}, nil)
+	router := authRouter(t, fxtest.Configure())
+	original := loadBoundInstallationID
+	loadBoundInstallationID = func(context.Context) (int64, error) {
+		return 0, errInstallationNotBound
+	}
+	t.Cleanup(func() { loadBoundInstallationID = original })
+
+	resp := httptest.NewRecorder()
+	router.ServeHTTP(resp, httptest.NewRequest("GET", "/auth/github?installation_id=7", nil))
+
+	bound, err := decodeOAuthState(responseCookie(t, resp, oauthStateCookie).Value)
+	require.NoError(t, err)
+	require.Equal(t, int64(7), bound.InstallationID)
+}
+
 // Login refuses to run without the public URL — the redirect_uri would be a lie
 // (docs/spec/installation.md, the server step).
 func TestGitHubLoginWithoutPublicURL(t *testing.T) {
@@ -306,6 +340,25 @@ func TestGitHubCallbackStateMismatch(t *testing.T) {
 	resp = httptest.NewRecorder()
 	router.ServeHTTP(resp, missingState)
 	require.Equal(t, http.StatusTemporaryRedirect, resp.Code)
+}
+
+func TestGitHubCallbackLogsFailureBeforeRetryRedirect(t *testing.T) {
+	stubApp(t, nil, github.ErrNoApp)
+	router := authRouter(t, fxtest.Configure())
+	var logged error
+	original := logOAuthFailure
+	logOAuthFailure = func(err error) { logged = err }
+	t.Cleanup(func() { logOAuthFailure = original })
+	state := oauthState{Nonce: "S", Return: "/repos/", InstallationID: 7}
+	req := httptest.NewRequest("GET", "/auth/github/callback?code=C&state=S", nil)
+	req.AddCookie(&http.Cookie{Name: oauthStateCookie, Value: encodeOAuthState(state)})
+
+	resp := httptest.NewRecorder()
+	router.ServeHTTP(resp, req)
+
+	require.ErrorIs(t, logged, github.ErrNoApp)
+	require.Equal(t, http.StatusTemporaryRedirect, resp.Code)
+	require.Equal(t, "/signin/?installation_id=7&return=%2Frepos%2F", resp.Header().Get("Location"))
 }
 
 func TestExchangeOAuthCode(t *testing.T) {
@@ -396,7 +449,10 @@ func stubGitHubOAuth(t *testing.T) *httptest.Server {
 }
 
 func loginCallback(t *testing.T, router chi.Router, ctx context.Context) *http.Cookie {
-	state := oauthState{Nonce: "S", Return: "/repos/prod9/platform/?tab=builds", InstallationID: 7}
+	original := loadBoundInstallationID
+	loadBoundInstallationID = func(context.Context) (int64, error) { return 7, nil }
+	t.Cleanup(func() { loadBoundInstallationID = original })
+	state := oauthState{Nonce: "S", Return: "/repos/prod9/platform/?tab=builds", InstallationID: 99}
 	req := httptest.NewRequest("GET", "/auth/github/callback?code=C&state=S", nil)
 	req.AddCookie(&http.Cookie{Name: oauthStateCookie, Value: encodeOAuthState(state)})
 
