@@ -5,6 +5,9 @@ a published GitHub release: a notes file, a tag, a pushed branch, a re-recorded 
 and a release page carrying the notes. It is not a product contract for consuming
 repositories. The [execution-mode specification] owns that boundary.
 
+In this repository, `go run .` is the platform launcher; there is no `./platform` file.
+Use `go run . release` and `go run . publish` for this repository's local CLI operations.
+
 [execution-mode specification]: ../spec/execution-modes.md
 
 The notes are drafted **outside the repo**, in `/tmp`. Their permanent home is the GitHub
@@ -101,4 +104,4 @@ there, not in a file.
 
 Cutting a release publishes no image. `release` and `publish` are orthogonal — see
 [`../spec/releases.md`](../spec/releases.md). A released-but-unpublished version is a fine
-state, and shipping the image is a separate `publish` run.
+state, and shipping the image is a separate `go run . publish` run in this repository.
