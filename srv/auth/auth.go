@@ -7,6 +7,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -45,8 +46,23 @@ const (
 	oauthStateTTL    = 10 * time.Minute
 
 	sessionCookie = "platform_session"
-	sessionTTL    = 30 * 24 * time.Hour
+	sessionTTL    = 2 * time.Hour
 )
+
+type Permission string
+
+const (
+	PermissionRead  Permission = "read"
+	PermissionWrite Permission = "write"
+)
+
+// Repository is one repository authorized for the lifetime of a login session.
+type Repository struct {
+	GitHubID   int64      `db:"github_repository_id"`
+	Owner      string     `db:"owner"`
+	Name       string     `db:"name"`
+	Permission Permission `db:"permission"`
+}
 
 // User is an internal platform user, the anchor of the identity ADR's model; external
 // accounts link to it via identities rows.
@@ -68,10 +84,8 @@ func SystemUserID(ctx context.Context) (int64, error) {
 	return id, err
 }
 
-// GitHubToken reveals the user's stored GitHub OAuth token — the credential for
-// user-scoped GitHub reads, where the answer must be what *this user* can see rather
-// than what the App can (spec §Repos are registered, visibility is live). A user with
-// no GitHub login identity is an error, never a fallback credential.
+// GitHubToken reveals the latest GitHub OAuth token stored at login. A user with no
+// GitHub login identity is an error, never a fallback credential.
 func GitHubToken(ctx context.Context, userID int64) (string, error) {
 	var metadata []byte
 	err := data.Get(ctx, &metadata, `
@@ -91,6 +105,7 @@ func GitHubToken(ctx context.Context, userID int64) (string, error) {
 // Session is a live platform session's identity and lifetime — what the webui's
 // validity probe needs, distinct from the user's profile.
 type Session struct {
+	ID        int64     `db:"session_id" json:"-"`
 	UserID    int64     `db:"user_id"`
 	ExpiresAt time.Time `db:"expires_at"`
 }
@@ -140,7 +155,8 @@ func currentSession(req *http.Request) (*Session, *User, error) {
 		User
 	}{}
 	err = data.Get(req.Context(), &row, `
-		SELECT sessions.user_id, sessions.expires_at, users.id, users.name, users.created_at
+		SELECT sessions.id AS session_id, sessions.user_id, sessions.expires_at,
+			users.id, users.name, users.created_at
 		FROM sessions
 		JOIN users ON users.id = sessions.user_id
 		WHERE sessions.token_hash = $1 AND sessions.expires_at > now()`,
@@ -151,6 +167,53 @@ func currentSession(req *http.Request) (*Session, *User, error) {
 		return nil, nil, err
 	}
 	return &row.Session, &row.User, nil
+}
+
+// ReadableRepos returns the current session's complete local authorization snapshot.
+func ReadableRepos(req *http.Request) ([]Repository, error) {
+	session, err := CurrentSession(req)
+	if err != nil {
+		return nil, err
+	}
+	repositories := []Repository{}
+	err = data.Select(req.Context(), &repositories, `
+		SELECT github_repository_id, owner, name, permission
+		FROM session_repositories WHERE session_id = $1
+		ORDER BY owner, name`, session.ID)
+	return repositories, err
+}
+
+func RequireRepoRead(resp http.ResponseWriter, req *http.Request, owner, name string) bool {
+	return requireRepo(resp, req, owner, name, PermissionRead)
+}
+
+func RequireRepoWrite(resp http.ResponseWriter, req *http.Request, owner, name string) bool {
+	return requireRepo(resp, req, owner, name, PermissionWrite)
+}
+
+func requireRepo(resp http.ResponseWriter, req *http.Request, owner, name string, required Permission) bool {
+	session, err := CurrentSession(req)
+	if errors.Is(err, ErrNoSession) {
+		render.Error(resp, req, http.StatusUnauthorized, httperrors.ErrUnauthorized)
+		return false
+	} else if err != nil {
+		render.Error(resp, req, http.StatusInternalServerError, err)
+		return false
+	}
+
+	var permission Permission
+	err = data.Get(req.Context(), &permission, `
+		SELECT permission FROM session_repositories
+		WHERE session_id = $1 AND lower(owner) = lower($2) AND lower(name) = lower($3)`,
+		session.ID, owner, name)
+	if data.IsNoRows(err) || (err == nil && required == PermissionWrite && permission != PermissionWrite) {
+		render.Error(resp, req, http.StatusNotFound, httperrors.ErrNotFound)
+		return false
+	} else if err != nil {
+		render.Error(resp, req, http.StatusInternalServerError, err)
+		return false
+	}
+	return true
 }
 
 // RequireUser gates a handler on a live session: it resolves the current user or
@@ -218,7 +281,11 @@ func githubLogin(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	state := randomToken()
+	bound := oauthState{Nonce: randomToken(), Return: safeReturn(req.URL.Query().Get("return"))}
+	if installationID, err := strconv.ParseInt(req.URL.Query().Get("installation_id"), 10, 64); err == nil && installationID > 0 {
+		bound.InstallationID = installationID
+	}
+	state := encodeOAuthState(bound)
 	http.SetCookie(resp, &http.Cookie{
 		Name:     oauthStateCookie,
 		Value:    state,
@@ -232,7 +299,7 @@ func githubLogin(resp http.ResponseWriter, req *http.Request) {
 	query := url.Values{
 		"client_id":    {app.ClientID},
 		"redirect_uri": {serverURL + "/auth/github/callback"},
-		"state":        {state},
+		"state":        {bound.Nonce},
 	}
 	githubURL := config.Get(config.FromContext(ctx), github.URLConfig)
 	render.Redirect(resp, req, githubURL+"/login/oauth/authorize?"+query.Encode())
@@ -244,17 +311,19 @@ func githubLoginCallback(resp http.ResponseWriter, req *http.Request) {
 
 	state := req.URL.Query().Get("state")
 	stateCookie, err := req.Cookie(oauthStateCookie)
-	if state == "" || err != nil || stateCookie.Value != state {
-		render.Error(resp, req, 400, errBadOAuthState)
+	bound, decodeErr := decodeOAuthState(stateCookieValue(stateCookie, err))
+	if state == "" || decodeErr != nil || bound.Nonce != state {
+		redirectSignIn(resp, req, safeReturn(bound.Return), bound.InstallationID)
+		return
+	}
+	if req.URL.Query().Get("error") != "" || req.URL.Query().Get("code") == "" {
+		redirectSignIn(resp, req, bound.Return, bound.InstallationID)
 		return
 	}
 
 	app, err := github.LoadApp(ctx)
-	if errors.Is(err, github.ErrNoApp) {
-		render.Error(resp, req, 503, err)
-		return
-	} else if err != nil {
-		render.Error(resp, req, 500, err)
+	if err != nil {
+		redirectSignIn(resp, req, bound.Return, bound.InstallationID)
 		return
 	}
 
@@ -262,31 +331,46 @@ func githubLoginCallback(resp http.ResponseWriter, req *http.Request) {
 	token, err := exchangeOAuthCode(ctx, http.DefaultClient, githubURL,
 		app.ClientID, app.ClientSecret, req.URL.Query().Get("code"))
 	if err != nil {
-		render.Error(resp, req, 502, err)
+		redirectSignIn(resp, req, bound.Return, bound.InstallationID)
 		return
 	}
 
 	apiURL := config.Get(cfg, github.APIURLConfig)
 	account, err := fetchGitHubUser(ctx, http.DefaultClient, apiURL, token)
 	if err != nil {
-		render.Error(resp, req, 502, err)
+		redirectSignIn(resp, req, bound.Return, bound.InstallationID)
 		return
 	}
 
-	upsert, user := &UpsertGitHubUser{Account: *account, Token: token}, &User{}
-	if err := upsert.Execute(ctx, user); err != nil {
-		render.Error(resp, req, 500, err)
+	installationID := bound.InstallationID
+	if installationID == 0 {
+		installationID, err = loadBoundInstallationID(ctx)
+	}
+	if err != nil {
+		redirectSignIn(resp, req, bound.Return, bound.InstallationID)
+		return
+	}
+	client, err := github.NewClient(ctx)
+	if err != nil {
+		redirectSignIn(resp, req, bound.Return, installationID)
+		return
+	}
+	repositories, err := client.UserInstallationRepos(ctx, token, installationID)
+	if err != nil {
+		redirectSignIn(resp, req, bound.Return, installationID)
 		return
 	}
 
 	sessionToken := randomToken()
-	create := &CreateSession{
-		UserID:    user.ID,
-		Token:     sessionToken,
-		ExpiresAt: time.Now().Add(sessionTTL),
+	login := &CreateLogin{
+		Account:      *account,
+		GitHubToken:  token,
+		Repositories: repositories,
+		SessionToken: sessionToken,
+		ExpiresAt:    time.Now().Add(sessionTTL),
 	}
-	if err := create.Execute(ctx, nil); err != nil {
-		render.Error(resp, req, 500, err)
+	if err := login.Execute(ctx, nil); err != nil {
+		redirectSignIn(resp, req, bound.Return, installationID)
 		return
 	}
 
@@ -309,7 +393,64 @@ func githubLoginCallback(resp http.ResponseWriter, req *http.Request) {
 		Secure:   true,
 		SameSite: http.SameSiteLaxMode,
 	})
-	render.Redirect(resp, req, "/")
+	render.Redirect(resp, req, bound.Return)
+}
+
+type oauthState struct {
+	Nonce          string `json:"nonce"`
+	Return         string `json:"return"`
+	InstallationID int64  `json:"installation_id"`
+}
+
+func encodeOAuthState(state oauthState) string {
+	raw, err := json.Marshal(state)
+	if err != nil {
+		panic(err)
+	}
+	return base64.RawURLEncoding.EncodeToString(raw)
+}
+
+func decodeOAuthState(value string) (oauthState, error) {
+	state := oauthState{}
+	raw, err := base64.RawURLEncoding.DecodeString(value)
+	if err != nil {
+		return state, errBadOAuthState
+	}
+	if err := json.Unmarshal(raw, &state); err != nil {
+		return state, errBadOAuthState
+	}
+	return state, nil
+}
+
+func stateCookieValue(cookie *http.Cookie, err error) string {
+	if err != nil || cookie == nil {
+		return ""
+	}
+	return cookie.Value
+}
+
+func safeReturn(value string) string {
+	parsed, err := url.Parse(value)
+	if err != nil || value == "" || !strings.HasPrefix(parsed.Path, "/") || parsed.IsAbs() || parsed.Host != "" {
+		return "/"
+	}
+	return parsed.RequestURI()
+}
+
+func redirectSignIn(resp http.ResponseWriter, req *http.Request, returnTo string, installationID int64) {
+	query := url.Values{"return": {safeReturn(returnTo)}}
+	if installationID > 0 {
+		query.Set("installation_id", strconv.FormatInt(installationID, 10))
+	}
+	render.Redirect(resp, req, "/signin/?"+query.Encode())
+}
+
+func loadBoundInstallationID(ctx context.Context) (int64, error) {
+	value, err := github.LoadSetting(ctx, "install.installation_id", errors.New("auth: installation not bound"))
+	if err != nil {
+		return 0, err
+	}
+	return strconv.ParseInt(value, 10, 64)
 }
 
 func deleteSession(resp http.ResponseWriter, req *http.Request) {
@@ -417,9 +558,9 @@ func fetchGitHubUser(ctx context.Context, client *http.Client, apiURL, token str
 // UpsertGitHubUser finds the platform user linked to a GitHub account by the
 // immutable provider id (renames don't break links — the login lives in metadata,
 // per the identity ADR) or creates user + identity on first login. The user token is
-// stored encrypted in identity metadata. Token refresh and verified-email auto-link
-// are later slices: an existing identity is matched, never updated, and no email
-// lookup happens.
+// stored encrypted in identity metadata and replaced on every successful login.
+// Verified-email auto-linking is deliberately absent: identities match only by the
+// immutable provider id.
 type UpsertGitHubUser struct {
 	Account GitHubAccount
 	Token   string
@@ -470,8 +611,101 @@ func (u *UpsertGitHubUser) upsertOnce(ctx context.Context, out any) error {
 		} else if err != nil {
 			return err
 		}
+		if err := scope.Exec(`
+				UPDATE identities SET email = $2, metadata = $3
+				WHERE user_id = $1 AND provider = 'github' AND kind = 'login'`,
+			userID, u.Account.Email, string(metadata)); err != nil {
+			return err
+		}
+		if err := scope.Exec(`UPDATE users SET name = $2 WHERE id = $1`,
+			userID, u.Account.Login); err != nil {
+			return err
+		}
 
 		return scope.Get(out, `SELECT * FROM users WHERE id = $1`, userID)
+	})
+}
+
+// CreateLogin atomically refreshes the GitHub identity and records the bounded
+// session authorization assembled from GitHub before the transaction begins.
+type CreateLogin struct {
+	Account      GitHubAccount
+	GitHubToken  string
+	Repositories []github.Repo
+	SessionToken string
+	ExpiresAt    time.Time
+}
+
+func (c *CreateLogin) Execute(ctx context.Context, out any) error {
+	err := c.executeOnce(ctx)
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+		return c.executeOnce(ctx)
+	}
+	return err
+}
+
+func (c *CreateLogin) executeOnce(ctx context.Context) error {
+	ciphertext, err := secret.Hide(config.FromContext(ctx), c.GitHubToken)
+	if err != nil {
+		return err
+	}
+	metadata, err := json.Marshal(map[string]string{
+		"login": c.Account.Login, "token": ciphertext,
+	})
+	if err != nil {
+		return err
+	}
+	providerID := strconv.FormatInt(c.Account.ID, 10)
+
+	return data.Run(ctx, func(scope data.Scope) error {
+		var userID int64
+		err := scope.Get(&userID, `SELECT user_id FROM identities
+			WHERE provider = 'github' AND provider_id = $1`, providerID)
+		if data.IsNoRows(err) {
+			if err = scope.Get(&userID,
+				`INSERT INTO users (name) VALUES ($1) RETURNING id`, c.Account.Login); err != nil {
+				return err
+			}
+			if err = scope.Exec(`INSERT INTO identities
+				(user_id, provider, provider_id, kind, email, email_verified, metadata)
+				VALUES ($1, 'github', $2, 'login', $3, false, $4)`,
+				userID, providerID, c.Account.Email, string(metadata)); err != nil {
+				return err
+			}
+		} else if err != nil {
+			return err
+		} else {
+			if err = scope.Exec(`UPDATE users SET name = $2 WHERE id = $1`,
+				userID, c.Account.Login); err != nil {
+				return err
+			}
+			if err = scope.Exec(`UPDATE identities SET email = $2, metadata = $3
+				WHERE user_id = $1 AND provider = 'github' AND kind = 'login'`,
+				userID, c.Account.Email, string(metadata)); err != nil {
+				return err
+			}
+		}
+
+		var sessionID int64
+		if err = scope.Get(&sessionID, `INSERT INTO sessions
+			(user_id, token_hash, expires_at) VALUES ($1, $2, $3) RETURNING id`,
+			userID, hashSessionToken(c.SessionToken), c.ExpiresAt); err != nil {
+			return err
+		}
+		for _, repository := range c.Repositories {
+			permission := PermissionRead
+			if repository.Permission == github.RepoWrite {
+				permission = PermissionWrite
+			}
+			if err = scope.Exec(`INSERT INTO session_repositories
+				(session_id, github_repository_id, owner, name, permission)
+				VALUES ($1, $2, $3, $4, $5)`, sessionID, repository.ID,
+				repository.Owner, repository.Name, permission); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 }
 

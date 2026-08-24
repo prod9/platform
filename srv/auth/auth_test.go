@@ -188,6 +188,50 @@ func TestSessionWithExpiredSession(t *testing.T) {
 	require.Equal(t, http.StatusUnauthorized, resp.Code)
 }
 
+func TestRepositoryAuthorizationUsesSessionSnapshot(t *testing.T) {
+	ctx := setupDB(t)
+	_, token := startTestSession(t, ctx, time.Now().Add(time.Hour))
+	var sessionID int64
+	require.NoError(t, data.Get(ctx, &sessionID,
+		`SELECT id FROM sessions WHERE token_hash = $1`, hashSessionToken(token)))
+	require.NoError(t, data.Exec(ctx, `INSERT INTO session_repositories
+		(session_id, github_repository_id, owner, name, permission) VALUES
+		($1, 11, 'prod9', 'readable', 'read'),
+		($1, 12, 'prod9', 'writable', 'write')`, sessionID))
+
+	req := httptest.NewRequest("GET", "/api/test", nil).WithContext(ctx)
+	req.AddCookie(&http.Cookie{Name: sessionCookie, Value: token})
+	repositories, err := ReadableRepos(req)
+	require.NoError(t, err)
+	require.Equal(t, []Repository{
+		{GitHubID: 11, Owner: "prod9", Name: "readable", Permission: PermissionRead},
+		{GitHubID: 12, Owner: "prod9", Name: "writable", Permission: PermissionWrite},
+	}, repositories)
+
+	resp := httptest.NewRecorder()
+	require.True(t, RequireRepoRead(resp, req, "PROD9", "readable"))
+	resp = httptest.NewRecorder()
+	require.False(t, RequireRepoWrite(resp, req, "prod9", "readable"))
+	require.Equal(t, http.StatusNotFound, resp.Code)
+	resp = httptest.NewRecorder()
+	require.True(t, RequireRepoWrite(resp, req, "prod9", "writable"))
+	resp = httptest.NewRecorder()
+	require.False(t, RequireRepoRead(resp, req, "prod9", "hidden"))
+	require.Equal(t, http.StatusNotFound, resp.Code)
+
+	require.NoError(t, (&DeleteSession{Token: token}).Execute(ctx, nil))
+	var snapshotCount int
+	require.NoError(t, data.Get(ctx, &snapshotCount, `SELECT count(*) FROM session_repositories`))
+	require.Zero(t, snapshotCount, "session deletion must cascade to its authorization snapshot")
+}
+
+func TestRepositoryAuthorizationWithoutSessionIsUnauthorized(t *testing.T) {
+	resp := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/api/test", nil)
+	require.False(t, RequireRepoRead(resp, req, "prod9", "platform"))
+	require.Equal(t, http.StatusUnauthorized, resp.Code)
+}
+
 func TestGitHubLoginRedirectsToAuthorize(t *testing.T) {
 	stubApp(t, &github.App{ClientID: testClientID}, nil)
 	router := authRouter(t, fxtest.Configure())
@@ -209,7 +253,10 @@ func TestGitHubLoginRedirectsToAuthorize(t *testing.T) {
 	require.Equal(t, "https://github.com/login/oauth/authorize", location.Scheme+"://"+location.Host+location.Path)
 	require.Equal(t, testClientID, location.Query().Get("client_id"))
 	require.Equal(t, testServerURL+"/auth/github/callback", location.Query().Get("redirect_uri"))
-	require.Equal(t, state.Value, location.Query().Get("state"))
+	bound, err := decodeOAuthState(state.Value)
+	require.NoError(t, err)
+	require.Equal(t, bound.Nonce, location.Query().Get("state"))
+	require.Equal(t, "/", bound.Return)
 }
 
 // Login refuses to run without the public URL — the redirect_uri would be a lie
@@ -245,19 +292,20 @@ func TestGitHubCallbackStateMismatch(t *testing.T) {
 	missingCookie := httptest.NewRequest("GET", "/auth/github/callback?code=C&state=abc", nil)
 	resp := httptest.NewRecorder()
 	router.ServeHTTP(resp, missingCookie)
-	require.Equal(t, http.StatusBadRequest, resp.Code)
+	require.Equal(t, http.StatusTemporaryRedirect, resp.Code)
+	require.Equal(t, "/signin/?return=%2F", resp.Header().Get("Location"))
 
 	mismatched := httptest.NewRequest("GET", "/auth/github/callback?code=C&state=abc", nil)
 	mismatched.AddCookie(&http.Cookie{Name: oauthStateCookie, Value: "xyz"})
 	resp = httptest.NewRecorder()
 	router.ServeHTTP(resp, mismatched)
-	require.Equal(t, http.StatusBadRequest, resp.Code)
+	require.Equal(t, http.StatusTemporaryRedirect, resp.Code)
 
 	missingState := httptest.NewRequest("GET", "/auth/github/callback?code=C", nil)
 	missingState.AddCookie(&http.Cookie{Name: oauthStateCookie, Value: ""})
 	resp = httptest.NewRecorder()
 	router.ServeHTTP(resp, missingState)
-	require.Equal(t, http.StatusBadRequest, resp.Code)
+	require.Equal(t, http.StatusTemporaryRedirect, resp.Code)
 }
 
 func TestExchangeOAuthCode(t *testing.T) {
@@ -334,6 +382,13 @@ func stubGitHubOAuth(t *testing.T) *httptest.Server {
 		resp.Header().Set("Content-Type", "application/json")
 		resp.Write([]byte(`{"id": 12345, "login": "octocat", "email": "octo@example.com"}`))
 	})
+	mux.HandleFunc("/user/installations/7/repositories", func(resp http.ResponseWriter, req *http.Request) {
+		resp.Header().Set("Content-Type", "application/json")
+		resp.Write([]byte(`{"repositories":[
+			{"id":11,"name":"readable","full_name":"prod9/readable","owner":{"login":"prod9"},"permissions":{"pull":true}},
+			{"id":12,"name":"writable","full_name":"prod9/writable","owner":{"login":"prod9"},"permissions":{"push":true}}
+		]}`))
+	})
 
 	stub := httptest.NewServer(mux)
 	t.Cleanup(stub.Close)
@@ -341,18 +396,19 @@ func stubGitHubOAuth(t *testing.T) *httptest.Server {
 }
 
 func loginCallback(t *testing.T, router chi.Router, ctx context.Context) *http.Cookie {
+	state := oauthState{Nonce: "S", Return: "/repos/prod9/platform/?tab=builds", InstallationID: 7}
 	req := httptest.NewRequest("GET", "/auth/github/callback?code=C&state=S", nil)
-	req.AddCookie(&http.Cookie{Name: oauthStateCookie, Value: "S"})
+	req.AddCookie(&http.Cookie{Name: oauthStateCookie, Value: encodeOAuthState(state)})
 
 	resp := httptest.NewRecorder()
 	router.ServeHTTP(resp, req.WithContext(ctx))
 
 	require.Equal(t, http.StatusTemporaryRedirect, resp.Code)
-	require.Equal(t, "/", resp.Header().Get("Location"))
+	require.Equal(t, state.Return, resp.Header().Get("Location"))
 
-	state := responseCookie(t, resp, oauthStateCookie)
-	require.Empty(t, state.Value, "a successful callback must clear the state cookie")
-	require.Negative(t, state.MaxAge)
+	clearedState := responseCookie(t, resp, oauthStateCookie)
+	require.Empty(t, clearedState.Value, "a successful callback must clear the state cookie")
+	require.Negative(t, clearedState.MaxAge)
 
 	return responseCookie(t, resp, sessionCookie)
 }
@@ -373,7 +429,7 @@ func TestGitHubCallbackCreatesUserIdentityAndSession(t *testing.T) {
 	require.True(t, session.Secure)
 	require.Equal(t, http.SameSiteLaxMode, session.SameSite)
 	require.Equal(t, "/", session.Path)
-	require.Equal(t, int((30 * 24 * time.Hour).Seconds()), session.MaxAge)
+	require.Equal(t, int((2 * time.Hour).Seconds()), session.MaxAge)
 
 	user := &User{}
 	require.NoError(t, data.Get(ctx, user, githubUsersSQL))
@@ -419,7 +475,16 @@ func TestGitHubCallbackCreatesUserIdentityAndSession(t *testing.T) {
 	require.Equal(t, user.ID, storedSession.UserID)
 	require.Equal(t, hashSessionToken(session.Value), storedSession.TokenHash)
 	require.NotEqual(t, session.Value, storedSession.TokenHash)
-	require.WithinDuration(t, time.Now().Add(30*24*time.Hour), storedSession.ExpiresAt, time.Minute)
+	require.WithinDuration(t, time.Now().Add(2*time.Hour), storedSession.ExpiresAt, time.Minute)
+
+	var repositories []Repository
+	require.NoError(t, data.Select(ctx, &repositories, `
+		SELECT github_repository_id, owner, name, permission
+		FROM session_repositories ORDER BY github_repository_id`))
+	require.Equal(t, []Repository{
+		{GitHubID: 11, Owner: "prod9", Name: "readable", Permission: PermissionRead},
+		{GitHubID: 12, Owner: "prod9", Name: "writable", Permission: PermissionWrite},
+	}, repositories)
 }
 
 func TestGitHubCallbackSecondLoginReusesUser(t *testing.T) {
@@ -449,6 +514,33 @@ func TestGitHubCallbackSecondLoginReusesUser(t *testing.T) {
 	require.Equal(t, 1, counts.Users)
 	require.Equal(t, 1, counts.Identities)
 	require.Equal(t, 2, counts.Sessions)
+}
+
+func TestUpsertGitHubUserRefreshesTokenAndProfile(t *testing.T) {
+	ctx := setupDB(t)
+	first, user := &UpsertGitHubUser{
+		Account: GitHubAccount{ID: 12345, Login: "old", Email: "old@example.com"},
+		Token:   "old-token",
+	}, &User{}
+	require.NoError(t, first.Execute(ctx, user))
+
+	second := &UpsertGitHubUser{
+		Account: GitHubAccount{ID: 12345, Login: "new", Email: "new@example.com"},
+		Token:   "new-token",
+	}
+	require.NoError(t, second.Execute(ctx, &User{}))
+	token, err := GitHubToken(ctx, user.ID)
+	require.NoError(t, err)
+	require.Equal(t, "new-token", token)
+
+	var stored struct {
+		Name  string `db:"name"`
+		Email string `db:"email"`
+	}
+	require.NoError(t, data.Get(ctx, &stored, `SELECT u.name, i.email
+		FROM users u JOIN identities i ON i.user_id = u.id WHERE u.id = $1`, user.ID))
+	require.Equal(t, "new", stored.Name)
+	require.Equal(t, "new@example.com", stored.Email)
 }
 
 // TestUpsertGitHubUserFirstLoginRace simulates two concurrent first logins: a manual

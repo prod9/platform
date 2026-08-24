@@ -249,9 +249,9 @@ func TestUserInstallationRepos(t *testing.T) {
 			require.Equal(t, "100", req.URL.Query().Get("per_page"))
 			resp.Header().Set("Link", fmt.Sprintf(
 				`<http://%s/user/installations/7/repositories?page=2>; rel="next"`, req.Host))
-			repos = []string{`{"name":"app","full_name":"prodigy9/app","owner":{"login":"prodigy9"}}`}
+			repos = []string{`{"id":1,"name":"app","full_name":"prodigy9/app","owner":{"login":"prodigy9"},"permissions":{"pull":true}}`}
 		case "2":
-			repos = []string{`{"name":"api","full_name":"prodigy9/api","owner":{"login":"prodigy9"}}`}
+			repos = []string{`{"id":2,"name":"api","full_name":"prodigy9/api","owner":{"login":"prodigy9"},"permissions":{"push":true}}`}
 		}
 		fmt.Fprintf(resp, `{"total_count":2,"repositories":[%s]}`, strings.Join(repos, ","))
 	}))
@@ -259,9 +259,18 @@ func TestUserInstallationRepos(t *testing.T) {
 	repos, err := client.UserInstallationRepos(context.Background(), "gho_user", 7)
 	require.NoError(t, err)
 	require.Equal(t, []Repo{
-		{Name: "app", FullName: "prodigy9/app", Owner: "prodigy9"},
-		{Name: "api", FullName: "prodigy9/api", Owner: "prodigy9"},
+		{ID: 1, Name: "app", FullName: "prodigy9/app", Owner: "prodigy9", Permission: RepoRead},
+		{ID: 2, Name: "api", FullName: "prodigy9/api", Owner: "prodigy9", Permission: RepoWrite},
 	}, repos)
+}
+
+func TestUserInstallationReposUnauthorized(t *testing.T) {
+	client, _ := testClient(t, http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
+		resp.WriteHeader(http.StatusUnauthorized)
+	}))
+
+	_, err := client.UserInstallationRepos(context.Background(), "expired", 7)
+	require.ErrorIs(t, err, ErrUnauthorized)
 }
 
 func TestRepoManifest(t *testing.T) {

@@ -27,6 +27,9 @@ var (
 	// wizard treats both as "nothing to review".
 	ErrNoManifest = errors.New("github: repo has no platform.toml")
 
+	// ErrUnauthorized reports that GitHub rejected the supplied user credential.
+	ErrUnauthorized = errors.New("github: unauthorized")
+
 	// errNotMember folds the membership endpoint's 404 — "not a member" — into
 	// IsOrgOwner's false.
 	errNotMember = errors.New("github: not an org member")
@@ -45,11 +48,20 @@ type Client struct {
 	apiURL string
 }
 
+type RepoPermission string
+
+const (
+	RepoRead  RepoPermission = "read"
+	RepoWrite RepoPermission = "write"
+)
+
 // Repo is one repository the App installation reaches.
 type Repo struct {
-	Name     string
-	FullName string
-	Owner    string
+	ID         int64
+	Name       string
+	FullName   string
+	Owner      string
+	Permission RepoPermission
 }
 
 // Manifest is platform.toml as observed at one immutable commit.
@@ -169,6 +181,7 @@ func (c *Client) IsOrgOwner(ctx context.Context, token, org, user string) (bool,
 func (c *Client) Repos(ctx context.Context, token string) ([]Repo, error) {
 	type repoPage struct {
 		Repositories []struct {
+			ID       int64  `json:"id"`
 			Name     string `json:"name"`
 			FullName string `json:"full_name"`
 			Owner    struct {
@@ -185,7 +198,8 @@ func (c *Client) Repos(ctx context.Context, token string) ([]Repo, error) {
 		op:     "repo list",
 	}, func(page repoPage) {
 		for _, repo := range page.Repositories {
-			repos = append(repos, Repo{repo.Name, repo.FullName, repo.Owner.Login})
+			repos = append(repos, Repo{ID: repo.ID, Name: repo.Name,
+				FullName: repo.FullName, Owner: repo.Owner.Login})
 		}
 	})
 	if err != nil {
@@ -200,11 +214,17 @@ func (c *Client) Repos(ctx context.Context, token string) ([]Repo, error) {
 func (c *Client) UserInstallationRepos(ctx context.Context, userToken string, installationID int64) ([]Repo, error) {
 	type repoPage struct {
 		Repositories []struct {
+			ID       int64  `json:"id"`
 			Name     string `json:"name"`
 			FullName string `json:"full_name"`
 			Owner    struct {
 				Login string `json:"login"`
 			} `json:"owner"`
+			Permissions struct {
+				Push     bool `json:"push"`
+				Admin    bool `json:"admin"`
+				Maintain bool `json:"maintain"`
+			} `json:"permissions"`
 		} `json:"repositories"`
 	}
 
@@ -214,9 +234,15 @@ func (c *Client) UserInstallationRepos(ctx context.Context, userToken string, in
 		path:   fmt.Sprintf("/user/installations/%d/repositories?per_page=100", installationID),
 		auth:   asToken(userToken),
 		op:     "user installation repo list",
+		status: map[int]error{http.StatusUnauthorized: ErrUnauthorized},
 	}, func(page repoPage) {
 		for _, repo := range page.Repositories {
-			repos = append(repos, Repo{repo.Name, repo.FullName, repo.Owner.Login})
+			permission := RepoRead
+			if repo.Permissions.Push || repo.Permissions.Admin || repo.Permissions.Maintain {
+				permission = RepoWrite
+			}
+			repos = append(repos, Repo{ID: repo.ID, Name: repo.Name,
+				FullName: repo.FullName, Owner: repo.Owner.Login, Permission: permission})
 		}
 	})
 	if err != nil {
