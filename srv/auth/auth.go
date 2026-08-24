@@ -422,7 +422,9 @@ func stateCookieValue(cookie *http.Cookie, err error) string {
 
 func safeReturn(value string) string {
 	parsed, err := url.Parse(value)
-	if err != nil || value == "" || !strings.HasPrefix(parsed.Path, "/") || parsed.IsAbs() || parsed.Host != "" {
+	if err != nil || value == "" || strings.HasPrefix(value, "//") ||
+		!strings.HasPrefix(parsed.Path, "/") || strings.HasPrefix(parsed.Path, "//") ||
+		parsed.IsAbs() || parsed.Host != "" {
 		return "/"
 	}
 	return parsed.RequestURI()

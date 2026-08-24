@@ -293,6 +293,10 @@ func TestGitHubLoginUsesRequestedInstallationBeforeClaim(t *testing.T) {
 	require.Equal(t, int64(7), bound.InstallationID)
 }
 
+func TestOAuthReturnRejectsNetworkPathReference(t *testing.T) {
+	require.Equal(t, "/", safeReturn("///evil.example/steal"))
+}
+
 // Login refuses to run without the public URL — the redirect_uri would be a lie
 // (docs/spec/installation.md, the server step).
 func TestGitHubLoginWithoutPublicURL(t *testing.T) {
