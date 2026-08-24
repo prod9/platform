@@ -7,8 +7,9 @@ the [Operations](#operations-settled-surface) table teaches the surface,
 owns the event-sourced record. Held for its own design pass: the **cluster view** — reading
 k8s + Flux state for pods, logs, and rollout continuity after a publish.
 
-`srv` is the **second driver** of the one-publish-engine model: the tag-watch server invokes
-the same build+push engine the local CLI drives (see
+The `srv` + worker pair is the **CI/CD server driver**, peer to the local CLI driver.
+`srv` records build intent and the worker asynchronously invokes the same build/publish
+capabilities the local CLI drives (see [`execution-modes.md`](execution-modes.md) and
 [delivery-verbs-are-orthogonal](../decisions/2026-07-05-delivery-verbs-are-orthogonal.md)
 and the one-engine-two-drivers model in [engine.md](engine.md)). The ruling behind its auth
 model is
@@ -27,9 +28,9 @@ and hold **no jurisdiction** here; citing them to settle a question about `srv`'
 is a category error. A reader who wants to know how a piece of `srv` should be shaped reads
 fx, then this file.
 
-`srv` is the API + webhook processor: on a push it clones the repo, builds the image,
-renders + publishes the infra artifact, and lets Flux pull it. It owns the GitHub App, the
-DB, and token minting. It is a layer above the **shared packages** (the stateless
+`srv` is the API + webhook processor: every push records a build of the exact commit; the
+worker later builds it and applies the repository-kind publish policy. It owns the GitHub
+App, the DB, and token minting. It is a layer above the **shared packages** (the stateless
 build/render/publish/release machinery: `framework`, `engine`, `gitops`, `releases`, …)
 and consumes them per request — the engine layer hands out a `Session`, the span its
 containers stay usable for (`engine.NewSession(ctx)` once at boot, a `Run` per unit per
@@ -182,7 +183,7 @@ lives under `/api`; GitHub-facing and health routes stay bare.
 | `GET /api/system/settings`         | session                   | the install-time facts, read-only; secret-valued keys are served **masked, never the value** | the System / Settings page — the one post-install reader of the install settings (`srv/system`)                             |
 | `GET /api/system/migrations`       | session                   | the ordered migration plan, one projected fx plan item per line; empty means current | the System / Migrations page; the client interprets each action for presentation |
 | `POST /api/system/migrations`      | session                   | applies a clean pending migrate plan; response is the freshly planned result           | the post-install run button owned by `srv/system`; distinct from the installer's pre-install migration operation |
-| `POST /hooks/github`        | App webhook HMAC          | verifies signature; queues a build row per pushed `refs/tags/v*`                      | the pull-model trigger: a version tag *is* the build request (delivery-verbs ADR)                                  |
+| `POST /hooks/github`        | App webhook HMAC          | verifies signature; records a whole-repository build for every non-deleted push       | branch and tag pushes are the CI signal; publishing is a later repository-kind policy decision                    |
 | `GET /api/install`          | none (installer fragment) | ordered install-state list; served **only while the server is unclaimed**             | drives the SPA installer-vs-app decision ([installation.md](installation.md)); its 404 *is* the "installed" signal |
 | `POST /api/install/claim`   | session (installer)       | org-owner claim: resolve installation→org, verify owner, write the `install.*` settings | the first-install gate; the App Setup URL lands on the webui install page, which posts here ([installation.md](installation.md)) |
 | `POST /api/install/app`     | none (installer)          | saves the creation-time quartet — app id, app slug, client id, webhook secret — as their `github.app_*` settings | what GitHub's creation form yields, saved as its own wizard step ([installation.md](installation.md)) |
@@ -357,6 +358,14 @@ convention. A selected name absent from the snapshot is rejected before the buil
 The srv database and API call these records **modules**; **unit** begins only when
 `framework.Units` interprets one into a runtime `framework.BuildUnit`.
 
+**Build cadence and publish cadence are separate.** Every non-deleted push records a build,
+whether its ref names a branch or any tag. After a successful build, an app repository
+publishes only when the triggering ref is a tag, under that exact tag name; an infra
+repository publishes every successful build under `latest`. No `v` prefix has server
+meaning. How the server identifies app versus infra is unresolved and must not be
+inferred from release strategy or tag spelling.
+[`execution-modes.md`](execution-modes.md) owns the complete boundary.
+
 ### The worker is a peer *process*, and the jobs live in their fragments
 
 **Worker** is the settled name, and it is fx's: `fx.prodigy9.co/worker` supplies the entire
@@ -406,9 +415,11 @@ winner and every duplicate delivery exits without executing. Once claimed, a mod
 never automatically rescheduled. A worker dying afterward leaves visible stalled work for
 an operator, whose retry creates a new build aggregate rather than mutating this one.
 
-**The publish tag is the ref's last segment.** A build's `ref` is `refs/tags/vX.Y.Z` and the
-image is published under `vX.Y.Z` — the worker strips the `refs/tags/` prefix and passes the
-remainder as the tag, so the image carries the version a human pushed rather than a sha.
+**The server chooses the publish tag from repository policy.** For an app tag build, the
+worker strips `refs/tags/` and publishes under the entire remaining tag name; tags need no
+`v` prefix. App branch builds do not publish. Infra builds publish under `latest`
+regardless of their triggering ref. This policy belongs to the server driver, not the
+engine and not the local `./platform publish` command.
 
 **The publish credential is the wizard-saved registry token.** Before opening the engine
 session, the worker derives the registry host from the config's image names, reads
@@ -754,7 +765,7 @@ and Flux pulls.
 
 ## Open details (not blockers)
 
-- Whether the webhook consults registration — a v-tag push on an App-installed repo
+- Whether the webhook consults registration — any push on an App-installed repo
   that nobody has registered: build it (install is the gate) or skip it (registration
   is what "onboarded to build here" means). Unruled; decide during the CI/CD experience
   planning pass.

@@ -21,6 +21,9 @@ superseded moves to `../scratch/` — `spec/` holds current design only, never h
 
 - [`architecture.md`](architecture.md) — the build pipeline (parse → interpret → engine)
   and the object model: `BuildUnit`, package layout, data-vs-behavior rules.
+- [`execution-modes.md`](execution-modes.md) — the boundary between local CLI and server
+  CI/CD execution, shared build/publish capabilities, app-vs-infra publish cadence, and
+  this repository's own release runbook.
 - [`frameworks.md`](frameworks.md) — the framework catalog and order-sensitive discovery,
   the seven-method `Framework` contract, `Step`/`Plan`/`Execute`, layouts, runtime-shape
   families, the Wolfi base, Node/pnpm provisioning, and the Go test-in-build gate.
@@ -41,8 +44,9 @@ superseded moves to `../scratch/` — `spec/` holds current design only, never h
   `platform.toml` / `infra/` / `tf/` / OCI / Flux; the no-overlap map.
 - [`platform.md`](platform.md) — the platformv2 vision: an in-cluster build + delivery
   control plane (components, identity, phases, anchors).
-- [`platform-server.md`](platform-server.md) — the `srv/` tag-watch server: GitHub-App
-  auth, the `/var/cache` worktree layout, the settled operations table. Route surface +
+- [`platform-server.md`](platform-server.md) — the `srv` + worker CI/CD server: GitHub-App
+  auth, push/manual build triggers, the `/var/cache` worktree layout, and the settled
+  operations table. Route surface +
   install/boot flow settled, as is the event-sourced build lifecycle; the cluster view
   (k8s + Flux state) is held for a design pass.
 - [`webui.md`](webui.md) — the product front end: navigation, the route map, the repos /

@@ -1,12 +1,17 @@
 # Releases
 
 Status: **implemented.** Describes the `releases/` subsystem — the naming strategies, the
-two-step generate/create flow, and how release relates to publish.
+two-step generate/create flow, and how the local CLI release command relates to the local
+publish command.
 
 `releases/` owns exactly one concern: **cutting a named marker into git history.** It
 builds nothing and pushes no image — that is `publish`'s job (see
 [Orthogonality](#orthogonality-release-is-not-publish)). A release is a git tag plus the
 changelog of commits since the previous one.
+
+This subsystem belongs to the local CLI driver. Its `v*` collection and configured naming
+strategies do not define which GitHub pushes the CI/CD server builds or publishes; server
+cadence is specified in [`execution-modes.md`](execution-modes.md).
 
 ## The two-step flow
 
@@ -112,10 +117,11 @@ the moving reference is a registry concern, not a force-pushed tag.
 
 ## Orthogonality: release is not publish
 
-`release` (cut a tag) and `publish` (build + push an image) are **orthogonal — neither
-implies the other**, and there is **no `deploy` verb**. Cutting a tag produces a marker in
-git and nothing in the registry; producing an image is `publish`'s sole job. Under a CI
-model the two co-occur (a tag triggers a build), but that is the trigger *mechanism*, not
-the domain — the tag publishes nothing. A release that is never published is a fine state,
-allowed by convention with no guard. Full rationale:
+The local `./platform release` command (cut a tag) and local `./platform publish` command
+(build + push an image) are **orthogonal — neither implies the other**, and there is **no
+`deploy` verb**. Cutting a tag produces a marker in git and nothing in the registry; only an
+explicit local publish invocation pushes an image. This local command contract says
+nothing about the server driver, which applies its own build triggers and publish cadence.
+A release that is never locally published is a fine state, allowed by convention with no
+guard. Full rationale:
 [delivery-verbs-are-orthogonal](../decisions/2026-07-05-delivery-verbs-are-orthogonal.md).

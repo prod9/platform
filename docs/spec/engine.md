@@ -436,15 +436,14 @@ remains the worker's, and it still never sees a host address.
 
 The publish bracket pushes a successfully-built container on the connection that built it,
 so the registry secret is minted by the same session that owns the container, and logs the
-image via `termlog.Image`. `publish` composes the ordinary path — build the units at the
-publish arch, suffix each `ImageName` with the release tag, run, then push — and the
-`[]BuildAttempt` records of what shipped are assembled by `srv`
+image via `termlog.Image`. `BuildAndPublish` composes the ordinary path — build the units
+at the publish arch, suffix each `ImageName` with the caller-supplied image tag, run, then
+push — and the `[]BuildAttempt` records of what shipped are assembled by `srv`
 ([platform-server.md](platform-server.md)), not by the engine.
 
-`release` (cut a tag) and `publish` (build + push) are orthogonal — neither implies the
-other, and there is no `deploy` verb. See
-[delivery-verbs-are-orthogonal](../decisions/2026-07-05-delivery-verbs-are-orthogonal.md)
-for the full rationale.
+The engine owns neither invocation nor cadence. Local `./platform publish` and the server
+worker call this shared capability from different contexts under different policies; see
+[`execution-modes.md`](execution-modes.md). Release naming remains outside the engine.
 
 ## Registry credentials
 

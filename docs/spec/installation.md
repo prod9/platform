@@ -439,9 +439,8 @@ literal placeholder forms of their URLs.
   (Read and write), Metadata (Read-only); *Organization*: Members (Read-only — the
   claim reads org memberships to prove ownership);
 - the event subscription: **Push, and only Push** — GitHub delivers only
-  subscribed events, and push is the one event srv consumes (the tag-watch that
-  queues builds); an App with no subscription delivers nothing and tag pushes
-  never build;
+  subscribed events, and every non-deleted push is a CI/CD server build trigger;
+  an App with no subscription delivers nothing and no branch or tag push builds;
 - restrict-to-managed-org;
 - the entry form for what creation yields: App id, the App's URL — the wizard
   extracts the slug from either page form (`…/settings/apps/<slug>` or

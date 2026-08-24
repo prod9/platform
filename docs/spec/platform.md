@@ -35,8 +35,11 @@ End-to-end, verbs and artifacts:
 2. **Authenticate.** A person logs in via GitHub; platform links their GitHub identity to
    an internal user and issues its **own** token. What they can reach is what GitHub says
    they can reach: repo access triggers builds, infra-repo push permission deploys.
-3. **Build.** A code push builds the app image (Dagger) → an **immutable** tag in the
-   registry. (CI reflex; also runnable via `platform build`.)
+3. **Build.** Every pushed commit builds through Dagger. A successful tag build in an app
+   repository publishes an image under that exact tag; branch builds validate without
+   publishing. This is the server CI/CD cadence, distinct from an operator explicitly
+   running `./platform build` or `./platform publish` locally
+   ([execution modes](execution-modes.md)).
 4. **Commit the new ref (gated).** An authorized user changes the app-image ref in the app's `infra/` CUE —
    hand-edited and committed, or (later) the server authoring that commit **as the user** via the
    GitHub App. The gate is the user's GitHub push permission on the infra repo; the commit is the

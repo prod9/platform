@@ -48,6 +48,12 @@ there is no `deploy` verb: deployment is committing an image ref into the infra 
 whose own `publish` ships the rendered manifests as an OCI artifact that Flux pulls and
 applies. The infra repo's git history is the deployment record.
 
+These are local CLI commands. The `srv` + worker CI/CD mode is a peer driver of the shared
+build/publish engine: every push builds, while repository policy separately decides which
+successful builds publish. See
+[`docs/spec/execution-modes.md`](docs/spec/execution-modes.md); this repository's own
+release procedure does not restrict what consuming repositories may build, tag, or publish.
+
 ## Documentation
 
 [`docs/`](docs/) holds the durable record, routed by [`docs/README.md`](docs/README.md):

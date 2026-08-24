@@ -22,6 +22,12 @@ platform.toml ─parse─▶ config model ─interpret─▶ []*BuildUnit ─▶
 | strategies   | `framework/` | the `Framework` implementations — per-stack build knowledge |
 | engine       | `engine/`    | the Dagger `Session` + `Run` — drives each unit's steps     |
 
+This is a shared capability pipeline, not an invocation model. The local CLI and the
+CI/CD server are peer drivers of it, and delivery policy separately decides which
+successful server builds publish. [`execution-modes.md`](execution-modes.md) is canonical
+for those boundaries; neither CLI release strategy nor this repository's release
+procedure constrains server builds.
+
 ## How to think about it (the durable principle)
 
 **Construct a complete definition tree once, after parsing — then execute it.** By the
@@ -150,8 +156,9 @@ Command surface: `init  build  configure  exec  export  ls  preview  publish  re
 render  clean  srv  versions`. `clean` prunes the local Dagger build cache
 (first-line cache diagnostics — see
 [`../guides/troubleshooting-build-cache.md`](../guides/troubleshooting-build-cache.md));
-`versions` lists the release history. `publish` is uniform (infra is just a framework
-module); `render` emits the `k8s/` tree for the serverless `kubectl apply` path. `srv`
+`versions` lists the release history. The local `publish` command is uniform (infra is
+just a framework module); `render` emits the `k8s/` tree for the serverless
+`kubectl apply` path. `srv`
 (alias `serve`) starts the platform server — **its surface is under active rework and is
 not settled here**; [`platform-server.md`](platform-server.md) is its only spec. No `ops` group; no
 `discover` or `bootstrap` — re-run `init` to see detected modules.
@@ -184,12 +191,14 @@ only, no executable) — arch is irrelevant to it, so it is untouched by this.
 
 ## Infra delivery is a framework, not a separate pipeline
 
-Rendering and shipping the infra repo is **the same build pipeline**, not a parallel one.
+Rendering and shipping the infra repo uses **the same build pipeline**, not a parallel
+one.
 Infra is a framework: its `Build` renders the `apps/` CUE + `.platform` directives (via
 the linked CUE evaluator + `dsl`) into a manifest tree and packs that tree into a `FROM scratch`
-image. So **infra publish is the ordinary `publish` verb** — Dagger builds the image, Dagger
-pushes it with the same local-docker credentials as any app image. There is no bespoke OCI
-pusher and no separate `ops publish`.
+image. The same publish capability pushes it, whether explicitly invoked by local
+`./platform publish` or selected by server delivery policy. There is no bespoke OCI
+pusher and no separate `ops publish`; the two drivers' invocation context and cadence
+remain distinct as specified in [`execution-modes.md`](execution-modes.md).
 
 Flux consumes the plain image via `OCIRepository` + a `layerSelector` that extracts the
 `application/vnd.oci.image.layer.v1.tar+gzip` layer; kustomize-controller applies the docs.
