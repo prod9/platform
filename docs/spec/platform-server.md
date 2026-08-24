@@ -181,7 +181,7 @@ lives under `/api`; GitHub-facing and health routes stay bare.
 | `GET /api/builds/{id}/steps`| session                   | the build's steps across all selected modules, flat, each carrying its build-module id and captured output | steps are a sub-resource: the heavy stdout/stderr payload stays off the detail read                 |
 | `POST /api/builds`          | session                   | records a `webui`-triggered build: owner/repo + ref, sha resolved server-side; may carry a module list | the manual trigger — the same domain fact as the webhook, authorized by session instead of HMAC; module selection is the manual trigger's alone (§Triggering a build) |
 | `GET /api/engines`          | session                   | the engine fleet: the DNS roster resolved per request, each instance dial-checked      | the engines page — the fleet the builds run on, read from the same `DAGGER_ENGINE` source the worker dials ([engine.md](engine.md) §Runner discovery) |
-| `GET /api/engines/{addr}`   | session                   | one engine instance: reachability, version, current + recent builds (from `build_events.engine`) | the engine detail page; the instance is named by its resolved `host:port`, URL-encoded                             |
+| `GET /api/engines/{addr}`   | session                   | one engine instance: reachability, version, current + recent builds (from module engine assignments) | the engine detail page; the instance is named by its resolved `host:port`, URL-encoded                           |
 | `GET /api/system/settings`         | session                   | the install-time facts, read-only; secret-valued keys are served **masked, never the value** | the System / Settings page — the one post-install reader of the install settings (`srv/system`)                             |
 | `GET /api/system/migrations`       | session                   | the ordered migration plan, one projected fx plan item per line; empty means current | the System / Migrations page; the client interprets each action for presentation |
 | `POST /api/system/migrations`      | session                   | applies a clean pending migrate plan; response is the freshly planned result           | the post-install run button owned by `srv/system`; distinct from the installer's pre-install migration operation |
@@ -398,10 +398,12 @@ are jobs too. fx's queue is one-shot, so a recurring job reschedules itself at t
 
 **Two jobs carry a build**, and the split makes a module the unit of capacity and failure:
 
-| Job               | Shape                               | What it does                                                                                                                        |
-|-------------------|-------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------|
-| `dispatch_builds` | recurring, singleton                | Finds build modules with no event stream and schedules one `build_module` job for each; repeated scans reconcile missed scheduling. |
-| `build_module`    | one-shot, payload = build-module id | Prepares the repo at the build sha, interprets that one persisted module into a `BuildUnit`, executes it, and writes its events.      |
+| Job               | Shape                               | What it does                                                                                                                      |
+|-------------------|-------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------|
+| `dispatch-builds` | recurring, singleton                | Finds unclaimed build modules and schedules one `build-module` job for each; repeated scans reconcile missed scheduling.          |
+| `build-module`    | one-shot, payload = build-module id | Claims one module, prepares the repo at the build sha, interprets the persisted module into a `BuildUnit`, and writes its events.  |
+
+All fx job names are dash-separated slugs.
 
 A controller therefore never schedules a job. It appends a complete build aggregate; the
 dispatcher turns its module records into fx jobs. `ScheduleNow` writes mechanism state and
@@ -410,16 +412,28 @@ reconciles any failure between those writes.
 
 **A job's name is fx's dispatch key, and its struct is its payload.** `worker` registers one
 instance per `Name()` and unmarshals each queued row's payload into that instance before
-`Run`, so many pending `build_module` jobs coexist under one name and are told apart by
+`Run`, so many pending `build-module` jobs coexist under one name and are told apart by
 their build-module ids. The dispatcher is the singleton job; module jobs are ordinary
 one-shot jobs.
 
 **A module claim makes duplicate delivery harmless.** Scheduling through fx and recording
-domain intent are separate writes, so the dispatcher is at-least-once. A `build_module` job
-first inserts the module's one immutable claim row; the primary key admits exactly one
-winner and every duplicate delivery exits without executing. Once claimed, a module is
-never automatically rescheduled. A worker dying afterward leaves visible stalled work for
-an operator, whose retry creates a new build aggregate rather than mutating this one.
+domain intent are separate writes, so the dispatcher is at-least-once. A `build-module` job
+reads `os.Hostname()` and atomically claims the module:
+
+```sql
+UPDATE build_modules
+SET claimed_at = now(),
+    claimed_by = $2
+WHERE id = $1
+  AND claimed_at IS NULL
+RETURNING *;
+```
+
+The one caller that receives a `BuildModule` proceeds; every duplicate receives no row and
+exits without executing. Hostname lookup fails before the claim rather than recording an
+unattributed worker. Once claimed, a module is never automatically rescheduled. A worker
+dying afterward leaves visible stalled work for an operator, whose retry creates a new
+build aggregate rather than mutating this one.
 
 **The server chooses the publish tag from the manifest's server policy.** Under `tags`,
 the worker strips `refs/tags/` and publishes under the entire remaining tag name; tags
@@ -452,20 +466,36 @@ the endpoints they live at, workers decide what to hand them.
 
 ## Build lifecycle: event-sourced
 
-There is **no stored build `state`.** The primitive is an append-only **`BuildEvent`**
-stream in a `build_events` table — the persisted form of what a run reports through its
-`Observer` ([engine.md](engine.md)), which the engine itself never serializes. The worker
-executes and writes events; the database *is* the channel; the webui reads it back. Nothing
-subscribes to a live in-process stream across the process boundary, which is exactly why
-the engine needs no late-joining observer.
+There is **no stored build `status`.** Execution history is an append-only **`BuildEvent`**
+stream in a `build_events` table. It covers the whole module lifecycle: the worker writes
+clone events around repository preparation, then transcribes what the engine reports
+through its `Observer` ([engine.md](engine.md)). The engine itself never serializes. The
+database *is* the channel; the webui reads it back. Nothing subscribes to a live in-process
+stream across the process boundary, which is exactly why the engine needs no late-joining
+observer.
 
-Everything else is a **fold** of those per-module streams:
+The event order is:
 
-| Fold                | Computed as                                                           |
-| ------------------- | --------------------------------------------------------------------- |
-| module state        | reduction of one build module's events                                |
-| build state         | reduction of all selected module states                               |
-| stuck / timed-out   | claim or last-event timestamp vs the persisted module timeout         |
+```
+clone_started -> clone_done -> run_started -> step_started / step_done
+              -> image_built -> published -> run_done
+```
+
+`clone_done`, `step_done`, and `run_done` carry the error for the span they close. A clone
+failure ends at `clone_done` and never invents an engine run. The worker appends
+`run_started` immediately before calling the engine, so it means the module has entered the
+engine and may be waiting for a connection. Before the first `step_started`, the engine's
+`EngineAssigned` callback records the selected endpoint and assignment time on
+`build_modules`. An engine error before its first callback is closed by the worker with
+`run_done(error)`. `published` is absent from a build-only run.
+
+Display state is a **fold** of each module row and its event stream:
+
+| Fold              | Computed as                                                      |
+|-------------------|------------------------------------------------------------------|
+| module state      | claim + engine-assignment fields and one module's events         |
+| build state       | reduction of all selected module states                           |
+| stuck / timed-out | latest module transition vs the persisted module timeout          |
 
 There is no attempt model. A build module executes once; a failed or stalled execution
 remains history, and operator retry creates a new build with new module rows.
@@ -491,23 +521,25 @@ build_modules                   -- the explicit selected subset; one row = one w
   id            bigserial
   build_id      bigint          -- REFERENCES builds(id)
   manifest_id   bigint
-  manifest_module_id bigint     -- REFERENCES repo_manifest_modules(id)
+  manifest_module_id bigint      -- REFERENCES repo_manifest_modules(id)
+  claimed_at    timestamptz NULL
+  claimed_by    text NOT NULL DEFAULT ''  -- claiming worker's os.Hostname()
+  engine_host   text NOT NULL DEFAULT ''  -- selected host:port
+  engine_assigned_at timestamptz NULL
   created_at    timestamptz
                                 -- UNIQUE (build_id, manifest_module_id)
                                 -- composite FKs require build + module to share manifest_id
+                                -- CHECK ((claimed_at IS NULL) = (claimed_by = ''))
+                                -- CHECK ((engine_assigned_at IS NULL) = (engine_host = ''))
 
-build_module_claims             -- immutable at-most-once execution claim
-  build_module_id bigint        -- PRIMARY KEY, REFERENCES build_modules(id)
-  claimed_at      timestamptz
-
-build_events                    -- append-only; one row per module's engine callback
+build_events                    -- append-only; one row per module lifecycle event
   id            bigserial
   build_module_id bigint        -- REFERENCES build_modules(id)
-  kind          text            -- step_started | step_done | image_built | published | run_done
+  kind          text            -- clone_started | clone_done | run_started
+                                -- step_started | step_done | image_built | published | run_done
   step          text            -- '' unless step-scoped
-  at            timestamptz     -- the engine's own callback time, not the insert time
-  engine        text            -- the endpoint the worker dialed for this execution
-  error         text            -- step_done, run_done
+  at            timestamptz     -- event time, not the insert time
+  error         text            -- clone_done, step_done, run_done
   image         text            -- image_built, published
   hash          text            -- published only
   stdout        text            -- captured output, per step
@@ -519,14 +551,13 @@ The composite foreign keys make two mismatches unrepresentable: a build cannot n
 manifest from another repository or commit, and a `build_modules` row cannot select a
 module from another manifest.
 
-`build_events` is a transcription of the `Observer` contract ([engine.md](engine.md)) plus
-one column of worker context. Its module identity is the `build_module_id` foreign key,
-not a copied unit name. `at` is preserved as the engine reported it so elapsed time
-survives a slow writer, and `engine` is stamped by the worker on every row it writes: the
-endpoint its session dialed for this execution
-([engine.md](engine.md) §Runner discovery), the attribution the engine detail page reads
-back (`GET /api/engines/{addr}`). Captured `stdout`/`stderr` ride the `step_done` row
-rather than a kind of their own.
+`build_events` joins worker-owned orchestration events with a transcription of the engine's
+reporting callbacks ([engine.md](engine.md)). Its module identity is the
+`build_module_id` foreign key, not a copied unit name. `at` preserves the time at which the
+worker or engine observed the event, so elapsed time survives a slow writer. Engine
+assignment is module metadata rather than a repeated stream fact: `EngineAssigned` updates
+`build_modules.engine_host` and `engine_assigned_at`, which engine detail reads directly.
+Captured `stdout`/`stderr` ride the `step_done` row rather than a kind of their own.
 
 **A `builds` row records who asked and what for, never how it went.** No `status`, no
 `image`, no `error` column: those are the stored state this design exists to remove, and
@@ -565,8 +596,8 @@ Folds are **computed per read** until listing measurably hurts; there is deliber
 denormalized fold column on `builds` yet. Adding one is a cache decision, and a cache that
 does not exist cannot go stale or be written to by mistake.
 
-**Dispatch is still reconciliation.** Its to-be state is one fx job for every unclaimed
-build module; duplicate delivery loses the immutable claim race and does no work. Failed
+**Dispatch is still reconciliation.** Its to-be state is one fx job for every module whose
+`claimed_at` is null; duplicate delivery loses the guarded update and does no work. Failed
 and stalled module executions are terminal until an operator creates a new build.
 
 `BuildEvent` carries the `Build` prefix deliberately: "event" is already live in this
@@ -740,7 +771,7 @@ Not ephemeral `/tmp` — a persistent cache for fast clones and build reuse:
 ```
 /var/cache/platform/
   git/<owner>/<repo>.git     ← bare mirror; `git fetch` under a per-repo lock
-  work/<build-id>/           ← `git worktree add` off the mirror; removed after the build
+  work/<build-module-id>/    ← `git worktree add` off the mirror; removed after the module
 ```
 
 One **full** bare mirror per repo, updated by incremental `fetch` (cheap after the first);

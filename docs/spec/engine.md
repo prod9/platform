@@ -111,12 +111,12 @@ engine." So unset `DAGGER_ENGINE` is an explicit operator choice for local, neve
 around the session that would own the result. A future consumer exports them the day it
 exists, not before.
 
-**The one endpoint fact that does cross the boundary is the dialed one.** A `Session`
-reports which endpoint it connected to — a single `host:port` string, after the fact —
-so the worker can stamp `build_events.engine` and the engine detail read can attribute
-builds to instances ([platform-server.md](platform-server.md), the `build_events`
-schema). That is attribution of a choice already made, not access to the roster: no
-list, no dialing surface, nothing a caller could route around the session with.
+**The one endpoint fact that does cross the boundary is the assigned one.** A run reports
+`EngineAssigned(unit, engine, at)` after its connection succeeds and before its first
+step starts. The scalar `engine` is one `host:port`, not a roster or dialing surface. The
+server stores that callback as the module's `engine_host` and `engine_assigned_at`, so
+engine detail can attribute builds to instances without duplicating the endpoint across
+every event ([platform-server.md](platform-server.md), the build tables).
 
 `dial(ctx)` picks **uniformly at random** among the resolved hosts. Random replaces the
 old round-robin cursor: the distribution over a run of picks is the same, and it needs
@@ -137,9 +137,14 @@ run := NewRun(sess, unit, caller)  // caller may be nil; the run injects its own
 for run.Next(ctx) { }              // drives exactly one Step per call
 ```
 
-The **first** `Next` takes the run's connection (`Session.connect()`) and every later step
-reuses it: a container is bound to the connection that built it, so one run's steps can
-never be spread across the fleet. The session spreads whole *runs*, not steps.
+The **first** `Next` takes the run's connection (`Session.connect()`), reports
+`EngineAssigned`, then reports `StepStarted` and executes the step. Every later step
+reuses the connection: a container is bound to the connection that built it, so one run's
+steps can never be spread across the fleet. The session spreads whole *runs*, not steps.
+A failed dial therefore produces `RunDone(err)`, with no engine assignment or step start
+before it.
+The srv worker records its own `run_started` event immediately before calling the engine;
+that orchestration boundary is not an Observer callback.
 
 Each `Next` calls `Framework.Execute` for the current `Step` with the previous step's
 container, forces the work eagerly with `.Sync()`, and **times** the step across that
@@ -159,13 +164,14 @@ that claim is only true if the empty plan is rejected. The run fails at open wit
 while `Plan` and `Execute` agree, this one while `Plan` returns anything at all, and both
 stay loud precisely because a silent version of either is a build stage that vanished.
 
-Clone (repo-prep) and Publish are **engine brackets** around this loop, not framework
-steps — cloning is not any stack's build knowledge, and pushing is the engine's registry
-concern. Publish being a bracket is load-bearing rather than descriptive: it runs while the
-run's connection is still a local variable, which is what lets the registry secret be minted
-on the same session as the container it authenticates.
+Repository preparation and publish bracket this loop at different layers; neither is a
+framework step. The srv worker owns cloning and records `clone_started` / `clone_done`
+before entering the engine. The engine owns pushing. Publish being an engine bracket is
+load-bearing rather than descriptive: it runs while the run's connection is still a local
+variable, which lets the registry secret be minted on the same session as the container it
+authenticates.
 
-### One observer, six callbacks
+### One observer, seven callbacks
 
 A run reports everything to **one** `Observer`, supplied by whoever opens the run. The
 contract, the tee and the accumulator are their own package —
@@ -175,6 +181,7 @@ snapshot-plus-delta:
 
 ```go
 type Observer interface {
+    EngineAssigned(unit, engine string, at time.Time)
     StepStarted(unit, step string, at time.Time)
     StepOutput(unit, step string, at time.Time, stdout, stderr string)
     StepDone(unit, step string, at time.Time, err error)
@@ -184,19 +191,21 @@ type Observer interface {
 }
 ```
 
-Three callbacks are **lifecycle**, one is **capture**, two are **output**. The output pair
+Three callbacks are **lifecycle**, one is **assignment**, one is **capture**, and two are
+**output**. The output pair
 mirrors the build⊥publish orthogonality
 ([execution-mode decision]):
 `ImageBuilt` is the common path — every successful build fires it, and four of the five
 commands that build (`build`, `export`, `exec`, `preview`) never publish — while
 `Published` fires only on the publish path and is the only place a registry hash exists.
-One callback per event kind; nothing is inferred from a shared method with a mode flag.
+One callback per reported fact; nothing is inferred from a shared method with a mode flag.
 
 [execution-mode decision]: ../decisions/2026-08-24-execution-mode-does-not-define-delivery-policy.md
 
-The kernel stays at these six until a capability actually arrives; nothing is front-loaded
-against a consumer that does not exist yet. `StepOutput` earned its place when `srv` began
-persisting captured output — see §Log capture below.
+The assignment callback exists because the server now needs to distinguish waiting for an
+engine from executing the first framework step and to attribute the selected endpoint.
+`StepOutput` earned its place when `srv` began persisting captured output — see §Log capture
+below.
 
 `RunDone` fires **exactly once** per run, whichever way the cursor ends, which makes the
 report self-terminating: a consumer needs no out-of-band done signal.
@@ -270,10 +279,9 @@ sharing a session, so the session layer is untouched by log capture. `WithLogOut
 Dagger CLI *subprocess's* stderr pipe — rendered TUI text, never demuxable — and is not a
 capture path.
 
-Capture is the **sixth callback**, and it is no longer deferred: `srv` persists a step's
-output in `build_events` ([platform-server.md](platform-server.md)), so a build whose logs
-only ever reached a terminal would be unreadable in the webui — which is the whole point of
-the server.
+Capture is no longer deferred: `srv` persists a step's output in `build_events`
+([platform-server.md](platform-server.md)), so a build whose logs only ever reached a
+terminal would be unreadable in the webui — which is the whole point of the server.
 
 ```go
 StepOutput(unit, step string, at time.Time, stdout, stderr string)
@@ -382,8 +390,10 @@ Scheduling splits in two and the halves must not meet:
 | which build runs next    | worker | pending records, concurrency policy |
 | which runner executes it | engine | the roster, uniform choice at dial  |
 
-**The worker never sees a host address.** If one leaks upward the boundary is gone and
-two schedulers begin fighting over the same capacity.
+**The worker observes the assigned host; it never chooses one.** `EngineAssigned` reports
+the engine's completed choice so the worker can store attribution. The worker receives no
+roster, makes no selection, and has no dialing surface; otherwise two schedulers would
+fight over the same capacity.
 
 ### No dagger verbs outside `engine/`
 
