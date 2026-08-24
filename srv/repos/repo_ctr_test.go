@@ -43,8 +43,7 @@ func apiRouter(t *testing.T, cfg *config.Source) chi.Router {
 
 // setupInstalled is an installed server for the registration endpoints: migrated DB
 // with the install.* settings claimed, stubbed App credentials, and a fake GitHub
-// serving token mints, the installation repo list, the user-scoped repo list, the
-// repo lookup, and the manifest read.
+// serving token mints, repo lookups, and manifest reads.
 func setupInstalled(t *testing.T) (context.Context, *config.Source) {
 	ctx := srvtest.SetupDB(t)
 	require.NoError(t, srvtest.SeedSettings(ctx, map[string]string{
@@ -57,18 +56,6 @@ func setupInstalled(t *testing.T) (context.Context, *config.Source) {
 	mux.HandleFunc("POST /app/installations/7/access_tokens", func(resp http.ResponseWriter, req *http.Request) {
 		resp.WriteHeader(201)
 		fmt.Fprint(resp, `{"token":"ghs_tok"}`)
-	})
-	mux.HandleFunc("GET /installation/repositories", func(resp http.ResponseWriter, req *http.Request) {
-		require.Equal(t, "Bearer ghs_tok", req.Header.Get("Authorization"))
-		fmt.Fprint(resp, `{"total_count":2,"repositories":[
-			{"name":"app","full_name":"prodigy9/app","owner":{"login":"prodigy9"}},
-			{"name":"api","full_name":"prodigy9/api","owner":{"login":"prodigy9"}}]}`)
-	})
-	// The user reaches only "app" — "api" is registered but must stay invisible.
-	mux.HandleFunc("GET /user/installations/7/repositories", func(resp http.ResponseWriter, req *http.Request) {
-		require.Equal(t, "Bearer gho_usertoken", req.Header.Get("Authorization"))
-		fmt.Fprint(resp, `{"total_count":1,"repositories":[
-			{"name":"app","full_name":"prodigy9/app","owner":{"login":"prodigy9"}}]}`)
 	})
 	mux.HandleFunc("GET /repos/prodigy9/app/contents/platform.toml", func(resp http.ResponseWriter, req *http.Request) {
 		require.Equal(t, "Bearer ghs_tok", req.Header.Get("Authorization"))
@@ -101,9 +88,9 @@ func setupInstalled(t *testing.T) (context.Context, *config.Source) {
 	return ctx, cfg
 }
 
-// startTestSession seeds a GitHub-linked user with a live session — the identity
-// carries the encrypted OAuth token the visibility read reveals.
-func startTestSession(t *testing.T, ctx context.Context) (int64, string) {
+// startTestSession seeds a GitHub-linked user with a live session and its authorization
+// snapshot.
+func startTestSession(t *testing.T, ctx context.Context, repositories ...auth.Repository) (int64, string) {
 	upsert, user := &auth.UpsertGitHubUser{
 		Account: auth.GitHubAccount{ID: 12345, Login: "octocat", Email: "octo@example.com"},
 		Token:   "gho_usertoken",
@@ -113,7 +100,18 @@ func startTestSession(t *testing.T, ctx context.Context) (int64, string) {
 	token := "test-session-token"
 	create := &auth.CreateSession{UserID: user.ID, Token: token, ExpiresAt: time.Now().Add(time.Hour)}
 	require.NoError(t, create.Execute(ctx, nil))
+	for _, repository := range repositories {
+		require.NoError(t, data.Exec(ctx, `
+			INSERT INTO session_repositories
+				(session_id, github_repository_id, owner, name, permission)
+			SELECT id, $1, $2, $3, $4 FROM sessions WHERE user_id = $5`,
+			repository.GitHubID, repository.Owner, repository.Name, repository.Permission, user.ID))
+	}
 	return user.ID, token
+}
+
+func testRepository(name string, permission auth.Permission) auth.Repository {
+	return auth.Repository{GitHubID: int64(len(name)), Owner: "prodigy9", Name: name, Permission: permission}
 }
 
 func registerTestRepo(t *testing.T, ctx context.Context, owner, repo string, userID int64) {
@@ -146,11 +144,11 @@ func TestReposWithoutCookie(t *testing.T) {
 	require.Equal(t, http.StatusUnauthorized, resp.Code)
 }
 
-// GET /api/repos is registered∩live: "api" is registered but out of the user's reach,
-// "app" is both; only "app" answers. An unregistered reachable repo never appears.
-func TestReposIntersectsRegisteredWithLive(t *testing.T) {
+// GET /api/repos is registered∩authorized: "api" is registered but absent from the
+// snapshot, while "app" is in both; only "app" answers.
+func TestReposIntersectsRegisteredWithSnapshot(t *testing.T) {
 	ctx, cfg := setupInstalled(t)
-	userID, session := startTestSession(t, ctx)
+	userID, session := startTestSession(t, ctx, testRepository("app", auth.PermissionRead))
 	router := apiRouter(t, cfg)
 
 	for _, name := range []string{"app", "api"} {
@@ -172,9 +170,9 @@ func TestReposIntersectsRegisteredWithLive(t *testing.T) {
 	require.Equal(t, "prodigy9/app", listing[0].FullName)
 }
 
-func TestCandidatesIntersectsUserAndAppAndExcludesRegistered(t *testing.T) {
+func TestCandidatesUseSnapshotAndExcludeRegistered(t *testing.T) {
 	ctx, cfg := setupInstalled(t)
-	userID, session := startTestSession(t, ctx)
+	userID, session := startTestSession(t, ctx, testRepository("app", auth.PermissionRead))
 	router := apiRouter(t, cfg)
 
 	resp := doRequest(t, router, ctx, session, "GET", "/api/repos/candidates", "")
@@ -199,7 +197,7 @@ func TestCandidatesIntersectsUserAndAppAndExcludesRegistered(t *testing.T) {
 
 func TestRegisterRepoRecordsAndConflicts(t *testing.T) {
 	ctx, cfg := setupInstalled(t)
-	userID, session := startTestSession(t, ctx)
+	userID, session := startTestSession(t, ctx, testRepository("app", auth.PermissionWrite))
 	router := apiRouter(t, cfg)
 
 	resp := doRequest(t, router, ctx, session, "POST", "/api/repos",
@@ -252,9 +250,20 @@ func TestRegisterRepoUnreachable(t *testing.T) {
 	require.Equal(t, http.StatusNotFound, resp.Code)
 }
 
+func TestRegisterRepoRequiresWritePermission(t *testing.T) {
+	ctx, cfg := setupInstalled(t)
+	_, session := startTestSession(t, ctx, testRepository("app", auth.PermissionRead))
+	router := apiRouter(t, cfg)
+
+	resp := doRequest(t, router, ctx, session, "POST", "/api/repos",
+		`{"owner":"prodigy9","repo":"app","manifest_sha":"abc123"}`)
+
+	require.Equal(t, http.StatusNotFound, resp.Code)
+}
+
 func TestRegisterRepoWithoutManifest(t *testing.T) {
 	ctx, cfg := setupInstalled(t)
-	_, session := startTestSession(t, ctx)
+	_, session := startTestSession(t, ctx, testRepository("api", auth.PermissionWrite))
 	router := apiRouter(t, cfg)
 
 	resp := doRequest(t, router, ctx, session, "POST", "/api/repos",
@@ -264,7 +273,7 @@ func TestRegisterRepoWithoutManifest(t *testing.T) {
 
 func TestManifestParsesPlatformTOML(t *testing.T) {
 	ctx, cfg := setupInstalled(t)
-	_, session := startTestSession(t, ctx)
+	_, session := startTestSession(t, ctx, testRepository("app", auth.PermissionRead))
 	router := apiRouter(t, cfg)
 
 	resp := doRequest(t, router, ctx, session, "GET", "/api/repos/prodigy9/app/manifest", "")
@@ -293,7 +302,7 @@ func TestManifestParsesPlatformTOML(t *testing.T) {
 
 func TestManifestAbsentIsConflict(t *testing.T) {
 	ctx, cfg := setupInstalled(t)
-	_, session := startTestSession(t, ctx)
+	_, session := startTestSession(t, ctx, testRepository("api", auth.PermissionRead))
 	router := apiRouter(t, cfg)
 
 	resp := doRequest(t, router, ctx, session, "GET", "/api/repos/prodigy9/api/manifest", "")
@@ -306,5 +315,15 @@ func TestManifestUnreachableIsNotFound(t *testing.T) {
 	router := apiRouter(t, cfg)
 
 	resp := doRequest(t, router, ctx, session, "GET", "/api/repos/prodigy9/ghost/manifest", "")
+	require.Equal(t, http.StatusNotFound, resp.Code)
+}
+
+func TestManifestRequiresReadPermission(t *testing.T) {
+	ctx, cfg := setupInstalled(t)
+	_, session := startTestSession(t, ctx)
+	router := apiRouter(t, cfg)
+
+	resp := doRequest(t, router, ctx, session, "GET", "/api/repos/prodigy9/app/manifest", "")
+
 	require.Equal(t, http.StatusNotFound, resp.Code)
 }

@@ -42,7 +42,7 @@ func apiRouter(t *testing.T, cfg *config.Source) chi.Router {
 
 // setupInstalled is an installed server for the trigger/repos endpoints: migrated DB
 // with the install.* settings claimed, stubbed App credentials, and a fake GitHub
-// serving token mints, the repo lookup, ref resolution, and the installation repo list.
+// serving token mints, repo lookup, and ref resolution.
 func setupInstalled(t *testing.T) (context.Context, *config.Source) {
 	ctx := srvtest.SetupDB(t)
 	require.NoError(t, srvtest.SeedSettings(ctx, map[string]string{
@@ -55,12 +55,6 @@ func setupInstalled(t *testing.T) (context.Context, *config.Source) {
 	mux.HandleFunc("POST /app/installations/7/access_tokens", func(resp http.ResponseWriter, req *http.Request) {
 		resp.WriteHeader(201)
 		fmt.Fprint(resp, `{"token":"ghs_tok"}`)
-	})
-	mux.HandleFunc("GET /installation/repositories", func(resp http.ResponseWriter, req *http.Request) {
-		require.Equal(t, "Bearer ghs_tok", req.Header.Get("Authorization"))
-		fmt.Fprint(resp, `{"total_count":2,"repositories":[
-			{"name":"app","full_name":"prodigy9/app","owner":{"login":"prodigy9"}},
-			{"name":"api","full_name":"prodigy9/api","owner":{"login":"prodigy9"}}]}`)
 	})
 	mux.HandleFunc("GET /repos/prodigy9/app", func(resp http.ResponseWriter, req *http.Request) {
 		require.Equal(t, "Bearer ghs_tok", req.Header.Get("Authorization"))
@@ -83,9 +77,9 @@ func setupInstalled(t *testing.T) (context.Context, *config.Source) {
 	return ctx, cfg
 }
 
-// startTestSession seeds a user with a live session, returning the raw session token
-// the client-side cookie would carry.
-func startTestSession(t *testing.T, ctx context.Context) string {
+// startTestSession seeds a user with a live session and repository snapshot, returning
+// the raw session token the client-side cookie carries.
+func startTestSession(t *testing.T, ctx context.Context, repositories ...auth.Repository) string {
 	var userID int64
 	require.NoError(t, data.Get(ctx, &userID,
 		`INSERT INTO users (name) VALUES ('octocat') RETURNING id`))
@@ -93,7 +87,18 @@ func startTestSession(t *testing.T, ctx context.Context) string {
 	token := "test-session-token"
 	create := &auth.CreateSession{UserID: userID, Token: token, ExpiresAt: time.Now().Add(time.Hour)}
 	require.NoError(t, create.Execute(ctx, nil))
+	for _, repository := range repositories {
+		require.NoError(t, data.Exec(ctx, `
+			INSERT INTO session_repositories
+				(session_id, github_repository_id, owner, name, permission)
+			SELECT id, $1, $2, $3, $4 FROM sessions WHERE user_id = $5`,
+			repository.GitHubID, repository.Owner, repository.Name, repository.Permission, userID))
+	}
 	return token
+}
+
+func testRepository(name string, permission auth.Permission) auth.Repository {
+	return auth.Repository{GitHubID: int64(len(name)), Owner: "prod9", Name: name, Permission: permission}
 }
 
 func TestRepoBuildsWithoutCookie(t *testing.T) {
@@ -109,7 +114,9 @@ func TestRepoBuildsWithoutCookie(t *testing.T) {
 // the landing page fans out ?limit=3 per visible repo (spec §Operations).
 func TestRepoBuildsFiltersAndLimits(t *testing.T) {
 	ctx, cfg := setupInstalled(t)
-	token := startTestSession(t, ctx)
+	token := startTestSession(t, ctx, auth.Repository{
+		GitHubID: 1, Owner: "prodigy9", Name: "app", Permission: auth.PermissionRead,
+	})
 	router := apiRouter(t, cfg)
 
 	for i, repo := range []string{"app", "app", "api"} {
@@ -139,6 +146,19 @@ func TestRepoBuildsFiltersAndLimits(t *testing.T) {
 	require.Equal(t, "sha1", listing[0].SHA)
 }
 
+func TestRepoBuildsRequireReadPermission(t *testing.T) {
+	ctx, cfg := setupInstalled(t)
+	token := startTestSession(t, ctx)
+	router := apiRouter(t, cfg)
+
+	req := httptest.NewRequest("GET", "/api/repos/prodigy9/app/builds", nil).WithContext(ctx)
+	req.AddCookie(&http.Cookie{Name: "platform_session", Value: token})
+	resp := httptest.NewRecorder()
+	router.ServeHTTP(resp, req)
+
+	require.Equal(t, http.StatusNotFound, resp.Code)
+}
+
 func TestTriggerWithoutCookie(t *testing.T) {
 	router := apiRouter(t, nil)
 
@@ -151,7 +171,9 @@ func TestTriggerWithoutCookie(t *testing.T) {
 
 func TestTriggerRecordsResolvedIntent(t *testing.T) {
 	ctx, cfg := setupInstalled(t)
-	token := startTestSession(t, ctx)
+	token := startTestSession(t, ctx, auth.Repository{
+		GitHubID: 1, Owner: "prodigy9", Name: "app", Permission: auth.PermissionWrite,
+	})
 	router := apiRouter(t, cfg)
 
 	req := httptest.NewRequest("POST", "/api/builds",
@@ -195,9 +217,27 @@ func TestTriggerUnreachableRepo(t *testing.T) {
 	require.Equal(t, http.StatusNotFound, resp.Code)
 }
 
+func TestTriggerRequiresWritePermission(t *testing.T) {
+	ctx, cfg := setupInstalled(t)
+	token := startTestSession(t, ctx, auth.Repository{
+		GitHubID: 1, Owner: "prodigy9", Name: "app", Permission: auth.PermissionRead,
+	})
+	router := apiRouter(t, cfg)
+
+	req := httptest.NewRequest("POST", "/api/builds",
+		strings.NewReader(`{"owner":"prodigy9","repo":"app","ref":"refs/tags/v1.2.3"}`)).WithContext(ctx)
+	req.AddCookie(&http.Cookie{Name: "platform_session", Value: token})
+	resp := httptest.NewRecorder()
+	router.ServeHTTP(resp, req)
+
+	require.Equal(t, http.StatusNotFound, resp.Code)
+}
+
 func TestTriggerUnresolvableRef(t *testing.T) {
 	ctx, cfg := setupInstalled(t)
-	token := startTestSession(t, ctx)
+	token := startTestSession(t, ctx, auth.Repository{
+		GitHubID: 1, Owner: "prodigy9", Name: "app", Permission: auth.PermissionWrite,
+	})
 	router := apiRouter(t, cfg)
 
 	req := httptest.NewRequest("POST", "/api/builds",
@@ -240,7 +280,9 @@ func TestListNewestFirst(t *testing.T) {
 	ctx := setupDB(t)
 	older := queueTestBuild(t, ctx, "app")
 	newer := queueTestBuild(t, ctx, "later-app")
-	token := startTestSession(t, ctx)
+	token := startTestSession(t, ctx,
+		testRepository("app", auth.PermissionRead),
+		testRepository("later-app", auth.PermissionRead))
 	router := apiRouter(t, nil)
 
 	req := httptest.NewRequest("GET", "/api/builds", nil).WithContext(ctx)
@@ -274,7 +316,9 @@ func TestListFoldsEachBuildsEvents(t *testing.T) {
 		&AppendEvent{Kind: EventPublished, Unit: "api", At: at(2),
 			Image: "ghcr.io/prod9/later-app:v1.2.3", Hash: "sha256:abc"},
 		&AppendEvent{Kind: EventRunDone, Unit: "api", At: at(3)})
-	token := startTestSession(t, ctx)
+	token := startTestSession(t, ctx,
+		testRepository("app", auth.PermissionRead),
+		testRepository("later-app", auth.PermissionRead))
 	router := apiRouter(t, nil)
 
 	req := httptest.NewRequest("GET", "/api/builds", nil).WithContext(ctx)
@@ -291,6 +335,25 @@ func TestListFoldsEachBuildsEvents(t *testing.T) {
 	require.Equal(t, queued.ID, body[1].ID)
 	require.Equal(t, "queued", body[1].Status)
 	require.Empty(t, body[1].Image)
+}
+
+func TestListFiltersBeforeApplyingLimit(t *testing.T) {
+	ctx := setupDB(t)
+	visible := queueTestBuild(t, ctx, "app")
+	for i := 0; i < listLimit; i++ {
+		queueTestBuild(t, ctx, fmt.Sprintf("hidden-%d", i))
+	}
+	token := startTestSession(t, ctx, testRepository("app", auth.PermissionRead))
+	router := apiRouter(t, nil)
+
+	req := httptest.NewRequest("GET", "/api/builds", nil).WithContext(ctx)
+	req.AddCookie(&http.Cookie{Name: "platform_session", Value: token})
+	resp := httptest.NewRecorder()
+	router.ServeHTTP(resp, req)
+
+	body := decodeBuilds(t, resp)
+	require.Len(t, body, 1)
+	require.Equal(t, visible.ID, body[0].ID)
 }
 
 func TestGetWithoutCookie(t *testing.T) {
@@ -327,7 +390,7 @@ func TestGetFoldsEveryAttempt(t *testing.T) {
 		&AppendEvent{Kind: EventPublished, Unit: "api", At: at(4),
 			Image: "ghcr.io/prod9/app:v1.2.3", Hash: "sha256:abc"},
 		&AppendEvent{Kind: EventRunDone, Unit: "api", At: at(5)})
-	token := startTestSession(t, ctx)
+	token := startTestSession(t, ctx, testRepository("app", auth.PermissionRead))
 	router := apiRouter(t, nil)
 
 	req := httptest.NewRequest("GET", fmt.Sprintf("/api/builds/%d", build.ID), nil).WithContext(ctx)
@@ -352,6 +415,20 @@ func TestGetFoldsEveryAttempt(t *testing.T) {
 	require.Equal(t, "boom", body.Attempts[0].Error)
 	require.Equal(t, "succeeded", body.Attempts[1].Status)
 	require.Equal(t, "ghcr.io/prod9/app:v1.2.3", body.Attempts[1].Image)
+}
+
+func TestGetInaccessibleBuildIsNotFound(t *testing.T) {
+	ctx := setupDB(t)
+	build := queueTestBuild(t, ctx, "app")
+	token := startTestSession(t, ctx)
+	router := apiRouter(t, nil)
+
+	req := httptest.NewRequest("GET", fmt.Sprintf("/api/builds/%d", build.ID), nil).WithContext(ctx)
+	req.AddCookie(&http.Cookie{Name: "platform_session", Value: token})
+	resp := httptest.NewRecorder()
+	router.ServeHTTP(resp, req)
+
+	require.Equal(t, http.StatusNotFound, resp.Code)
 }
 
 func TestStepsWithoutCookie(t *testing.T) {
@@ -384,7 +461,7 @@ func TestStepsListsTheFlatFold(t *testing.T) {
 		&AppendEvent{Kind: EventStepDone, Unit: "api", Step: "test", At: at(2),
 			Stdout: "ok\n", Stderr: "warn\n"},
 		&AppendEvent{Kind: EventRunDone, Unit: "api", At: at(3)})
-	token := startTestSession(t, ctx)
+	token := startTestSession(t, ctx, testRepository("app", auth.PermissionRead))
 	router := apiRouter(t, nil)
 
 	req := httptest.NewRequest("GET", fmt.Sprintf("/api/builds/%d/steps", build.ID), nil).WithContext(ctx)
@@ -407,6 +484,23 @@ func TestStepsListsTheFlatFold(t *testing.T) {
 	require.Equal(t, "test", steps[0].Step)
 	require.Equal(t, "ok\n", steps[0].Stdout)
 	require.Equal(t, "warn\n", steps[0].Stderr)
+}
+
+func TestStepsForInaccessibleBuildAreNotFound(t *testing.T) {
+	ctx := setupDB(t)
+	build := queueTestBuild(t, ctx, "app")
+	appendTestEvents(t, ctx, build.ID,
+		&AppendEvent{Kind: EventStepStarted, Unit: "api", Step: "secret", At: at(1)})
+	token := startTestSession(t, ctx)
+	router := apiRouter(t, nil)
+
+	req := httptest.NewRequest("GET", fmt.Sprintf("/api/builds/%d/steps", build.ID), nil).WithContext(ctx)
+	req.AddCookie(&http.Cookie{Name: "platform_session", Value: token})
+	resp := httptest.NewRecorder()
+	router.ServeHTTP(resp, req)
+
+	require.Equal(t, http.StatusNotFound, resp.Code)
+	require.NotContains(t, resp.Body.String(), "secret")
 }
 
 // listedBuild mirrors the handler's wire shape; the fragment writes its own wire structs

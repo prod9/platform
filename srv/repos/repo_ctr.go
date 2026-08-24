@@ -1,7 +1,6 @@
 package repos
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -19,9 +18,9 @@ import (
 	"platform.prodigy9.co/srv/install"
 )
 
-// RepoCtr serves repo registration: the registered∩live listing, the onboarding
+// RepoCtr serves repo registration: the registered∩authorized listing, the onboarding
 // wizard's candidate list and manifest pre-read, and the one registration write
-// (spec §Repos are registered, visibility is live).
+// (spec §Repos are registered, authorization is GitHub-derived).
 type RepoCtr struct{}
 
 var _ controllers.Interface = RepoCtr{}
@@ -40,12 +39,9 @@ type repoResponse struct {
 	FullName string `json:"full_name"`
 }
 
-// list is registered∩live: the stored registrations filtered by what the session
-// user can currently reach on GitHub, read with the user's own token — losing GitHub
-// permission loses platform visibility in the same moment.
+// list is the stored registrations filtered by the session's authorization snapshot.
 func list(resp http.ResponseWriter, req *http.Request) {
-	user, ok := auth.RequireUser(resp, req)
-	if !ok {
+	if _, ok := auth.RequireUser(resp, req); !ok {
 		return
 	}
 	ctx := req.Context()
@@ -60,7 +56,7 @@ func list(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	reachable, err := userInstallationRepos(ctx, user.ID)
+	reachable, err := auth.ReadableRepos(req)
 	if err != nil {
 		render.Error(resp, req, 500, err)
 		return
@@ -69,7 +65,7 @@ func list(resp http.ResponseWriter, req *http.Request) {
 	listing := []repoResponse{}
 	for _, row := range registered {
 		if repo, ok := findRepo(reachable, row.Owner, row.Repo); ok {
-			listing = append(listing, repoResponse{repo.Owner, repo.Name, repo.FullName})
+			listing = append(listing, repoResponse{repo.Owner, repo.Name, repo.Owner + "/" + repo.Name})
 		}
 	}
 	render.JSON(resp, req, listing)
@@ -78,13 +74,12 @@ func list(resp http.ResponseWriter, req *http.Request) {
 // candidates lists what the onboarding wizard may pick: repos reachable by both the
 // session user and the App, minus registrations.
 func candidates(resp http.ResponseWriter, req *http.Request) {
-	user, ok := auth.RequireUser(resp, req)
-	if !ok {
+	if _, ok := auth.RequireUser(resp, req); !ok {
 		return
 	}
 	ctx := req.Context()
 
-	all, err := userInstallationRepos(ctx, user.ID)
+	all, err := auth.ReadableRepos(req)
 	if err != nil {
 		render.Error(resp, req, 500, err)
 		return
@@ -98,14 +93,14 @@ func candidates(resp http.ResponseWriter, req *http.Request) {
 	listing := []repoResponse{}
 	for _, repo := range all {
 		if !isRegistered(registered, repo) {
-			listing = append(listing, repoResponse{repo.Owner, repo.Name, repo.FullName})
+			listing = append(listing, repoResponse{repo.Owner, repo.Name, repo.Owner + "/" + repo.Name})
 		}
 	}
 	render.JSON(resp, req, listing)
 }
 
-// register records a registration. Reachability by the installation is the boundary
-// check — the same 404 the manual build trigger draws for a repo the App cannot see.
+// register records a registration after the session's write gate; installation
+// reachability independently ensures the App can build what is registered.
 func register(resp http.ResponseWriter, req *http.Request) {
 	user, ok := auth.RequireUser(resp, req)
 	if !ok {
@@ -116,6 +111,9 @@ func register(resp http.ResponseWriter, req *http.Request) {
 	action := &RegisterRepo{UserID: user.ID}
 	if err := controllers.ReadAction(req, action); err != nil {
 		render.Error(resp, req, 400, err)
+		return
+	}
+	if !auth.RequireRepoWrite(resp, req, action.Owner, action.Repo) {
 		return
 	}
 
@@ -174,11 +172,11 @@ type moduleResponse struct {
 // confirms what the server pre-read, not what the client guessed. A manifest that
 // does not parse is the repo's data problem, answered 422.
 func manifest(resp http.ResponseWriter, req *http.Request) {
-	if _, ok := auth.RequireUser(resp, req); !ok {
-		return
-	}
 	ctx := req.Context()
 	owner, repo := chi.URLParam(req, "owner"), chi.URLParam(req, "repo")
+	if !auth.RequireRepoRead(resp, req, owner, repo) {
+		return
+	}
 
 	token, client, err := install.Token(ctx)
 	if err != nil {
@@ -230,40 +228,24 @@ func parseManifest(raw []byte, repo string) (*conf.Model, error) {
 	return model, nil
 }
 
-// findRepo matches a registration row against the live list; GitHub logins and repo
-// names compare case-insensitively.
-func findRepo(live []github.Repo, owner, name string) (github.Repo, bool) {
-	for _, repo := range live {
+// findRepo matches a registration row against the session snapshot; GitHub logins and
+// repo names compare case-insensitively.
+func findRepo(repositories []auth.Repository, owner, name string) (auth.Repository, bool) {
+	for _, repo := range repositories {
 		if strings.EqualFold(repo.Owner, owner) && strings.EqualFold(repo.Name, name) {
 			return repo, true
 		}
 	}
-	return github.Repo{}, false
+	return auth.Repository{}, false
 }
 
-func isRegistered(registered []*Repo, repo github.Repo) bool {
+func isRegistered(registered []*Repo, repo auth.Repository) bool {
 	for _, row := range registered {
 		if strings.EqualFold(row.Owner, repo.Owner) && strings.EqualFold(row.Repo, repo.Name) {
 			return true
 		}
 	}
 	return false
-}
-
-func userInstallationRepos(ctx context.Context, userID int64) ([]github.Repo, error) {
-	userToken, err := auth.GitHubToken(ctx, userID)
-	if err != nil {
-		return nil, err
-	}
-	record, err := install.Bound(ctx)
-	if err != nil {
-		return nil, err
-	}
-	client, err := github.NewClient(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return client.UserInstallationRepos(ctx, userToken, record.InstallationID)
 }
 
 // renderCreated is render.JSON at 201 — fx's render fixes status 200, so the

@@ -43,8 +43,8 @@ func (BuildCtr) Mount(cfg *config.Source, router chi.Router) error {
 
 // trigger records a webui-triggered build: the same domain fact as the webhook,
 // authorized by session instead of HMAC (spec §Triggering a build). The controller
-// resolves ref→sha before recording — resolution is part of validating the request —
-// and the repo lookup doubles as authorization: unreachable by the installation is 404.
+// applies the session's write gate, then resolves ref→sha before recording; the App's
+// independent repo lookup ensures the worker can reach the requested source.
 func trigger(resp http.ResponseWriter, req *http.Request) {
 	user, ok := auth.RequireUser(resp, req)
 	if !ok {
@@ -55,6 +55,9 @@ func trigger(resp http.ResponseWriter, req *http.Request) {
 	create := &Create{Trigger: TriggerWebUI, UserID: user.ID}
 	if err := controllers.ReadAction(req, create); err != nil {
 		render.Error(resp, req, 400, err)
+		return
+	}
+	if !auth.RequireRepoWrite(resp, req, create.Owner, create.Repo) {
 		return
 	}
 
@@ -107,7 +110,8 @@ func renderCreated(resp http.ResponseWriter, req *http.Request, obj any) {
 // builds nest under a repo in the UI, and the landing page fans out ?limit=3 per
 // visible repo (spec §Operations).
 func listForRepo(resp http.ResponseWriter, req *http.Request) {
-	if _, ok := auth.RequireUser(resp, req); !ok {
+	owner, repo := chi.URLParam(req, "owner"), chi.URLParam(req, "repo")
+	if !auth.RequireRepoRead(resp, req, owner, repo) {
 		return
 	}
 	ctx := req.Context()
@@ -127,7 +131,7 @@ func listForRepo(resp http.ResponseWriter, req *http.Request) {
 		SELECT `+buildColumns+` FROM builds
 		WHERE owner = $1 AND repo = $2
 		ORDER BY id DESC LIMIT $3`,
-		chi.URLParam(req, "owner"), chi.URLParam(req, "repo"), limit)
+		owner, repo, limit)
 	if err != nil {
 		render.Error(resp, req, 500, err)
 		return
@@ -163,10 +167,26 @@ func list(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	repositories, err := auth.ReadableRepos(req)
+	if err != nil {
+		render.Error(resp, req, 500, err)
+		return
+	}
+	keys := make([]string, len(repositories))
+	for i, repository := range repositories {
+		keys[i] = strings.ToLower(repository.Owner) + "/" + strings.ToLower(repository.Name)
+	}
+	if len(keys) == 0 {
+		render.JSON(resp, req, []buildResponse{})
+		return
+	}
+
 	ctx := req.Context()
 	builds := []*Build{}
-	err := data.Select(ctx, &builds, `
-		SELECT `+buildColumns+` FROM builds ORDER BY id DESC LIMIT $1`, listLimit)
+	err = data.Select(ctx, &builds, `
+		SELECT `+buildColumns+` FROM builds
+		WHERE lower(owner) || '/' || lower(repo) = ANY($1)
+		ORDER BY id DESC LIMIT $2`, keys, listLimit)
 	if err != nil {
 		render.Error(resp, req, 500, err)
 		return
@@ -311,6 +331,9 @@ func loadBuild(resp http.ResponseWriter, req *http.Request) (*Build, []*BuildEve
 		return nil, nil, false
 	} else if err != nil {
 		render.Error(resp, req, 500, err)
+		return nil, nil, false
+	}
+	if !auth.RequireRepoRead(resp, req, build.Owner, build.Repo) {
 		return nil, nil, false
 	}
 
