@@ -34,12 +34,10 @@ build of the exact commit; the worker later builds it and applies the manifest's
 publish policy. It owns the GitHub
 App, the DB, and token minting. It is a layer above the **shared packages** (the stateless
 build/render/publish machinery: `framework`, `engine`, `gitops`, …)
-and consumes them per request — the engine layer hands out a `Session`, the span its
-containers stay usable for (`engine.NewSession(ctx)` once at boot, a `Run` per unit per
-request), so a long-running server reuses one session across every concurrent build. Whether
-a days-long session needs liveness handling for engine pods that come and go, or `srv` opens
-one session per build instead, is open — see [engine.md](engine.md), §`Session` — the unit of
-lifetime.
+and consumes them per request. The remote-build facade owns a short-lived engine `Session`
+for each module operation because srv retains no live container afterward. Local callers
+that need a result's container continue to hold their session explicitly; see
+[engine.md](engine.md), §`Session` — the unit of lifetime.
 
 ⚠️ **Two "sessions" meet in this file, and the clash is unresolved.** A **login session** is
 a user's authenticated session: the `sessions` table, the `platform_session` cookie,
@@ -401,7 +399,7 @@ are jobs too. fx's queue is one-shot, so a recurring job reschedules itself at t
 | Job               | Shape                               | What it does                                                                                                                      |
 |-------------------|-------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------|
 | `dispatch-builds` | recurring, singleton                | Finds unclaimed build modules and schedules one `build-module` job for each; repeated scans reconcile missed scheduling.          |
-| `build-module`    | one-shot, payload = build-module id | Claims one module, prepares the repo at the build sha, interprets the persisted module into a `BuildUnit`, and writes its events.  |
+| `build-module`    | one-shot, payload = build-module id | Claims one module, constructs the engine request and persistence Observer, calls engine once, and records its report.             |
 
 All fx job names are dash-separated slugs.
 
@@ -442,8 +440,8 @@ regardless of the triggering ref. `never` builds without publishing. This policy
 belongs to the server driver, not the engine and not the local `./platform publish`
 command.
 
-**The publish credential is the wizard-saved registry token.** Before opening the engine
-session, the worker derives the registry host from the config's image names, reads
+**The publish credential is the wizard-saved registry token.** The worker derives the
+registry host from the selected persisted manifest module's image name, reads
 `registry.<host>.token`, and feeds the engine's `REGISTRY`/`REGISTRY_USERNAME`/
 `REGISTRY_PASSWORD` config — username = the installation record's `installed_by_login`
 ([installation.md](installation.md), "The registry token";
@@ -459,20 +457,18 @@ when the job itself could not do its work; a failed build returns nil. Collapsin
 vocabularies would put build state back in fx's `jobs` table, which is the mechanism's, not
 the domain's.
 
-**It is not called a "runner."** In CI vocabulary "runner" means the agent that executes
-jobs — which is what an *engine* is here — and `engine/runners` already holds that name
-for Dagger endpoints. Three live concepts, three distinct words: engines execute, runners are
-the endpoints they live at, workers decide what to hand them.
+**A build job is not called a "runner."** The fx worker executes jobs; the engine facade
+owns builds; Dagger runners are the execution endpoints engine selects. Three live
+concepts, three distinct words.
 
 ## Build lifecycle: event-sourced
 
 There is **no stored build `status`.** Execution history is an append-only **`BuildEvent`**
-stream in a `build_events` table. It covers the whole module lifecycle: the worker writes
-clone events around repository preparation, then transcribes what the engine reports
-through its `Observer` ([engine.md](engine.md)). The engine itself never serializes. The
-database *is* the channel; the webui reads it back. Nothing subscribes to a live in-process
-stream across the process boundary, which is exactly why the engine needs no late-joining
-observer.
+stream in a `build_events` table. It covers the whole module lifecycle by transcribing
+what engine reports through its `Observer` ([engine.md](engine.md)); engine never
+serializes. The database *is* the channel; the webui reads it back. Nothing subscribes to
+a live in-process stream across the process boundary, which is exactly why engine needs
+no late-joining observer.
 
 The event order is:
 
@@ -482,12 +478,11 @@ clone_started -> clone_done -> run_started -> step_started / step_done
 ```
 
 `clone_done`, `step_done`, and `run_done` carry the error for the span they close. A clone
-failure ends at `clone_done` and never invents an engine run. The worker appends
-`run_started` immediately before calling the engine, so it means the module has entered the
-engine and may be waiting for a connection. Before the first `step_started`, the engine's
-`EngineAssigned` callback records the selected endpoint and assignment time on
-`build_modules`. An engine error before its first callback is closed by the worker with
-`run_done(error)`. `published` is absent from a build-only run.
+failure ends at `clone_done` and never invents an engine run. Engine emits `run_started`
+after repository materialization and before config loading and unit interpretation. Before
+the first `step_started`, `EngineAssigned` records the selected endpoint and assignment
+time on `build_modules`. Every run phase ends with `run_done`; `published` is absent from
+a build-only run.
 
 Display state is a **fold** of each module row and its event stream:
 
@@ -551,10 +546,10 @@ The composite foreign keys make two mismatches unrepresentable: a build cannot n
 manifest from another repository or commit, and a `build_modules` row cannot select a
 module from another manifest.
 
-`build_events` joins worker-owned orchestration events with a transcription of the engine's
-reporting callbacks ([engine.md](engine.md)). Its module identity is the
-`build_module_id` foreign key, not a copied unit name. `at` preserves the time at which the
-worker or engine observed the event, so elapsed time survives a slow writer. Engine
+`build_events` transcribes the engine's reporting callbacks ([engine.md](engine.md)). Its
+module identity is the
+`build_module_id` foreign key, not a copied unit name. `at` preserves the time at which
+engine observed the event, so elapsed time survives a slow writer. Engine
 assignment is module metadata rather than a repeated stream fact: `EngineAssigned` updates
 `build_modules.engine_host` and `engine_assigned_at`, which engine detail reads directly.
 Captured `stdout`/`stderr` ride the `step_done` row rather than a kind of their own.
@@ -606,11 +601,11 @@ domain for GitHub App events and Kubernetes events, and the bare noun would coll
 **A module result is an output fold.** It is the srv-side display model reduced from one
 build module's events; it is not an input to the build path, and the engine never sees it.
 
-`BuildResult` is **engine-side only**, and it does not cross this boundary. It survives
-there as the engine's result type ([engine.md](engine.md)) because half of it is a live
-`*dagger.Container` that could never reach a database anyway; its other half — the scalar
-fold — is the very thing the worker persists as `build_events`. So srv reads the fold, not
-the struct, and nothing srv-side is typed in terms of it.
+`BuildResult` and `RepositoryResult` are **engine-side only**, and neither crosses this
+boundary. `BuildResult` may carry a live `*dagger.Container`; `RepositoryResult` is scalar
+because its facade closes the session before returning. The worker persists Observer
+callbacks as `build_events`, not either result struct, and nothing srv-side is typed in
+terms of them.
 
 Persistence records **intent and observation, never runtime machinery**. The manifest and
 selected modules preserve what the trigger requested; the engine still interprets them
@@ -740,45 +735,14 @@ the stored-token bus-factor, ownership is no longer an *auth-recovery* mechanism
 survives as a **product** concept (responsible owner, who can change pipeline settings),
 still GitHub-derived, still zero-RBAC.
 
-## Repo preparation (CI clones)
+## Repository source for server builds
 
-Cloning is **not** part of any framework's build phase. On a server run there is no local
-checkout, so a dedicated **repo-prep phase** (in `srv`, above the shared packages) produces a local
-working tree and hands its path to the *unchanged* build machinery — already
-parameterized by working dir (`conf.Load(wd)`, `host.Directory(unit.WorkDir)`).
-Local and CI runs then take the identical build path; a local run simply has no prep
-phase ("you're already in the dir").
-
-```
-local:  Load(".")                      → framework.Units → engine run
-CI:     repo-prep: clone url@sha → <wd>      → Load(wd) → framework.Units → engine run
-                                               └────────── identical from here ──────────┘
-```
-
-Clones are plain `git` to local fs — no dagger needed for sourcing, so the in-process CUE
-render and `host.Directory` both work directly against the clone. repo-prep also returns
-the **resolved sha** so the committed-image-pin model has its anchor.
-
-**The clone authenticates with the installation token** (§Two token types): repo-prep
-mints one per sync and injects it into the fetch URL for that command only — the token is
-~1h-lived and autonomous work is exactly what the installation identity is for. Nothing
-long-lived lands on disk; the mirror's stored remote stays credential-free.
-
-### Cache layout (`/var/cache`), full clones
-
-Not ephemeral `/tmp` — a persistent cache for fast clones and build reuse:
-
-```
-/var/cache/platform/
-  git/<owner>/<repo>.git     ← bare mirror; `git fetch` under a per-repo lock
-  work/<build-module-id>/    ← `git worktree add` off the mirror; removed after the module
-```
-
-One **full** bare mirror per repo, updated by incremental `fetch` (cheap after the first);
-each build gets a near-instant `git worktree` that shares objects and is independently
-removable (concurrency-safe: lock only the mirror's fetch). **No shallow clones** —
-`--depth 1` truncates history and breaks `git subtree` (used widely across these repos);
-the mirror cache makes full clones cheap, so shallow buys nothing.
+The job mints the installation token and supplies immutable repository facts, the selected
+module, work id, publish intent, and credentials to engine's remote-build facade. Engine
+owns repository preparation, config loading, unit interpretation, runner placement,
+execution, publication, lifecycle reporting, and cleanup. The clone/cache mechanism and
+layout are specified in [engine.md](engine.md), §Repository preparation; srv never invokes
+that mechanism directly.
 
 ## Sequencing
 

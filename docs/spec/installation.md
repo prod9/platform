@@ -32,8 +32,8 @@ derive a publicly known key. The deployment also sets
 `DAGGER_ENGINE` — plain runtime config on both srv and the worker: the Dagger
 engine pool's headless-Service DNS name, spread across pods by k8s DNS itself,
 so no engine binding is stored server-side.
-The worker clones into the fixed `/var/cache/platform` (not configurable — the
-deployment mounts a writable volume there).
+Engine repository preparation uses the fixed `/var/cache/platform` inside the worker
+process (not configurable — the deployment mounts a writable volume there).
 
 The wizard UI holds these rules:
 

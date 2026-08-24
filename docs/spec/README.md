@@ -19,18 +19,17 @@ superseded moves to `../scratch/` — `spec/` holds current design only, never h
 
 ## Index
 
-- [`architecture.md`](architecture.md) — the build pipeline (parse → interpret → engine)
-  and the object model: `BuildUnit`, package layout, data-vs-behavior rules.
+- [`architecture.md`](architecture.md) — the engine-owned source-to-image pipeline and the
+  object model: `BuildUnit`, package layout, data-vs-behavior rules.
 - [`execution-modes.md`](execution-modes.md) — the boundary between local CLI and server
   CI/CD execution, shared build/publish capabilities, app-vs-infra publish cadence, and
   this repository's own release runbook.
 - [`frameworks.md`](frameworks.md) — the framework catalog and order-sensitive discovery,
   the seven-method `Framework` contract, `Step`/`Plan`/`Execute`, layouts, runtime-shape
   families, the Wolfi base, Node/pnpm provisioning, and the Go test-in-build gate.
-- [`engine.md`](engine.md) — the Dagger execution layer: why a `*dagger.Client` is a session
-  rather than a poolable connection, `Session` as the unit of lifetime over a stateless
-  runner roster, `Run` and its `Observer` report, engine-internal fan-out behind the domain
-  verbs, publishing as a run bracket, registry creds, arch targets.
+- [`engine.md`](engine.md) — the source-to-image build facade: repository preparation,
+  config interpretation, runner placement, `Session` + `Run`, the complete `Observer`
+  lifecycle, publishing, registry credentials, and arch targets.
 - [`releases.md`](releases.md) — release strategies (semver/datestamp/timestamp/rolling),
   `Generate` vs `Create`, tag-history recovery, and release⊥publish orthogonality.
 - [`scaffolding.md`](scaffolding.md) — `platform init`: the `framework/scaffold`
@@ -45,7 +44,7 @@ superseded moves to `../scratch/` — `spec/` holds current design only, never h
 - [`platform.md`](platform.md) — the platformv2 vision: an in-cluster build + delivery
   control plane (components, identity, phases, anchors).
 - [`platform-server.md`](platform-server.md) — the `srv` + worker CI/CD server: GitHub-App
-  auth, push/manual build triggers, the `/var/cache` worktree layout, and the settled
+  auth, push/manual build triggers, engine request orchestration, and the settled
   operations table. Route surface +
   install/boot flow settled, as is the event-sourced build lifecycle; the cluster view
   (k8s + Flux state) is held for a design pass.

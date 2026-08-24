@@ -1,8 +1,10 @@
 # Engine
 
-Status: **design-of-record.** The `engine/` package — the Dagger execution layer that runs
-a unit's planned steps and pushes the resulting images. Sits at the tail of the pipeline
-([`architecture.md`](architecture.md)): `[]*BuildUnit ─▶ engine.Run ─▶ images`.
+Status: **design-of-record.** The `engine/` package is the source-to-image build facade.
+It accepts either an already-loaded local model or an immutable remote-repository request,
+then owns the lifecycle through source preparation, config interpretation, Dagger-runner
+placement, step execution, optional publication, and cleanup. Focused internals perform
+the work; callers never compose them ([`architecture.md`](architecture.md)).
 
 ## A `*dagger.Client` is a session, not a connection
 
@@ -56,6 +58,20 @@ Commands open **one** session and defer `Close`. It is safe for concurrent use, 
 `NewRun` does no dialing at all (a connection is taken at the first `Next`), so there is
 never a reason to open a second.
 
+The package-level remote facade is separate because srv needs no live container after the
+operation:
+
+```go
+BuildRepository(ctx, req RepositoryRequest, obs observer.Observer) RepositoryResult
+```
+
+It opens and closes its own session. The request carries only immutable build facts and
+supplied secrets: work id, owner/repo, clone URL, commit sha, selected module, clone
+token, and an optional publish tag plus registry credentials. `RepositoryResult` is the
+finished scalar outcome; no Dagger handle escapes the closed session. srv resolves
+authorization and delivery policy before the call; engine owns executing the resulting
+request.
+
 🚨 **A command that holds a session returns its errors; it never exits from inside.**
 `os.Exit` runs no deferred function, so a command that reaches `termlog.Fatalln` on a
 failure path abandons every connection the session opened — the one case where the
@@ -106,10 +122,9 @@ Falling back to a local engine is **not** `hosts`' decision — it reports empti
 engine." So unset `DAGGER_ENGINE` is an explicit operator choice for local, never inferred.
 
 **The roster is unexported in full.** `hosts` and `dial` are reached only through
-`Session`, which is the package's whole public surface for engine work; nothing outside
-`engine/` has ever needed an endpoint list, and exporting one invites a caller to dial
-around the session that would own the result. A future consumer exports them the day it
-exists, not before.
+`Session`; the package-level repository facade also reaches them by opening its own
+session. Nothing outside `engine/` needs an endpoint list, and exporting one invites a
+caller to dial around the facade that owns the result.
 
 **The one endpoint fact that does cross the boundary is the assigned one.** A run reports
 `EngineAssigned(unit, engine, at)` after its connection succeeds and before its first
@@ -143,8 +158,6 @@ reuses the connection: a container is bound to the connection that built it, so 
 steps can never be spread across the fleet. The session spreads whole *runs*, not steps.
 A failed dial therefore produces `RunDone(err)`, with no engine assignment or step start
 before it.
-The srv worker records its own `run_started` event immediately before calling the engine;
-that orchestration boundary is not an Observer callback.
 
 Each `Next` calls `Framework.Execute` for the current `Step` with the previous step's
 container, forces the work eagerly with `.Sync()`, and **times** the step across that
@@ -164,16 +177,36 @@ that claim is only true if the empty plan is rejected. The run fails at open wit
 while `Plan` and `Execute` agree, this one while `Plan` returns anything at all, and both
 stay loud precisely because a silent version of either is a build stage that vanished.
 
-Repository preparation and publish bracket this loop at different layers; neither is a
-framework step. The srv worker owns cloning and records `clone_started` / `clone_done`
-before entering the engine. The engine owns pushing. Publish being an engine bracket is
-load-bearing rather than descriptive: it runs while the run's connection is still a local
-variable, which lets the registry secret be minted on the same session as the container it
-authenticates.
+Repository preparation and publish bracket the framework loop; neither is a framework
+step. Engine owns both brackets. Publish being an engine bracket is load-bearing rather
+than descriptive: it runs while the run's connection is still a local variable, which
+lets the registry secret be minted on the same session as the container it authenticates.
 
-### One observer, seven callbacks
+### Repository preparation
 
-A run reports everything to **one** `Observer`, supplied by whoever opens the run. The
+`engine/internal/repoprep` materializes a remote request into a local worktree. It keeps
+one full bare mirror per repository, fetches it under a per-repository lock, resolves the
+requested commit, and creates an independently removable worktree keyed by work id. It
+uses plain `git`, because config loading, in-process CUE rendering, and Dagger
+`host.Directory` all need the same local filesystem tree.
+
+The clone token is injected into the fetch URL for that invocation only. The stored remote
+remains credential-free. Clones are never shallow because repositories may use history-
+dependent operations such as `git subtree`; the mirror makes later full fetches cheap.
+
+```
+<cache>/git/<owner>/<repo>.git  <- bare mirror
+<cache>/work/<work-id>/         <- independent worktree
+```
+
+Worktree cleanup is best-effort after every operation that successfully materialized one;
+a stale cache entry does not change the recorded build result. Path validation and
+mirror/worktree manipulation stay inside this internal package. No caller reaches through
+the engine facade to invoke repo preparation directly.
+
+### One observer, ten callbacks
+
+An engine operation reports everything to **one** `Observer`, supplied by its caller. The
 contract, the tee and the accumulator are their own package —
 [`engine/observer/`](../../engine/observer/), a file each — so `engine` imports the
 reporting vocabulary rather than declaring it. There is no channel to close, no `Events()` getter, no
@@ -181,6 +214,9 @@ snapshot-plus-delta:
 
 ```go
 type Observer interface {
+    CloneStarted(unit string, at time.Time)
+    CloneDone(unit string, at time.Time, err error)
+    RunStarted(unit string, at time.Time)
     EngineAssigned(unit, engine string, at time.Time)
     StepStarted(unit, step string, at time.Time)
     StepOutput(unit, step string, at time.Time, stdout, stderr string)
@@ -191,9 +227,14 @@ type Observer interface {
 }
 ```
 
-Three callbacks are **lifecycle**, one is **assignment**, one is **capture**, and two are
-**output**. The output pair
-mirrors the build⊥publish orthogonality
+The same Observer spans the entire operation. Engine reports `CloneStarted` / `CloneDone`
+around repository materialization. After a successful clone it reports `RunStarted` before
+config loading and unit interpretation, so any later failure is closed by `RunDone`.
+`EngineAssigned` follows a successful dial and precedes the first `StepStarted`. A clone
+failure ends with `CloneDone(err)` and produces no run callbacks. Local-model entrypoints
+start at `RunStarted` and therefore emit no clone callbacks.
+
+The output pair mirrors the build⊥publish orthogonality
 ([execution-mode decision]):
 `ImageBuilt` is the common path — every successful build fires it, and four of the five
 commands that build (`build`, `export`, `exec`, `preview`) never publish — while
@@ -202,13 +243,14 @@ One callback per reported fact; nothing is inferred from a shared method with a 
 
 [execution-mode decision]: ../decisions/2026-08-24-execution-mode-does-not-define-delivery-policy.md
 
-The assignment callback exists because the server now needs to distinguish waiting for an
-engine from executing the first framework step and to attribute the selected endpoint.
+The run and assignment callbacks let the server distinguish config/placement work, waiting
+for an engine, and execution of the first framework step while attributing the endpoint.
 `StepOutput` earned its place when `srv` began persisting captured output — see §Log capture
 below.
 
-`RunDone` fires **exactly once** per run, whichever way the cursor ends, which makes the
-report self-terminating: a consumer needs no out-of-band done signal.
+`RunDone` fires **exactly once** after every `RunStarted`, whichever way the build phase
+ends, which makes the report self-terminating. `CloneDone` provides the corresponding
+terminal callback when the operation fails before a run starts.
 
 Signatures carry **scalars only, never engine or framework types**. Go interfaces are
 structural, so an implementation then needs no platform import at all — that is what lets
@@ -218,18 +260,18 @@ the engine or each other.
 Everything else is a **fold** of these callbacks: a step's elapsed time is
 `StepDone.at − StepStarted.at`; a run's current state, and its scalar outcome, are the
 reduction of what it has reported so far. Failure is the `err` on the callback that ends
-the step or the run — there is deliberately no separate failure callback, and no
+the clone, step, or run — there is deliberately no separate failure callback, and no
 `Event`/`EventKind` type. `StepResult`, `Update`, and `Result` are collapsed into the fold;
 `Snapshot`/`Done` are dropped outright — execution moves to a worker that writes to the
 database and the webui reads it back, so there is no late-joining live observer to catch up.
 
 #### The accumulator and the tee
 
-A run's observer is **never nil**. The engine force-injects an accumulating observer — a
-stateful fold of the callbacks — into every run, and that accumulator is the **sole
-minter** of the run's scalar outcome (ok/err, image, hash). A caller's observer, when
-there is one, is composed alongside it by a tee: **`Tee(obs ...Observer) Observer`**
-forwards each callback to every child.
+An operation's observer is **never nil**. The engine entrypoint force-injects an
+accumulating observer — a stateful fold of the callbacks — before reporting its first
+lifecycle callback. That accumulator is the **sole minter** of the scalar outcome
+(ok/err, image, hash). A caller's observer, when there is one, is composed alongside it
+by a tee: **`Tee(obs ...Observer) Observer`** forwards each callback to every child.
 
 **`Tee` is the whole surface — the type behind it is unexported**, like the accumulator.
 Both are `Observer` implementations, and an implementation is never something a caller
@@ -237,9 +279,9 @@ names.
 
 **The fold is a type of its own, and the observer that writes it is unexported.** The
 accumulator is only a writer; what the rest of the engine wants is the accumulated scalars.
-So `Outcome` — the three-field fold — is the type `Run` and `BuildResult` hold, and no field
-anywhere is typed as a concrete `Observer` implementation. Composition and the fold are
-handed over together by one constructor:
+So `Outcome` — the three-field fold — is the type repository operations, `Run`, and
+`BuildResult` hold, and no field anywhere is typed as a concrete `Observer`
+implementation. Composition and the fold are handed over together by one constructor:
 
 ```go
 func Accumulate(caller Observer) (Observer, *Outcome)
@@ -251,10 +293,11 @@ the accumulator; nothing inside it names one either beyond that constructor.
 **Observer-typed fields stay `Observer`** — specializing one to an implementation is what
 this shape exists to prevent.
 
-The wrap site is `NewRun` — the fold has to be **run-owned**, because `Run.Result()` mints
-its scalars from it. Nil is eliminated **once, there**, so no downstream code carries a
-guard: `Accumulate` returns the bare accumulator when `caller` is nil and `Tee(acc, caller)`
-otherwise.
+The wrap site is the engine entrypoint, before repository preparation or `Run` begins.
+The composed observer and fold travel together into `Run`, so `Run.Result()` still mints
+its scalars from that sole fold while a clone failure can mint `RepositoryResult` without
+constructing a run. Nil is eliminated once at that boundary: `Accumulate` returns the bare
+accumulator when `caller` is nil and `Tee(acc, caller)` otherwise.
 
 `Tee`'s contract is **non-nil children only**, and the run's report path has no nil check
 at all. A caller that wants nothing simply passes nothing — the fold still happens, because
@@ -369,17 +412,16 @@ bound to a client and cannot cross a process boundary, while the scalar half is 
 in-process (a `BuildResult` handed back to `cmd`) and in-database (the same fold, persisted
 as `build_events` by the worker — see [platform-server.md](platform-server.md)).
 
-## The execution boundary
+## The facade and runner boundary
 
-Three properties define an engine, and together they fix where it ends:
+The `engine` package is the build-domain facade; a Dagger **runner** is execution
+capacity. The facade knows repository source, selected module, publish intent, and
+lifecycle. A runner receives a resolved `BuildUnit` and knows nothing of repositories,
+tags, queues, or why the build exists. Keeping those nouns separate lets engine own the
+operation without forcing every mechanism into one package.
 
-- **It executes, it does not decide.** Given a unit, it produces an artifact or a failure.
-- **It is capacity.** There are N of them and work is dispatched across them.
-- **It is domain-blind.** It knows nothing of repos, tags, queues, or that this is build
-  #47 triggered by a push. The engine boundary is exactly where domain knowledge stops.
-
-Everything else a CI/CD server does — deciding what should run, finding free capacity,
-recording what happened — is coordination *around* engines.
+The facade owns finding runner capacity and executing against it. srv owns deciding which
+record runs next, supplying authorized request facts, and recording the report.
 
 ### Two scheduling decisions, two layers
 
@@ -438,11 +480,11 @@ There is nothing to merge on the reporting side: every unit reports to the same 
 and names itself in each callback, so the fan-in *is* the observer. A per-unit failure
 surfaces as the `err` on that unit's `RunDone` and never aborts its siblings.
 
-`cmd` and the srv worker call the **same verbs** and differ only in the observer they pass
-— a progress renderer on the CLI, a `build_events` writer in the worker. The worker issues
-one verb call per record; the per-unit goroutines live in the engine's multiplexer, never
-in the worker. This does not move the scheduling boundary above: *which build runs next*
-remains the worker's, and it still never sees a host address.
+`cmd` and the srv worker enter the **same facade** at the boundary their source permits.
+The CLI calls session verbs with an already-loaded local model and a progress-rendering
+observer. The worker calls `BuildRepository` with an immutable remote request and a
+`build_events` observer. The worker issues one facade call per module record; it never
+drives a `Run`, composes source preparation with execution, or sees the runner roster.
 
 ## Publishing
 

@@ -25,11 +25,11 @@ on repositories that consume platform.
 
 ## Shared capabilities are not an execution mode
 
-The shared packages parse `platform.toml`, interpret modules into build units, build those
-units, and optionally publish their images. They know neither why a run started nor which
-repository event should publish. `engine.Build` and `engine.BuildAndPublish` are reusable
-operations; cadence and policy belong to their caller. [`engine.md`](engine.md) specifies
-that mechanism.
+The engine facade owns the shared source-to-image capability: repository materialization
+when needed, config parsing, module interpretation, runner placement, execution, and
+optional publication. It knows neither why a run started nor which repository event should
+publish. Cadence and policy belong to its caller. [`engine.md`](engine.md) specifies that
+capability.
 
 `release` is separate again. The releases subsystem can cut a named git marker. It does
 not build or publish, and the server does not need to use platform's release-naming
@@ -59,8 +59,8 @@ conventions do not filter server builds.
 The CI/CD server is one execution mode with two cooperating processes:
 
 - `platform srv` authenticates incoming signals and records immutable build intent.
-- `platform worker` asynchronously claims that intent, prepares the exact repository
-  snapshot, and invokes the shared build or build-and-publish capability.
+- `platform worker` asynchronously claims that intent, constructs an immutable
+  remote-build request, and invokes the engine facade once.
 
 Together they are the server driver, peer to the local CLI driver. The HTTP request is
 not the build lifetime, the worker is not a second mode, and the server never shells out
