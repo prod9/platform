@@ -164,7 +164,7 @@ lives under `/api`; GitHub-facing and health routes stay bare.
 | Operation                   | Gate                      | What it does                                                                          | Why it exists                                                                                                      |
 |-----------------------------|---------------------------|---------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------|
 | `GET /health`               | none                      | `{"time": …}` liveness probe                                                          | k8s probes + smoke-level "is the server up" check without touching DB or auth                                      |
-| `GET /auth/github`          | none                      | sets the state cookie, redirects to GitHub's user-OAuth authorize page                | login entry point — platform delegates identity to GitHub, holds no passwords (identity ADR)                       |
+| `GET /auth/github`          | none                      | binds the return + pre-claim installation, then redirects to GitHub user OAuth         | login entry point — platform delegates identity to GitHub, holds no passwords (identity ADR)                       |
 | `GET /auth/github/callback` | state cookie              | exchanges the code, `GET /user`, find-or-create user+identity, mints a session cookie | completes login; identity keyed on immutable provider id so GitHub renames don't break links (identity ADR)        |
 | `GET /api/session`          | session                   | session state — expiry + user id; 401 when none                                       | the webui's "is my session valid" probe, distinct from the user's profile                                          |
 | `DELETE /api/session`       | none (cookie optional)    | deletes the session row, clears the cookie                                            | session revocation server-side — a stolen cookie dies with the row, not with the browser                           |
@@ -217,6 +217,18 @@ two-hour session, snapshots the repositories and permission levels that both the
 App can reach, and redirects to the bound location. The location includes path and query;
 the webui preserves the browser-only fragment across the round trip. Missing or invalid
 return locations fall back to `/`.
+
+Before the server is claimed, the install webui also sends the GitHub App
+`installation_id` already present in its setup URL. OAuth state binds that id beside the
+return location, and the callback uses it to build the first authorization snapshot before
+`install.Bound` exists. After claim, the callback takes the installation id from the bound
+installation record; a request parameter cannot select another installation.
+
+OAuth denial, callback failure, or missing callback inputs redirects to the webui's
+`/signin/` recovery state with the bound return location. The page states that sign-in did
+not complete and offers one explicit retry; it never redirects automatically. The retry
+starts a new OAuth attempt, while a successful callback returns directly to the interrupted
+location.
 
 The **Flux→srv observability** endpoint `GET
 /api/repos/{owner}/{repo}/flux` is **forthcoming** — it belongs to the cluster-view pass and
