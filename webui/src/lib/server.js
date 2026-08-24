@@ -169,9 +169,9 @@ export function getManifest(owner, repo) {
 	return call(`/api/repos/${owner}/${repo}/manifest`);
 }
 
-// registerRepo is the wizard's confirm — the one write the repos table takes.
-export function registerRepo(owner, repo) {
-	return post("/api/repos", { owner, repo });
+// registerRepo is the wizard's confirm: register the repo at the manifest just reviewed.
+export function registerRepo(owner, repo, manifestSHA) {
+	return post("/api/repos", { owner, repo, manifest_sha: manifestSHA });
 }
 
 // listRepoBuilds reads one repo's feed, newest first; the landing page fans out

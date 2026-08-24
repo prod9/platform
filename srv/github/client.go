@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"time"
 
 	"fx.prodigy9.co/config"
@@ -49,6 +50,17 @@ type Repo struct {
 	Name     string
 	FullName string
 	Owner    string
+}
+
+// Manifest is platform.toml as observed at one immutable commit.
+type Manifest struct {
+	SHA string
+	Raw []byte
+}
+
+type repository struct {
+	CloneURL      string `json:"clone_url"`
+	DefaultBranch string `json:"default_branch"`
 }
 
 // Org is the account an installation is installed on: the rename-stable numeric id
@@ -213,21 +225,49 @@ func (c *Client) UserInstallationRepos(ctx context.Context, userToken string, in
 	return repos, nil
 }
 
-// RepoManifest reads the repo's platform.toml at the default branch's head, raw.
-// 404 folds to ErrNoManifest.
-func (c *Client) RepoManifest(ctx context.Context, token, owner, repo string) ([]byte, error) {
+// RepoManifest resolves the repo's default-branch head and reads platform.toml at that
+// immutable commit. The SHA is what lets onboarding confirm exactly what it reviewed.
+func (c *Client) RepoManifest(ctx context.Context, token, owner, repo string) (*Manifest, error) {
 	if err := CheckRepoPath(owner, repo); err != nil {
 		return nil, err
 	}
+	repository, err := c.repository(ctx, token, owner, repo)
+	if err != nil {
+		return nil, err
+	}
+	sha, err := c.ResolveRef(ctx, token, owner, repo, repository.DefaultBranch)
+	if err != nil {
+		return nil, err
+	}
+	return c.repoManifestAt(ctx, token, owner, repo, sha)
+}
 
-	return fetchRaw(ctx, c, request{
+// RepoManifestAt reads platform.toml at sha. Callers provide a resolved commit rather
+// than a moving ref, so the bytes cannot change between review and confirmation.
+func (c *Client) RepoManifestAt(ctx context.Context, token, owner, repo, sha string) (*Manifest, error) {
+	if err := CheckRepoPath(owner, repo); err != nil {
+		return nil, err
+	}
+	if _, err := c.repository(ctx, token, owner, repo); err != nil {
+		return nil, err
+	}
+	return c.repoManifestAt(ctx, token, owner, repo, sha)
+}
+
+func (c *Client) repoManifestAt(ctx context.Context, token, owner, repo, sha string) (*Manifest, error) {
+	raw, err := fetchRaw(ctx, c, request{
 		method: "GET",
-		path:   fmt.Sprintf("/repos/%s/%s/contents/platform.toml", owner, repo),
+		path: fmt.Sprintf("/repos/%s/%s/contents/platform.toml?ref=%s",
+			owner, repo, url.QueryEscape(sha)),
 		auth:   asToken(token),
 		accept: "application/vnd.github.raw+json",
 		op:     "manifest read",
 		status: map[int]error{http.StatusNotFound: ErrNoManifest},
 	})
+	if err != nil {
+		return nil, err
+	}
+	return &Manifest{SHA: sha, Raw: raw}, nil
 }
 
 // RepoCloneURL fetches the repo's clone URL. It doubles as the reachability check for
@@ -238,16 +278,19 @@ func (c *Client) RepoCloneURL(ctx context.Context, token, owner, repo string) (s
 		return "", err
 	}
 
-	repository, err := fetchJSON[struct {
-		CloneURL string `json:"clone_url"`
-	}](ctx, c, request{
+	repository, err := c.repository(ctx, token, owner, repo)
+	return repository.CloneURL, err
+}
+
+func (c *Client) repository(ctx context.Context, token, owner, repo string) (*repository, error) {
+	repository, err := fetchJSON[repository](ctx, c, request{
 		method: "GET",
 		path:   fmt.Sprintf("/repos/%s/%s", owner, repo),
 		auth:   asToken(token),
 		op:     "repo lookup",
 		status: map[int]error{http.StatusNotFound: ErrRepoUnreachable},
 	})
-	return repository.CloneURL, err
+	return &repository, err
 }
 
 // ResolveRef resolves a ref (sha, heads/BRANCH, or tags/TAG) to its commit sha via

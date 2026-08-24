@@ -17,6 +17,7 @@ import (
 	"fx.prodigy9.co/httpserver/middlewares"
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/require"
+	"platform.prodigy9.co/conf"
 	"platform.prodigy9.co/srv/auth"
 	"platform.prodigy9.co/srv/github"
 	"platform.prodigy9.co/srv/install"
@@ -71,10 +72,21 @@ func setupInstalled(t *testing.T) (context.Context, *config.Source) {
 	})
 	mux.HandleFunc("GET /repos/prodigy9/app/contents/platform.toml", func(resp http.ResponseWriter, req *http.Request) {
 		require.Equal(t, "Bearer ghs_tok", req.Header.Get("Authorization"))
+		require.Equal(t, "abc123", req.URL.Query().Get("ref"))
 		fmt.Fprint(resp, "repository = \"github.com/prodigy9/app\"\n\n[modules.web]\nframework = \"pnpm/basic\"\n")
 	})
+	mux.HandleFunc("GET /repos/prodigy9/app/commits/main", func(resp http.ResponseWriter, req *http.Request) {
+		require.Equal(t, "application/vnd.github.sha", req.Header.Get("Accept"))
+		fmt.Fprint(resp, "abc123")
+	})
 	mux.HandleFunc("GET /repos/prodigy9/app", func(resp http.ResponseWriter, req *http.Request) {
-		fmt.Fprint(resp, `{"clone_url":"https://github.com/prodigy9/app.git"}`)
+		fmt.Fprint(resp, `{"clone_url":"https://github.com/prodigy9/app.git","default_branch":"main"}`)
+	})
+	mux.HandleFunc("GET /repos/prodigy9/api/commits/main", func(resp http.ResponseWriter, req *http.Request) {
+		fmt.Fprint(resp, "def456")
+	})
+	mux.HandleFunc("GET /repos/prodigy9/api", func(resp http.ResponseWriter, req *http.Request) {
+		fmt.Fprint(resp, `{"clone_url":"https://github.com/prodigy9/api.git","default_branch":"main"}`)
 	})
 	mux.HandleFunc("GET /repos/", func(resp http.ResponseWriter, req *http.Request) {
 		resp.WriteHeader(404)
@@ -104,6 +116,18 @@ func startTestSession(t *testing.T, ctx context.Context) (int64, string) {
 	return user.ID, token
 }
 
+func registerTestRepo(t *testing.T, ctx context.Context, owner, repo string, userID int64) {
+	raw := fmt.Sprintf("repository = %q\n\n[modules.app]\nframework = \"go/basic\"\n", "github.com/"+owner+"/"+repo)
+	model, err := conf.Parse([]byte(raw))
+	require.NoError(t, err)
+
+	action := &RegisterRepo{
+		Owner: owner, Repo: repo, UserID: userID,
+		ManifestSHA: "seed-" + repo, ManifestRaw: raw, Manifest: *model,
+	}
+	require.NoError(t, action.Execute(ctx, &Repo{}))
+}
+
 func doRequest(t *testing.T, router chi.Router, ctx context.Context, session, method, path, body string) *httptest.ResponseRecorder {
 	req := httptest.NewRequest(method, path, strings.NewReader(body)).WithContext(ctx)
 	if session != "" {
@@ -130,8 +154,7 @@ func TestReposIntersectsRegisteredWithLive(t *testing.T) {
 	router := apiRouter(t, cfg)
 
 	for _, name := range []string{"app", "api"} {
-		register := &RegisterRepo{Owner: "prodigy9", Repo: name, UserID: userID}
-		require.NoError(t, register.Execute(ctx, &Repo{}))
+		registerTestRepo(t, ctx, "prodigy9", name, userID)
 	}
 
 	resp := doRequest(t, router, ctx, session, "GET", "/api/repos", "")
@@ -154,8 +177,7 @@ func TestCandidatesExcludesRegistered(t *testing.T) {
 	userID, session := startTestSession(t, ctx)
 	router := apiRouter(t, cfg)
 
-	register := &RegisterRepo{Owner: "prodigy9", Repo: "app", UserID: userID}
-	require.NoError(t, register.Execute(ctx, &Repo{}))
+	registerTestRepo(t, ctx, "prodigy9", "app", userID)
 
 	resp := doRequest(t, router, ctx, session, "GET", "/api/repos/candidates", "")
 	require.Equal(t, http.StatusOK, resp.Code)
@@ -176,15 +198,37 @@ func TestRegisterRepoRecordsAndConflicts(t *testing.T) {
 	router := apiRouter(t, cfg)
 
 	resp := doRequest(t, router, ctx, session, "POST", "/api/repos",
-		`{"owner":"prodigy9","repo":"app"}`)
+		`{"owner":"prodigy9","repo":"app","manifest_sha":"abc123"}`)
 	require.Equal(t, http.StatusCreated, resp.Code)
 
 	row := &Repo{}
 	require.NoError(t, data.Get(ctx, row, `SELECT * FROM repos WHERE owner = 'prodigy9' AND repo = 'app'`))
 	require.Equal(t, userID, row.RegisteredBy)
 
+	var snapshot struct {
+		SHA        string `db:"sha"`
+		Raw        string `db:"raw"`
+		Repository string `db:"repository"`
+	}
+	require.NoError(t, data.Get(ctx, &snapshot, `
+		SELECT sha, raw, repository FROM repo_manifests WHERE repo_id = $1`, row.ID))
+	require.Equal(t, "abc123", snapshot.SHA)
+	require.Contains(t, snapshot.Raw, `[modules.web]`)
+	require.Equal(t, "github.com/prodigy9/app", snapshot.Repository)
+
+	var module struct {
+		Name      string `db:"name"`
+		Framework string `db:"framework"`
+		WorkDir   string `db:"workdir"`
+	}
+	require.NoError(t, data.Get(ctx, &module, `
+		SELECT name, framework, workdir FROM repo_manifest_modules`))
+	require.Equal(t, "web", module.Name)
+	require.Equal(t, "pnpm/basic", module.Framework)
+	require.Equal(t, ".", module.WorkDir)
+
 	resp = doRequest(t, router, ctx, session, "POST", "/api/repos",
-		`{"owner":"prodigy9","repo":"app"}`)
+		`{"owner":"prodigy9","repo":"app","manifest_sha":"abc123"}`)
 	require.Equal(t, http.StatusConflict, resp.Code)
 }
 
@@ -196,8 +240,18 @@ func TestRegisterRepoUnreachable(t *testing.T) {
 	router := apiRouter(t, cfg)
 
 	resp := doRequest(t, router, ctx, session, "POST", "/api/repos",
-		`{"owner":"prodigy9","repo":"ghost"}`)
+		`{"owner":"prodigy9","repo":"ghost","manifest_sha":"abc123"}`)
 	require.Equal(t, http.StatusNotFound, resp.Code)
+}
+
+func TestRegisterRepoWithoutManifest(t *testing.T) {
+	ctx, cfg := setupInstalled(t)
+	_, session := startTestSession(t, ctx)
+	router := apiRouter(t, cfg)
+
+	resp := doRequest(t, router, ctx, session, "POST", "/api/repos",
+		`{"owner":"prodigy9","repo":"api","manifest_sha":"def456"}`)
+	require.Equal(t, http.StatusConflict, resp.Code)
 }
 
 func TestManifestParsesPlatformTOML(t *testing.T) {
@@ -209,6 +263,7 @@ func TestManifestParsesPlatformTOML(t *testing.T) {
 	require.Equal(t, http.StatusOK, resp.Code)
 
 	var manifest struct {
+		SHA        string `json:"sha"`
 		Maintainer string `json:"maintainer"`
 		Repository string `json:"repository"`
 		Modules    []struct {
@@ -218,6 +273,7 @@ func TestManifestParsesPlatformTOML(t *testing.T) {
 		} `json:"modules"`
 	}
 	require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &manifest))
+	require.Equal(t, "abc123", manifest.SHA)
 	require.Equal(t, "github.com/prodigy9/app", manifest.Repository)
 	require.Len(t, manifest.Modules, 1)
 	require.Equal(t, "web", manifest.Modules[0].Name)
@@ -225,11 +281,20 @@ func TestManifestParsesPlatformTOML(t *testing.T) {
 	require.Equal(t, ".", manifest.Modules[0].WorkDir)
 }
 
-func TestManifestAbsentIs404(t *testing.T) {
+func TestManifestAbsentIsConflict(t *testing.T) {
 	ctx, cfg := setupInstalled(t)
 	_, session := startTestSession(t, ctx)
 	router := apiRouter(t, cfg)
 
 	resp := doRequest(t, router, ctx, session, "GET", "/api/repos/prodigy9/api/manifest", "")
+	require.Equal(t, http.StatusConflict, resp.Code)
+}
+
+func TestManifestUnreachableIsNotFound(t *testing.T) {
+	ctx, cfg := setupInstalled(t)
+	_, session := startTestSession(t, ctx)
+	router := apiRouter(t, cfg)
+
+	resp := doRequest(t, router, ctx, session, "GET", "/api/repos/prodigy9/ghost/manifest", "")
 	require.Equal(t, http.StatusNotFound, resp.Code)
 }

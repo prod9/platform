@@ -142,13 +142,25 @@ func register(resp http.ResponseWriter, req *http.Request) {
 		render.Error(resp, req, 500, err)
 		return
 	}
-	if _, err := client.RepoCloneURL(ctx, token, action.Owner, action.Repo); errors.Is(err, github.ErrRepoUnreachable) {
+	observed, err := client.RepoManifestAt(
+		ctx, token, action.Owner, action.Repo, action.ManifestSHA)
+	if errors.Is(err, github.ErrRepoUnreachable) {
 		render.Error(resp, req, 404, err)
+		return
+	} else if errors.Is(err, github.ErrNoManifest) {
+		render.Error(resp, req, 409, err)
 		return
 	} else if err != nil {
 		render.Error(resp, req, 500, err)
 		return
 	}
+	parsed, err := conf.Parse(observed.Raw)
+	if err != nil {
+		render.Error(resp, req, 422, err)
+		return
+	}
+	action.ManifestRaw = string(observed.Raw)
+	action.Manifest = *parsed
 
 	row := &Repo{}
 	if err := action.Execute(ctx, row); errors.Is(err, ErrAlreadyRegistered) {
@@ -162,6 +174,7 @@ func register(resp http.ResponseWriter, req *http.Request) {
 }
 
 type manifestResponse struct {
+	SHA        string           `json:"sha"`
 	Maintainer string           `json:"maintainer"`
 	Repository string           `json:"repository"`
 	Modules    []moduleResponse `json:"modules"`
@@ -189,21 +202,25 @@ func manifest(resp http.ResponseWriter, req *http.Request) {
 		render.Error(resp, req, 500, err)
 		return
 	}
-	raw, err := client.RepoManifest(ctx, token, owner, repo)
-	if errors.Is(err, github.ErrNoManifest) {
+	observed, err := client.RepoManifest(ctx, token, owner, repo)
+	if errors.Is(err, github.ErrRepoUnreachable) {
 		render.Error(resp, req, 404, err)
+		return
+	} else if errors.Is(err, github.ErrNoManifest) {
+		render.Error(resp, req, 409, err)
 		return
 	} else if err != nil {
 		render.Error(resp, req, 500, err)
 		return
 	}
-	parsed, err := conf.Parse(raw)
+	parsed, err := conf.Parse(observed.Raw)
 	if err != nil {
 		render.Error(resp, req, 422, err)
 		return
 	}
 
 	out := manifestResponse{
+		SHA:        observed.SHA,
 		Maintainer: parsed.Maintainer,
 		Repository: parsed.Repository,
 		Modules:    []moduleResponse{},

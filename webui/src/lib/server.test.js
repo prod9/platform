@@ -5,6 +5,7 @@ import {
 	systemSettings,
 	systemMigrations,
 	runSystemMigrations,
+	registerRepo,
 	classifyMigrationPlan,
 	Answered,
 	Refused,
@@ -13,6 +14,31 @@ import {
 	Installed,
 	Unknown,
 } from "./server.js";
+
+describe("repository onboarding", () => {
+	test("confirmation identifies the exact reviewed manifest", async () => {
+		let request;
+		globalThis.fetch = async (path, options) => {
+			request = { path, options };
+			return { ok: true, json: async () => ({}) };
+		};
+
+		await registerRepo("prodigy9", "platform", "abc123");
+
+		expect(request).toEqual({
+			path: "/api/repos",
+			options: {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					owner: "prodigy9",
+					repo: "platform",
+					manifest_sha: "abc123",
+				}),
+			},
+		});
+	});
+});
 
 describe("system operations", () => {
 	test("reads the settings and migration surfaces", async () => {

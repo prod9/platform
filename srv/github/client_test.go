@@ -267,23 +267,41 @@ func TestUserInstallationRepos(t *testing.T) {
 func TestRepoManifest(t *testing.T) {
 	client, _ := testClient(t, http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
 		require.Equal(t, "GET", req.Method)
-		require.Equal(t, "/repos/prodigy9/app/contents/platform.toml", req.URL.Path)
 		require.Equal(t, "Bearer ghs_tok", req.Header.Get("Authorization"))
-		require.Equal(t, "application/vnd.github.raw+json", req.Header.Get("Accept"))
-		fmt.Fprint(resp, `repository = "github.com/prodigy9/app"`)
+
+		switch req.URL.Path {
+		case "/repos/prodigy9/app":
+			fmt.Fprint(resp, `{"default_branch":"main"}`)
+		case "/repos/prodigy9/app/commits/main":
+			require.Equal(t, "application/vnd.github.sha", req.Header.Get("Accept"))
+			fmt.Fprint(resp, "abc123")
+		case "/repos/prodigy9/app/contents/platform.toml":
+			require.Equal(t, "abc123", req.URL.Query().Get("ref"))
+			require.Equal(t, "application/vnd.github.raw+json", req.Header.Get("Accept"))
+			fmt.Fprint(resp, `repository = "github.com/prodigy9/app"`)
+		default:
+			t.Fatalf("unexpected GitHub path %s", req.URL.Path)
+		}
 	}))
 
 	manifest, err := client.RepoManifest(context.Background(), "ghs_tok", "prodigy9", "app")
 	require.NoError(t, err)
-	require.Equal(t, `repository = "github.com/prodigy9/app"`, string(manifest))
+	require.Equal(t, "abc123", manifest.SHA)
+	require.Equal(t, `repository = "github.com/prodigy9/app"`, string(manifest.Raw))
 }
 
-// A 404 from the contents read folds to ErrNoManifest: the repo has no platform.toml
-// at its default branch's head (or has just fallen out of reach — indistinguishable on
-// the wire, answered the same).
+// A 404 after the repository lookup folds to ErrNoManifest: the accessible repo has no
+// platform.toml at its default branch's head.
 func TestRepoManifestAbsent(t *testing.T) {
 	client, _ := testClient(t, http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
-		resp.WriteHeader(404)
+		switch req.URL.Path {
+		case "/repos/prodigy9/app":
+			fmt.Fprint(resp, `{"default_branch":"main"}`)
+		case "/repos/prodigy9/app/commits/main":
+			fmt.Fprint(resp, "abc123")
+		default:
+			resp.WriteHeader(404)
+		}
 	}))
 
 	_, err := client.RepoManifest(context.Background(), "ghs_tok", "prodigy9", "app")

@@ -24,7 +24,7 @@
 	let filter = $state("");
 	let matches = $derived(filterCandidates(candidates, filter));
 
-	// The manifest pre-read: null until answered; a 404 is a repo with no
+	// The manifest pre-read: null until answered; a 409 is a repo with no
 	// platform.toml — reviewable, with the absence stated — any other refusal is an
 	// error the panel surfaces.
 	let manifest = $state(null);
@@ -70,7 +70,7 @@
 		const result = await getManifest(repo.owner, repo.repo);
 		if (result.outcome === Answered) {
 			manifest = result.body;
-		} else if (result.outcome === Refused && result.status === 404) {
+		} else if (result.outcome === Refused && result.status === 409) {
 			manifestAbsent = true;
 		} else {
 			manifestError = errorText(result);
@@ -87,7 +87,7 @@
 		confirmError = "";
 
 		try {
-			const result = await registerRepo(picked.owner, picked.repo);
+			const result = await registerRepo(picked.owner, picked.repo, manifest.sha);
 			if (result.outcome === Answered) {
 				await goto("/");
 			} else {
@@ -174,7 +174,7 @@
 							{/if}
 						{:else if manifestAbsent}
 							<dd class="mono warn">
-								✗ not found — builds will fail until one is committed
+								✗ initialize platform.toml and commit it before onboarding
 							</dd>
 						{:else if manifestError !== ""}
 							<dd class="mono warn">{manifestError}</dd>
@@ -190,7 +190,11 @@
 					{/if}
 					<div class="confirm">
 						<Button onclick={back}>Back</Button>
-						<Button variant="primary" onclick={confirm} disabled={confirming}>
+						<Button
+							variant="primary"
+							onclick={confirm}
+							disabled={confirming || manifest === null}
+						>
 							{confirming ? "Adding…" : "Confirm add"}
 						</Button>
 					</div>
