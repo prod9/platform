@@ -71,7 +71,9 @@ func TestBuildForPush(t *testing.T) {
 
 	branchPush := tagPush
 	branchPush.Ref = "refs/heads/main"
-	require.Nil(t, buildForPush(branchPush))
+	branchCreate := buildForPush(branchPush)
+	require.NotNil(t, branchCreate)
+	require.Equal(t, "refs/heads/main", branchCreate.Ref)
 
 	deletedTag := tagPush
 	deletedTag.Deleted = true
@@ -79,7 +81,9 @@ func TestBuildForPush(t *testing.T) {
 
 	nonVersionTag := tagPush
 	nonVersionTag.Ref = "refs/tags/release-1"
-	require.Nil(t, buildForPush(nonVersionTag))
+	nonVersionCreate := buildForPush(nonVersionTag)
+	require.NotNil(t, nonVersionCreate)
+	require.Equal(t, "refs/tags/release-1", nonVersionCreate.Ref)
 }
 
 const tagPushBody = `{
@@ -175,16 +179,6 @@ func TestWebhookMalformedPushBody(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, resp.Code)
 }
 
-func TestWebhookBranchPushIsNoOp(t *testing.T) {
-	stubApp(t, &github.App{WebhookSecret: testWebhookSecret}, nil)
-	router := webhookRouter(t)
-
-	resp := httptest.NewRecorder()
-	router.ServeHTTP(resp, webhookRequest("push", branchPushBody, signBody(testWebhookSecret, branchPushBody)))
-
-	require.Equal(t, http.StatusOK, resp.Code)
-}
-
 func TestWebhookTagPushCreatesBuild(t *testing.T) {
 	ctx := setupDB(t)
 	stubApp(t, &github.App{WebhookSecret: testWebhookSecret}, nil)
@@ -214,7 +208,7 @@ func TestWebhookTagPushCreatesBuild(t *testing.T) {
 	require.Empty(t, eventsFor(t, ctx, build.ID))
 }
 
-func TestWebhookBranchPushCreatesNoBuild(t *testing.T) {
+func TestWebhookBranchPushCreatesBuild(t *testing.T) {
 	ctx := setupDB(t)
 	stubApp(t, &github.App{WebhookSecret: testWebhookSecret}, nil)
 
@@ -223,9 +217,10 @@ func TestWebhookBranchPushCreatesNoBuild(t *testing.T) {
 	req := webhookRequest("push", branchPushBody, signBody(testWebhookSecret, branchPushBody))
 	router.ServeHTTP(resp, req.WithContext(ctx))
 
-	require.Equal(t, http.StatusOK, resp.Code)
+	require.Equal(t, http.StatusAccepted, resp.Code)
 
-	var count int
-	require.NoError(t, data.Get(ctx, &count, `SELECT count(*) FROM builds`))
-	require.Zero(t, count)
+	build := &Build{}
+	require.NoError(t, data.Get(ctx, build, `SELECT `+buildColumns+` FROM builds`))
+	require.Equal(t, "refs/heads/main", build.Ref)
+	require.Equal(t, "abc123", build.SHA)
 }

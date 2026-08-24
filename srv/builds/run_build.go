@@ -87,9 +87,12 @@ func (r *RunBuild) execute(ctx context.Context, build *Build, scribe *transcribe
 		return err
 	}
 
-	ctx, err = runConfigContext(ctx, cfg)
-	if err != nil {
-		return err
+	publishTag := appPublishTag(build.Ref)
+	if publishTag != "" {
+		ctx, err = runConfigContext(ctx, cfg)
+		if err != nil {
+			return err
+		}
 	}
 
 	sess := engine.NewSession(ctx)
@@ -101,7 +104,11 @@ func (r *RunBuild) execute(ctx context.Context, build *Build, scribe *transcribe
 	// zero terminal events: a crash after step_started leaves the attempt open, which is
 	// the spec's declared stalled-build gap ("Recovering a stalled build is not yet in
 	// this surface"), not this job's to close.
-	_, err = sess.BuildAndPublish(ctx, cfg, nil, publishTag(build.Ref), scribe)
+	if publishTag == "" {
+		_, err = sess.Build(ctx, cfg, nil, scribe)
+	} else {
+		_, err = sess.BuildAndPublish(ctx, cfg, nil, publishTag, scribe)
+	}
 	if err != nil && scribe.Silent() {
 		return err
 	}
@@ -178,10 +185,15 @@ func registryHost(cfg *conf.Model) (string, error) {
 	return host, nil
 }
 
-// publishTag is the tag the images of this build are published under. A ref is a whole ref
-// — 'refs/tags/v1.2.3' — and the image carries the version a human pushed.
-func publishTag(ref string) string {
-	return strings.TrimPrefix(ref, "refs/tags/")
+// appPublishTag returns the exact tag from an app tag build. Branch builds validate without
+// publishing; infra's latest policy waits on the repository-kind ruling
+// (docs/spec/execution-modes.md).
+func appPublishTag(ref string) string {
+	tag, isTag := strings.CutPrefix(ref, "refs/tags/")
+	if !isTag {
+		return ""
+	}
+	return tag
 }
 
 func findBuild(ctx context.Context, id int64) (*Build, error) {

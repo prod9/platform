@@ -7,6 +7,11 @@ import (
 	"platform.prodigy9.co/conf"
 )
 
+func TestAppPublishTag(t *testing.T) {
+	require.Equal(t, "release-1", appPublishTag("refs/tags/release-1"))
+	require.Empty(t, appPublishTag("refs/heads/main"))
+}
+
 // The publish credential is looked up by the registry the image names — the host is
 // the image name's first path segment (docs/spec/platform-server.md, "The publish
 // credential is the wizard-saved registry token").

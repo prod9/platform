@@ -24,7 +24,7 @@ const maxWebhookBody = 1 << 20
 var errBadWebhookSignature = errors.New("builds: invalid webhook signature")
 
 // WebhookCtr ingests GitHub webhook deliveries: it verifies the App webhook
-// signature and records a queued build for each pushed version tag; the record is the
+// signature and records a queued build for each non-deleted push; the record is the
 // queue, and a worker peer consumes it.
 type WebhookCtr struct{}
 
@@ -105,7 +105,7 @@ func verifyWebhookSignature(secret string, body []byte, header string) bool {
 	return hmac.Equal(sig, mac.Sum(nil))
 }
 
-// pushEvent is the subset of GitHub's push payload the tag-watch cares about.
+// pushEvent is the subset of GitHub's push payload build ingestion needs.
 type pushEvent struct {
 	Ref        string         `json:"ref"`
 	Deleted    bool           `json:"deleted"`
@@ -123,15 +123,13 @@ type pushOwner struct {
 	Login string `json:"login"`
 }
 
-// buildForPush decides whether a push warrants a build: only a still-existing version
-// tag (refs/tags/v*) does — rolling repos cut no tags and stay CLI-published (see the
-// delivery-verbs ADR). Everything else returns nil.
+// buildForPush records every still-existing pushed commit. Build cadence is independent
+// of the later app/infra publish decision (docs/spec/execution-modes.md).
 //
 // The record keeps the ref whole. What a ref points at moves, and the UI groups a repo's
 // builds by it; the sha beside it is what this build resolved to.
 func buildForPush(ev pushEvent) *Create {
-	tag, isTag := strings.CutPrefix(ev.Ref, "refs/tags/")
-	if !isTag || !strings.HasPrefix(tag, "v") || ev.Deleted {
+	if ev.Deleted {
 		return nil
 	}
 

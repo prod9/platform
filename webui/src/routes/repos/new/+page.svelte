@@ -182,7 +182,7 @@
 							<dd class="mono muted">Reading…</dd>
 						{/if}
 						<dt class="mono key">builds on</dt>
-						<dd class="mono">refs/tags/v*</dd>
+						<dd class="mono">every push</dd>
 					</dl>
 
 					{#if confirmError !== ""}
