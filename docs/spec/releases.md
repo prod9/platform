@@ -5,7 +5,7 @@ two-step generate/create flow, and how the local CLI release command relates to 
 publish command.
 
 `releases/` owns exactly one concern: **cutting a named marker into git history.** It
-builds nothing and pushes no image — that is `publish`'s job (see
+builds nothing and pushes no image — that is local `./platform publish`'s job (see
 [Orthogonality](#orthogonality-release-is-not-publish)). A release is a git tag plus the
 changelog of commits since the previous one.
 
@@ -123,5 +123,6 @@ The local `./platform release` command (cut a tag) and local `./platform publish
 explicit local publish invocation pushes an image. This local command contract says
 nothing about the server driver, which applies its own build triggers and publish cadence.
 A release that is never locally published is a fine state, allowed by convention with no
-guard. Full rationale:
-[delivery-verbs-are-orthogonal](../decisions/2026-07-05-delivery-verbs-are-orthogonal.md).
+guard. Full rationale: [execution-mode decision].
+
+[execution-mode decision]: ../decisions/2026-08-24-execution-mode-does-not-define-delivery-policy.md

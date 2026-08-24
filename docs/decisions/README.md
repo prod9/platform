@@ -74,7 +74,8 @@ Newest first.
 - [2026-07-11 — Terminology lexicon: one word, one concept](2026-07-11-terminology-lexicon.md)
 - [2026-07-11 — Baseline installs unconditionally; dissolves into the Infra framework](2026-07-11-baseline-dissolves-into-infra-framework.md)
 - [2026-07-05 — Infra publishes as a plain Dagger image; retire oras-go](2026-07-05-infra-publishes-as-plain-image-retire-oras.md)
-- [2026-07-05 — Delivery verbs are orthogonal; one publish engine, two drivers](2026-07-05-delivery-verbs-are-orthogonal.md) *(server cadence partially superseded 2026-08-24; other rulings stand)*
+- [2026-07-05 — Superseded delivery-verbs decision][old-delivery-verbs]
+  *(superseded in full by the 2026-08-24 execution-mode decision)*
 - [2026-07-05 — Test-in-build is a hard gate; blackbox-first testing](2026-07-05-test-in-build-is-a-hard-gate.md)
 - [2026-07-05 — Platform FHS container layout; cmd is the runtime command](2026-07-05-platform-fhs-container-layout.md)
 - [2026-06-29 — Platform server: GitHub App, zero platform RBAC](2026-06-29-platform-server-github-app-zero-rbac.md) *(revised 2026-07-18: stress-tested against observability, holds)*
@@ -98,3 +99,4 @@ Newest first.
 Keep this list in sync when adding a decision.
 
 [execution-mode-policy]: 2026-08-24-execution-mode-does-not-define-delivery-policy.md
+[old-delivery-verbs]: 2026-07-05-delivery-verbs-are-orthogonal.md

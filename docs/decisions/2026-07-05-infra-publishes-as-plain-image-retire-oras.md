@@ -83,10 +83,10 @@ path (`render` → `kubectl apply`) is unaffected.
 
 ## Relationship to other decisions
 
-- Refines [2026-07-05 — Delivery verbs are orthogonal](2026-07-05-delivery-verbs-are-orthogonal.md):
-  that ADR framed infra config as "its own `ops render` / `ops publish` concern." This ruling
-  collapses the *publish* half onto the normal `publish` verb (infra = a builder). The
-  `release`-vs-`publish` orthogonality it establishes is untouched; the app-vs-infra *publish*
-  split is what goes.
+- Refines the [current execution-mode decision]: infra remains a builder whose publish
+  policy differs from an app repository's. The historical decision this record originally
+  refined is superseded and must not be used to infer server cadence.
 - Supersedes the oras-go mechanic noted in
   [2026-06-14 — Pull-based GitOps](2026-06-14-pull-based-gitops-timoni-flux.md).
+
+[current execution-mode decision]: 2026-08-24-execution-mode-does-not-define-delivery-policy.md

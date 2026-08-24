@@ -186,11 +186,13 @@ type Observer interface {
 
 Three callbacks are **lifecycle**, one is **capture**, two are **output**. The output pair
 mirrors the build⊥publish orthogonality
-([delivery-verbs-are-orthogonal](../decisions/2026-07-05-delivery-verbs-are-orthogonal.md)):
+([execution-mode decision]):
 `ImageBuilt` is the common path — every successful build fires it, and four of the five
 commands that build (`build`, `export`, `exec`, `preview`) never publish — while
 `Published` fires only on the publish path and is the only place a registry hash exists.
 One callback per event kind; nothing is inferred from a shared method with a mode flag.
+
+[execution-mode decision]: ../decisions/2026-08-24-execution-mode-does-not-define-delivery-policy.md
 
 The kernel stays at these six until a capability actually arrives; nothing is front-loaded
 against a consumer that does not exist yet. `StepOutput` earned its place when `srv` began

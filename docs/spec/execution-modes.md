@@ -5,6 +5,8 @@ build/publish capabilities, the two drivers that invoke them, and the opinionate
 delivery workflow built on top. A command, a server event, and a repository convention
 are different things even when they eventually call the same engine operation.
 
+The [execution-mode decision] records the ruling behind this separation.
+
 ## Four layers that must never be collapsed
 
 | Layer                     | Question it answers                                         |
@@ -19,16 +21,22 @@ repository. A rule in
 [`../guides/cutting-a-release.md`](../guides/cutting-a-release.md) is not a restriction
 on repositories that consume platform.
 
+[execution-mode decision]: ../decisions/2026-08-24-execution-mode-does-not-define-delivery-policy.md
+
 ## Shared capabilities are not an execution mode
 
 The shared packages parse `platform.toml`, interpret modules into build units, build those
 units, and optionally publish their images. They know neither why a run started nor which
 repository event should publish. `engine.Build` and `engine.BuildAndPublish` are reusable
-operations; cadence and policy belong to their caller.
+operations; cadence and policy belong to their caller. [`engine.md`](engine.md) specifies
+that mechanism.
 
 `release` is separate again. The releases subsystem can cut a named git marker. It does
 not build or publish, and the server does not need to use platform's release-naming
 strategies to recognize an ordinary git tag.
+
+[`releases.md`](releases.md) specifies the local release subsystem; it is not a server
+trigger specification.
 
 ## Local CLI mode
 
@@ -56,7 +64,7 @@ The CI/CD server is one execution mode with two cooperating processes:
 
 Together they are the server driver, peer to the local CLI driver. The HTTP request is
 not the build lifetime, the worker is not a second mode, and the server never shells out
-to `./platform publish`.
+to `./platform publish`. [`platform-server.md`](platform-server.md) specifies this mode.
 
 Every non-deleted GitHub push creates a whole-repository build at the pushed commit.
 Branch pushes, default-branch pushes, and tag pushes all build; no `v` prefix is special.
@@ -77,7 +85,7 @@ names, or framework implementation.
 ## Intended delivery workflow
 
 The intended workflow is an opinionated convention over the two execution modes, not
-another engine API:
+another engine API. [`platform.md`](platform.md) carries the wider control-plane vision.
 
 - App repositories continuously validate every pushed commit. Pushing any git tag marks a
   build whose successful image is worth publishing under that exact tag.

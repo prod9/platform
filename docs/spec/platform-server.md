@@ -9,13 +9,14 @@ k8s + Flux state for pods, logs, and rollout continuity after a publish.
 
 The `srv` + worker pair is the **CI/CD server driver**, peer to the local CLI driver.
 `srv` records build intent and the worker asynchronously invokes the same build/publish
-capabilities the local CLI drives (see [`execution-modes.md`](execution-modes.md) and
-[delivery-verbs-are-orthogonal](../decisions/2026-07-05-delivery-verbs-are-orthogonal.md)
-and the one-engine-two-drivers model in [engine.md](engine.md)). The ruling behind its auth
-model is
+capabilities the local CLI drives (see [`execution-modes.md`](execution-modes.md), the
+[execution-mode decision], and the one-engine-two-drivers model in [engine.md](engine.md)).
+The ruling behind its auth model is
 [platform-server-github-app-zero-rbac](../decisions/2026-06-29-platform-server-github-app-zero-rbac.md);
 the design it came from is
 [platform-as-CI (prior-art)](../scratch/prior-art.md#platform-as-ci-architecture-design-2026-06-29).
+
+[execution-mode decision]: ../decisions/2026-08-24-execution-mode-does-not-define-delivery-policy.md
 
 ## What `srv` is
 
@@ -31,7 +32,7 @@ fx, then this file.
 `srv` is the API + webhook processor: every push records a build of the exact commit; the
 worker later builds it and applies the repository-kind publish policy. It owns the GitHub
 App, the DB, and token minting. It is a layer above the **shared packages** (the stateless
-build/render/publish/release machinery: `framework`, `engine`, `gitops`, `releases`, …)
+build/render/publish machinery: `framework`, `engine`, `gitops`, …)
 and consumes them per request — the engine layer hands out a `Session`, the span its
 containers stay usable for (`engine.NewSession(ctx)` once at boot, a `Run` per unit per
 request), so a long-running server reuses one session across every concurrent build. Whether

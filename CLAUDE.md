@@ -212,8 +212,8 @@ an image) are **orthogonal — neither implies the other**. There is **no `deplo
 no platform-managed `environments`: in the pull model "deploy" is the operator committing
 the infra repo, then `publish` (with a platform server + Flux) or `render` + `kubectl apply`
 (no server); multi-env lives in the infra CUE (a template instantiated per env) + k8s
-namespacing, gated by GitHub push permissions. See
-[delivery-verbs-are-orthogonal](docs/decisions/2026-07-05-delivery-verbs-are-orthogonal.md).
+namespacing, gated by GitHub push permissions. The canonical boundary and current ruling
+are indexed from [`execution-modes.md`](docs/spec/execution-modes.md).
 
 ## Build & delivery facts
 

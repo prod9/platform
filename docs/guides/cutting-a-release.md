@@ -1,7 +1,11 @@
 # Cutting a release
 
-Takes a green `main` to a published GitHub release: a notes file, a tag, a pushed branch, a
-re-recorded golden, and a release page carrying the notes.
+Repository runbook for `prod9/platform` itself. It takes this repository's green `main` to
+a published GitHub release: a notes file, a tag, a pushed branch, a re-recorded golden,
+and a release page carrying the notes. It is not a product contract for consuming
+repositories. The [execution-mode specification] owns that boundary.
+
+[execution-mode specification]: ../spec/execution-modes.md
 
 The notes are drafted **outside the repo**, in `/tmp`. Their permanent home is the GitHub
 release page, so a copy in the tree is a second original that drifts, and `platform release`
@@ -54,10 +58,9 @@ changelog is complete precisely because no release-prep commit exists to be miss
 go run . release --patch      # --minor / --major as the change warrants
 ```
 
-Consuming repos run `./platform release --patch` instead — never a `platform` off `$PATH`.
-It prints the changelog for a confirm; `ALWAYS_YES=1` clears that confirm in a TTY-less
-shell. `Create` writes an annotated tag **and pushes it** to the `gh` remote — there is no
-local-only mode, so this step is the point of no return.
+The command prints the changelog for a confirm; `ALWAYS_YES=1` clears that confirm in a
+TTY-less shell. `Create` writes an annotated tag **and pushes it** to the `gh` remote —
+there is no local-only mode, so this step is the point of no return.
 
 ## 4. Push the branch
 
@@ -82,7 +85,7 @@ committing it:** the version pin is the only line a release may move, and anythi
 that diff is a regression the release just shipped, not release noise. Skipping this leaves
 smoke red on `main` for whoever runs it next.
 
-## 6. Publish the release
+## 6. Create the GitHub release
 
 ```sh
 gh release create v0.9.17 --verify-tag \

@@ -11,7 +11,7 @@ Primary goals, unchanged since day one:
 2. Let a new project bootstrap into a working CI/CD flow as fast as possible.
 3. No tech-stack lock-in — adopting the next stack should be as quick as the last one.
 
-## Quickstart
+## Local CLI quickstart
 
 The only requirement is a recent Go toolchain (`go.mod` names the exact version;
 Go projects being built must target Go 1.21+ for `GOTOOLCHAIN` pinning).
@@ -27,7 +27,7 @@ go run platform.prodigy9.co@latest init   # scaffold platform.toml + the ./platf
 an `infra` repo gets the whole GitOps baseline) and writes a `platform.toml` plus a
 version-pinned `./platform` launcher, so collaborators never install anything.
 
-## Commands
+## Local CLI commands
 
 | Command     | What it does                                                        |
 | ----------- | ------------------------------------------------------------------- |
@@ -38,7 +38,7 @@ version-pinned `./platform` launcher, so collaborators never install anything.
 | `export`    | Build and export the image as a `.docker` tarball.                  |
 | `ls`        | Show the source tree going into the container.                      |
 | `release`   | Cut the next release tag (`-p` patch, `-m` minor, `--major`).       |
-| `publish`   | Build and push the image under the release's tag.                   |
+| `publish`   | Build and push images under the configured strategy's tag.          |
 | `render`    | Render an infra repo's `apps/` tree to `k8s/` manifests.            |
 | `configure` | Print the effective parsed config.                                  |
 | `clean`     | Prune the local Dagger build cache (first-line cache diagnostics).  |

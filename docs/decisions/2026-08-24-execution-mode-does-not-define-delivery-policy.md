@@ -11,6 +11,10 @@ operator-invoked local CLI and an asynchronous CI/CD server formed by `srv` plus
 worker. Execution mode answers who invokes an operation, from where, and when; delivery
 policy separately answers which successful builds publish.
 
+`release` and `publish` are orthogonal. A release cuts a git marker; only a publish
+operation builds and pushes an image. Platform has no `deploy` verb. Local CLI and server
+drivers invoke one shared publish engine, but neither driver's cadence defines the other.
+
 The CI/CD server builds every non-deleted push. App repositories publish successful tag
 builds under the exact tag, with no naming restriction. Infra repositories publish every
 successful build under `latest`. How the server identifies the repository kind remains
@@ -37,8 +41,8 @@ one layer becoming an accidental filter in another.
 
 ## Supersession
 
-This decision supersedes only the server tag-watch and automatic-publish cadence in the
-[delivery-verbs decision]. That decision's release/publish orthogonality, absence of a
-deploy verb, and one shared publish engine with local and server drivers remain accepted.
+This decision fully supersedes the [delivery-verbs decision]. Its valid release/publish
+orthogonality, absence of a deploy verb, and shared-engine rulings are restated here; its
+server tag-watch and automatic-publish cadence are rejected.
 
 [delivery-verbs decision]: 2026-07-05-delivery-verbs-are-orthogonal.md
