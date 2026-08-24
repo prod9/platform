@@ -91,22 +91,24 @@ func setupInstalled(t *testing.T) (context.Context, *config.Source) {
 // startTestSession seeds a GitHub-linked user with a live session and its authorization
 // snapshot.
 func startTestSession(t *testing.T, ctx context.Context, repositories ...auth.Repository) (int64, string) {
-	upsert, user := &auth.UpsertGitHubUser{
-		Account: auth.GitHubAccount{ID: 12345, Login: "octocat", Email: "octo@example.com"},
-		Token:   "gho_usertoken",
-	}, &auth.User{}
-	require.NoError(t, upsert.Execute(ctx, user))
-
 	token := "test-session-token"
-	create := &auth.CreateSession{UserID: user.ID, Token: token, ExpiresAt: time.Now().Add(time.Hour)}
-	require.NoError(t, create.Execute(ctx, nil))
-	for _, repository := range repositories {
-		require.NoError(t, data.Exec(ctx, `
-			INSERT INTO session_repositories
-				(session_id, github_repository_id, owner, name, permission)
-			SELECT id, $1, $2, $3, $4 FROM sessions WHERE user_id = $5`,
-			repository.GitHubID, repository.Owner, repository.Name, repository.Permission, user.ID))
+	snapshot := make([]github.Repo, len(repositories))
+	for i, repository := range repositories {
+		permission := github.RepoRead
+		if repository.Permission == auth.PermissionWrite {
+			permission = github.RepoWrite
+		}
+		snapshot[i] = github.Repo{ID: repository.GitHubID, Owner: repository.Owner,
+			Name: repository.Name, Permission: permission}
 	}
+	login, user := &auth.CreateLogin{
+		Account:      auth.GitHubAccount{ID: 12345, Login: "octocat", Email: "octo@example.com"},
+		GitHubToken:  "gho_usertoken",
+		Repositories: snapshot,
+		SessionToken: token,
+		ExpiresAt:    time.Now().Add(time.Hour),
+	}, &auth.User{}
+	require.NoError(t, login.Execute(ctx, user))
 	return user.ID, token
 }
 
