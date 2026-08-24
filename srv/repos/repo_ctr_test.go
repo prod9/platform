@@ -172,12 +172,10 @@ func TestReposIntersectsRegisteredWithLive(t *testing.T) {
 	require.Equal(t, "prodigy9/app", listing[0].FullName)
 }
 
-func TestCandidatesExcludesRegistered(t *testing.T) {
+func TestCandidatesIntersectsUserAndAppAndExcludesRegistered(t *testing.T) {
 	ctx, cfg := setupInstalled(t)
 	userID, session := startTestSession(t, ctx)
 	router := apiRouter(t, cfg)
-
-	registerTestRepo(t, ctx, "prodigy9", "app", userID)
 
 	resp := doRequest(t, router, ctx, session, "GET", "/api/repos/candidates", "")
 	require.Equal(t, http.StatusOK, resp.Code)
@@ -189,7 +187,14 @@ func TestCandidatesExcludesRegistered(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &listing))
 	require.Len(t, listing, 1)
-	require.Equal(t, "api", listing[0].Repo)
+	require.Equal(t, "app", listing[0].Repo)
+
+	registerTestRepo(t, ctx, "prodigy9", "app", userID)
+
+	resp = doRequest(t, router, ctx, session, "GET", "/api/repos/candidates", "")
+	require.Equal(t, http.StatusOK, resp.Code)
+	require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &listing))
+	require.Empty(t, listing)
 }
 
 func TestRegisterRepoRecordsAndConflicts(t *testing.T) {

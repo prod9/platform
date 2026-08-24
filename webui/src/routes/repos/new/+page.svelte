@@ -1,8 +1,7 @@
 <script>
-	// The repo onboarding wizard, run as the install wizard is: the checklist on the
-	// left is the navigation, the selected step's action renders beside it. Step one
-	// picks from the live candidate list; step two reviews what the server pre-read
-	// from the repo's platform.toml and carries the confirm (docs/spec/webui.md).
+	// The repo onboarding wizard separates access, manifest loading, and review. The
+	// checklist navigates on the left, the action sits in the middle, and operative
+	// instructions sit on the right (docs/spec/webui.md).
 	import { goto } from "$app/navigation";
 	import {
 		listCandidates,
@@ -12,7 +11,7 @@
 		Answered,
 		Refused,
 	} from "$lib/server.js";
-	import { filterCandidates, moduleLine, publishPolicyLine } from "$lib/repos.js";
+	import { filterCandidates, moduleLine, publishPolicyDetails } from "$lib/repos.js";
 	import Button from "$lib/components/Button.svelte";
 	import Panel from "$lib/components/Panel.svelte";
 
@@ -25,27 +24,34 @@
 	let matches = $derived(filterCandidates(candidates, filter));
 
 	// The manifest pre-read: null until answered; a 409 is a repo with no
-	// platform.toml — reviewable, with the absence stated — any other refusal is an
-	// error the panel surfaces.
+	// platform.toml — recoverable after setup — any other refusal is an error the
+	// panel surfaces.
 	let manifest = $state(null);
 	let manifestAbsent = $state(false);
 	let manifestError = $state("");
+	let manifestLoading = $state(false);
+	let reviewing = $state(false);
 
 	let confirming = $state(false);
 	let confirmError = $state("");
 
 	const steps = [
-		{ name: "pick-repo", label: "Pick the repository" },
+		{ name: "access", label: "Repository access" },
+		{ name: "manifest", label: "Load platform.toml" },
 		{ name: "review", label: "Review & confirm" },
 	];
 
-	let current = $derived(picked === null ? "pick-repo" : "review");
+	let current = $derived(picked === null ? "access" : reviewing ? "review" : "manifest");
+	let policy = $derived(
+		manifest === null ? null : publishPolicyDetails(manifest.server_publish),
+	);
 
-	// Review never reads done: confirming leaves the wizard, so its pending state is
-	// the only one this page ever shows.
 	function stateOf(name) {
-		if (name === "pick-repo") {
+		if (name === "access") {
 			return picked === null ? "not_started" : "fully_ready";
+		}
+		if (name === "manifest") {
+			return reviewing ? "fully_ready" : "not_started";
 		}
 		return "not_started";
 	}
@@ -66,20 +72,41 @@
 		manifest = null;
 		manifestAbsent = false;
 		manifestError = "";
+		reviewing = false;
+		await loadManifest();
+	}
 
-		const result = await getManifest(repo.owner, repo.repo);
-		if (result.outcome === Answered) {
-			manifest = result.body;
-		} else if (result.outcome === Refused && result.status === 409) {
-			manifestAbsent = true;
-		} else {
-			manifestError = errorText(result);
+	async function loadManifest() {
+		manifest = null;
+		manifestAbsent = false;
+		manifestError = "";
+		manifestLoading = true;
+
+		try {
+			const result = await getManifest(picked.owner, picked.repo);
+			if (result.outcome === Answered) {
+				manifest = result.body;
+			} else if (result.outcome === Refused && result.status === 409) {
+				manifestAbsent = true;
+			} else {
+				manifestError = errorText(result);
+			}
+		} finally {
+			manifestLoading = false;
 		}
 	}
 
 	function back() {
+		if (reviewing) {
+			reviewing = false;
+			return;
+		}
 		picked = null;
 		confirmError = "";
+	}
+
+	function review() {
+		reviewing = true;
 	}
 
 	async function confirm() {
@@ -125,15 +152,15 @@
 		</ol>
 
 		<div class="action">
-			{#if current === "pick-repo"}
-				<Panel label="Repositories the App reaches, not yet onboarded">
+			{#if current === "access"}
+				<Panel label="Repositories you and the App reach, not yet onboarded">
 					{#if !loaded}
 						<p class="mono muted">Loading…</p>
 					{:else if loadError}
 						<p class="mono warn">Candidates unavailable: {loadError}</p>
 					{:else if candidates.length === 0}
 						<p class="mono muted">
-							Every repository the App reaches is already onboarded.
+							Every repository you and the App both reach is already onboarded.
 						</p>
 					{:else}
 						<input
@@ -156,35 +183,53 @@
 						</ul>
 					{/if}
 				</Panel>
+			{:else if current === "manifest"}
+				<Panel label={`Load ${picked.full_name}/platform.toml`}>
+					<dl class="kv">
+						<dt class="mono key">status</dt>
+						{#if manifest !== null}
+							<dd class="mono ok">✓ loaded from the default branch</dd>
+						{:else if manifestAbsent}
+							<dd class="mono warn">✗ platform.toml is not committed</dd>
+						{:else if manifestError !== ""}
+							<dd class="mono warn">{manifestError}</dd>
+						{:else if manifestLoading}
+							<dd class="mono muted">Reading…</dd>
+						{/if}
+					</dl>
+
+					<div class="confirm">
+						<Button onclick={back}>Back</Button>
+						{#if manifest === null}
+							<Button variant="primary" onclick={loadManifest} disabled={manifestLoading}>
+								{manifestLoading ? "Reading…" : "Retry load"}
+							</Button>
+						{:else}
+							<Button variant="primary" onclick={review}>Review configuration</Button>
+						{/if}
+					</div>
+				</Panel>
 			{:else}
 				<Panel label={picked.full_name}>
 					<dl class="kv">
-						<dt class="mono key">platform.toml</dt>
-						{#if manifest !== null}
-							<dd class="mono ok">✓ present on the default branch</dd>
-							<dt class="mono key">modules</dt>
-							<dd class="mono">{moduleLine(manifest.modules)}</dd>
-							{#if manifest.maintainer !== ""}
-								<dt class="mono key">maintainer</dt>
-								<dd class="mono">{manifest.maintainer}</dd>
-							{/if}
-							{#if manifest.repository !== ""}
-								<dt class="mono key">repository</dt>
-								<dd class="mono">{manifest.repository}</dd>
-							{/if}
-						{:else if manifestAbsent}
-							<dd class="mono warn">
-								✗ initialize platform.toml and commit it before onboarding
-							</dd>
-						{:else if manifestError !== ""}
-							<dd class="mono warn">{manifestError}</dd>
-						{:else}
-							<dd class="mono muted">Reading…</dd>
+						<dt class="mono key">commit</dt>
+						<dd class="mono">{manifest.sha}</dd>
+						<dt class="mono key">modules</dt>
+						<dd class="mono">{moduleLine(manifest.modules)}</dd>
+						{#if manifest.maintainer !== ""}
+							<dt class="mono key">maintainer</dt>
+							<dd class="mono">{manifest.maintainer}</dd>
 						{/if}
-						{#if manifest !== null}
-							<dt class="mono key">publish policy</dt>
-							<dd class="mono">{publishPolicyLine(manifest.server_publish)}</dd>
+						{#if manifest.repository !== ""}
+							<dt class="mono key">repository</dt>
+							<dd class="mono">{manifest.repository}</dd>
 						{/if}
+						<dt class="mono key">publish policy</dt>
+						<dd class="mono">{policy.policy}</dd>
+						<dt class="mono key">publish cadence</dt>
+						<dd class="mono">{policy.cadence}</dd>
+						<dt class="mono key">image tag</dt>
+						<dd class="mono">{policy.imageTag}</dd>
 					</dl>
 
 					{#if confirmError !== ""}
@@ -203,6 +248,45 @@
 				</Panel>
 			{/if}
 		</div>
+
+		<aside class="instructions">
+			{#if current === "access"}
+				<p class="label">Repository access</p>
+				<p>
+					A repository appears only when both your signed-in GitHub account and the
+					installed GitHub App can reach it.
+				</p>
+				<p>
+					If it is missing, first verify that you can open the repository on GitHub.
+					Then open the organization’s Settings → GitHub Apps, configure the installed
+					App, and include the repository in its repository access.
+				</p>
+			{:else if current === "manifest"}
+				<p class="label">Set up platform.toml</p>
+				<p>From the repository root, let platform detect the project and write the file:</p>
+				<pre class="mono"><code>platform init</code></pre>
+				<p>Review the generated files, then commit and push <code>platform.toml</code>.</p>
+				<p>
+					For manual authoring, set the scheme-less GitHub repository and declare each
+					buildable module with its platform framework:
+				</p>
+				<pre class="mono"><code>repository = "github.com/{picked.full_name}"
+
+[modules.app]
+framework = "go/basic"</code></pre>
+				<p>Replace the example module and framework with the repository’s actual layout.</p>
+			{:else}
+				<p class="label">Review the observation</p>
+				<p>
+					The commit identifies the exact <code>platform.toml</code> shown here. Confirming
+					registers configuration from that commit even if the default branch moves.
+				</p>
+				<p>
+					Publish policy controls which successful server builds produce images and which
+					registry tag those images receive.
+				</p>
+			{/if}
+		</aside>
 	</div>
 </section>
 
@@ -224,9 +308,28 @@
 
 	.wizard {
 		display: grid;
-		grid-template-columns: minmax(26ch, 1fr) minmax(0, 3fr);
+		grid-template-columns: minmax(24ch, 1fr) minmax(0, 2fr) minmax(28ch, 1fr);
 		gap: var(--lead-2);
 		align-items: start;
+	}
+
+	.instructions {
+		padding-left: var(--lead);
+		border-left: 1px solid var(--border);
+	}
+
+	.instructions p {
+		margin: 0 0 var(--lead-half);
+	}
+
+	.instructions pre {
+		overflow-x: auto;
+		margin: 0 0 var(--lead-half);
+		padding: var(--lead-half);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		background: var(--surface-quiet);
+		line-height: var(--lead);
 	}
 
 	.checklist {
@@ -352,5 +455,27 @@
 		display: flex;
 		justify-content: space-between;
 		gap: var(--lead);
+	}
+
+	@media (max-width: 70rem) {
+		.wizard {
+			grid-template-columns: minmax(22ch, 1fr) minmax(0, 2fr);
+		}
+
+		.instructions {
+			grid-column: 2;
+			padding-left: 0;
+			border-left: 0;
+		}
+	}
+
+	@media (max-width: 48rem) {
+		.wizard {
+			grid-template-columns: 1fr;
+		}
+
+		.instructions {
+			grid-column: 1;
+		}
 	}
 </style>

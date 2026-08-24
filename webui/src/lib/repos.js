@@ -27,14 +27,26 @@ export function moduleLine(modules) {
 		.join(" · ");
 }
 
-export function publishPolicyLine(policy) {
+export function publishPolicyDetails(policy) {
 	switch (policy) {
 		case "always":
-			return "Every successful build · latest";
+			return {
+				policy: "Always publish",
+				cadence: "Every successful build",
+				imageTag: "latest",
+			};
 		case "tags":
-			return "Successful tags · exact tag";
+			return {
+				policy: "Publish tags",
+				cadence: "Successful tag builds",
+				imageTag: "The exact Git tag",
+			};
 		case "never":
-			return "Build only · never publish";
+			return {
+				policy: "Never publish",
+				cadence: "Builds validate without publishing",
+				imageTag: "None",
+			};
 		default:
 			throw new Error(`unknown server publish policy: ${policy}`);
 	}

@@ -3,7 +3,7 @@ import {
 	filterCandidates,
 	latestStatus,
 	moduleLine,
-	publishPolicyLine,
+	publishPolicyDetails,
 } from "./repos.js";
 
 describe("filterCandidates", () => {
@@ -62,16 +62,39 @@ describe("moduleLine", () => {
 	});
 });
 
-describe("publishPolicyLine", () => {
+describe("publishPolicyDetails", () => {
 	test.each([
-		["always", "Every successful build · latest"],
-		["tags", "Successful tags · exact tag"],
-		["never", "Build only · never publish"],
-	])("renders %s without exposing config vocabulary alone", (policy, expected) => {
-		expect(publishPolicyLine(policy)).toBe(expected);
+		[
+			"always",
+			{
+				policy: "Always publish",
+				cadence: "Every successful build",
+				imageTag: "latest",
+			},
+		],
+		[
+			"tags",
+			{
+				policy: "Publish tags",
+				cadence: "Successful tag builds",
+				imageTag: "The exact Git tag",
+			},
+		],
+		[
+			"never",
+			{
+				policy: "Never publish",
+				cadence: "Builds validate without publishing",
+				imageTag: "None",
+			},
+		],
+	])("explains %s as policy, cadence, and image tag", (policy, expected) => {
+		expect(publishPolicyDetails(policy)).toEqual(expected);
 	});
 
 	test("rejects an unknown server value", () => {
-		expect(() => publishPolicyLine("sometimes")).toThrow("unknown server publish policy");
+		expect(() => publishPolicyDetails("sometimes")).toThrow(
+			"unknown server publish policy",
+		);
 	});
 });

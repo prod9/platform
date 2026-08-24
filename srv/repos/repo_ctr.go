@@ -1,6 +1,7 @@
 package repos
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -59,22 +60,7 @@ func list(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	userToken, err := auth.GitHubToken(ctx, user.ID)
-	if err != nil {
-		render.Error(resp, req, 500, err)
-		return
-	}
-	record, err := install.Bound(ctx)
-	if err != nil {
-		render.Error(resp, req, 500, err)
-		return
-	}
-	client, err := github.NewClient(ctx)
-	if err != nil {
-		render.Error(resp, req, 500, err)
-		return
-	}
-	reachable, err := client.UserInstallationRepos(ctx, userToken, record.InstallationID)
+	reachable, err := userInstallationRepos(ctx, user.ID)
 	if err != nil {
 		render.Error(resp, req, 500, err)
 		return
@@ -89,20 +75,16 @@ func list(resp http.ResponseWriter, req *http.Request) {
 	render.JSON(resp, req, listing)
 }
 
-// candidates lists what the onboarding wizard may pick: the App-reachable repos not
-// yet registered, live from GitHub.
+// candidates lists what the onboarding wizard may pick: repos reachable by both the
+// session user and the App, minus registrations.
 func candidates(resp http.ResponseWriter, req *http.Request) {
-	if _, ok := auth.RequireUser(resp, req); !ok {
+	user, ok := auth.RequireUser(resp, req)
+	if !ok {
 		return
 	}
 	ctx := req.Context()
 
-	token, client, err := install.Token(ctx)
-	if err != nil {
-		render.Error(resp, req, 500, err)
-		return
-	}
-	all, err := client.Repos(ctx, token)
+	all, err := userInstallationRepos(ctx, user.ID)
 	if err != nil {
 		render.Error(resp, req, 500, err)
 		return
@@ -266,6 +248,22 @@ func isRegistered(registered []*Repo, repo github.Repo) bool {
 		}
 	}
 	return false
+}
+
+func userInstallationRepos(ctx context.Context, userID int64) ([]github.Repo, error) {
+	userToken, err := auth.GitHubToken(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	record, err := install.Bound(ctx)
+	if err != nil {
+		return nil, err
+	}
+	client, err := github.NewClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return client.UserInstallationRepos(ctx, userToken, record.InstallationID)
 }
 
 // renderCreated is render.JSON at 201 — fx's render fixes status 200, so the
