@@ -7,6 +7,11 @@ the symlinks into the school clone; propose them back to the school repo when re
 skill set is declared in [`ace.toml`](ace.toml). `ace config` / `ace paths` debug
 configuration.
 
+**ACE advances continuously between steps.** Follow each stamp's `next:` step immediately
+without waiting for another user message. Stop only at a workflow gate that explicitly
+requires user confirmation, or at a real blocker that cannot be resolved from the
+repository.
+
 ## Start here
 
 `platform` is PRODIGY9's self-contained build/CI tool — a Go CLI (module
