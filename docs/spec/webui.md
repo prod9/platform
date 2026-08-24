@@ -1,7 +1,8 @@
 # Webui
 
 Status: accepted intended surface; implementation is partial. The repository landing,
-repository-onboarding, and System pages have real client reads in source. The repository
+repository-onboarding, and System pages have real client reads in source, but onboarding
+does not yet present or persist the server publish policy. The repository
 build feed, manual trigger, build detail, and engine pages remain mock presentations, and
 the live product does not yet deliver the repository experience this spec describes.
 The supporting server surface is partial too: repository/build reads, whole-repository
@@ -61,10 +62,11 @@ nothing else.
 left is the navigation, the selected step's action renders beside it. Step one picks the
 repo from a clickable, filterable candidate list. Step two reviews what the server
 pre-read from the repo's `platform.toml` — resolved commit sha, modules, framework
-detections — and carries the confirm. Confirmation sends that sha, not manifest content;
-the server re-reads the immutable commit and atomically stores the repository, exact raw
-manifest, and parsed modules. An accessible repository without `platform.toml` directs the
-user to initialize it; repository access failure remains a separate error. Registration model:
+detections, and resolved `[server].publish` policy — and carries the confirm. Confirmation
+sends that sha, not manifest content; the server re-reads the immutable commit and
+atomically stores the repository, exact raw manifest, parsed policy, and parsed modules.
+An accessible repository without `platform.toml` directs the user to initialize it;
+repository access failure remains a separate error. Registration model:
 [platform-server.md](platform-server.md) §Repos are registered, visibility is live.
 
 **Repo build feed (`/repos/{owner}/{repo}/`).** The repo's builds as a CI feed: newest

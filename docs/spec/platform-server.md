@@ -29,8 +29,9 @@ and hold **no jurisdiction** here; citing them to settle a question about `srv`'
 is a category error. A reader who wants to know how a piece of `srv` should be shaped reads
 fx, then this file.
 
-`srv` is the API + webhook processor: every push records a build of the exact commit; the
-worker later builds it and applies the repository-kind publish policy. It owns the GitHub
+`srv` is the API + webhook processor: every push for a registered repository records a
+build of the exact commit; the worker later builds it and applies the manifest's server
+publish policy. It owns the GitHub
 App, the DB, and token minting. It is a layer above the **shared packages** (the stateless
 build/render/publish machinery: `framework`, `engine`, `gitops`, …)
 and consumes them per request — the engine layer hands out a `Session`, the span its
@@ -172,8 +173,8 @@ lives under `/api`; GitHub-facing and health routes stay bare.
 | `GET /api/users/me`         | session                   | the session user's profile (id + name)                                                | the webui's "who am I" — profile, not session validity                                                             |
 | `GET /api/repos`            | session                   | the **registered** repos, filtered live against what the session user can still reach on GitHub | the repos landing page; registration is stored, permission never is (see §Repos are registered, visibility is live) |
 | `GET /api/repos/candidates` | session                   | repos the App installation reaches that are **not yet registered**, listed live from GitHub | the onboarding wizard's pick list — the same live read the old repo picker made, minus what is already onboarded   |
-| `POST /api/repos`           | session                   | registers owner/repo at the reviewed manifest sha; re-reads that commit and atomically stores the repo, raw manifest, and parsed modules | onboarding records exactly what the user reviewed, not whatever the default branch points at later; unreachable repo is 404, absent manifest is 409 |
-| `GET /api/repos/{owner}/{repo}/manifest` | session      | resolves the default-branch head and returns its commit sha plus the parsed `platform.toml` | the onboarding review supplies the immutable sha that confirmation sends back; unreachable repo is 404, absent manifest is 409 |
+| `POST /api/repos`           | session                   | stores the reviewed repo, raw manifest, resolved publish policy, and modules           | onboarding records exactly what the user reviewed, not whatever the default branch points at later; unreachable repo is 404, absent manifest is 409 |
+| `GET /api/repos/{owner}/{repo}/manifest` | session      | returns the default-branch sha, parsed manifest, and resolved publish policy            | the onboarding review supplies the immutable sha that confirmation sends back; unreachable repo is 404, absent manifest is 409 |
 | `GET /api/repos/{owner}/{repo}/builds` | session        | the repo's builds, newest first; `?limit=N` caps the page                              | builds nest under a repo in the UI; the landing page fans out `?limit=3` per visible repo                          |
 | `GET /api/builds`           | session                   | last 50 builds, newest first                                                          | the global feed — no page reads it today, but a fleet-wide view costs nothing to keep                              |
 | `GET /api/builds/{id}`      | session                   | one build plus its selected modules and their folded states — no steps                 | the build detail view — the streams made readable, which is the reason the events are stored at all                |
@@ -184,7 +185,7 @@ lives under `/api`; GitHub-facing and health routes stay bare.
 | `GET /api/system/settings`         | session                   | the install-time facts, read-only; secret-valued keys are served **masked, never the value** | the System / Settings page — the one post-install reader of the install settings (`srv/system`)                             |
 | `GET /api/system/migrations`       | session                   | the ordered migration plan, one projected fx plan item per line; empty means current | the System / Migrations page; the client interprets each action for presentation |
 | `POST /api/system/migrations`      | session                   | applies a clean pending migrate plan; response is the freshly planned result           | the post-install run button owned by `srv/system`; distinct from the installer's pre-install migration operation |
-| `POST /hooks/github`        | App webhook HMAC          | verifies signature; records a whole-repository build for every non-deleted push       | branch and tag pushes are the CI signal; publishing is a later repository-kind policy decision                    |
+| `POST /hooks/github`        | App webhook HMAC          | records a registered repo's non-deleted push after signature verification              | registration admits builds; a valid push to an unregistered repo is ignored                                        |
 | `GET /api/install`          | none (installer fragment) | ordered install-state list; served **only while the server is unclaimed**             | drives the SPA installer-vs-app decision ([installation.md](installation.md)); its 404 *is* the "installed" signal |
 | `POST /api/install/claim`   | session (installer)       | org-owner claim: resolve installation→org, verify owner, write the `install.*` settings | the first-install gate; the App Setup URL lands on the webui install page, which posts here ([installation.md](installation.md)) |
 | `POST /api/install/app`     | none (installer)          | saves the creation-time quartet — app id, app slug, client id, webhook secret — as their `github.app_*` settings | what GitHub's creation form yields, saved as its own wizard step ([installation.md](installation.md)) |
@@ -246,6 +247,7 @@ repo_manifests                  -- one immutable platform.toml observation
   local_arch    text
   publish_arch  text
   strategy      text
+  server_publish text          -- resolved 'always' | 'tags' | 'never'
   excludes      text[]
   vars          jsonb
   created_at    timestamptz
@@ -278,12 +280,13 @@ serializing `framework.BuildUnit`, which is runtime behavior after interpretatio
 Onboarding is a wizard ([webui.md](webui.md)): pick from `GET /api/repos/candidates` (the
 App-reachable repos not yet registered, live), then review `GET
 /api/repos/{owner}/{repo}/manifest`. That read resolves the default-branch head and returns
-its commit sha with the parsed manifest. Confirmation posts owner, repo, and that sha. The
-server re-reads `platform.toml` at the supplied sha, parses it again, and transactionally
-inserts the repo, raw snapshot, and every parsed module. The browser never sends manifest
-content back across the trust boundary, and a moving default branch cannot change what gets
-registered after review. Registration is the only write; deregistration is not in this
-surface yet.
+its commit sha, parsed modules, and resolved `[server].publish` policy. Confirmation posts
+owner, repo, and that sha. The server re-reads `platform.toml` at the supplied sha,
+parses it again, resolves the same policy, and transactionally inserts the repo, raw
+snapshot, parsed policy, and every parsed module. The browser never sends manifest content
+back across the
+trust boundary, and a moving default branch cannot change what gets registered after
+review. Registration is the only write; deregistration is not in this surface yet.
 
 ### `webui/build/` is committed
 
@@ -359,12 +362,14 @@ convention. A selected name absent from the snapshot is rejected before the buil
 The srv database and API call these records **modules**; **unit** begins only when
 `framework.Units` interprets one into a runtime `framework.BuildUnit`.
 
-**Build cadence and publish cadence are separate.** Every non-deleted push records a build,
-whether its ref names a branch or any tag. After a successful build, an app repository
-publishes only when the triggering ref is a tag, under that exact tag name; an infra
-repository publishes every successful build under `latest`. No `v` prefix has server
-meaning. How the server identifies app versus infra is unresolved and must not be
-inferred from release strategy or tag spelling.
+**Build cadence and publish cadence are separate.** Every non-deleted push to a registered
+repository records a build, whether its ref names a branch or any tag. After a successful
+build, the immutable manifest observation's resolved `server_publish` value selects the
+policy: `always` publishes under `latest`, `tags` publishes tag builds under the exact
+tag, and `never` does not publish. No `v` prefix has server meaning. The absent-field
+default is
+the repository-name rule in [`execution-modes.md`](execution-modes.md), never release
+strategy or framework inference.
 [`execution-modes.md`](execution-modes.md) owns the complete boundary.
 
 ### The worker is a peer *process*, and the jobs live in their fragments
@@ -416,11 +421,12 @@ winner and every duplicate delivery exits without executing. Once claimed, a mod
 never automatically rescheduled. A worker dying afterward leaves visible stalled work for
 an operator, whose retry creates a new build aggregate rather than mutating this one.
 
-**The server chooses the publish tag from repository policy.** For an app tag build, the
-worker strips `refs/tags/` and publishes under the entire remaining tag name; tags need no
-`v` prefix. App branch builds do not publish. Infra builds publish under `latest`
-regardless of their triggering ref. This policy belongs to the server driver, not the
-engine and not the local `./platform publish` command.
+**The server chooses the publish tag from the manifest's server policy.** Under `tags`,
+the worker strips `refs/tags/` and publishes under the entire remaining tag name; tags
+need no `v` prefix, and branch builds do not publish. `always` publishes under `latest`
+regardless of the triggering ref. `never` builds without publishing. This policy
+belongs to the server driver, not the engine and not the local `./platform publish`
+command.
 
 **The publish credential is the wizard-saved registry token.** Before opening the engine
 session, the worker derives the registry host from the config's image names, reads
@@ -749,7 +755,8 @@ Each layer consumes the one below *after* it works. The CLI delivery path, the `
 wrap (webhook ingest, auth, and the build pipeline), the App API client, org-owner claim,
 credentialed clone, repository registration, whole-repository manual trigger,
 repository/build reads, build detail/steps, and truthful `/builds/{id}` status have
-shipped. The intended server surface is not complete: manual module selection is absent
+shipped. The intended server surface is not complete: repository onboarding still lacks
+the resolved server publish policy, manual module selection is absent
 from the stored build and client request, no read resolves a ref and manifest before
 queueing, build events do not record engine attribution, engine reads do not exist, and
 repository/engine dynamic routes have no truthful fallback classifier. The repository
@@ -765,11 +772,6 @@ live in the `prod9/infra` GitOps repo; platform deploys nothing — publish push
 and Flux pulls.
 
 ## Open details (not blockers)
-
-- Whether the webhook consults registration — any push on an App-installed repo
-  that nobody has registered: build it (install is the gate) or skip it (registration
-  is what "onboarded to build here" means). Unruled; decide during the CI/CD experience
-  planning pass.
 
 - Where the `init` server marker lives — `platform.toml` `[server]` field vs CLI-global
   config.

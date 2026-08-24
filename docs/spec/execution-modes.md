@@ -66,21 +66,31 @@ Together they are the server driver, peer to the local CLI driver. The HTTP requ
 not the build lifetime, the worker is not a second mode, and the server never shells out
 to `./platform publish`. [`platform-server.md`](platform-server.md) specifies this mode.
 
-Every non-deleted GitHub push creates a whole-repository build at the pushed commit.
-Branch pushes, default-branch pushes, and tag pushes all build; no `v` prefix is special.
-A manual webui build may name any ref and select modules, but it records the same domain
-intent before a worker acts.
+Every non-deleted GitHub push for a **registered** repository creates a
+whole-repository build at the pushed commit. Branch pushes, default-branch pushes, and tag
+pushes all build; no `v` prefix is special. An App-installed repository that has not been
+registered is not admitted to the build queue. A manual webui build may name any ref and
+select modules, but it records the same domain intent before a worker acts.
 
-Publishing is a policy applied to a successful server build:
+Publishing is a policy applied to a successful server build. Each `platform.toml` may
+declare it independently of the local release strategy:
 
-| Repository kind | Build cadence       | Publish cadence                      | Image tag               |
-|-----------------|---------------------|--------------------------------------|-------------------------|
-| App             | every pushed commit | tag-triggered successful builds only | exact git tag, any name |
-| Infra           | every pushed commit | every successful build               | `latest`                |
+```toml
+[server]
+publish = "always" # "always" | "tags" | "never"
+```
 
-How the server identifies the repository kind is deliberately unresolved. Until that
-design is settled, no spec may infer it from release strategy, tag spelling, module
-names, or framework implementation.
+| Policy   | Publish cadence                      | Image tag               |
+|----------|--------------------------------------|-------------------------|
+| `always` | every successful build               | `latest`                |
+| `tags`   | tag-triggered successful builds only | exact git tag, any name |
+| `never`  | never                                | none                    |
+
+When `server.publish` is absent, a case-sensitive repository name matching
+`(^|-)infra$` resolves to `always`; every other name resolves to `tags`. The server stores
+the resolved value with the immutable manifest observation used by the build. It never
+infers policy from release strategy, tag spelling, module names, or framework
+implementation.
 
 ## Intended delivery workflow
 
