@@ -572,40 +572,47 @@ func TestGitHubCallbackSecondLoginReusesUser(t *testing.T) {
 	require.Equal(t, 2, counts.Sessions)
 }
 
-func TestUpsertGitHubUserRefreshesTokenAndProfile(t *testing.T) {
+func TestCreateLoginRefreshesTokenAndProfile(t *testing.T) {
 	ctx := setupDB(t)
-	first, user := &UpsertGitHubUser{
-		Account: GitHubAccount{ID: 12345, Login: "old", Email: "old@example.com"},
-		Token:   "old-token",
+	first, user := &CreateLogin{
+		Account:      GitHubAccount{ID: 12345, Login: "old", Email: "old@example.com"},
+		GitHubToken:  "old-token",
+		SessionToken: "old-session",
+		ExpiresAt:    time.Now().Add(time.Hour),
 	}, &User{}
 	require.NoError(t, first.Execute(ctx, user))
 
-	second := &UpsertGitHubUser{
-		Account: GitHubAccount{ID: 12345, Login: "new", Email: "new@example.com"},
-		Token:   "new-token",
+	second := &CreateLogin{
+		Account:      GitHubAccount{ID: 12345, Login: "new", Email: "new@example.com"},
+		GitHubToken:  "new-token",
+		SessionToken: "new-session",
+		ExpiresAt:    time.Now().Add(time.Hour),
 	}
 	require.NoError(t, second.Execute(ctx, &User{}))
-	token, err := GitHubToken(ctx, user.ID)
-	require.NoError(t, err)
-	require.Equal(t, "new-token", token)
 
 	var stored struct {
-		Name  string `db:"name"`
-		Email string `db:"email"`
+		Name     string `db:"name"`
+		Email    string `db:"email"`
+		Metadata string `db:"metadata"`
 	}
-	require.NoError(t, data.Get(ctx, &stored, `SELECT u.name, i.email
+	require.NoError(t, data.Get(ctx, &stored, `SELECT u.name, i.email, i.metadata::text AS metadata
 		FROM users u JOIN identities i ON i.user_id = u.id WHERE u.id = $1`, user.ID))
 	require.Equal(t, "new", stored.Name)
 	require.Equal(t, "new@example.com", stored.Email)
+	metadata := map[string]string{}
+	require.NoError(t, json.Unmarshal([]byte(stored.Metadata), &metadata))
+	token, err := secret.Reveal(config.FromContext(ctx), metadata["token"])
+	require.NoError(t, err)
+	require.Equal(t, "new-token", token)
 }
 
-// TestUpsertGitHubUserFirstLoginRace simulates two concurrent first logins: a manual
+// TestCreateLoginFirstLoginRace simulates two concurrent first logins: a manual
 // transaction plays the winner — its user+identity stay uncommitted while the loser's
 // Execute starts, so the loser's SELECT misses the identity, takes the insert path,
 // and hits the unique violation once the winner commits. Covers Execute's retry
 // resolving to the winner's user. (If the loser's SELECT ever runs after the commit it
 // degrades to the plain found path — still green, just not exercising the retry.)
-func TestUpsertGitHubUserFirstLoginRace(t *testing.T) {
+func TestCreateLoginFirstLoginRace(t *testing.T) {
 	ctx := setupDB(t)
 
 	winner, err := data.FromContext(ctx).Beginx()
@@ -618,9 +625,11 @@ func TestUpsertGitHubUserFirstLoginRace(t *testing.T) {
 		VALUES ($1, 'github', '12345', 'login')`, winnerID)
 	require.NoError(t, err)
 
-	loser := &UpsertGitHubUser{
-		Account: GitHubAccount{ID: 12345, Login: "octocat"},
-		Token:   testAccessToken,
+	loser := &CreateLogin{
+		Account:      GitHubAccount{ID: 12345, Login: "octocat"},
+		GitHubToken:  testAccessToken,
+		SessionToken: "loser-session",
+		ExpiresAt:    time.Now().Add(time.Hour),
 	}
 	user := &User{}
 	done := make(chan error, 1)
@@ -635,39 +644,16 @@ func TestUpsertGitHubUserFirstLoginRace(t *testing.T) {
 	var counts struct {
 		Users      int `db:"users"`
 		Identities int `db:"identities"`
+		Sessions   int `db:"sessions"`
 	}
 	require.NoError(t, data.Get(ctx, &counts, `
 		SELECT
 			(`+loginUsersCountSQL+`) AS users,
-			(SELECT count(*) FROM identities WHERE provider = 'github') AS identities`))
+			(SELECT count(*) FROM identities WHERE provider = 'github') AS identities,
+			(SELECT count(*) FROM sessions) AS sessions`))
 	require.Equal(t, 1, counts.Users)
 	require.Equal(t, 1, counts.Identities)
-}
-
-func TestGitHubTokenRevealsStoredToken(t *testing.T) {
-	ctx := setupDB(t)
-
-	upsert, user := &UpsertGitHubUser{
-		Account: GitHubAccount{ID: 12345, Login: "octocat", Email: "octo@example.com"},
-		Token:   testAccessToken,
-	}, &User{}
-	require.NoError(t, upsert.Execute(ctx, user))
-
-	token, err := GitHubToken(ctx, user.ID)
-	require.NoError(t, err)
-	require.Equal(t, testAccessToken, token)
-}
-
-// The system principal has no login identity, so a token read for it must fail loud —
-// never fall back to some other credential.
-func TestGitHubTokenWithoutIdentity(t *testing.T) {
-	ctx := setupDB(t)
-
-	systemID, err := SystemUserID(ctx)
-	require.NoError(t, err)
-
-	_, err = GitHubToken(ctx, systemID)
-	require.Error(t, err)
+	require.Equal(t, 1, counts.Sessions)
 }
 
 func TestDeleteSessionInvalidatesSession(t *testing.T) {

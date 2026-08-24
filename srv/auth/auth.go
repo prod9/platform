@@ -88,24 +88,6 @@ func SystemUserID(ctx context.Context) (int64, error) {
 	return id, err
 }
 
-// GitHubToken reveals the latest GitHub OAuth token stored at login. A user with no
-// GitHub login identity is an error, never a fallback credential.
-func GitHubToken(ctx context.Context, userID int64) (string, error) {
-	var metadata []byte
-	err := data.Get(ctx, &metadata, `
-		SELECT metadata FROM identities
-		WHERE user_id = $1 AND provider = 'github' AND kind = 'login'`, userID)
-	if err != nil {
-		return "", err
-	}
-
-	stored := map[string]string{}
-	if err := json.Unmarshal(metadata, &stored); err != nil {
-		return "", err
-	}
-	return secret.Reveal(config.FromContext(ctx), stored["token"])
-}
-
 // Session is a live platform session's identity and lifetime — what the webui's
 // validity probe needs, distinct from the user's profile.
 type Session struct {
@@ -378,7 +360,7 @@ func githubLoginCallback(resp http.ResponseWriter, req *http.Request) {
 		SessionToken: sessionToken,
 		ExpiresAt:    time.Now().Add(sessionTTL),
 	}
-	if err := login.Execute(ctx, nil); err != nil {
+	if err := login.Execute(ctx, &User{}); err != nil {
 		failOAuth(resp, req, bound, err)
 		return
 	}
@@ -580,77 +562,6 @@ func fetchGitHubUser(ctx context.Context, client *http.Client, apiURL, token str
 	return account, nil
 }
 
-// UpsertGitHubUser finds the platform user linked to a GitHub account by the
-// immutable provider id (renames don't break links — the login lives in metadata,
-// per the identity ADR) or creates user + identity on first login. The user token is
-// stored encrypted in identity metadata and replaced on every successful login.
-// Verified-email auto-linking is deliberately absent: identities match only by the
-// immutable provider id.
-type UpsertGitHubUser struct {
-	Account GitHubAccount
-	Token   string
-}
-
-func (u *UpsertGitHubUser) Execute(ctx context.Context, out any) error {
-	err := u.upsertOnce(ctx, out)
-	// 23505 is unique_violation: two concurrent first logins raced on the identity
-	// insert; the loser's transaction rolled back, and the winner's row is committed
-	// now, so a second pass resolves to it.
-	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-		return u.upsertOnce(ctx, out)
-	}
-	return err
-}
-
-func (u *UpsertGitHubUser) upsertOnce(ctx context.Context, out any) error {
-	cfg := config.FromContext(ctx)
-	token, err := secret.Hide(cfg, u.Token)
-	if err != nil {
-		return err
-	}
-	metadata, err := json.Marshal(map[string]string{"login": u.Account.Login, "token": token})
-	if err != nil {
-		return err
-	}
-	providerID := strconv.FormatInt(u.Account.ID, 10)
-
-	return data.Run(ctx, func(scope data.Scope) error {
-		var userID int64
-		err := scope.Get(&userID, `
-			SELECT user_id FROM identities
-			WHERE provider = 'github' AND provider_id = $1`, providerID)
-		if data.IsNoRows(err) {
-			err = scope.Get(&userID,
-				`INSERT INTO users (name) VALUES ($1) RETURNING id`, u.Account.Login)
-			if err != nil {
-				return err
-			}
-			err = scope.Exec(`
-				INSERT INTO identities (user_id, provider, provider_id, kind, email, email_verified, metadata)
-				VALUES ($1, 'github', $2, 'login', $3, false, $4)`,
-				userID, providerID, u.Account.Email, string(metadata))
-			if err != nil {
-				return err
-			}
-		} else if err != nil {
-			return err
-		}
-		if err := scope.Exec(`
-				UPDATE identities SET email = $2, metadata = $3
-				WHERE user_id = $1 AND provider = 'github' AND kind = 'login'`,
-			userID, u.Account.Email, string(metadata)); err != nil {
-			return err
-		}
-		if err := scope.Exec(`UPDATE users SET name = $2 WHERE id = $1`,
-			userID, u.Account.Login); err != nil {
-			return err
-		}
-
-		return scope.Get(out, `SELECT * FROM users WHERE id = $1`, userID)
-	})
-}
-
 // CreateLogin atomically refreshes the GitHub identity and records the bounded
 // session authorization assembled from GitHub before the transaction begins.
 type CreateLogin struct {
@@ -662,15 +573,15 @@ type CreateLogin struct {
 }
 
 func (c *CreateLogin) Execute(ctx context.Context, out any) error {
-	err := c.executeOnce(ctx)
+	err := c.executeOnce(ctx, out)
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-		return c.executeOnce(ctx)
+		return c.executeOnce(ctx, out)
 	}
 	return err
 }
 
-func (c *CreateLogin) executeOnce(ctx context.Context) error {
+func (c *CreateLogin) executeOnce(ctx context.Context, out any) error {
 	ciphertext, err := secret.Hide(config.FromContext(ctx), c.GitHubToken)
 	if err != nil {
 		return err
@@ -730,7 +641,7 @@ func (c *CreateLogin) executeOnce(ctx context.Context) error {
 				return err
 			}
 		}
-		return nil
+		return scope.Get(out, `SELECT * FROM users WHERE id = $1`, userID)
 	})
 }
 
