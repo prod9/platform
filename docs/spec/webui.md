@@ -63,7 +63,8 @@ repo from a clickable, filterable candidate list. Step two reviews what the serv
 pre-read from the repo's `platform.toml` — resolved commit sha, modules, framework
 detections — and carries the confirm. Confirmation sends that sha, not manifest content;
 the server re-reads the immutable commit and atomically stores the repository, exact raw
-manifest, and parsed modules. Registration model:
+manifest, and parsed modules. An accessible repository without `platform.toml` directs the
+user to initialize it; repository access failure remains a separate error. Registration model:
 [platform-server.md](platform-server.md) §Repos are registered, visibility is live.
 
 **Repo build feed (`/repos/{owner}/{repo}/`).** The repo's builds as a CI feed: newest
