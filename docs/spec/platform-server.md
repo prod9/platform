@@ -260,6 +260,8 @@ The snapshot is a session-owned cache keyed by session and GitHub repository id,
 the repository identity and read/write level. It is deleted with the session and is never
 reused by another session. This makes ordinary platform reads local and bounds stale GitHub
 permission to two hours without a permission-sync table or a GitHub request per operation.
+The migration introducing snapshots revokes sessions minted under the earlier model: they
+have no trustworthy cached authorization to preserve, and one fresh login rebuilds it.
 
 The session lifetime remains the revocation fallback even if event-driven invalidation is
 added later. A future tightening may consume GitHub organization-membership,
