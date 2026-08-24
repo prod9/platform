@@ -10,3 +10,7 @@ CREATE TABLE session_repositories
     PRIMARY KEY (session_id, github_repository_id),
     UNIQUE (session_id, owner, name)
 );
+
+-- Sessions minted before this table have no authorization snapshot to trust. A fresh
+-- OAuth login replaces each one with a bounded session and its complete snapshot.
+DELETE FROM sessions;
