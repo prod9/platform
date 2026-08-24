@@ -169,17 +169,17 @@ lives under `/api`; GitHub-facing and health routes stay bare.
 | `GET /api/session`          | session                   | session state — expiry + user id; 401 when none                                       | the webui's "is my session valid" probe, distinct from the user's profile                                          |
 | `DELETE /api/session`       | none (cookie optional)    | deletes the session row, clears the cookie                                            | session revocation server-side — a stolen cookie dies with the row, not with the browser                           |
 | `GET /api/users/me`         | session                   | the session user's profile (id + name)                                                | the webui's "who am I" — profile, not session validity                                                             |
-| `GET /api/repos`            | session                   | the **registered** repos, filtered live against what the session user can still reach on GitHub | the repos landing page; registration is stored, permission never is (see §Repos are registered, visibility is live) |
-| `GET /api/repos/candidates` | session                   | repos the App installation reaches that are **not yet registered**, listed live from GitHub | the onboarding wizard's pick list — the same live read the old repo picker made, minus what is already onboarded   |
-| `POST /api/repos`           | session                   | stores the reviewed repo, raw manifest, resolved publish policy, and modules           | onboarding records exactly what the user reviewed, not whatever the default branch points at later; unreachable repo is 404, absent manifest is 409 |
-| `GET /api/repos/{owner}/{repo}/manifest` | session      | returns the default-branch sha, parsed manifest, and resolved publish policy            | the onboarding review supplies the immutable sha that confirmation sends back; unreachable repo is 404, absent manifest is 409 |
-| `GET /api/repos/{owner}/{repo}/builds` | session        | the repo's builds, newest first; `?limit=N` caps the page                              | builds nest under a repo in the UI; the landing page fans out `?limit=3` per visible repo                          |
-| `GET /api/builds`           | session                   | last 50 builds, newest first                                                          | the global feed — no page reads it today, but a fleet-wide view costs nothing to keep                              |
-| `GET /api/builds/{id}`      | session                   | one build plus its selected modules and their folded states — no steps                 | the build detail view — the streams made readable, which is the reason the events are stored at all                |
-| `GET /api/builds/{id}/steps`| session                   | the build's steps across all selected modules, flat, each carrying its build-module id and captured output | steps are a sub-resource: the heavy stdout/stderr payload stays off the detail read                 |
-| `POST /api/builds`          | session                   | records a `webui`-triggered build: owner/repo + ref, sha resolved server-side; may carry a module list | the manual trigger — the same domain fact as the webhook, authorized by session instead of HMAC; module selection is the manual trigger's alone (§Triggering a build) |
-| `GET /api/engines`          | session                   | the engine fleet: the DNS roster resolved per request, each instance dial-checked      | the engines page — the fleet the builds run on, read from the same `DAGGER_ENGINE` source the worker dials ([engine.md](engine.md) §Runner discovery) |
-| `GET /api/engines/{addr}`   | session                   | one engine instance: reachability, version, current + recent builds (from module engine assignments) | the engine detail page; the instance is named by its resolved `host:port`, URL-encoded                           |
+| `GET /api/repos`            | session + read filter     | the **registered** repos, filtered against the session user's GitHub authorization     | the repos landing page; registration is stored, permission never is (see §Repos are registered, authorization is GitHub-derived) |
+| `GET /api/repos/candidates` | session + read filter     | repos both the user and App reach that are **not yet registered**                      | the onboarding wizard's pick list, minus what is already onboarded                                                |
+| `POST /api/repos`           | session + repo write      | stores the reviewed repo, raw manifest, resolved publish policy, and modules           | onboarding records exactly what the user reviewed, not whatever the default branch points at later; unreachable repo is 404, absent manifest is 409 |
+| `GET /api/repos/{owner}/{repo}/manifest` | session + repo read | returns the default-branch sha, parsed manifest, and resolved publish policy       | the onboarding review supplies the immutable sha that confirmation sends back; unreachable repo is 404, absent manifest is 409 |
+| `GET /api/repos/{owner}/{repo}/builds` | session + repo read | the repo's builds, newest first; `?limit=N` caps the page                          | builds nest under a repo in the UI; the landing page fans out `?limit=3` per visible repo                          |
+| `GET /api/builds`           | session + read filter     | last 50 authorized builds, newest first                                               | the global feed cannot disclose builds from inaccessible repos                                                     |
+| `GET /api/builds/{id}`      | session + repo read       | one build plus its selected modules and their folded states — no steps                 | the build detail view — the streams made readable, which is the reason the events are stored at all                |
+| `GET /api/builds/{id}/steps`| session + repo read       | the build's steps across all selected modules, flat, each carrying its build-module id and captured output | steps are a sub-resource: the heavy stdout/stderr payload stays off the detail read                 |
+| `POST /api/builds`          | session + repo write      | records a `webui`-triggered build: owner/repo + ref, sha resolved server-side; may carry a module list | the manual trigger — the same domain fact as the webhook, authorized by the user's write access; module selection is the manual trigger's alone (§Triggering a build) |
+| `GET /api/engines`          | session + read filter     | the engine fleet with repo-attributed work filtered by GitHub authorization            | the engines page — the fleet the builds run on, read from the same `DAGGER_ENGINE` source the worker dials ([engine.md](engine.md) §Runner discovery) |
+| `GET /api/engines/{addr}`   | session + read filter     | one engine instance; repo-attributed work is filtered by GitHub authorization          | the engine detail page; the instance is named by its resolved `host:port`, URL-encoded                           |
 | `GET /api/system/settings`         | session                   | the install-time facts, read-only; secret-valued keys are served **masked, never the value** | the System / Settings page — the one post-install reader of the install settings (`srv/system`)                             |
 | `GET /api/system/migrations`       | session                   | the ordered migration plan, one projected fx plan item per line; empty means current | the System / Migrations page; the client interprets each action for presentation |
 | `POST /api/system/migrations`      | session                   | applies a clean pending migrate plan; response is the freshly planned result           | the post-install run button owned by `srv/system`; distinct from the installer's pre-install migration operation |
@@ -203,20 +203,65 @@ module path and repo literally; no server code, no configuration, and no
 `?go-get=1` handling exist. The standalone `vanity` command and Deployment are
 legacy.
 
-Session validity and the user's profile are **two operations**, because a webui asks the two
-questions at different moments: `GET /api/session` answers "may I still act", `GET
-/api/users/me` answers "who am I". The **Flux→srv observability** endpoint `GET
+Session validity and the user's profile are **two operations**, because a webui asks the
+two questions at different moments: `GET /api/session` answers "may I still act", `GET
+/api/users/me` answers "who am I". A login session has an absolute **two-hour lifetime**;
+activity never extends it. On expiry, every session-gated API operation returns `401` and
+the webui reauthenticates through the flow below rather than presenting the refusal as an
+operation error.
+
+`GET /auth/github` accepts a same-origin relative return location. The OAuth state binds
+that location to the login attempt, so the callback can trust it without admitting an open
+redirect. A successful callback replaces the stored GitHub user token, mints a fresh
+two-hour session, snapshots the repositories and permission levels that both the user and
+App can reach, and redirects to the bound location. The location includes path and query;
+the webui preserves the browser-only fragment across the round trip. Missing or invalid
+return locations fall back to `/`.
+
+The **Flux→srv observability** endpoint `GET
 /api/repos/{owner}/{repo}/flux` is **forthcoming** — it belongs to the cluster-view pass and
 is not settled here.
 
-### Repos are registered, visibility is live
+### GitHub is the repository authorization boundary
+
+Platform stores no durable repo permissions. Login asks GitHub once for the repositories
+and permission levels reachable by both the user and the App installation, then records
+that authorization snapshot against the new session. Every user-initiated repo operation
+reads the snapshot: reads require GitHub read access and mutations require GitHub write
+access. An App-only installation token is never sufficient for a user-initiated operation.
+
+| Activity                                                                 | User gate      | App gate             |
+|--------------------------------------------------------------------------|----------------|----------------------|
+| List registered or candidate repos                                       | read           | repo access          |
+| Read manifest, repo builds, build detail, steps, logs, or delivery state | read           | repo access          |
+| Read a global feed or repo-attributed engine view                         | filter by read | filter by access     |
+| Register a repo, trigger a build, or retry a build                        | write          | repo access          |
+| Receive a push webhook                                                    | none           | HMAC + registration  |
+| Clone, build, publish, or record autonomous worker results                | none           | operation permission |
+
+An id-addressed read first resolves its repository, then applies the same gate; missing and
+inaccessible resources are both `404`, so build ids and dynamic page fallback statuses do
+not disclose repo existence. A global or fleet read returns only rows attributed to repos
+passing the read gate.
+
+The snapshot is a session-owned cache keyed by session and GitHub repository id, carrying
+the repository identity and read/write level. It is deleted with the session and is never
+reused by another session. This makes ordinary platform reads local and bounds stale GitHub
+permission to two hours without a permission-sync table or a GitHub request per operation.
+
+The session lifetime remains the revocation fallback even if event-driven invalidation is
+added later. A future tightening may consume GitHub organization-membership,
+team-membership, collaborator, App-authorization, and installation-repository changes to
+delete affected users' sessions; those events accelerate revocation but never become an
+authorization database.
+
+### Repos are registered, authorization is GitHub-derived
 
 The `repos` table records **registration** — *this repo is onboarded to build here* — and
 nothing else. It is a product fact, not a permission: no role, no access bit, no cached
-GitHub state lives on it. Visibility stays gated **live** per request, exactly as the
-zero-RBAC model demands — `GET /api/repos` intersects the registered set with what the
-session user can currently reach on GitHub, so losing GitHub permission on a repo loses
-its visibility on platform in the same moment, registration row or not.
+GitHub state lives on it. `GET /api/repos` intersects the registered set with the current
+session's GitHub-derived authorization snapshot. Losing GitHub permission removes platform
+access no later than the end of that two-hour session, registration row or not.
 
 ```
 repos                           -- registration only: this repo is onboarded to build here
@@ -630,7 +675,8 @@ non-Go `webui`, or external API users), i.e. when versioning actually bites.
 Platform stores **no permission tables and configures no roles**. Authorization is
 whatever GitHub already says:
 
-- A user who can access the repo can trigger its builds.
+- A user with read access can inspect a repo; write access is required to onboard it,
+  trigger a build, or retry one.
 - Deploy permission is whether that user can write to the infra repo.
 
 This is mechanically clean because **a deploy *is* a commit to the infra repo** (the
@@ -707,8 +753,9 @@ installer fragment — **not** `platform init`. See [installation.md](installati
   (and, for the user token, where the user *also* has access). Unlike a raw OAuth token, a
   GitHub App user token cannot reach every repo the user can — the install is the gate,
   and is also what enables webhooks. Accepted trade.
-- **User-token expiry is configurable** — expiring (8h) + refresh, or non-expiring (an app
-  setting). Choose per the security/convenience balance.
+- **User-token freshness** — every successful OAuth login replaces the encrypted stored
+  user token. GitHub controls that token's own expiry policy; platform's two-hour login
+  session independently bounds how long the browser may act before reauthentication.
 - **Secret footprint** — one app private key + webhook secret (server-side), encrypted at
   rest; *not* a token per user. This is the first long-lived secret platform holds.
 - **Callback reachability** — the manifest/install/OAuth redirects need a URL the
@@ -770,6 +817,3 @@ and Flux pulls.
 
 - Where the `init` server marker lives — `platform.toml` `[server]` field vs CLI-global
   config.
-- User-token expiry policy — current default: the user token is stored as received
-  with no refresh handling (pair it with the App's non-expiring setting); the platform
-  session lasts 30 days. Expiring tokens + refresh return here if the balance shifts.

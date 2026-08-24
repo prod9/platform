@@ -1,7 +1,8 @@
 # Platform server authenticates as a GitHub App; zero platform-side RBAC
 
 Date: 2026-06-29
-Status: **revised** — 2026-07-18 addendum below; the original ruling stands unchanged.
+Status: **revised** — 2026-07-18 and 2026-08-24 addenda below; the zero-RBAC ruling
+stands unchanged.
 
 Frozen *why*; current state lives in [platform-server.md](../spec/platform-server.md)
 (intended/target — the `srv/` layer is not yet built).
@@ -12,7 +13,8 @@ The platform server (`srv`) authenticates as a **GitHub App** and holds **zero
 platform-side RBAC** — no permission tables, no roles. Authorization is delegated entirely
 to GitHub:
 
-- A user who can access the repo can trigger its builds.
+- A user with read access can inspect a repo; write access is required to onboard it,
+  trigger a build, or retry one.
 - **Deploy authority = git push permission on the infra repo.**
 
 ## Why zero RBAC
@@ -81,3 +83,17 @@ if ever needed). The app→infra handoff stays manual. Full worked derivation (p
 [`2026-07-18-srv-rbac-observability.md`](../scratch/2026-07-18-srv-rbac-observability.md).
 The observability *endpoint + UI surface* is a separate, still-open design question — this
 addendum rules only that zero-RBAC survives it.
+
+## 2026-08-24 addendum — authorization is a bounded session snapshot
+
+"Can access" is refined by operation: repo-derived reads require GitHub read permission;
+repo onboarding, manual build triggers, and retries require GitHub write permission. The
+GitHub App must also reach the repo. Autonomous webhook and worker activity remains
+App-authorized and does not impersonate a user.
+
+Login snapshots the repositories and permission levels reachable by both the user and App.
+Ordinary platform requests authorize against that session-owned cache instead of querying
+GitHub on every request. Sessions expire absolutely after two hours, bounding stale access;
+reauthentication refreshes the user token and snapshot and returns the browser to its
+interrupted location. Event-driven session invalidation may shorten that window later, but
+GitHub remains the authority and platform gains no durable permission table.

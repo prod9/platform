@@ -51,6 +51,21 @@ fallback at the status the record deserves. Only `/builds/{id}` is implemented t
 The mock tree stands in with static paths (`/builds/`, `/engines/instance/`); the dynamic
 shapes above are the target.
 
+## Session expiry and return
+
+Authentication recovery is a shell concern, not a page concern. The shared server client
+intercepts `401` from every product API operation and starts GitHub OAuth; a page never
+renders an expired-session response as its own loading or mutation error. Before leaving,
+the client captures the current same-origin path, query, and fragment. The server binds the
+path and query to OAuth state, the client preserves the fragment, and successful login
+returns the user to the exact interrupted location with a fresh two-hour session.
+
+Only `401` starts reauthentication. Offline responses, `403`, `404`, conflicts, and server
+failures remain page-level outcomes. One recovery may be in flight at a time, so concurrent
+reads cannot create redirect loops. A cancelled or failed OAuth attempt returns to a
+dedicated sign-in state carrying the preserved destination and a retry action; it does not
+automatically redirect again.
+
 ## Pages
 
 **Repos landing (`/`).** One block per registered repo — the nested-feed shape: the
@@ -68,7 +83,8 @@ sends that sha, not manifest content; the server re-reads the immutable commit a
 atomically stores the repository, exact raw manifest, parsed policy, and parsed modules.
 An accessible repository without `platform.toml` directs the user to initialize it;
 repository access failure remains a separate error. Registration model:
-[platform-server.md](platform-server.md) §Repos are registered, visibility is live.
+[platform-server.md](platform-server.md) §Repos are registered, authorization is
+GitHub-derived.
 
 **Repo build feed (`/repos/{owner}/{repo}/`).** The repo's builds as a CI feed: newest
 first, each row led by its outcome mark, carrying the tag, the commit it resolved to,
