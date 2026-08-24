@@ -73,7 +73,7 @@ func setupInstalled(t *testing.T) (context.Context, *config.Source) {
 	mux.HandleFunc("GET /repos/prodigy9/app/contents/platform.toml", func(resp http.ResponseWriter, req *http.Request) {
 		require.Equal(t, "Bearer ghs_tok", req.Header.Get("Authorization"))
 		require.Equal(t, "abc123", req.URL.Query().Get("ref"))
-		fmt.Fprint(resp, "repository = \"github.com/prodigy9/app\"\n\n[modules.web]\nframework = \"pnpm/basic\"\n")
+		fmt.Fprint(resp, "repository = \"github.com/prodigy9/app\"\n\n[server]\npublish = \"never\"\n\n[modules.web]\nframework = \"pnpm/basic\"\n")
 	})
 	mux.HandleFunc("GET /repos/prodigy9/app/commits/main", func(resp http.ResponseWriter, req *http.Request) {
 		require.Equal(t, "application/vnd.github.sha", req.Header.Get("Accept"))
@@ -209,12 +209,15 @@ func TestRegisterRepoRecordsAndConflicts(t *testing.T) {
 		SHA        string `db:"sha"`
 		Raw        string `db:"raw"`
 		Repository string `db:"repository"`
+		Publish    string `db:"server_publish"`
 	}
 	require.NoError(t, data.Get(ctx, &snapshot, `
-		SELECT sha, raw, repository FROM repo_manifests WHERE repo_id = $1`, row.ID))
+		SELECT sha, raw, repository, server_publish
+		FROM repo_manifests WHERE repo_id = $1`, row.ID))
 	require.Equal(t, "abc123", snapshot.SHA)
 	require.Contains(t, snapshot.Raw, `[modules.web]`)
 	require.Equal(t, "github.com/prodigy9/app", snapshot.Repository)
+	require.Equal(t, "never", snapshot.Publish)
 
 	var module struct {
 		Name      string `db:"name"`
@@ -266,6 +269,7 @@ func TestManifestParsesPlatformTOML(t *testing.T) {
 		SHA        string `json:"sha"`
 		Maintainer string `json:"maintainer"`
 		Repository string `json:"repository"`
+		Publish    string `json:"server_publish"`
 		Modules    []struct {
 			Name      string `json:"name"`
 			Framework string `json:"framework"`
@@ -275,6 +279,7 @@ func TestManifestParsesPlatformTOML(t *testing.T) {
 	require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &manifest))
 	require.Equal(t, "abc123", manifest.SHA)
 	require.Equal(t, "github.com/prodigy9/app", manifest.Repository)
+	require.Equal(t, "never", manifest.Publish)
 	require.Len(t, manifest.Modules, 1)
 	require.Equal(t, "web", manifest.Modules[0].Name)
 	require.Equal(t, "pnpm/basic", manifest.Modules[0].Framework)

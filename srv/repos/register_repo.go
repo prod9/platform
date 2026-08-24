@@ -42,7 +42,13 @@ func (r *RegisterRepo) Validate() error {
 }
 
 func (r *RegisterRepo) Execute(ctx context.Context, out any) error {
-	err := data.Run(ctx, func(scope data.Scope) error {
+	policy, err := r.Manifest.ResolveServerPublish(r.Repo)
+	if err != nil {
+		return err
+	}
+	r.Manifest.Server.Publish = policy
+
+	err = data.Run(ctx, func(scope data.Scope) error {
 		repo := &Repo{}
 		if err := scope.Get(repo, `
 			INSERT INTO repos (owner, repo, registered_by)

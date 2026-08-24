@@ -1,5 +1,10 @@
 import { describe, expect, test } from "vitest";
-import { filterCandidates, latestStatus, moduleLine } from "./repos.js";
+import {
+	filterCandidates,
+	latestStatus,
+	moduleLine,
+	publishPolicyLine,
+} from "./repos.js";
 
 describe("filterCandidates", () => {
 	const candidates = [
@@ -54,5 +59,19 @@ describe("moduleLine", () => {
 
 	test("no modules is an empty string", () => {
 		expect(moduleLine([])).toBe("");
+	});
+});
+
+describe("publishPolicyLine", () => {
+	test.each([
+		["always", "Every successful build · latest"],
+		["tags", "Successful tags · exact tag"],
+		["never", "Build only · never publish"],
+	])("renders %s without exposing config vocabulary alone", (policy, expected) => {
+		expect(publishPolicyLine(policy)).toBe(expected);
+	});
+
+	test("rejects an unknown server value", () => {
+		expect(() => publishPolicyLine("sometimes")).toThrow("unknown server publish policy");
 	});
 });

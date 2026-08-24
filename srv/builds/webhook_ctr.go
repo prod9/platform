@@ -16,6 +16,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"platform.prodigy9.co/srv/auth"
 	"platform.prodigy9.co/srv/github"
+	"platform.prodigy9.co/srv/repos"
 )
 
 // maxWebhookBody caps webhook reads; real push payloads are a few KB.
@@ -70,6 +71,15 @@ func githubWebhook(resp http.ResponseWriter, req *http.Request) {
 
 	create := buildForPush(ev)
 	if create == nil {
+		render.JSON(resp, req, webhookReceipt{Status: "ignored"})
+		return
+	}
+	registered, err := repos.RegistrationExists(ctx, create.Owner, create.Repo)
+	if err != nil {
+		render.Error(resp, req, 500, err)
+		return
+	}
+	if !registered {
 		render.JSON(resp, req, webhookReceipt{Status: "ignored"})
 		return
 	}

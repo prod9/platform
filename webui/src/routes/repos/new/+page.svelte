@@ -12,7 +12,7 @@
 		Answered,
 		Refused,
 	} from "$lib/server.js";
-	import { filterCandidates, moduleLine } from "$lib/repos.js";
+	import { filterCandidates, moduleLine, publishPolicyLine } from "$lib/repos.js";
 	import Button from "$lib/components/Button.svelte";
 	import Panel from "$lib/components/Panel.svelte";
 
@@ -181,8 +181,10 @@
 						{:else}
 							<dd class="mono muted">Reading…</dd>
 						{/if}
-						<dt class="mono key">builds on</dt>
-						<dd class="mono">every push</dd>
+						{#if manifest !== null}
+							<dt class="mono key">publish policy</dt>
+							<dd class="mono">{publishPolicyLine(manifest.server_publish)}</dd>
+						{/if}
 					</dl>
 
 					{#if confirmError !== ""}

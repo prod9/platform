@@ -26,3 +26,16 @@ export function moduleLine(modules) {
 		)
 		.join(" · ");
 }
+
+export function publishPolicyLine(policy) {
+	switch (policy) {
+		case "always":
+			return "Every successful build · latest";
+		case "tags":
+			return "Successful tags · exact tag";
+		case "never":
+			return "Build only · never publish";
+		default:
+			throw new Error(`unknown server publish policy: ${policy}`);
+	}
+}

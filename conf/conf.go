@@ -5,6 +5,7 @@
 package conf
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -35,6 +36,7 @@ type (
 		PublishArch string `toml:"publish_arch,omitempty"`
 
 		Strategy string `toml:"strategy"`
+		Server   Server `toml:"server,omitempty"`
 
 		Excludes []string           `toml:"excludes"`
 		Modules  map[string]*Module `toml:"modules,omitempty"`
@@ -45,6 +47,12 @@ type (
 		// \(var) interpolation); no defaults or inference beyond the baseline seed.
 		Vars map[string]any `toml:"vars,omitempty"`
 	}
+
+	Server struct {
+		Publish ServerPublish `toml:"publish,omitempty"`
+	}
+
+	ServerPublish string
 
 	Module struct {
 		WorkDir   string           `toml:"workdir,omitempty"` // relative to platform.toml; "." when unset
@@ -68,6 +76,12 @@ type (
 		ImageName   string   `toml:"image,omitempty"`
 		PackageName string   `toml:"package,omitempty"`
 	}
+)
+
+const (
+	ServerPublishAlways ServerPublish = "always"
+	ServerPublishTags   ServerPublish = "tags"
+	ServerPublishNever  ServerPublish = "never"
 )
 
 var (
@@ -113,6 +127,22 @@ func Parse(data []byte) (*Model, error) {
 	proj.assignDefaults()
 	proj.inferValues()
 	return proj, nil
+}
+
+func (p *Model) ResolveServerPublish(repo string) (ServerPublish, error) {
+	if p.Server.Publish != "" {
+		switch p.Server.Publish {
+		case ServerPublishAlways, ServerPublishTags, ServerPublishNever:
+			return p.Server.Publish, nil
+		default:
+			return "", fmt.Errorf("unknown server publish policy %q", p.Server.Publish)
+		}
+	}
+
+	if repo == "infra" || strings.HasSuffix(repo, "-infra") {
+		return ServerPublishAlways, nil
+	}
+	return ServerPublishTags, nil
 }
 
 func Load(wd string) (*Model, error) {

@@ -23,14 +23,15 @@ func insertManifestSnapshot(scope data.Scope, repoID int64, sha, raw string, mod
 
 	var snapshotID int64
 	err = scope.Get(&snapshotID, `
-		INSERT INTO repo_manifests (
-			repo_id, sha, raw, maintainer, repository, platform,
-			local_arch, publish_arch, strategy, excludes, vars
-		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-		RETURNING id`,
+			INSERT INTO repo_manifests (
+				repo_id, sha, raw, maintainer, repository, platform,
+				local_arch, publish_arch, strategy, server_publish, excludes, vars
+			)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+			RETURNING id`,
 		repoID, sha, raw, model.Maintainer, model.Repository, model.Platform,
-		model.LocalArch, model.PublishArch, model.Strategy, excludes, vars)
+		model.LocalArch, model.PublishArch, model.Strategy, model.Server.Publish,
+		excludes, vars)
 	if err != nil {
 		return 0, err
 	}

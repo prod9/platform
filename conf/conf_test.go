@@ -77,6 +77,41 @@ framework = "pnpm/basic"
 	r.Error(t, err)
 }
 
+func TestResolveServerPublish(t *testing.T) {
+	t.Run("explicit policy wins", func(t *testing.T) {
+		proj, err := Parse([]byte("[server]\npublish = \"never\"\n"))
+		r.NoError(t, err)
+
+		policy, err := proj.ResolveServerPublish("prod9-infra")
+		r.NoError(t, err)
+		r.Equal(t, ServerPublishNever, policy)
+	})
+
+	t.Run("infra names publish every successful build", func(t *testing.T) {
+		for _, name := range []string{"infra", "prod9-infra"} {
+			policy, err := (&Model{}).ResolveServerPublish(name)
+			r.NoError(t, err)
+			r.Equal(t, ServerPublishAlways, policy)
+		}
+	})
+
+	t.Run("only a case-sensitive infra suffix matches", func(t *testing.T) {
+		for _, name := range []string{"app", "infrastructure", "infra-app", "PROD9-INFRA"} {
+			policy, err := (&Model{}).ResolveServerPublish(name)
+			r.NoError(t, err)
+			r.Equal(t, ServerPublishTags, policy)
+		}
+	})
+
+	t.Run("unknown policy is rejected", func(t *testing.T) {
+		proj, err := Parse([]byte("[server]\npublish = \"sometimes\"\n"))
+		r.NoError(t, err)
+
+		_, err = proj.ResolveServerPublish("app")
+		r.Error(t, err)
+	})
+}
+
 func testProject(modCount int) *Model {
 	proj := &Model{
 		Repository: "github.com/prod9/platform",

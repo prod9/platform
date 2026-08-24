@@ -36,3 +36,15 @@ func ListRegistered(ctx context.Context) ([]*Repo, error) {
 	err := data.Select(ctx, &repos, `SELECT * FROM repos ORDER BY id`)
 	return repos, err
 }
+
+// RegistrationExists reports whether a repository is admitted to server builds. GitHub
+// owner and repository names are case-insensitive at every live boundary.
+func RegistrationExists(ctx context.Context, owner, repo string) (bool, error) {
+	var exists bool
+	err := data.Get(ctx, &exists, `
+		SELECT EXISTS (
+			SELECT 1 FROM repos
+			WHERE lower(owner) = lower($1) AND lower(repo) = lower($2)
+		)`, owner, repo)
+	return exists, err
+}

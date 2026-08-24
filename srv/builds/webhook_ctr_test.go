@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"fx.prodigy9.co/app"
 	"fx.prodigy9.co/data"
 	"fx.prodigy9.co/fxtest"
 	"fx.prodigy9.co/httpserver/middlewares"
@@ -17,9 +18,14 @@ import (
 	"github.com/stretchr/testify/require"
 	"platform.prodigy9.co/srv/auth"
 	"platform.prodigy9.co/srv/github"
+	"platform.prodigy9.co/srv/repos"
 )
 
 const testWebhookSecret = "whsec"
+
+func init() {
+	app.RegisterMigrations(repos.App.App())
+}
 
 func stubApp(t *testing.T, app *github.App, err error) {
 	orig := github.LoadApp
@@ -182,6 +188,7 @@ func TestWebhookMalformedPushBody(t *testing.T) {
 func TestWebhookTagPushCreatesBuild(t *testing.T) {
 	ctx := setupDB(t)
 	stubApp(t, &github.App{WebhookSecret: testWebhookSecret}, nil)
+	registerWebhookRepo(t, ctx, "prod9", "app")
 
 	router := webhookRouter(t)
 	resp := httptest.NewRecorder()
@@ -211,6 +218,7 @@ func TestWebhookTagPushCreatesBuild(t *testing.T) {
 func TestWebhookBranchPushCreatesBuild(t *testing.T) {
 	ctx := setupDB(t)
 	stubApp(t, &github.App{WebhookSecret: testWebhookSecret}, nil)
+	registerWebhookRepo(t, ctx, "prod9", "app")
 
 	router := webhookRouter(t)
 	resp := httptest.NewRecorder()
@@ -223,4 +231,27 @@ func TestWebhookBranchPushCreatesBuild(t *testing.T) {
 	require.NoError(t, data.Get(ctx, build, `SELECT `+buildColumns+` FROM builds`))
 	require.Equal(t, "refs/heads/main", build.Ref)
 	require.Equal(t, "abc123", build.SHA)
+}
+
+func TestWebhookPushToUnregisteredRepoIsIgnored(t *testing.T) {
+	ctx := setupDB(t)
+	stubApp(t, &github.App{WebhookSecret: testWebhookSecret}, nil)
+
+	router := webhookRouter(t)
+	resp := httptest.NewRecorder()
+	req := webhookRequest("push", branchPushBody, signBody(testWebhookSecret, branchPushBody))
+	router.ServeHTTP(resp, req.WithContext(ctx))
+
+	require.Equal(t, http.StatusOK, resp.Code)
+	var count int
+	require.NoError(t, data.Get(ctx, &count, `SELECT count(*) FROM builds`))
+	require.Zero(t, count)
+}
+
+func registerWebhookRepo(t *testing.T, ctx context.Context, owner, repo string) {
+	userID, err := auth.SystemUserID(ctx)
+	require.NoError(t, err)
+	require.NoError(t, data.Exec(ctx, `
+		INSERT INTO repos (owner, repo, registered_by) VALUES ($1, $2, $3)`,
+		owner, repo, userID))
 }

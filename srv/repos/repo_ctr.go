@@ -154,7 +154,7 @@ func register(resp http.ResponseWriter, req *http.Request) {
 		render.Error(resp, req, 500, err)
 		return
 	}
-	parsed, err := conf.Parse(observed.Raw)
+	parsed, err := parseManifest(observed.Raw, action.Repo)
 	if err != nil {
 		render.Error(resp, req, 422, err)
 		return
@@ -174,10 +174,11 @@ func register(resp http.ResponseWriter, req *http.Request) {
 }
 
 type manifestResponse struct {
-	SHA        string           `json:"sha"`
-	Maintainer string           `json:"maintainer"`
-	Repository string           `json:"repository"`
-	Modules    []moduleResponse `json:"modules"`
+	SHA        string             `json:"sha"`
+	Maintainer string             `json:"maintainer"`
+	Repository string             `json:"repository"`
+	Publish    conf.ServerPublish `json:"server_publish"`
+	Modules    []moduleResponse   `json:"modules"`
 }
 
 type moduleResponse struct {
@@ -213,7 +214,7 @@ func manifest(resp http.ResponseWriter, req *http.Request) {
 		render.Error(resp, req, 500, err)
 		return
 	}
-	parsed, err := conf.Parse(observed.Raw)
+	parsed, err := parseManifest(observed.Raw, repo)
 	if err != nil {
 		render.Error(resp, req, 422, err)
 		return
@@ -223,6 +224,7 @@ func manifest(resp http.ResponseWriter, req *http.Request) {
 		SHA:        observed.SHA,
 		Maintainer: parsed.Maintainer,
 		Repository: parsed.Repository,
+		Publish:    parsed.Server.Publish,
 		Modules:    []moduleResponse{},
 	}
 	for name, module := range parsed.Modules {
@@ -230,6 +232,20 @@ func manifest(resp http.ResponseWriter, req *http.Request) {
 	}
 	sort.Slice(out.Modules, func(i, j int) bool { return out.Modules[i].Name < out.Modules[j].Name })
 	render.JSON(resp, req, out)
+}
+
+func parseManifest(raw []byte, repo string) (*conf.Model, error) {
+	model, err := conf.Parse(raw)
+	if err != nil {
+		return nil, err
+	}
+
+	policy, err := model.ResolveServerPublish(repo)
+	if err != nil {
+		return nil, err
+	}
+	model.Server.Publish = policy
+	return model, nil
 }
 
 // findRepo matches a registration row against the live list; GitHub logins and repo
