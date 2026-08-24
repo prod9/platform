@@ -1,12 +1,17 @@
 # Delivery verbs are orthogonal; one publish engine, two drivers
 
 Date: 2026-07-05
-Status: **accepted**
+Status: **partially superseded** by the [execution-mode decision] for the server
+tag-watch and automatic-publish cadence; release/publish orthogonality, the absence of a
+deploy verb, and the shared-engine ruling remain accepted.
 
 > **Vocabulary note.** Written in `ops publish` / `ops render` terms; the `ops` prefix was
 > flattened the same day (see
 > [infra-publishes-as-plain-image-retire-oras](2026-07-05-infra-publishes-as-plain-image-retire-oras.md)) —
-> read them as `publish` / `render`. Every ruling stands.
+> read them as `publish` / `render`. The 2026-08-24 supersession above replaces only the
+> server trigger and publish cadence.
+
+[execution-mode decision]: 2026-08-24-execution-mode-does-not-define-delivery-policy.md
 
 ## The ruling
 
