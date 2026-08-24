@@ -17,6 +17,7 @@
 		installSignal,
 		Answered,
 		Installed,
+		authenticationURL,
 	} from "$lib/server.js";
 	import {
 		nextStep,
@@ -75,13 +76,20 @@
 	// The App's Setup URL lands the browser here carrying GitHub's installation_id — the
 	// landing GET only renders; the write sits behind the claim POST
 	// (docs/spec/installation.md §The install settings). Signing in bounces through GitHub
-	// and back to /, dropping the query string, so the id is stashed for the return trip.
+	// and back to this exact location; the stash also survives an interrupted browser
+	// navigation before OAuth begins.
 	const stashKey = "install.installation_id";
 	const landed = new URLSearchParams(window.location.search).get("installation_id");
 	if (landed) {
 		sessionStorage.setItem(stashKey, landed);
 	}
 	const installationID = Number(landed ?? sessionStorage.getItem(stashKey));
+	const signInURL = installationID
+		? authenticationURL(
+				`/install/?installation_id=${installationID}`,
+				String(installationID),
+			)
+		: authenticationURL("/install/", null);
 
 	// current is the one panel on screen: the operator's pick, or the wizard's next.
 	let current = $derived(
@@ -561,7 +569,7 @@
 				{:else if isStep("claimed", "not_started")}
 					{#if session.user === null}
 						<Panel label="Claim the installation">
-							<Button variant="primary" href="/auth/github">Sign in with GitHub</Button>
+							<Button variant="primary" href={signInURL}>Sign in with GitHub</Button>
 						</Panel>
 					{:else if !installationID}
 						<Panel label="Claim the installation">

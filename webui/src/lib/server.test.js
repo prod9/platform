@@ -17,6 +17,7 @@ import {
 	restoreFragment,
 	signInRetryURL,
 	shouldRecoverSession,
+	authenticationURL,
 } from "./server.js";
 
 function browserAt(href) {
@@ -40,6 +41,12 @@ function browserAt(href) {
 }
 
 describe("session recovery", () => {
+	test("authentication binds the return location and pre-claim installation", () => {
+		expect(authenticationURL("/install/?installation_id=84", "84")).toBe(
+			"/auth/github?return=%2Finstall%2F%3Finstallation_id%3D84&installation_id=84",
+		);
+	});
+
 	test("a product 401 starts one OAuth recovery at the exact browser location", async () => {
 		const browser = browserAt(
 			"https://platform.example/repos/new/?step=manifest#instructions",

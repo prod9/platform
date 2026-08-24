@@ -22,6 +22,18 @@ async function send(path, options) {
 const fragmentKeyPrefix = "auth.fragment:";
 let recoveryStarted = false;
 
+export function authenticationURL(returnLocation, installationID) {
+	const safeReturn =
+		returnLocation.startsWith("/") && !returnLocation.startsWith("//")
+			? returnLocation
+			: "/";
+	const params = new URLSearchParams({ return: safeReturn });
+	if (installationID !== null && /^\d+$/.test(installationID)) {
+		params.set("installation_id", installationID);
+	}
+	return `/auth/github?${params}`;
+}
+
 // The server can bind path and query into OAuth state; only the browser can preserve
 // the fragment because it never crosses the HTTP boundary (docs/spec/webui.md §Session
 // expiry and return).
@@ -34,14 +46,10 @@ export function prepareReauthentication() {
 		);
 	}
 
-	const params = new URLSearchParams({ return: returnLocation });
 	const installationID = new URLSearchParams(window.location.search).get(
 		"installation_id",
 	);
-	if (installationID !== null) {
-		params.set("installation_id", installationID);
-	}
-	return `/auth/github?${params}`;
+	return authenticationURL(returnLocation, installationID);
 }
 
 export function restoreFragment() {
@@ -65,13 +73,8 @@ export function signInRetryURL(search) {
 		!requestedReturn.startsWith("//")
 			? requestedReturn
 			: "/";
-	const retry = new URLSearchParams({ return: safeReturn });
-
 	const installationID = failed.get("installation_id");
-	if (installationID !== null && /^\d+$/.test(installationID)) {
-		retry.set("installation_id", installationID);
-	}
-	return `/auth/github?${retry}`;
+	return authenticationURL(safeReturn, installationID);
 }
 
 function recoverSession() {
