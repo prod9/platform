@@ -146,7 +146,7 @@ merged set the same way as any fragment's — registered with `migrator.Embed`.
 
 **Data-domain structs stay flat.** There is no ORM here, so a fragment's domain models
 mirror the query or fold that produces them — a struct is one row or one reduction, never
-a nested object graph (`BuildAttempt` does not carry a `Steps` slice; steps are their own
+a nested object graph (a module result does not carry a `Steps` slice; steps are their own
 fold). An API response that spans more than one domain read is a **view**: a wire struct
 composed in Go over multiple domain queries/folds, built in the controller layer and
 JSON-rendered from there — never a nested shape SELECTed out of the database directly. A
@@ -170,12 +170,12 @@ lives under `/api`; GitHub-facing and health routes stay bare.
 | `GET /api/users/me`         | session                   | the session user's profile (id + name)                                                | the webui's "who am I" — profile, not session validity                                                             |
 | `GET /api/repos`            | session                   | the **registered** repos, filtered live against what the session user can still reach on GitHub | the repos landing page; registration is stored, permission never is (see §Repos are registered, visibility is live) |
 | `GET /api/repos/candidates` | session                   | repos the App installation reaches that are **not yet registered**, listed live from GitHub | the onboarding wizard's pick list — the same live read the old repo picker made, minus what is already onboarded   |
-| `POST /api/repos`           | session                   | registers a repo: owner/repo, recorded with the registering user                       | the onboarding wizard's confirm — the one write the `repos` table takes                                            |
-| `GET /api/repos/{owner}/{repo}/manifest` | session      | the repo's `platform.toml` read live from GitHub at the default branch's head, parsed  | the onboarding wizard's review step shows what the server pre-read before the user confirms                        |
+| `POST /api/repos`           | session                   | registers owner/repo at the reviewed manifest sha; re-reads that commit and atomically stores the repo, raw manifest, and parsed modules | onboarding records exactly what the user reviewed, not whatever the default branch points at later                 |
+| `GET /api/repos/{owner}/{repo}/manifest` | session      | resolves the default-branch head and returns its commit sha plus the parsed `platform.toml` | the onboarding review supplies the immutable sha that confirmation sends back                                      |
 | `GET /api/repos/{owner}/{repo}/builds` | session        | the repo's builds, newest first; `?limit=N` caps the page                              | builds nest under a repo in the UI; the landing page fans out `?limit=3` per visible repo                          |
 | `GET /api/builds`           | session                   | last 50 builds, newest first                                                          | the global feed — no page reads it today, but a fleet-wide view costs nothing to keep                              |
-| `GET /api/builds/{id}`      | session                   | one build plus its attempts folded — no steps                                         | the build detail view — the stream made readable, which is the reason the events are stored at all                 |
-| `GET /api/builds/{id}/steps`| session                   | the build's steps across all attempts, flat, each carrying its attempt ordinal and captured output | steps are a sub-resource: the heavy stdout/stderr payload stays off the detail read                   |
+| `GET /api/builds/{id}`      | session                   | one build plus its selected modules and their folded states — no steps                 | the build detail view — the streams made readable, which is the reason the events are stored at all                |
+| `GET /api/builds/{id}/steps`| session                   | the build's steps across all selected modules, flat, each carrying its build-module id and captured output | steps are a sub-resource: the heavy stdout/stderr payload stays off the detail read                 |
 | `POST /api/builds`          | session                   | records a `webui`-triggered build: owner/repo + ref, sha resolved server-side; may carry a module list | the manual trigger — the same domain fact as the webhook, authorized by session instead of HMAC; module selection is the manual trigger's alone (§Triggering a build) |
 | `GET /api/engines`          | session                   | the engine fleet: the DNS roster resolved per request, each instance dial-checked      | the engines page — the fleet the builds run on, read from the same `DAGGER_ENGINE` source the worker dials ([engine.md](engine.md) §Runner discovery) |
 | `GET /api/engines/{addr}`   | session                   | one engine instance: reachability, version, current + recent builds (from `build_events.engine`) | the engine detail page; the instance is named by its resolved `host:port`, URL-encoded                             |
@@ -226,10 +226,62 @@ repos                           -- registration only: this repo is onboarded to 
   created_at    timestamptz
 ```
 
+Every manifest observation is immutable and commit-addressed. Raw text preserves exactly
+what the repository contained; the parsed records preserve what this platform version
+understood from it. Those are different historical facts, written together, never a mutable
+cache. The current repository manifest is the newest observation by `created_at`; `repos`
+holds no current-manifest pointer to synchronize.
+
+```
+repo_manifests                  -- one immutable platform.toml observation
+  id            bigserial
+  repo_id       bigint          -- REFERENCES repos(id)
+  sha           text            -- exact commit read
+  raw           text            -- exact platform.toml bytes
+  maintainer    text
+  repository    text
+  platform      text            -- deprecated input, preserved after parsing
+  local_arch    text
+  publish_arch  text
+  strategy      text
+  excludes      text[]
+  vars          jsonb
+  created_at    timestamptz
+                                -- UNIQUE (repo_id, sha), UNIQUE (id, repo_id, sha)
+
+repo_manifest_modules           -- complete parsed modules for one observation
+  id            bigserial
+  manifest_id   bigint          -- REFERENCES repo_manifests(id)
+  name          text
+  workdir       text
+  timeout_ns    bigint
+  framework     text
+  env           jsonb
+  port          integer
+  command_name  text
+  command_args  text[]
+  asset_dirs    text[]
+  build_dir     text
+  go_version    text
+  image_name    text
+  package_name  text
+                                -- UNIQUE (manifest_id, name), UNIQUE (id, manifest_id)
+```
+
+The arrays above are ordered value fields (`command_args`, `asset_dirs`, `excludes`), and
+the JSON objects are open maps whose keys are part of `platform.toml` (`env`, `vars`); none
+is a relation disguised as a collection. A later build references these rows rather than
+serializing `framework.BuildUnit`, which is runtime behavior after interpretation.
+
 Onboarding is a wizard ([webui.md](webui.md)): pick from `GET /api/repos/candidates` (the
-App-reachable repos not yet registered, live), review the server's pre-read of the repo's
-`platform.toml` (`GET /api/repos/{owner}/{repo}/manifest`), confirm with `POST /api/repos`.
-Registration is the only write; deregistration is not in this surface yet.
+App-reachable repos not yet registered, live), then review `GET
+/api/repos/{owner}/{repo}/manifest`. That read resolves the default-branch head and returns
+its commit sha with the parsed manifest. Confirmation posts owner, repo, and that sha. The
+server re-reads `platform.toml` at the supplied sha, parses it again, and transactionally
+inserts the repo, raw snapshot, and every parsed module. The browser never sends manifest
+content back across the trust boundary, and a moving default branch cannot change what gets
+registered after review. Registration is the only write; deregistration is not in this
+surface yet.
 
 ### `webui/build/` is committed
 
@@ -286,27 +338,24 @@ button path and the webhook path diverge past the controller, that is two system
 **A controller never calls the engine.** An HTTP request's lifetime has nothing to do with
 a build's; the durable record is the handoff.
 
-**The record is the queue.** There is no queue component — a build request is simply a
-record not yet dispatched; "pending" is a property of the record, not a place it lives.
-This is what makes the trigger sources interchangeable: each appends the same fact.
+**The records are the queue.** A build is the aggregate request; its `build_modules` are the
+independently executable work. Pending is derived from those domain records and their event
+streams, never stored as a status and never delegated to fx's mechanism-level `jobs` table.
+This is what makes trigger sources interchangeable: each materializes the same facts.
 
-**The record must be complete enough to act on.** The controller serializes full intent —
-**which repo, at which ref, resolved to which sha** — so the worker never re-derives *what
-was asked for*. The webhook gets the sha from the push payload; the manual trigger
-(`POST /api/builds`) names only a ref, so its controller resolves it to a sha via the
-GitHub API before recording — resolution is part of validating the request, not of
-executing it.
+**The record must be complete enough to act on.** The controller resolves the ref, reads
+and parses `platform.toml` at that exact sha, and atomically writes the build, its immutable
+manifest snapshot, and its selected `build_modules`. The webhook gets the sha from the push
+payload; the manual trigger (`POST /api/builds`) names a ref, so its controller resolves it
+through GitHub first. Neither dispatcher nor executor re-derives what was asked for.
 
 **A webhook build is whole-repo; a manual trigger may select modules.** `platform.toml`'s
-`[modules]` defines the units — which units *exist* is a property of the committed tree,
-never a choice a trigger makes. A webhook carries no selection and builds all of them. The
-manual trigger (`POST /api/builds`) may carry a **module list** — the same capability the
-CLI has always had (`platform build <modules…>`) — recorded on the build row as
-`modules`; empty means whole-repo. The worker still reads `platform.toml` from the tree it
-prepared and schedules the intersection: a selection filters the definition, it never
-defines units. A selected name absent from the tree's `[modules]` fails the run — the
-record promised something the tree cannot deliver. Repo preparation is the same in kind:
-fetching the tree fulfils a decision rather than making one, so it belongs to the worker.
+`[modules]` defines which modules exist. A webhook materializes one `build_modules` row for
+every module in the snapshot; a manual trigger materializes only the requested subset. An
+empty selection therefore means no work and is rejected — there is no empty-means-all
+convention. A selected name absent from the snapshot is rejected before the build exists.
+The srv database and API call these records **modules**; **unit** begins only when
+`framework.Units` interprets one into a runtime `framework.BuildUnit`.
 
 ### The worker is a peer *process*, and the jobs live in their fragments
 
@@ -332,36 +381,30 @@ sweeps, reconciliation of bad state, and anything else that must happen off the 
 are jobs too. fx's queue is one-shot, so a recurring job reschedules itself at the end of
 `Run` — no cron machinery is added.
 
-**Two jobs carry a build**, and the split is what keeps the record the queue:
+**Two jobs carry a build**, and the split makes a module the unit of capacity and failure:
 
-| Job           | Shape                        | What it does                                                                                                                                                                                |
-| ------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `scan_builds` | recurring, singleton         | Reads `builds` against their events, finds every build nothing has reported on, and schedules a `build` job per build with `ScheduleNow`.                                                   |
-| `build`       | one-shot, payload = build id | Repo-prep → engine run → write `build_events`.                                                                                                                                              |
+| Job               | Shape                               | What it does                                                                                                                        |
+|-------------------|-------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------|
+| `dispatch_builds` | recurring, singleton                | Finds build modules with no event stream and schedules one `build_module` job for each; repeated scans reconcile missed scheduling. |
+| `build_module`    | one-shot, payload = build-module id | Prepares the repo at the build sha, interprets that one persisted module into a `BuildUnit`, executes it, and writes its events.      |
 
-A controller therefore never schedules a job. It appends a record; the scan turns records
-into work. That is what makes the trigger sources interchangeable.
+A controller therefore never schedules a job. It appends a complete build aggregate; the
+dispatcher turns its module records into fx jobs. `ScheduleNow` writes mechanism state and
+the domain rows remain authoritative, so the dispatcher is deliberately idempotent and
+reconciles any failure between those writes.
 
 **A job's name is fx's dispatch key, and its struct is its payload.** `worker` registers one
 instance per `Name()` and unmarshals each queued row's payload into that instance before
-`Run`, so many pending `build` jobs coexist under the one name and are told apart only by the
-build id they carry. `ScheduleNowIfNotExists` dedupes on the name alone, which makes it the
-primitive for a **singleton** job and never for a per-build one: `scan_builds` schedules
-*itself* with it at the end of every run, and schedules each build with plain `ScheduleNow`.
+`Run`, so many pending `build_module` jobs coexist under one name and are told apart by
+their build-module ids. The dispatcher is the singleton job; module jobs are ordinary
+one-shot jobs.
 
-**A build with an event has been picked up, and the scan leaves it alone.** The first thing
-the `build` job does is report, so the presence of any event is what tells an overlapping
-sweep that this build already has a worker — which is what keeps one build from being run
-twice.
-
-**Recovering a stalled build is not yet in this surface.** The obvious rule — reschedule a
-build whose last event is older than its timeout — needs two things this design does not have
-yet: a stall boundary the scan can know (a unit's timeout lives in the repo's
-`platform.toml`, which only exists once the tree is prepared, so the scan cannot read it),
-and an attempt boundary a resumed stream cannot blur (a span closes only when every reporter
-has finished, so appending to a stalled attempt extends it rather than starting a new one).
-Until both are settled, a stalled build stays stalled and a human retries it — which appends
-a new row and is the path that already works.
+**A module claim makes duplicate delivery harmless.** Scheduling through fx and recording
+domain intent are separate writes, so the dispatcher is at-least-once. A `build_module` job
+first inserts the module's one immutable claim row; the primary key admits exactly one
+winner and every duplicate delivery exits without executing. Once claimed, a module is
+never automatically rescheduled. A worker dying afterward leaves visible stalled work for
+an operator, whose retry creates a new build aggregate rather than mutating this one.
 
 **The publish tag is the ref's last segment.** A build's `ref` is `refs/tags/vX.Y.Z` and the
 image is published under `vX.Y.Z` — the worker strips the `refs/tags/` prefix and passes the
@@ -372,9 +415,9 @@ session, the worker derives the registry host from the config's image names, rea
 `registry.<host>.token`, and feeds the engine's `REGISTRY`/`REGISTRY_USERNAME`/
 `REGISTRY_PASSWORD` config — username = the installation record's `installed_by_login`
 ([installation.md](installation.md), "The registry token";
-[vendor/ghcr-auth.md](../vendor/ghcr-auth.md)). A missing token fails the build's run
-outright — the server never attempts an unauthenticated push. Modules naming more than one
-registry host in one build is unsupported and fails the same way.
+[vendor/ghcr-auth.md](../vendor/ghcr-auth.md)). A missing token fails that module's run
+outright — the server never attempts an unauthenticated push. Each module job derives its
+own registry host, so independently built modules may publish to different registries.
 
 🚨 **A job's success is not a build's success.** A job answers *did the job do its work* —
 relay the instruction to the engine, observe the execution, record what happened. A build
@@ -398,42 +441,54 @@ executes and writes events; the database *is* the channel; the webui reads it ba
 subscribes to a live in-process stream across the process boundary, which is exactly why
 the engine needs no late-joining observer.
 
-Everything else is a **fold** of that stream:
+Everything else is a **fold** of those per-module streams:
 
 | Fold                | Computed as                                                           |
 | ------------------- | --------------------------------------------------------------------- |
-| current state       | reduction of the build's events so far                                |
-| an **attempt**      | a `Start`→terminal span within the stream                             |
-| stuck / timed-out   | last-event timestamp vs the build's `platform.toml` timeout           |
+| module state        | reduction of one build module's events                                |
+| build state         | reduction of all selected module states                               |
+| stuck / timed-out   | claim or last-event timestamp vs the persisted module timeout         |
 
-**An attempt is a fold and never a table.** There is no `build_attempts` relation: a retry
-re-runs the same commit, so an attempt row would carry nothing a `run_done` boundary in the
-stream does not already mark.
+There is no attempt model. A build module executes once; a failed or stalled execution
+remains history, and operator retry creates a new build with new module rows.
 
-### The two tables
+### Build tables
 
 ```
-builds                          -- one row per trigger; immutable after insert
+builds                          -- one aggregate request per trigger; immutable after insert
   id            bigserial
   trigger       text            -- 'github-push' | 'webui' | 'cli' | 'retry'
   retry_of      bigint NULL     -- REFERENCES builds(id); set only when trigger = 'retry'
   user_id       bigint          -- REFERENCES users(id); the system user for a webhook trigger
-  owner         text
-  repo          text
+  repo_id       bigint          -- REFERENCES repos(id)
+  manifest_id   bigint          -- REFERENCES repo_manifests(id), same repo + sha
   clone_url     text
   ref           text            -- 'refs/heads/main' | 'refs/tags/v1.2.3'
   sha           text            -- the commit this build builds
-  modules       text[]          -- manual module selection; '{}' means whole-repo
   created_at    timestamptz
+                                -- composite FK (manifest_id, repo_id, sha)
+                                --   REFERENCES repo_manifests(id, repo_id, sha)
 
-build_events                    -- append-only; one row per engine Observer callback
+build_modules                   -- the explicit selected subset; one row = one worker job
   id            bigserial
   build_id      bigint          -- REFERENCES builds(id)
+  manifest_id   bigint
+  manifest_module_id bigint     -- REFERENCES repo_manifest_modules(id)
+  created_at    timestamptz
+                                -- UNIQUE (build_id, manifest_module_id)
+                                -- composite FKs require build + module to share manifest_id
+
+build_module_claims             -- immutable at-most-once execution claim
+  build_module_id bigint        -- PRIMARY KEY, REFERENCES build_modules(id)
+  claimed_at      timestamptz
+
+build_events                    -- append-only; one row per module's engine callback
+  id            bigserial
+  build_module_id bigint        -- REFERENCES build_modules(id)
   kind          text            -- step_started | step_done | image_built | published | run_done
-  unit          text            -- module name; '' for run-level events
   step          text            -- '' unless step-scoped
   at            timestamptz     -- the engine's own callback time, not the insert time
-  engine        text            -- the endpoint the worker dialed for this attempt
+  engine        text            -- the endpoint the worker dialed for this execution
   error         text            -- step_done, run_done
   image         text            -- image_built, published
   hash          text            -- published only
@@ -442,10 +497,15 @@ build_events                    -- append-only; one row per engine Observer call
   created_at    timestamptz
 ```
 
+The composite foreign keys make two mismatches unrepresentable: a build cannot name a
+manifest from another repository or commit, and a `build_modules` row cannot select a
+module from another manifest.
+
 `build_events` is a transcription of the `Observer` contract ([engine.md](engine.md)) plus
-one column of worker context — one column per callback argument, `at` preserved as the
-engine reported it so elapsed time survives a slow writer, and `engine` stamped by the
-worker on every row it writes: the endpoint its session dialed for this attempt
+one column of worker context. Its module identity is the `build_module_id` foreign key,
+not a copied unit name. `at` is preserved as the engine reported it so elapsed time
+survives a slow writer, and `engine` is stamped by the worker on every row it writes: the
+endpoint its session dialed for this execution
 ([engine.md](engine.md) §Runner discovery), the attribution the engine detail page reads
 back (`GET /api/engines/{addr}`). Captured `stdout`/`stderr` ride the `step_done` row
 rather than a kind of their own.
@@ -471,26 +531,31 @@ while `ref` is the **grouping key the UI reads**: a developer watching `refs/hea
 sees the failed build, the fix-push, and the green build as one list. A new push is a new
 build row, never a mutation of the old one.
 
-**A retry is just a new build.** Clicking retry records the same domain fact the manual
-trigger records — `POST /api/builds` with the build's repo and ref, ref re-resolved — and
-the superseded build simply runs out; there is no cancel machinery (aborting is a hook
-power, deferred). No dedicated retry endpoint exists. The schema's `trigger = 'retry'` and
-`retry_of` stay for a linked retry chain, written by nothing in this surface.
+**Retry is operator-only and creates a new build.** A failed module is terminal history;
+the dispatcher never retries it automatically. Clicking retry records the same domain fact
+the manual trigger records — `POST /api/builds` with the build's repo and ref, re-resolved
+and re-snapshotted — while `retry_of` links the new aggregate to its predecessor. There is
+no cancellation machinery.
+
+**Modules are independent, including in a monorepo.** The build model carries no module
+dependency graph and the dispatcher imposes no order. A developer encodes any required
+cross-module preparation inside each module's own build definition, so every module remains
+independently buildable. Queue fairness across large and small builds is deliberately
+deferred until observed scale makes it a real requirement.
 
 Folds are **computed per read** until listing measurably hurts; there is deliberately no
 denormalized fold column on `builds` yet. Adding one is a cache decision, and a cache that
 does not exist cannot go stale or be written to by mistake.
 
-**It is still a reconciler** — the difference is only how the to-be state is arrived at:
-`to-be = f(history, timeout)`, then converge (requeue the timed-out, launch the pending).
-This unifies two failures that used to need separate machinery — a dead client and a
-stalled engine are both just "the event stream stopped advancing past the timeout."
+**Dispatch is still reconciliation.** Its to-be state is one fx job for every unclaimed
+build module; duplicate delivery loses the immutable claim race and does no work. Failed
+and stalled module executions are terminal until an operator creates a new build.
 
 `BuildEvent` carries the `Build` prefix deliberately: "event" is already live in this
 domain for GitHub App events and Kubernetes events, and the bare noun would collide.
 
-**`BuildAttempt` is an output type.** It is the srv-side DB model wrapping a finished
-result for display; it is not an input to the build path, and the `engine` never sees one.
+**A module result is an output fold.** It is the srv-side display model reduced from one
+build module's events; it is not an input to the build path, and the engine never sees it.
 
 `BuildResult` is **engine-side only**, and it does not cross this boundary. It survives
 there as the engine's result type ([engine.md](engine.md)) because half of it is a live
@@ -498,10 +563,10 @@ there as the engine's result type ([engine.md](engine.md)) because half of it is
 fold — is the very thing the worker persists as `build_events`. So srv reads the fold, not
 the struct, and nothing srv-side is typed in terms of it.
 
-Persistence is **display-only** — the engine always re-plans from the current framework
-code rather than replaying a stored plan, so a stored event stream can never pin an
-outdated build definition. Build **hooks** are deliberately deferred; aborting a run is
-itself a hook power, and neither is in this surface yet.
+Persistence records **intent and observation, never runtime machinery**. The manifest and
+selected modules preserve what the trigger requested; the engine still interprets them
+through current framework code and never serializes or replays `framework.BuildUnit` or a
+stored execution plan. Build hooks remain deferred.
 
 ### No `api/` contract layer (deliberate)
 

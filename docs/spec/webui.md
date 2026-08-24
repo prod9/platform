@@ -59,9 +59,11 @@ nothing else.
 
 **Repo onboarding (`/repos/new/`).** Runs as the install wizard does: a checklist on the
 left is the navigation, the selected step's action renders beside it. Step one picks the
-repo from a clickable, filterable candidate list; step two reviews what the server
-pre-read from the repo's `platform.toml` — modules, framework detections — and carries
-the confirm. Registration model:
+repo from a clickable, filterable candidate list. Step two reviews what the server
+pre-read from the repo's `platform.toml` — resolved commit sha, modules, framework
+detections — and carries the confirm. Confirmation sends that sha, not manifest content;
+the server re-reads the immutable commit and atomically stores the repository, exact raw
+manifest, and parsed modules. Registration model:
 [platform-server.md](platform-server.md) §Repos are registered, visibility is live.
 
 **Repo build feed (`/repos/{owner}/{repo}/`).** The repo's builds as a CI feed: newest
@@ -76,7 +78,7 @@ whole-repo; selection is the manual trigger's alone
 ([platform-server.md](platform-server.md) §Triggering a build).
 
 **Build detail (`/builds/{id}`).** Two instruments. The **navigator**: facts up top,
-then attempts and steps on one shared three-column grid — mark gutter, name, time — so
+then modules and steps on one shared three-column grid — mark gutter, name, time — so
 every row aligns whatever its depth. The **terminal**: the selected step's captured
 output in a night-ground log pane. The page polls while the build is live; retry
 re-posts the same repo + ref as a new build.
