@@ -1,9 +1,9 @@
 # Installation
 
 Status: **partly built; composition rework intended.** The installer fragment, the
-`GET /api/install` state surface, the migrations, App-creation and credentials actions,
-the org-owner claim, and the wizard install page
-(`webui/src/routes/install/+page.svelte`) ship today (`srv/install`, `srv.Router`). The
+`GET /api/installation` state surface, the migrations, GitHub App, and credentials
+resources, the org-owner claim, and the wizard installation page
+(`webui/src/routes/installation/+page.svelte`) ship today (`srv/install`, `srv.Router`). The
 permanently composed fx application and request-time install gate specified below are the
 intended replacement for the current boot-selected router. The auth model this sits on is
 frozen in
@@ -43,7 +43,7 @@ The wizard UI holds these rules:
   steps, not one panel with phases (the install/claim split is the canonical
   case).
 - **Progress is always visible, and it is navigation.** The full ordered state
-  list renders on every step, statuses as returned by `GET /api/install`, and
+  list renders on every step, statuses as returned by `GET /api/installation`, and
   every entry is clickable — opening that step's panel. The **default**
   selection (on load and after every save) is the first non-`fully_ready`
   entry, so doing nothing but following the default walks the install in
@@ -92,9 +92,9 @@ install order already guarantees before the claim, the only pre-install step tha
 needs a session. A login attempted earlier fails on those grounds and the install
 page never offers it earlier.
 
-## The `GET /api/install` state surface
+## The `GET /api/installation` state surface
 
-The installer exposes one read endpoint, `GET /api/install`, returning an
+The installer exposes one read endpoint, `GET /api/installation`, returning an
 **ordered list of state entries**. Each step is a self-contained wizard unit
 (`Step`: `Check` produces the step's whole `Entry`; `Reset` clears the step's
 own values — see §Redo and suffix invalidation) and reports one of five
@@ -253,9 +253,9 @@ stays installed whatever the checks would say today.
 A request-time install gate reads that fact and exposes one side of the application:
 
 - **Not claimed** → webui install routes, auth, and installer API endpoints are reachable;
-  product `/api/*` is gated out. `GET /api/install` is part of the installer fragment.
+  product `/api/*` is gated out. `GET /api/installation` is part of the installer fragment.
 - **Claimed** → product API and webui routes are reachable; installer UI and API routes,
-  including `GET /api/install`, return 404. The installer fragment remains composed but
+  including `GET /api/installation`, return 404. The installer fragment remains composed but
   disappears from the HTTP surface.
 
 fx's lazy `AddDataContext` middleware stays on the full HTTP stack. A database that is
@@ -281,12 +281,12 @@ reachable again on subsequent requests; doing so remains manual surgery by conve
 ### The SvelteKit SPA drives the installer-vs-app view
 
 The redirect to the installer is **SPA code, not the backend**. The root-layout
-guard probes `GET /api/install`:
+guard probes `GET /api/installation`:
 
-- **200 + not-installed** → the SPA redirects to `/install` and runs the flow.
+- **200 + not-installed** → the SPA redirects to `/installation/` and runs the flow.
 - **404** (installer fragment gated out) → installed (claimed) → render the app.
 
-`GET /api/install` is deliberately **not always-available** — its presence *is*
+`GET /api/installation` is deliberately **not always-available** — its presence *is*
 the signal. Depending on 404-as-signal is accepted for now.
 
 **Every state read classifies by that signal, not just the root-layout guard.**
@@ -359,25 +359,26 @@ record:** a wizard UI for additional registries (the key shape already admits
 them), and moving the credential to project-scoped settings once projects are a
 settings scope — today the rows are server-global, one credential per registry.
 
-The wizard's typed steps post five installer-fragment actions, one per page
-the operator works: `POST /api/install/server` writes the public URL
-(`server.public_url`), `POST /api/install/org` writes the primary-org slug
-(`github.org`), `POST /api/install/app` writes the creation-time quartet
+The wizard's typed steps post five installation subresources, one per page
+the operator works: `POST /api/installation/server` writes the public URL
+(`server.public_url`), `POST /api/installation/organization` writes the
+primary-org slug
+(`github.org`), `POST /api/installation/github-app` writes the creation-time quartet
 (`github.app_id`, `github.app_slug`, `github.app_client_id`,
 `github.app_webhook_secret`),
-`POST /api/install/credentials` writes the generated pair
+`POST /api/installation/credentials` writes the generated pair
 (`github.app_private_key`, `github.app_client_secret`), and
-`POST /api/install/registry` writes the ghcr token — each action requires
+`POST /api/installation/registry` writes the ghcr token — each update requires
 all of its keys non-empty, writes all-or-none, and **suffix-resets every later
 step in the same transaction** (§Redo and suffix invalidation). All are
 **ungated**: no session can exist before the credentials enable login, the
 same accepted posture as the ungated first-install migrations button. There is
 no generic settings REST surface — every settings write goes through a
-purpose-built action, and reads go through the model accessors.
+purpose-built resource, and reads go through the model accessors.
 
 The claim: the GitHub App Setup URL is a browser redirect, so it lands on the
-**webui install page** (a GET that only renders, carrying GitHub's
-`installation_id` query param); the page then submits `POST /api/install/claim`
+**webui installation page** (a GET that only renders, carrying GitHub's
+`installation_id` query param); the page then submits `POST /api/installation/claim`
 with that id (session-gated: resolve installation→org via the App API, verify
 the session user is an org owner, write the values) — the write sits behind a
 POST, never the landing GET. The session requirement is why the auth fragment
@@ -428,7 +429,7 @@ literal placeholder forms of their URLs.
   server's public URL is the honest value);
 - the OAuth callback and webhook URL (built from `server.public_url` — callbacks
   and hooks target the backend directly, never the webui);
-- the **Setup URL** — `<public URL>/install/`, with **Redirect on update** checked.
+- the **Setup URL** — `<public URL>/installation/`, with **Redirect on update** checked.
   GitHub redirects here with `installation_id` after every install, which is
   what makes the first-time install land back on the wizard unassisted — set at
   creation time, before any install can happen;
@@ -473,7 +474,7 @@ page — `github.com/organizations/<org>/settings/apps/<slug>/installations` —
 opened in a **new tab** (the step leaves the platform site; the wizard tab
 stays put and states why: GitHub's Setup URL redirect returns to the wizard on
 its own). The operator installs the App on the managed org there; GitHub
-redirects back to `<origin>/install/?installation_id=…`, the check sees the
+redirects back to `<origin>/installation/?installation_id=…`, the check sees the
 installation via the App API, and the step is done. No Setup URL work happens
 here — it was set on the creation form.
 
@@ -510,7 +511,7 @@ separate phases with separate migration operations:
 - **CLI** — `./platform srv data migrate`, run before a deploy so the new boot
   comes up already migrated.
 - **Installer button** — the `migrations` remediation on the install page, which `POST`s
-  `/api/install/migrations` (an installer-fragment action). Installer actions —
+  `/api/installation/migrations` (an installation subresource). Installation writes —
   migrations and credentials alike — are **deliberately ungated**: the deployment
   URL is treated as secret until the install record exists, and the request-time
   install gate removes the exposure once the server is completely

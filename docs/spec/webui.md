@@ -32,6 +32,7 @@ does not introduce itself.
 | Route                            | Page                                    | Reads                                                                  |
 |----------------------------------|-----------------------------------------|------------------------------------------------------------------------|
 | `/session/`                      | absent or failed login session          | none                                                                   |
+| `/installation/`                 | first-install wizard                    | `GET /api/installation`; updates its installation subresources         |
 | `/`                              | repos landing (+ the sign-in door)      | `GET /api/repos`, fan-out `GET /api/repos/{owner}/{repo}/builds?limit=3` |
 | `/repos/new/`                    | repo onboarding wizard                  | `GET /api/repos/candidates`, `GET /api/repos/{owner}/{repo}/manifest`; confirms with `POST /api/repos` |
 | `/repos/{owner}/{repo}/`         | one repo's build feed                   | `GET /api/repos/{owner}/{repo}/builds`                                 |

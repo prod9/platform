@@ -52,7 +52,7 @@ superseded moves to `../scratch/` — `spec/` holds current design only, never h
   builds / engines / settings pages, and the shared components; the install wizard's UI
   stays in `installation.md`.
 - [`installation.md`](installation.md) — the server install model: the installer fragment,
-  the `GET /api/install` state surface, boot composition, the org-owner first-install
+  the `GET /api/installation` state surface, boot composition, the org-owner first-install
   gate, the install settings, by-hand App creation, and the org-wide GitHub→Flux delivery
   webhook.
 

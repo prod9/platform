@@ -3,7 +3,7 @@
 The **route surface**, the **install/boot flow**, and the **build lifecycle** are settled:
 the [Operations](#operations-settled-surface) table teaches the surface,
 [installation.md](installation.md) owns the install model (installer fragment,
-`GET /api/install`, boot composition), and [Build lifecycle](#build-lifecycle-event-sourced)
+`GET /api/installation`, boot composition), and [Build lifecycle](#build-lifecycle-event-sourced)
 owns the event-sourced record. Held for its own design pass: the **cluster view** — reading
 k8s + Flux state for pods, logs, and rollout continuity after a publish.
 
@@ -134,9 +134,9 @@ stub, which is why `github`'s own tests cannot use it.
 **Install state is stored in fx's settings app** (`fx.prodigy9.co/app/settings`), not a
 bespoke table ([installation.md](installation.md), "The install settings"). The settings
 app contributes its schema only — srv mounts no settings REST surface. Every write goes
-through a purpose-built installer action (`POST /api/install/server`,
-`POST /api/install/org`, `POST /api/install/app`,
-`POST /api/install/credentials`, `POST /api/install/registry`, the claim) or
+through a purpose-built installation resource (`POST /api/installation/server`,
+`POST /api/installation/organization`, `POST /api/installation/github-app`,
+`POST /api/installation/credentials`, `POST /api/installation/registry`, the claim) or
 the model accessors (`settings.Get`/`Upsert`) directly; a generic key/value API would be
 an unauthenticated-write surface pre-install. Post-install the one reader is
 `GET /api/system/settings` — session-gated, read-only, and masking: a secret-valued key
@@ -184,15 +184,15 @@ lives under `/api`; GitHub-facing and health routes stay bare.
 | `GET /api/system/migrations`       | session                   | the ordered migration plan, one projected fx plan item per line; empty means current | the System / Migrations page; the client interprets each action for presentation |
 | `POST /api/system/migrations`      | session                   | applies a clean pending migrate plan; response is the freshly planned result           | the post-install run button owned by `srv/system`; distinct from the installer's pre-install migration operation |
 | `POST /hooks/github`        | App webhook HMAC          | records a registered repo's non-deleted push after signature verification              | registration admits builds; a valid push to an unregistered repo is ignored                                        |
-| `GET /api/install`          | none (installer fragment) | ordered install-state list; served **only while the server is unclaimed**             | drives the SPA installer-vs-app decision ([installation.md](installation.md)); its 404 *is* the "installed" signal |
-| `POST /api/install/claim`   | session (installer)       | org-owner claim: resolve installation→org, verify owner, write the `install.*` settings | the first-install gate; the App Setup URL lands on the webui install page, which posts here ([installation.md](installation.md)) |
-| `POST /api/install/app`     | none (installer)          | saves the creation-time quartet — app id, app slug, client id, webhook secret — as their `github.app_*` settings | what GitHub's creation form yields, saved as its own wizard step ([installation.md](installation.md)) |
-| `POST /api/install/credentials` | none (installer)      | saves the generated pair — private key, client secret — as their `github.app_*` settings | the keys GitHub generates after creation; both App steps write before login can exist — same ungated posture as the migrations button ([installation.md](installation.md)) |
-| `POST /api/install/registry` | none (installer)         | saves the ghcr push PAT as `registry.ghcr.io.token`                                   | ghcr accepts no App-derived credential ([vendor/ghcr-auth.md](../vendor/ghcr-auth.md)); same ungated posture |
-| `POST /api/install/server`  | none (installer)          | saves the server's public URL as `server.public_url`                                  | the one server-side truth of where the deployment lives — OAuth redirects derive from it ([installation.md](installation.md)) |
-| `POST /api/install/org`     | none (installer)          | saves the primary-org slug as `github.org`                                            | the slug every wizard GitHub link is built from ([installation.md](installation.md)); same ungated posture |
-| `POST /api/install/migrations` | none (installer)       | applies pending migrations                                                            | the wizard's run-migrations button; re-runnable, applies only what is missing ([installation.md](installation.md)) |
-| `GET /*`                    | none                      | serves the embedded webui at the status the path deserves; the SPA drives installer-vs-app via `GET /api/install`  | single-binary delivery — no separate frontend deploy                                                               |
+| `GET /api/installation`          | none (installer fragment) | ordered installation-state list; served **only while the server is unclaimed**       | drives the SPA installer-vs-app decision ([installation.md](installation.md)); its 404 *is* the "installed" signal |
+| `POST /api/installation/claim`   | session (installer)       | creates the org-owner claim: resolve installation→org, verify owner, write the `install.*` settings | the first-install gate; the App Setup URL lands on the webui installation page, which posts here ([installation.md](installation.md)) |
+| `POST /api/installation/github-app` | none (installer)      | updates the GitHub App resource with app id, app slug, client id, and webhook secret | what GitHub's creation form yields, saved as its own wizard step ([installation.md](installation.md)) |
+| `POST /api/installation/credentials` | none (installer)     | updates the credentials resource with the private key and client secret              | the keys GitHub generates after creation; both App steps write before login can exist — same ungated posture as the migrations button ([installation.md](installation.md)) |
+| `POST /api/installation/registry` | none (installer)      | updates the registry resource with the ghcr push PAT                                  | ghcr accepts no App-derived credential ([vendor/ghcr-auth.md](../vendor/ghcr-auth.md)); same ungated posture |
+| `POST /api/installation/server`  | none (installer)       | updates the server resource with its public URL                                       | the one server-side truth of where the deployment lives — OAuth redirects derive from it ([installation.md](installation.md)) |
+| `POST /api/installation/organization` | none (installer) | updates the organization resource with its primary-org slug                           | the slug every wizard GitHub link is built from ([installation.md](installation.md)); same ungated posture |
+| `POST /api/installation/migrations` | none (installer)    | creates the pending migration applications                                            | the wizard's run-migrations button; re-runnable, applies only what is missing ([installation.md](installation.md)) |
+| `GET /*`                    | none                      | serves the embedded webui at the status the path deserves; the SPA drives installer-vs-app via `GET /api/installation` | single-binary delivery — no separate frontend deploy |
 
 **Module resolution is a static fact, not a route.** `go get platform.prodigy9.co`
 resolves through a `go-import` meta tag baked into the SPA's page shell — every
