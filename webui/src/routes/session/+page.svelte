@@ -5,8 +5,8 @@
 	const retryURL = signInRetryURL(window.location.search);
 </script>
 
-<section class="signin">
-	<p class="label">GitHub sign-in</p>
+<section class="session">
+	<p class="label">GitHub session</p>
 	<h1>Sign-in did not complete.</h1>
 	<p class="muted">
 		GitHub cancelled the request or could not finish it. Nothing will retry until you
@@ -16,7 +16,7 @@
 </section>
 
 <style>
-	.signin {
+	.session {
 		max-width: 38rem;
 		padding: var(--lead-3) 0;
 	}

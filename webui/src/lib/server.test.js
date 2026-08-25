@@ -81,8 +81,8 @@ describe("session recovery", () => {
 		expect(browser.assigned).toEqual([]);
 	});
 
-	test("the sign-in failure page cannot start a recovery loop", () => {
-		expect(shouldRecoverSession(401, "/signin/")).toBe(false);
+	test("the session failure page cannot start a recovery loop", () => {
+		expect(shouldRecoverSession(401, "/session/")).toBe(false);
 		expect(shouldRecoverSession(401, "/repos/new/")).toBe(true);
 	});
 

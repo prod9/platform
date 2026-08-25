@@ -87,7 +87,7 @@ function recoverSession() {
 
 export function shouldRecoverSession(status, pathname) {
 	const normalizedPath = pathname.replace(/\/+$/, "");
-	return status === 401 && normalizedPath !== "/signin";
+	return status === 401 && normalizedPath !== "/session";
 }
 
 // A refusal's body is the handler's plain-text reason; a successful body is JSON. Reading

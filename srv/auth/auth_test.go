@@ -331,7 +331,7 @@ func TestGitHubCallbackStateMismatch(t *testing.T) {
 	resp := httptest.NewRecorder()
 	router.ServeHTTP(resp, missingCookie)
 	require.Equal(t, http.StatusTemporaryRedirect, resp.Code)
-	require.Equal(t, "/signin/?return=%2F", resp.Header().Get("Location"))
+	require.Equal(t, "/session/?return=%2F", resp.Header().Get("Location"))
 
 	mismatched := httptest.NewRequest("GET", "/auth/github/callback?code=C&state=abc", nil)
 	mismatched.AddCookie(&http.Cookie{Name: oauthStateCookie, Value: "xyz"})
@@ -362,7 +362,7 @@ func TestGitHubCallbackLogsFailureBeforeRetryRedirect(t *testing.T) {
 
 	require.ErrorIs(t, logged, github.ErrNoApp)
 	require.Equal(t, http.StatusTemporaryRedirect, resp.Code)
-	require.Equal(t, "/signin/?installation_id=7&return=%2Frepos%2F", resp.Header().Get("Location"))
+	require.Equal(t, "/session/?installation_id=7&return=%2Frepos%2F", resp.Header().Get("Location"))
 }
 
 func TestExchangeOAuthCode(t *testing.T) {

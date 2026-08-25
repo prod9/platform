@@ -55,7 +55,11 @@
 	}
 
 	async function routeToSide(installing) {
-		const onInstall = page.url.pathname.replace(/\/+$/, "") === "/install";
+		const path = page.url.pathname.replace(/\/+$/, "");
+		const onInstall = path === "/install";
+		if (path === "/session") {
+			return;
+		}
 		if (installing && !onInstall) {
 			await goto("/install/");
 		} else if (!installing && onInstall) {

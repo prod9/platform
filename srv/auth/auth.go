@@ -435,7 +435,7 @@ func redirectSignIn(resp http.ResponseWriter, req *http.Request, returnTo string
 	if installationID > 0 {
 		query.Set("installation_id", strconv.FormatInt(installationID, 10))
 	}
-	render.Redirect(resp, req, "/signin/?"+query.Encode())
+	render.Redirect(resp, req, "/session/?"+query.Encode())
 }
 
 func failOAuth(resp http.ResponseWriter, req *http.Request, bound oauthState, err error) {
