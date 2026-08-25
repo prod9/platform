@@ -31,7 +31,7 @@ does not introduce itself.
 
 | Route                            | Page                                    | Reads                                                                  |
 |----------------------------------|-----------------------------------------|------------------------------------------------------------------------|
-| `/signin/`                       | retryable GitHub sign-in failure        | none                                                                   |
+| `/session/`                      | absent or failed login session          | none                                                                   |
 | `/`                              | repos landing (+ the sign-in door)      | `GET /api/repos`, fan-out `GET /api/repos/{owner}/{repo}/builds?limit=3` |
 | `/repos/new/`                    | repo onboarding wizard                  | `GET /api/repos/candidates`, `GET /api/repos/{owner}/{repo}/manifest`; confirms with `POST /api/repos` |
 | `/repos/{owner}/{repo}/`         | one repo's build feed                   | `GET /api/repos/{owner}/{repo}/builds`                                 |
@@ -67,7 +67,7 @@ reads cannot create redirect loops. A cancelled or failed OAuth attempt returns 
 dedicated sign-in state carrying the preserved destination and a retry action; it does not
 automatically redirect again.
 
-That state is `/signin/`. Its retry targets `/auth/github` with the preserved same-origin
+That state is `/session/`. Its retry targets `/auth/github` with the preserved same-origin
 path and query; the browser keeps the fragment in session storage under the destination so
 only the matching successful return restores it. During installation, the sign-in URL also
 carries the App `installation_id` from the setup landing URL because no bound installation

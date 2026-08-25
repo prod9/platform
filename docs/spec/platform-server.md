@@ -225,7 +225,7 @@ return location, and the callback uses it to build the first authorization snaps
 installation record; a request parameter cannot select another installation.
 
 OAuth denial, callback failure, or missing callback inputs redirects to the webui's
-`/signin/` recovery state with the bound return location. The page states that sign-in did
+`/session/` recovery state with the bound return location. The page states that sign-in did
 not complete and offers one explicit retry; it never redirects automatically. The retry
 starts a new OAuth attempt, while a successful callback returns directly to the interrupted
 location.
