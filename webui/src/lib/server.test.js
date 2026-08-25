@@ -42,8 +42,8 @@ function browserAt(href) {
 
 describe("session recovery", () => {
 	test("authentication binds the return location and pre-claim installation", () => {
-		expect(authenticationURL("/install/?installation_id=84", "84")).toBe(
-			"/auth/github?return=%2Finstall%2F%3Finstallation_id%3D84&installation_id=84",
+		expect(authenticationURL("/installation/?installation_id=84", "84")).toBe(
+			"/auth/github?return=%2Finstallation%2F%3Finstallation_id%3D84&installation_id=84",
 		);
 	});
 
@@ -87,7 +87,7 @@ describe("session recovery", () => {
 	});
 
 	test("the install probe never starts session recovery", async () => {
-		const browser = browserAt("https://platform.example/install/");
+		const browser = browserAt("https://platform.example/installation/");
 		globalThis.fetch = async () => ({
 			ok: false,
 			status: 401,
@@ -102,13 +102,13 @@ describe("session recovery", () => {
 
 	test("pre-claim recovery binds the installation from the setup landing", () => {
 		const browser = browserAt(
-			"https://platform.example/install/?installation_id=84#claim",
+			"https://platform.example/installation/?installation_id=84#claim",
 		);
 
 		expect(prepareReauthentication()).toBe(
-			"/auth/github?return=%2Finstall%2F%3Finstallation_id%3D84&installation_id=84",
+			"/auth/github?return=%2Finstallation%2F%3Finstallation_id%3D84&installation_id=84",
 		);
-		expect(browser.stored.get("auth.fragment:/install/?installation_id=84")).toBe(
+		expect(browser.stored.get("auth.fragment:/installation/?installation_id=84")).toBe(
 			"#claim",
 		);
 	});

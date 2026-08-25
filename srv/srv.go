@@ -161,7 +161,7 @@ func (UI) Mount(_ *config.Source, router chi.Router) error {
 }
 
 func installRoute(path string) bool {
-	return path == "/install" || strings.HasPrefix(path, "/install/")
+	return path == "/installation" || strings.HasPrefix(path, "/installation/")
 }
 
 func productPage(path string, prerendered bool) bool {

@@ -33,7 +33,7 @@
 	];
 
 	// Install is a gate, not a destination: it never appears in the nav, and the server
-	// decides which side of it a visitor is on. GET /api/install is served only while the
+	// decides which side of it a visitor is on. GET /api/installation is served only while the
 	// installer fragment is mounted, so specifically a 404 is the installed signal — no
 	// answer, or a server erroring on the probe, is neither state, and routing on it
 	// would be a guess, so the shell stays shut and says why.
@@ -61,7 +61,7 @@
 			return;
 		}
 		if (installing && !onInstall) {
-			await goto("/install/");
+			await goto("/installation/");
 		} else if (!installing && onInstall) {
 			await goto("/");
 		}

@@ -1,5 +1,5 @@
 <script>
-	// The install gate. GET /api/install returns the ordered checklist; the progress
+	// The installation gate. GET /api/installation returns the ordered checklist; the progress
 	// list is navigation — the default selection is the first non-fully-ready entry,
 	// clicking an entry opens its panel — and the page renders three columns: progress
 	// on the left, the selected step's action in the middle, its operative
@@ -86,10 +86,10 @@
 	const installationID = Number(landed ?? sessionStorage.getItem(stashKey));
 	const signInURL = installationID
 		? authenticationURL(
-				`/install/?installation_id=${installationID}`,
+				`/installation/?installation_id=${installationID}`,
 				String(installationID),
 			)
-		: authenticationURL("/install/", null);
+		: authenticationURL("/installation/", null);
 
 	// current is the one panel on screen: the operator's pick, or the wizard's next.
 	let current = $derived(
@@ -679,7 +679,7 @@
 						<li>Homepage URL: <code>{base}</code></li>
 						<li>Callback URL: <code>{base}/auth/github/callback</code></li>
 						<li>
-							Setup URL: <code>{base}/install/</code>, with
+							Setup URL: <code>{base}/installation/</code>, with
 							<strong>Redirect on update</strong> checked — GitHub sends the browser
 							back here after the App is installed later.
 						</li>

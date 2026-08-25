@@ -1,6 +1,7 @@
 // Package install is the platform server's installer fragment: the install.* settings
-// binding the server to one org, the ordered install-state surface (GET /api/install),
-// the migrations remediation, and the org-owner claim (POST /api/install/claim). The
+// binding the server to one org, the ordered installation-state surface
+// (GET /api/installation), the migrations remediation, and the org-owner claim
+// (POST /api/installation/claim). The
 // fragment remains mounted after claim and its routes are gated by install state.
 package install
 

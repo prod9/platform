@@ -71,7 +71,7 @@ func setupClaim(t *testing.T, membershipStatus int, membershipBody string) *clai
 }
 
 func (h *claimHarness) claim(withCookie bool) *httptest.ResponseRecorder {
-	req := httptest.NewRequest("POST", "/api/install/claim",
+	req := httptest.NewRequest("POST", "/api/installation/claim",
 		strings.NewReader(`{"installation_id":7}`)).WithContext(h.ctx)
 	if withCookie {
 		req.AddCookie(&http.Cookie{Name: "platform_session", Value: h.token})

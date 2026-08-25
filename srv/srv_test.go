@@ -54,7 +54,7 @@ func TestUIHidesInstallerRouteAfterClaim(t *testing.T) {
 	ctx := srvtest.SetupDB(t)
 	seedClaim(t, ctx)
 
-	resp := serve(ctx, uiRouter(t), "/install/")
+	resp := serve(ctx, uiRouter(t), "/installation/")
 	require.Equal(t, http.StatusNotFound, resp.Code)
 }
 

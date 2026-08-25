@@ -152,11 +152,11 @@ export function installSignal(result) {
 
 // installState reads the ordered checklist; installSignal above interprets the result.
 export function installState() {
-	return probe("/api/install");
+	return probe("/api/installation");
 }
 
 export function runMigrations() {
-	return call("/api/install/migrations", { method: "POST" });
+	return call("/api/installation/migrations", { method: "POST" });
 }
 
 export function systemSettings() {
@@ -187,37 +187,37 @@ export function classifyMigrationPlan(plan) {
 // saveServer is the wizard's name-the-server step: the public URL every later
 // panel's server-side URL renders from. The response is a fresh install-state read.
 export function saveServer(payload) {
-	return post("/api/install/server", payload);
+	return post("/api/installation/server", payload);
 }
 
 // saveOrg is the wizard's name-the-org step: the primary-org slug every later
 // panel's GitHub links are built from. The response is a fresh install-state read.
 export function saveOrg(payload) {
-	return post("/api/install/org", payload);
+	return post("/api/installation/organization", payload);
 }
 
 // saveApp is the wizard's create-the-App step: the trio GitHub's creation form
 // yields, entered on the install page. The response is a fresh install-state read.
 export function saveApp(payload) {
-	return post("/api/install/app", payload);
+	return post("/api/installation/github-app", payload);
 }
 
 // saveCredentials is the wizard's generated-keys step: the pair GitHub generates on
 // the created App's settings page. The response is a fresh install-state read.
 export function saveCredentials(payload) {
-	return post("/api/install/credentials", payload);
+	return post("/api/installation/credentials", payload);
 }
 
 // saveRegistryToken is the wizard's registry step: the ghcr push PAT the operator
 // creates by hand. The response is a fresh install-state read.
 export function saveRegistryToken(payload) {
-	return post("/api/install/registry", payload);
+	return post("/api/installation/registry", payload);
 }
 
 // claimInstall is the org-owner claim: the App's Setup URL lands the browser on the
 // install page with an installation_id, and this posts it (docs/spec/installation.md).
 export function claimInstall(installationID) {
-	return post("/api/install/claim", { installation_id: installationID });
+	return post("/api/installation/claim", { installation_id: installationID });
 }
 
 export function currentUser() {

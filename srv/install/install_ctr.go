@@ -22,12 +22,12 @@ type InstallCtr struct{}
 var _ controllers.Interface = InstallCtr{}
 
 func (c InstallCtr) Mount(cfg *config.Source, router chi.Router) error {
-	router.Route("/api/install", func(r chi.Router) {
+	router.Route("/api/installation", func(r chi.Router) {
 		r.Get("/", c.getState)
 		r.Post("/migrations", c.runMigrations)
 		r.Post("/server", c.saveServer)
-		r.Post("/org", c.saveOrg)
-		r.Post("/app", c.saveApp)
+		r.Post("/organization", c.saveOrg)
+		r.Post("/github-app", c.saveApp)
 		r.Post("/credentials", c.saveCredentials)
 		r.Post("/registry", c.saveRegistryToken)
 		r.Post("/claim", c.claim)

@@ -20,7 +20,7 @@ func TestGetInstallReturnsOrderedEntries(t *testing.T) {
 	ctx, router := setupAPI(t)
 
 	resp := httptest.NewRecorder()
-	router.ServeHTTP(resp, httptest.NewRequest("GET", "/api/install", nil).WithContext(ctx))
+	router.ServeHTTP(resp, httptest.NewRequest("GET", "/api/installation", nil).WithContext(ctx))
 	require.Equal(t, http.StatusOK, resp.Code)
 
 	var entries []Entry
@@ -47,7 +47,7 @@ func TestInstallControllerMountsWithoutProcessLocalGate(t *testing.T) {
 func TestPostServerSavesSetting(t *testing.T) {
 	ctx, router := setupAPI(t)
 
-	resp := postJSON(ctx, router, "/api/install/server", `{"public_url": "https://platform.example.com"}`)
+	resp := postJSON(ctx, router, "/api/installation/server", `{"public_url": "https://platform.example.com"}`)
 	require.Equal(t, http.StatusOK, resp.Code)
 
 	publicURL, err := github.LoadPublicURL(ctx)
@@ -58,7 +58,7 @@ func TestPostServerSavesSetting(t *testing.T) {
 func TestPostServerRequired(t *testing.T) {
 	ctx, router := setupAPI(t)
 
-	resp := postJSON(ctx, router, "/api/install/server", `{"public_url": ""}`)
+	resp := postJSON(ctx, router, "/api/installation/server", `{"public_url": ""}`)
 	require.Equal(t, http.StatusBadRequest, resp.Code)
 
 	_, err := github.LoadPublicURL(ctx)
@@ -70,7 +70,7 @@ func TestPostServerRequired(t *testing.T) {
 func TestPostOrgSavesSetting(t *testing.T) {
 	ctx, router := setupAPI(t)
 
-	resp := postJSON(ctx, router, "/api/install/org", `{"org": "prod9"}`)
+	resp := postJSON(ctx, router, "/api/installation/organization", `{"org": "prod9"}`)
 	require.Equal(t, http.StatusOK, resp.Code)
 
 	org, err := github.LoadOrg(ctx)
@@ -81,7 +81,7 @@ func TestPostOrgSavesSetting(t *testing.T) {
 func TestPostOrgRequired(t *testing.T) {
 	ctx, router := setupAPI(t)
 
-	resp := postJSON(ctx, router, "/api/install/org", `{"org": ""}`)
+	resp := postJSON(ctx, router, "/api/installation/organization", `{"org": ""}`)
 	require.Equal(t, http.StatusBadRequest, resp.Code)
 
 	_, err := github.LoadOrg(ctx)
@@ -94,7 +94,7 @@ func TestPostOrgRequired(t *testing.T) {
 func TestPostAppThenCredentialsSavesSettings(t *testing.T) {
 	ctx, router := setupAPI(t)
 
-	resp := postJSON(ctx, router, "/api/install/app", `{
+	resp := postJSON(ctx, router, "/api/installation/github-app", `{
 		"app_id": 42,
 		"app_slug": "prodigy9-platform",
 		"client_id": "Iv1.abc",
@@ -102,7 +102,7 @@ func TestPostAppThenCredentialsSavesSettings(t *testing.T) {
 	}`)
 	require.Equal(t, http.StatusOK, resp.Code)
 
-	resp = postJSON(ctx, router, "/api/install/credentials", `{
+	resp = postJSON(ctx, router, "/api/installation/credentials", `{
 		"private_key": "-----BEGIN RSA PRIVATE KEY-----",
 		"client_secret": "csec"
 	}`)
@@ -124,7 +124,7 @@ func TestPostAppThenCredentialsSavesSettings(t *testing.T) {
 func TestPostAppAloneLeavesCredentialsUnset(t *testing.T) {
 	ctx, router := setupAPI(t)
 
-	resp := postJSON(ctx, router, "/api/install/app", `{
+	resp := postJSON(ctx, router, "/api/installation/github-app", `{
 		"app_id": 42,
 		"app_slug": "prodigy9-platform",
 		"client_id": "Iv1.abc",
@@ -150,13 +150,13 @@ func TestPostAppAloneLeavesCredentialsUnset(t *testing.T) {
 func TestPostAppAllRequired(t *testing.T) {
 	ctx, router := setupAPI(t)
 
-	resp := postJSON(ctx, router, "/api/install/app", `{
+	resp := postJSON(ctx, router, "/api/installation/github-app", `{
 		"app_id": 42,
 		"client_id": "Iv1.abc"
 	}`)
 	require.Equal(t, http.StatusBadRequest, resp.Code)
 
-	resp = postJSON(ctx, router, "/api/install/app", `{
+	resp = postJSON(ctx, router, "/api/installation/github-app", `{
 		"app_id": 42,
 		"client_id": "Iv1.abc",
 		"webhook_secret": "whsec"
@@ -170,7 +170,7 @@ func TestPostAppAllRequired(t *testing.T) {
 func TestPostCredentialsAllRequired(t *testing.T) {
 	ctx, router := setupAPI(t)
 
-	resp := postJSON(ctx, router, "/api/install/credentials", `{
+	resp := postJSON(ctx, router, "/api/installation/credentials", `{
 		"private_key": "-----BEGIN RSA PRIVATE KEY-----"
 	}`)
 	require.Equal(t, http.StatusBadRequest, resp.Code)
@@ -188,13 +188,13 @@ func TestUngatedPostWithoutDBUnavailable(t *testing.T) {
 	ctr := InstallCtr{}
 	require.NoError(t, ctr.Mount(cfg, router))
 
-	resp := postJSON(context.Background(), router, "/api/install/credentials", `{"private_key": "x"}`)
+	resp := postJSON(context.Background(), router, "/api/installation/credentials", `{"private_key": "x"}`)
 	require.Equal(t, http.StatusServiceUnavailable, resp.Code)
 
-	resp = postJSON(context.Background(), router, "/api/install/app", `{"app_id": 1}`)
+	resp = postJSON(context.Background(), router, "/api/installation/github-app", `{"app_id": 1}`)
 	require.Equal(t, http.StatusServiceUnavailable, resp.Code)
 
-	resp = postJSON(context.Background(), router, "/api/install/migrations", "")
+	resp = postJSON(context.Background(), router, "/api/installation/migrations", "")
 	require.Equal(t, http.StatusServiceUnavailable, resp.Code)
 }
 
