@@ -25,7 +25,7 @@ func insertManifestSnapshot(scope data.Scope, repoID int64, sha, raw string, mod
 	err = scope.Get(&snapshotID, `
 			INSERT INTO repo_manifests (
 				repo_id, sha, raw, maintainer, repository, platform,
-				local_arch, publish_arch, strategy, server_publish, excludes, vars
+				local_arch, publish_arch, strategy, publish_policy, excludes, vars
 			)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 			RETURNING id`,

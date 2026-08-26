@@ -154,11 +154,11 @@ func register(resp http.ResponseWriter, req *http.Request) {
 }
 
 type manifestResponse struct {
-	SHA        string             `json:"sha"`
-	Maintainer string             `json:"maintainer"`
-	Repository string             `json:"repository"`
-	Publish    conf.ServerPublish `json:"server_publish"`
-	Modules    []moduleResponse   `json:"modules"`
+	SHA           string             `json:"sha"`
+	Maintainer    string             `json:"maintainer"`
+	Repository    string             `json:"repository"`
+	PublishPolicy conf.PublishPolicy `json:"publish_policy"`
+	Modules       []moduleResponse   `json:"modules"`
 }
 
 type moduleResponse struct {
@@ -201,11 +201,11 @@ func manifest(resp http.ResponseWriter, req *http.Request) {
 	}
 
 	out := manifestResponse{
-		SHA:        observed.SHA,
-		Maintainer: parsed.Maintainer,
-		Repository: parsed.Repository,
-		Publish:    parsed.Server.Publish,
-		Modules:    []moduleResponse{},
+		SHA:           observed.SHA,
+		Maintainer:    parsed.Maintainer,
+		Repository:    parsed.Repository,
+		PublishPolicy: parsed.Server.Publish,
+		Modules:       []moduleResponse{},
 	}
 	for name, module := range parsed.Modules {
 		out.Modules = append(out.Modules, moduleResponse{name, module.Framework, module.WorkDir})
@@ -220,7 +220,7 @@ func parseManifest(raw []byte, repo string) (*conf.Model, error) {
 		return nil, err
 	}
 
-	policy, err := model.ResolveServerPublish(repo)
+	policy, err := model.ResolvePublishPolicy(repo)
 	if err != nil {
 		return nil, err
 	}

@@ -211,18 +211,18 @@ func TestRegisterRepoRecordsAndConflicts(t *testing.T) {
 	require.Equal(t, userID, row.RegisteredBy)
 
 	var snapshot struct {
-		SHA        string `db:"sha"`
-		Raw        string `db:"raw"`
-		Repository string `db:"repository"`
-		Publish    string `db:"server_publish"`
+		SHA           string `db:"sha"`
+		Raw           string `db:"raw"`
+		Repository    string `db:"repository"`
+		PublishPolicy string `db:"publish_policy"`
 	}
 	require.NoError(t, data.Get(ctx, &snapshot, `
-		SELECT sha, raw, repository, server_publish
+		SELECT sha, raw, repository, publish_policy
 		FROM repo_manifests WHERE repo_id = $1`, row.ID))
 	require.Equal(t, "abc123", snapshot.SHA)
 	require.Contains(t, snapshot.Raw, `[modules.web]`)
 	require.Equal(t, "github.com/prodigy9/app", snapshot.Repository)
-	require.Equal(t, "never", snapshot.Publish)
+	require.Equal(t, "never", snapshot.PublishPolicy)
 
 	var module struct {
 		Name      string `db:"name"`
@@ -282,11 +282,11 @@ func TestManifestParsesPlatformTOML(t *testing.T) {
 	require.Equal(t, http.StatusOK, resp.Code)
 
 	var manifest struct {
-		SHA        string `json:"sha"`
-		Maintainer string `json:"maintainer"`
-		Repository string `json:"repository"`
-		Publish    string `json:"server_publish"`
-		Modules    []struct {
+		SHA           string `json:"sha"`
+		Maintainer    string `json:"maintainer"`
+		Repository    string `json:"repository"`
+		PublishPolicy string `json:"publish_policy"`
+		Modules       []struct {
 			Name      string `json:"name"`
 			Framework string `json:"framework"`
 			WorkDir   string `json:"workdir"`
@@ -295,7 +295,7 @@ func TestManifestParsesPlatformTOML(t *testing.T) {
 	require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &manifest))
 	require.Equal(t, "abc123", manifest.SHA)
 	require.Equal(t, "github.com/prodigy9/app", manifest.Repository)
-	require.Equal(t, "never", manifest.Publish)
+	require.Equal(t, "never", manifest.PublishPolicy)
 	require.Len(t, manifest.Modules, 1)
 	require.Equal(t, "web", manifest.Modules[0].Name)
 	require.Equal(t, "pnpm/basic", manifest.Modules[0].Framework)

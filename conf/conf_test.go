@@ -77,29 +77,29 @@ framework = "pnpm/basic"
 	r.Error(t, err)
 }
 
-func TestResolveServerPublish(t *testing.T) {
+func TestResolvePublishPolicy(t *testing.T) {
 	t.Run("explicit policy wins", func(t *testing.T) {
 		proj, err := Parse([]byte("[server]\npublish = \"never\"\n"))
 		r.NoError(t, err)
 
-		policy, err := proj.ResolveServerPublish("prod9-infra")
+		policy, err := proj.ResolvePublishPolicy("prod9-infra")
 		r.NoError(t, err)
-		r.Equal(t, ServerPublishNever, policy)
+		r.Equal(t, PublishPolicyNever, policy)
 	})
 
 	t.Run("infra names publish every successful build", func(t *testing.T) {
 		for _, name := range []string{"infra", "prod9-infra"} {
-			policy, err := (&Model{}).ResolveServerPublish(name)
+			policy, err := (&Model{}).ResolvePublishPolicy(name)
 			r.NoError(t, err)
-			r.Equal(t, ServerPublishAlways, policy)
+			r.Equal(t, PublishPolicyAlways, policy)
 		}
 	})
 
 	t.Run("only a case-sensitive infra suffix matches", func(t *testing.T) {
 		for _, name := range []string{"app", "infrastructure", "infra-app", "PROD9-INFRA"} {
-			policy, err := (&Model{}).ResolveServerPublish(name)
+			policy, err := (&Model{}).ResolvePublishPolicy(name)
 			r.NoError(t, err)
-			r.Equal(t, ServerPublishTags, policy)
+			r.Equal(t, PublishPolicyTags, policy)
 		}
 	})
 
@@ -107,7 +107,7 @@ func TestResolveServerPublish(t *testing.T) {
 		proj, err := Parse([]byte("[server]\npublish = \"sometimes\"\n"))
 		r.NoError(t, err)
 
-		_, err = proj.ResolveServerPublish("app")
+		_, err = proj.ResolvePublishPolicy("app")
 		r.Error(t, err)
 	})
 }

@@ -42,7 +42,7 @@ func (r *RegisterRepo) Validate() error {
 }
 
 func (r *RegisterRepo) Execute(ctx context.Context, out any) error {
-	policy, err := r.Manifest.ResolveServerPublish(r.Repo)
+	policy, err := r.Manifest.ResolvePublishPolicy(r.Repo)
 	if err != nil {
 		return err
 	}

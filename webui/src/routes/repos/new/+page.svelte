@@ -43,7 +43,7 @@
 
 	let current = $derived(picked === null ? "access" : reviewing ? "review" : "manifest");
 	let policy = $derived(
-		manifest === null ? null : publishPolicyDetails(manifest.server_publish),
+		manifest === null ? null : publishPolicyDetails(manifest.publish_policy),
 	);
 
 	function stateOf(name) {

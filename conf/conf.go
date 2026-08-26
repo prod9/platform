@@ -49,10 +49,10 @@ type (
 	}
 
 	Server struct {
-		Publish ServerPublish `toml:"publish,omitempty"`
+		Publish PublishPolicy `toml:"publish,omitempty"`
 	}
 
-	ServerPublish string
+	PublishPolicy string
 
 	Module struct {
 		WorkDir   string           `toml:"workdir,omitempty"` // relative to platform.toml; "." when unset
@@ -79,9 +79,9 @@ type (
 )
 
 const (
-	ServerPublishAlways ServerPublish = "always"
-	ServerPublishTags   ServerPublish = "tags"
-	ServerPublishNever  ServerPublish = "never"
+	PublishPolicyAlways PublishPolicy = "always"
+	PublishPolicyTags   PublishPolicy = "tags"
+	PublishPolicyNever  PublishPolicy = "never"
 )
 
 var (
@@ -129,10 +129,10 @@ func Parse(data []byte) (*Model, error) {
 	return proj, nil
 }
 
-func (p *Model) ResolveServerPublish(repo string) (ServerPublish, error) {
+func (p *Model) ResolvePublishPolicy(repo string) (PublishPolicy, error) {
 	if p.Server.Publish != "" {
 		switch p.Server.Publish {
-		case ServerPublishAlways, ServerPublishTags, ServerPublishNever:
+		case PublishPolicyAlways, PublishPolicyTags, PublishPolicyNever:
 			return p.Server.Publish, nil
 		default:
 			return "", fmt.Errorf("unknown server publish policy %q", p.Server.Publish)
@@ -140,9 +140,9 @@ func (p *Model) ResolveServerPublish(repo string) (ServerPublish, error) {
 	}
 
 	if repo == "infra" || strings.HasSuffix(repo, "-infra") {
-		return ServerPublishAlways, nil
+		return PublishPolicyAlways, nil
 	}
-	return ServerPublishTags, nil
+	return PublishPolicyTags, nil
 }
 
 func Load(wd string) (*Model, error) {
