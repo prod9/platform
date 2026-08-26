@@ -68,6 +68,11 @@ reads cannot create redirect loops. A cancelled or failed OAuth attempt returns 
 dedicated sign-in state carrying the preserved destination and a retry action; it does not
 automatically redirect again.
 
+Every explicit GitHub sign-in action enters that same one-in-flight state synchronously on
+its first activation. The action immediately disables and reads **Signing in…**; another
+activation is refused before the browser leaves the page. A failed or cancelled OAuth flow
+returns as a fresh `/session/` document, whose retry begins idle again.
+
 That state is `/session/`. Its retry targets `/auth/github` with the preserved same-origin
 path and query; the browser keeps the fragment in session storage under the destination so
 only the matching successful return restores it. During installation, the sign-in URL also
