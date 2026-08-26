@@ -455,10 +455,10 @@ are jobs too. fx's queue is one-shot, so a recurring job reschedules itself at t
 
 **Two jobs carry a build**, and the split makes a module the unit of capacity and failure:
 
-| Job               | Shape                               | What it does                                                                                                                      |
-|-------------------|-------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------|
-| `dispatch-builds` | recurring, singleton                | Finds unclaimed build modules and schedules one `build-module` job for each; repeated scans reconcile missed scheduling.          |
-| `build-module`    | one-shot, payload = build-module id | Checks out source, loads config, invokes one build verb, and records the Observer stream.                                               |
+| Job               | Shape                               | What it does                                                                                                             |
+|-------------------|-------------------------------------|--------------------------------------------------------------------------------------------------------------------------|
+| `dispatch-builds` | recurring, singleton                | Finds unclaimed build modules and schedules one `build-module` job for each; repeated scans reconcile missed scheduling. |
+| `build-module`    | one-shot, payload = build-module id | Checks out source, loads config, invokes one build verb, and records the Observer stream.                                |
 
 All fx job names are dash-separated slugs.
 

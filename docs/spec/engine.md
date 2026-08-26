@@ -202,6 +202,11 @@ best-effort after its operation has finished, but it must observe and report the
 URL keys and mirror/worktree manipulation stay inside `engine`; callers receive no cache
 path or worktree identifier knob.
 
+`CHECKOUT_CACHE` sets the checkout cache root. Unset, `Checkout` uses the operating
+system's per-user cache directory plus `platform`; the worker deployment sets it to
+`/var/cache/platform`. This is engine configuration, not a `Source` field, so adapters do
+not choose storage per operation.
+
 ### One observer, ten callbacks
 
 An engine operation reports everything to **one** `Observer`, supplied by its caller. The
