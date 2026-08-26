@@ -304,7 +304,7 @@ repo_manifests                  -- one immutable platform.toml observation
   local_arch    text
   publish_arch  text
   strategy      text
-  server_publish text          -- resolved 'always' | 'tags' | 'never'
+  publish_policy text          -- resolved 'always' | 'tags' | 'never'
   excludes      text[]
   vars          jsonb
   created_at    timestamptz
@@ -421,7 +421,7 @@ The srv database and API call these records **modules**; **unit** begins only wh
 
 **Build cadence and publish cadence are separate.** Every non-deleted push to a registered
 repository records a build, whether its ref names a branch or any tag. After a successful
-build, the immutable manifest observation's resolved `server_publish` value selects the
+build, the immutable manifest observation's resolved `publish_policy` value selects the
 policy: `always` publishes under `latest`, `tags` publishes tag builds under the exact
 tag, and `never` does not publish. No `v` prefix has server meaning. The absent-field
 default is

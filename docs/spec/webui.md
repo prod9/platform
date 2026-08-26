@@ -98,8 +98,8 @@ instructions render on the right. The wizard separates three concerns:
    and resolved `[server].publish` policy. Policy is stated as behavior: which successful
    builds publish and which image tag they receive, not merely the config value. The
    confirm sends the reviewed sha, not manifest content; the server re-reads the immutable
-   commit and atomically stores the repository, exact raw manifest, parsed policy, and
-   parsed modules.
+   commit and atomically stores the repository, exact raw manifest, resolved
+   `publish_policy`, and parsed modules.
 
 Registration model: [platform-server.md](platform-server.md) §Repos are registered,
 authorization is GitHub-derived.
