@@ -67,22 +67,18 @@ func (r *RunBuild) execute(ctx context.Context, build *Build, scribe *transcribe
 		return err
 	}
 
-	prep := &PrepRepo{
-		CacheDir: CacheDir,
-		CloneURL: build.CloneURL,
-		Token:    token,
-		Owner:    build.Owner,
-		Repo:     build.Repo,
-		SHA:      build.SHA,
-		BuildID:  build.ID,
-	}
-	workDir, _, err := prep.Run(ctx)
+	worktree, err := engine.Checkout(ctx, engine.Source{
+		URL:      build.CloneURL,
+		Revision: build.SHA,
+		Username: "x-access-token",
+		Password: token,
+	})
 	if err != nil {
 		return err
 	}
-	defer r.cleanUp(ctx, build)
+	defer r.cleanUp(ctx, build.ID, worktree)
 
-	cfg, err := conf.Load(workDir)
+	cfg, err := conf.Load(worktree.Dir)
 	if err != nil {
 		return err
 	}
@@ -118,16 +114,10 @@ func (r *RunBuild) execute(ctx context.Context, build *Build, scribe *transcribe
 // cleanUp removes the build's worktree. It is best-effort by design: the build is over and
 // its outcome is already recorded, so a stale worktree is a cache to sweep rather than a
 // reason to call a finished build failed.
-func (r *RunBuild) cleanUp(ctx context.Context, build *Build) {
-	remove := &RemoveWorkTree{
-		CacheDir: CacheDir,
-		Owner:    build.Owner,
-		Repo:     build.Repo,
-		BuildID:  build.ID,
-	}
-	if err := remove.Run(ctx); err != nil {
+func (r *RunBuild) cleanUp(ctx context.Context, buildID int64, worktree *engine.Worktree) {
+	if err := worktree.Close(ctx); err != nil {
 		fxlog.Log("worktree left behind",
-			fxlog.Int64("build", build.ID),
+			fxlog.Int64("build", buildID),
 			fxlog.String("error", err.Error()))
 	}
 }

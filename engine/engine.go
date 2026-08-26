@@ -1,8 +1,8 @@
-// Package engine is the Dagger execution layer. It has two pieces and only one of them
-// carries a lifetime: the roster in this file — which engine endpoints exist and how to dial
-// one — and Session (session.go), the span during which the containers a build produced are
-// usable. There is deliberately no client pool: a *dagger.Client is a session rather than a
-// fungible connection, so pooling one is the abstraction this package rejects.
+// Package engine drives source checkout and Dagger execution. Checkout returns a Worktree
+// whose lifetime ends at Close; Session owns the separate span during which a build's
+// containers remain usable. The roster in this file knows which Dagger endpoints exist and
+// how to dial one. There is deliberately no client pool: a *dagger.Client is a session
+// rather than a fungible connection, so pooling one is the abstraction this package rejects.
 package engine
 
 import (
