@@ -65,6 +65,10 @@ The command prints the changelog for a confirm; `ALWAYS_YES=1` clears that confi
 TTY-less shell. `Create` writes an annotated tag **and pushes it** to the `gh` remote —
 there is no local-only mode, so this step is the point of no return.
 
+When the release contains server-side changes intended for deployment or live testing,
+run `go run . publish` after cutting the release and record the emitted image reference
+and digest for the infra deployment.
+
 ## 4. Push the branch
 
 ```sh
