@@ -153,6 +153,8 @@ successful job (`docs/spec/platform-server.md`).
 migration included in any published platform release as already applied to production data.
 Never modify, delete, rename, reorder, or replace a published migration — its up SQL, down
 SQL, filename, and sequence are immutable. Schema changes go in a new forward migration.
+Removing a migration from the registered source is deleting it, even when its schema is now
+owned or created by a dependency.
 The only exception is chakrit's explicit approval for the specific published-migration edit
 in the current session; no standing grant or general refactor authorization covers it.
 
