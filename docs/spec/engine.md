@@ -1,10 +1,10 @@
 # Engine
 
-Status: **design-of-record.** The `engine/` package is the source-to-image build facade.
-It accepts either an already-loaded local model or an immutable remote-repository request,
-then owns the lifecycle through source preparation, config interpretation, Dagger-runner
-placement, step execution, optional publication, and cleanup. Focused internals perform
-the work; callers never compose them ([`architecture.md`](architecture.md)).
+Status: **design-of-record.** The `engine/` package is the reusable source and build driver
+behind both CLI and server adapters. Its source verb materializes a remote revision as a
+managed local worktree; its session verbs interpret an already-loaded model, place work on
+Dagger runners, execute steps, and optionally publish. It knows nothing about the web
+application that invokes it ([`architecture.md`](architecture.md)).
 
 ## A `*dagger.Client` is a session, not a connection
 
@@ -58,19 +58,17 @@ Commands open **one** session and defer `Close`. It is safe for concurrent use, 
 `NewRun` does no dialing at all (a connection is taken at the first `Next`), so there is
 never a reason to open a second.
 
-The package-level remote facade is separate because srv needs no live container after the
-operation:
+Repository checkout is independent of a Dagger session:
 
 ```go
-BuildRepository(ctx, req RepositoryRequest, obs observer.Observer) RepositoryResult
+Checkout(ctx, source Source) (*Worktree, error)
 ```
 
-It opens and closes its own session. The request carries only immutable build facts and
-supplied secrets: work id, owner/repo, clone URL, commit sha, selected module, clone
-token, and an optional publish tag plus registry credentials. `RepositoryResult` is the
-finished scalar outcome; no Dagger handle escapes the closed session. srv resolves
-authorization and delivery policy before the call; engine owns executing the resulting
-request.
+`Source` carries only driver-level facts: URL, credential, and revision. `Worktree` exposes
+its directory and resolved commit SHA, and `Close(ctx)` removes it. Cache identity,
+credential injection, mirror synchronization, revision resolution, unique worktree paths,
+and pruning stay private. A hypothetical checkout CLI could call this surface directly;
+that is the boundary test, not a command this design adds.
 
 🚨 **A command that holds a session returns its errors; it never exits from inside.**
 `os.Exit` runs no deferred function, so a command that reaches `termlog.Fatalln` on a
@@ -122,9 +120,8 @@ Falling back to a local engine is **not** `hosts`' decision — it reports empti
 engine." So unset `DAGGER_ENGINE` is an explicit operator choice for local, never inferred.
 
 **The roster is unexported in full.** `hosts` and `dial` are reached only through
-`Session`; the package-level repository facade also reaches them by opening its own
-session. Nothing outside `engine/` needs an endpoint list, and exporting one invites a
-caller to dial around the facade that owns the result.
+`Session`. Nothing outside `engine/` needs an endpoint list, and exporting one invites a
+caller to dial around the driver that owns execution.
 
 **The one endpoint fact that does cross the boundary is the assigned one.** A run reports
 `EngineAssigned(unit, engine, at)` after its connection succeeds and before its first
@@ -177,32 +174,33 @@ that claim is only true if the empty plan is rejected. The run fails at open wit
 while `Plan` and `Execute` agree, this one while `Plan` returns anything at all, and both
 stay loud precisely because a silent version of either is a build stage that vanished.
 
-Repository preparation and publish bracket the framework loop; neither is a framework
-step. Engine owns both brackets. Publish being an engine bracket is load-bearing rather
-than descriptive: it runs while the run's connection is still a local variable, which
-lets the registry secret be minted on the same session as the container it authenticates.
+Repository checkout and publishing are engine capabilities; neither is a framework step.
+They remain independent because a worktree and a Dagger session have unrelated lifetimes.
+Publish being an engine bracket is load-bearing: it runs while the run's connection is
+still a local variable, so the registry secret belongs to the same session as the container
+it authenticates.
 
 ### Repository preparation
 
-`engine/internal/repoprep` materializes a remote request into a local worktree. It keeps
-one full bare mirror per repository, fetches it under a per-repository lock, resolves the
-requested commit, and creates an independently removable worktree keyed by work id. It
-uses plain `git`, because config loading, in-process CUE rendering, and Dagger
-`host.Directory` all need the same local filesystem tree.
+`Checkout` materializes a `Source` into a local `Worktree`. It keeps one full bare mirror
+per credential-free URL, fetches it under a per-mirror lock, resolves the requested commit,
+and creates a uniquely named, independently removable worktree. It uses plain `git`,
+because config loading, in-process CUE rendering, and Dagger `host.Directory` all need the
+same local filesystem tree.
 
 The clone token is injected into the fetch URL for that invocation only. The stored remote
 remains credential-free. Clones are never shallow because repositories may use history-
 dependent operations such as `git subtree`; the mirror makes later full fetches cheap.
 
 ```
-<cache>/git/<owner>/<repo>.git  <- bare mirror
-<cache>/work/<work-id>/         <- independent worktree
+<cache>/git/<opaque-url-key>.git  <- bare mirror
+<cache>/work/<unique-id>/         <- independent worktree
 ```
 
-Worktree cleanup is best-effort after every operation that successfully materialized one;
-a stale cache entry does not change the recorded build result. Path validation and
-mirror/worktree manipulation stay inside this internal package. No caller reaches through
-the engine facade to invoke repo preparation directly.
+`Worktree.Close` owns removal and mirror pruning. An adapter may treat cleanup as
+best-effort after its operation has finished, but it must observe and report the error.
+URL keys and mirror/worktree manipulation stay inside `engine`; callers receive no cache
+path or worktree identifier knob.
 
 ### One observer, ten callbacks
 
@@ -279,9 +277,9 @@ names.
 
 **The fold is a type of its own, and the observer that writes it is unexported.** The
 accumulator is only a writer; what the rest of the engine wants is the accumulated scalars.
-So `Outcome` — the three-field fold — is the type repository operations, `Run`, and
-`BuildResult` hold, and no field anywhere is typed as a concrete `Observer`
-implementation. Composition and the fold are handed over together by one constructor:
+So `Outcome` — the three-field fold — is the type `Run` and `BuildResult` hold, and no
+field anywhere is typed as a concrete `Observer` implementation. Composition and the fold
+are handed over together by one constructor:
 
 ```go
 func Accumulate(caller Observer) (Observer, *Outcome)
@@ -293,11 +291,10 @@ the accumulator; nothing inside it names one either beyond that constructor.
 **Observer-typed fields stay `Observer`** — specializing one to an implementation is what
 this shape exists to prevent.
 
-The wrap site is the engine entrypoint, before repository preparation or `Run` begins.
-The composed observer and fold travel together into `Run`, so `Run.Result()` still mints
-its scalars from that sole fold while a clone failure can mint `RepositoryResult` without
-constructing a run. Nil is eliminated once at that boundary: `Accumulate` returns the bare
-accumulator when `caller` is nil and `Tee(acc, caller)` otherwise.
+The wrap site is `NewRun`. The composed observer and fold travel together into `Run`, so
+`Run.Result()` mints its scalars from that sole fold. Nil is eliminated once at that
+boundary: `Accumulate` returns the bare accumulator when `caller` is nil and
+`Tee(acc, caller)` otherwise.
 
 `Tee`'s contract is **non-nil children only**, and the run's report path has no nil check
 at all. A caller that wants nothing simply passes nothing — the fold still happens, because
@@ -412,15 +409,15 @@ bound to a client and cannot cross a process boundary, while the scalar half is 
 in-process (a `BuildResult` handed back to `cmd`) and in-database (the same fold, persisted
 as `build_events` by the worker — see [platform-server.md](platform-server.md)).
 
-## The facade and runner boundary
+## The driver and runner boundary
 
-The `engine` package is the build-domain facade; a Dagger **runner** is execution
-capacity. The facade knows repository source, selected module, publish intent, and
-lifecycle. A runner receives a resolved `BuildUnit` and knows nothing of repositories,
-tags, queues, or why the build exists. Keeping those nouns separate lets engine own the
-operation without forcing every mechanism into one package.
+The `engine` package is a reusable driver; a Dagger **runner** is execution capacity.
+Checkout knows remote source mechanics. Build verbs know selected modules and optional
+publish intent. Neither knows repositories as web resources, queues, jobs, users,
+installations, or why an adapter requested the operation. A runner receives a resolved
+`BuildUnit` and knows even less: only how to execute it.
 
-The facade owns finding runner capacity and executing against it. srv owns deciding which
+The driver owns finding runner capacity and executing against it. srv owns deciding which
 record runs next, supplying authorized request facts, and recording the report.
 
 ### Two scheduling decisions, two layers
@@ -480,11 +477,11 @@ There is nothing to merge on the reporting side: every unit reports to the same 
 and names itself in each callback, so the fan-in *is* the observer. A per-unit failure
 surfaces as the `err` on that unit's `RunDone` and never aborts its siblings.
 
-`cmd` and the srv worker enter the **same facade** at the boundary their source permits.
-The CLI calls session verbs with an already-loaded local model and a progress-rendering
-observer. The worker calls `BuildRepository` with an immutable remote request and a
-`build_events` observer. The worker issues one facade call per module record; it never
-drives a `Run`, composes source preparation with execution, or sees the runner roster.
+`cmd` and the srv worker consume the same driver through different adapters. CLI build
+commands load a local model and call session verbs with a progress-rendering observer.
+The worker translates its persisted source facts into `Source`, calls `Checkout`, loads
+the returned directory through `conf`, then calls `Build` or `BuildAndPublish` with a
+`build_events` observer. Neither adapter drives a `Run` or sees the runner roster.
 
 ## Publishing
 

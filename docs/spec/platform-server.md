@@ -34,9 +34,9 @@ build of the exact commit; the worker later builds it and applies the manifest's
 publish policy. It owns the GitHub
 App, the DB, and token minting. It is a layer above the **shared packages** (the stateless
 build/render/publish machinery: `framework`, `engine`, `gitops`, …)
-and consumes them per request. The remote-build facade owns a short-lived engine `Session`
-for each module operation because srv retains no live container afterward. Local callers
-that need a result's container continue to hold their session explicitly; see
+and consumes them per request. The worker owns a short-lived engine `Session` for each
+module operation because srv retains no live container afterward. Local callers that need
+a result's container continue to hold their session explicitly; see
 [engine.md](engine.md), §`Session` — the unit of lifetime.
 
 ⚠️ **Two "sessions" meet in this file, and the clash is unresolved.** A **login session** is
@@ -458,7 +458,7 @@ are jobs too. fx's queue is one-shot, so a recurring job reschedules itself at t
 | Job               | Shape                               | What it does                                                                                                                      |
 |-------------------|-------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------|
 | `dispatch-builds` | recurring, singleton                | Finds unclaimed build modules and schedules one `build-module` job for each; repeated scans reconcile missed scheduling.          |
-| `build-module`    | one-shot, payload = build-module id | Claims one module, constructs the engine request and persistence Observer, calls engine once, and records its report.             |
+| `build-module`    | one-shot, payload = build-module id | Checks out source, loads config, invokes one build verb, and records the Observer stream.                                               |
 
 All fx job names are dash-separated slugs.
 
@@ -516,7 +516,7 @@ when the job itself could not do its work; a failed build returns nil. Collapsin
 vocabularies would put build state back in fx's `jobs` table, which is the mechanism's, not
 the domain's.
 
-**A build job is not called a "runner."** The fx worker executes jobs; the engine facade
+**A build job is not called a "runner."** The fx worker executes jobs; the engine driver
 owns builds; Dagger runners are the execution endpoints engine selects. Three live
 concepts, three distinct words.
 
@@ -660,11 +660,9 @@ domain for GitHub App events and Kubernetes events, and the bare noun would coll
 **A module result is an output fold.** It is the srv-side display model reduced from one
 build module's events; it is not an input to the build path, and the engine never sees it.
 
-`BuildResult` and `RepositoryResult` are **engine-side only**, and neither crosses this
-boundary. `BuildResult` may carry a live `*dagger.Container`; `RepositoryResult` is scalar
-because its facade closes the session before returning. The worker persists Observer
-callbacks as `build_events`, not either result struct, and nothing srv-side is typed in
-terms of them.
+`BuildResult` is engine-side only and may carry a live `*dagger.Container`. The worker
+persists Observer callbacks as `build_events`, not the result struct, and nothing srv-side
+is typed in terms of it.
 
 Persistence records **intent and observation, never runtime machinery**. The manifest and
 selected modules preserve what the trigger requested; the engine still interprets them
@@ -798,12 +796,12 @@ still GitHub-derived, still zero-RBAC.
 
 ## Repository source for server builds
 
-The job mints the installation token and supplies immutable repository facts, the selected
-module, work id, publish intent, and credentials to engine's remote-build facade. Engine
-owns repository preparation, config loading, unit interpretation, runner placement,
-execution, publication, lifecycle reporting, and cleanup. The clone/cache mechanism and
-layout are specified in [engine.md](engine.md), §Repository preparation; srv never invokes
-that mechanism directly.
+The job mints the installation token, translates the stored clone URL and commit into an
+engine `Source`, and calls `Checkout`. It loads `platform.toml` from the returned worktree,
+opens a short-lived `Session`, then invokes `Build` or `BuildAndPublish` according to the
+stored publish policy. Checkout/cache mechanics and Dagger execution stay inside engine;
+the job owns web-record interpretation, policy, sequencing, Observer persistence, and
+reporting a best-effort worktree cleanup failure.
 
 ## Sequencing
 

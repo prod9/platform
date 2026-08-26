@@ -5,15 +5,14 @@ conforms; existing code migrates toward it.
 
 ## The pipeline
 
-`platform` is a thin pipeline behind one build facade. Callers hand `engine` either an
-already-loaded local model or an immutable remote-repository request; engine delegates
-each stage and owns the source-to-image lifecycle. There is no shared mutable state and no
-caller composes the stages itself.
+`platform` is a thin pipeline driven by `engine`. Callers use its source and build verbs
+from either the CLI or `srv`; engine owns their mechanics without learning which adapter
+invoked them. There is no shared mutable state.
 
 ```
-local model ────────────────┐
-                            ├─▶ engine ─▶ source/config ─▶ BuildUnit ─▶ Run ─▶ image
-remote repository request ─┘
+remote source ─▶ engine.Checkout ─▶ local tree ─▶ conf.Model
+local tree ─────────────────────────────────────▶ conf.Model
+conf.Model ─▶ engine.Build / BuildAndPublish ─▶ BuildUnit ─▶ Run ─▶ image
 ```
 
 | Stage        | Package      | Responsibility                                              |
@@ -23,7 +22,7 @@ remote repository request ─┘
 | interpret    | `framework/` | config → **`[]*BuildUnit`** (one per selected module)       |
 | build model  | `framework/` | `BuildUnit` — the resolved, self-contained build def        |
 | strategies   | `framework/` | the `Framework` implementations — per-stack build knowledge |
-| engine       | `engine/`    | source-to-image facade; delegates preparation and execution |
+| engine       | `engine/`    | source checkout and build driver                           |
 
 This is a shared capability pipeline, not an invocation model. The local CLI and the
 CI/CD server are peer drivers of it, and delivery policy separately decides which
@@ -37,8 +36,8 @@ procedure constrains server builds.
 time work reaches engine's execution core, every fact the build needs already lives in
 the `BuildUnit`: workdir, image name, build dir, env, command, the resolved framework, and
 the **arch target**. The execution core reads fields; it does not get told things through
-call arguments. A remote request enters earlier because engine owns materializing and
-interpreting that source before constructing the same complete unit.
+call arguments. A remote source becomes a local tree through `Checkout`; its adapter then
+parses that tree before handing the same complete model to an engine build verb.
 
 This yields three standing rules:
 
@@ -129,14 +128,11 @@ graph `conf ← framework/scaffold ← framework ← scaffolding ← cmd`:
   resolves its framework once; the resulting `Target` exposes its `ScaffoldVars` and builds
   a read-only `Plan`; `Apply` preserves existing files and `ForceApply` overwrites them. Its
   Cobra adapter remains in `cmd/init_cmd.go`; the package owns no command registration.
-- `engine/` — the source-to-image facade. Local callers hand it an already-loaded model;
-  the server hands it an immutable repository request. It owns repository materialization,
-  config interpretation, Dagger-runner placement, step execution, optional publication,
-  cleanup, and the complete `Observer` lifecycle while delegating mechanics to focused
-  internals. `engine/internal/repoprep/` owns mirror/worktree mechanics; `Session` + `Run`
-  own Dagger execution; the roster owns endpoint discovery and selection. Multi-unit
-  fan-out stays behind engine verbs and no caller composes these pieces directly. See
-  [`engine.md`](engine.md).
+- `engine/` — the reusable source and build driver behind both CLI and server adapters.
+  `Checkout` materializes a URL and revision as a managed worktree; `Session` + `Run` own
+  Dagger execution; the roster owns endpoint discovery and selection. The package knows no
+  web resources, build records, users, installations, jobs, or delivery policy. Multi-unit
+  fan-out stays behind engine build verbs. See [`engine.md`](engine.md).
 - `dsl/` — the manifest-patch DSL (lexer, directive parser, in-buffer verbs), a
   self-contained language at the top level, peer of `cuemod/`. Consumed by
   `framework/gitops` render; extracted from it so the language stands on its own.
