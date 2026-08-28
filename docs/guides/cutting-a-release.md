@@ -66,8 +66,8 @@ TTY-less shell. `Create` writes an annotated tag **and pushes it** to the `gh` r
 there is no local-only mode, so this step is the point of no return.
 
 When the release contains server-side changes intended for deployment or live testing,
-run `go run . publish` after cutting the release and record the emitted image reference
-and digest for the infra deployment.
+run `go run . publish` after cutting the release. Report only the tag-qualified image name
+(`ghcr.io/prod9/platform:vX.Y.Z`) for the infra handoff; do not include the emitted digest.
 
 ## 4. Push the branch
 
