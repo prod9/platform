@@ -3,7 +3,7 @@
 	// reach — the nested-feed shape, each block heading its last three builds and
 	// linking into the repo's feed (docs/spec/webui.md). Signed out, the page is the
 	// sign-in door and nothing else.
-	import { session } from "$lib/session.svelte.js";
+	import { beginSignIn, session } from "$lib/session.svelte.js";
 	import { listRepos, listRepoBuilds, errorText, Answered } from "$lib/server.js";
 	import { latestStatus } from "$lib/repos.js";
 	import { tagOf, shortSHA, lastActivity } from "$lib/build.js";
@@ -55,7 +55,14 @@
 			Tag-triggered builds for the repos on this cluster. Sign in with the GitHub
 			account that pushes them.
 		</p>
-		<Button variant="primary" href="/auth/github">Sign in with GitHub</Button>
+		<Button
+			variant="primary"
+			href="/auth/github"
+			onclick={beginSignIn}
+			disabled={session.signingIn}
+		>
+			{session.signingIn ? "Signing in…" : "Sign in with GitHub"}
+		</Button>
 	</section>
 {:else if !loaded}
 	<p class="mono muted">Loading…</p>

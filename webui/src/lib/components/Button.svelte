@@ -9,9 +9,18 @@
 <!-- An <a> cannot be disabled, so a disabled link renders as the disabled button
      face — one disabling story for both faces. -->
 {#if href && !disabled}
-	<a class={variant ? `btn btn--${variant}` : "btn"} {href} target={target || undefined}>{@render children()}</a>
+	<a
+		class={variant ? `btn btn--${variant}` : "btn"}
+		{href}
+		target={target || undefined}
+		{onclick}
+	>
+		{@render children()}
+	</a>
 {:else}
-	<button class={variant ? `btn btn--${variant}` : "btn"} {disabled} {onclick}>{@render children()}</button>
+	<button class={variant ? `btn btn--${variant}` : "btn"} {disabled} {onclick}>
+		{@render children()}
+	</button>
 {/if}
 
 <style>

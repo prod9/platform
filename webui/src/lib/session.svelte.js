@@ -6,7 +6,16 @@ import { currentUser, endSession, Answered } from "./server.js";
 //
 // This is a *login* session. engine.Session is a different thing entirely — the span a
 // built container stays usable for — and the two never meet in this file.
-export const session = $state({ user: null });
+export const session = $state({ user: null, signingIn: false });
+
+export function beginSignIn(event) {
+	if (session.signingIn) {
+		event.preventDefault();
+		return;
+	}
+
+	session.signingIn = true;
+}
 
 export async function loadSession() {
 	const result = await currentUser();

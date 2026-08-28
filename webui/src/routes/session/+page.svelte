@@ -1,5 +1,6 @@
 <script>
 	import { signInRetryURL } from "$lib/server.js";
+	import { beginSignIn, session } from "$lib/session.svelte.js";
 	import Button from "$lib/components/Button.svelte";
 
 	const retryURL = signInRetryURL(window.location.search);
@@ -12,7 +13,14 @@
 		GitHub cancelled the request or could not finish it. Nothing will retry until you
 		ask it to.
 	</p>
-	<Button variant="primary" href={retryURL}>Try GitHub again</Button>
+	<Button
+		variant="primary"
+		href={retryURL}
+		onclick={beginSignIn}
+		disabled={session.signingIn}
+	>
+		{session.signingIn ? "Signing in…" : "Try GitHub again"}
+	</Button>
 </section>
 
 <style>
