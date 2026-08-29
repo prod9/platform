@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import {
 	filterCandidates,
 	latestStatus,
-	moduleLine,
+	moduleLabel,
 	publishPolicyDetails,
 } from "./repos.js";
 
@@ -43,22 +43,15 @@ describe("latestStatus", () => {
 	});
 });
 
-describe("moduleLine", () => {
-	test("joins name (framework) pairs with middots", () => {
-		expect(
-			moduleLine([
-				{ name: "api", framework: "go/basic" },
-				{ name: "web", framework: "pnpm/static" },
-			]),
-		).toBe("api (go/basic) · web (pnpm/static)");
+describe("moduleLabel", () => {
+	test("pairs one module name with its framework", () => {
+		expect(moduleLabel({ name: "api", framework: "go/basic" })).toBe(
+			"api (go/basic)",
+		);
 	});
 
 	test("a module with no framework is its name alone", () => {
-		expect(moduleLine([{ name: "api", framework: "" }])).toBe("api");
-	});
-
-	test("no modules is an empty string", () => {
-		expect(moduleLine([])).toBe("");
+		expect(moduleLabel({ name: "api", framework: "" })).toBe("api");
 	});
 });
 

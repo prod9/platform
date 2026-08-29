@@ -11,7 +11,7 @@
 		Answered,
 		Refused,
 	} from "$lib/server.js";
-	import { filterCandidates, moduleLine, publishPolicyDetails } from "$lib/repos.js";
+	import { filterCandidates, moduleLabel, publishPolicyDetails } from "$lib/repos.js";
 	import Button from "$lib/components/Button.svelte";
 	import Panel from "$lib/components/Panel.svelte";
 
@@ -198,6 +198,10 @@
 						{/if}
 					</dl>
 
+					{#if manifest !== null}
+						<pre class="mono manifest"><code>{manifest.raw}</code></pre>
+					{/if}
+
 					<div class="confirm">
 						<Button onclick={back}>Back</Button>
 						{#if manifest === null}
@@ -215,7 +219,11 @@
 						<dt class="mono key">commit</dt>
 						<dd class="mono">{manifest.sha}</dd>
 						<dt class="mono key">modules</dt>
-						<dd class="mono">{moduleLine(manifest.modules)}</dd>
+						<dd class="mono modules">
+							{#each manifest.modules as module (module.name)}
+								<span>{moduleLabel(module)}</span>
+							{/each}
+						</dd>
 						{#if manifest.maintainer !== ""}
 							<dt class="mono key">maintainer</dt>
 							<dd class="mono">{manifest.maintainer}</dd>
@@ -437,6 +445,20 @@ framework = "go/basic"</code></pre>
 	.kv dd {
 		margin: 0;
 		line-height: var(--lead);
+	}
+
+	.manifest {
+		overflow-x: auto;
+		margin: 0 0 var(--lead);
+		padding: var(--lead-half);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		background: var(--surface-quiet);
+		line-height: var(--lead);
+	}
+
+	.modules {
+		display: grid;
 	}
 
 	.key {

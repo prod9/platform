@@ -17,14 +17,10 @@ export function latestStatus(builds) {
 	return builds[0].status;
 }
 
-// moduleLine renders a manifest's modules the way the review step states them:
-// "api (go/basic) · web (pnpm/static)"; a module with no framework is its name alone.
-export function moduleLine(modules) {
-	return modules
-		.map((module) =>
-			module.framework === "" ? module.name : `${module.name} (${module.framework})`,
-		)
-		.join(" · ");
+export function moduleLabel(module) {
+	return module.framework === ""
+		? module.name
+		: `${module.name} (${module.framework})`;
 }
 
 export function publishPolicyDetails(policy) {

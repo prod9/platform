@@ -24,6 +24,15 @@ import (
 	"platform.prodigy9.co/srv/srvtest"
 )
 
+const testAppManifest = `repository = "github.com/prodigy9/app"
+
+[server]
+publish = "never"
+
+[modules.web]
+framework = "pnpm/basic"
+`
+
 func init() {
 	app.RegisterMigrations(App.App())
 	app.RegisterMigrations(auth.App.App())
@@ -60,7 +69,7 @@ func setupInstalled(t *testing.T) (context.Context, *config.Source) {
 	mux.HandleFunc("GET /repos/prodigy9/app/contents/platform.toml", func(resp http.ResponseWriter, req *http.Request) {
 		require.Equal(t, "Bearer ghs_tok", req.Header.Get("Authorization"))
 		require.Equal(t, "abc123", req.URL.Query().Get("ref"))
-		fmt.Fprint(resp, "repository = \"github.com/prodigy9/app\"\n\n[server]\npublish = \"never\"\n\n[modules.web]\nframework = \"pnpm/basic\"\n")
+		fmt.Fprint(resp, testAppManifest)
 	})
 	mux.HandleFunc("GET /repos/prodigy9/app/commits/main", func(resp http.ResponseWriter, req *http.Request) {
 		require.Equal(t, "application/vnd.github.sha", req.Header.Get("Accept"))
@@ -283,6 +292,7 @@ func TestManifestParsesPlatformTOML(t *testing.T) {
 
 	var manifest struct {
 		SHA           string `json:"sha"`
+		Raw           string `json:"raw"`
 		Maintainer    string `json:"maintainer"`
 		Repository    string `json:"repository"`
 		PublishPolicy string `json:"publish_policy"`
@@ -294,6 +304,7 @@ func TestManifestParsesPlatformTOML(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &manifest))
 	require.Equal(t, "abc123", manifest.SHA)
+	require.Equal(t, testAppManifest, manifest.Raw)
 	require.Equal(t, "github.com/prodigy9/app", manifest.Repository)
 	require.Equal(t, "never", manifest.PublishPolicy)
 	require.Len(t, manifest.Modules, 1)

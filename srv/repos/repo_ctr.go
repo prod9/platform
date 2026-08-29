@@ -155,6 +155,7 @@ func register(resp http.ResponseWriter, req *http.Request) {
 
 type manifestResponse struct {
 	SHA           string             `json:"sha"`
+	Raw           string             `json:"raw"`
 	Maintainer    string             `json:"maintainer"`
 	Repository    string             `json:"repository"`
 	PublishPolicy conf.PublishPolicy `json:"publish_policy"`
@@ -202,6 +203,7 @@ func manifest(resp http.ResponseWriter, req *http.Request) {
 
 	out := manifestResponse{
 		SHA:           observed.SHA,
+		Raw:           string(observed.Raw),
 		Maintainer:    parsed.Maintainer,
 		Repository:    parsed.Repository,
 		PublishPolicy: parsed.Server.Publish,
