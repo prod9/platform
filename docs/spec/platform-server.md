@@ -172,7 +172,7 @@ lives under `/api`; GitHub-facing and health routes stay bare.
 | `GET /api/repos`            | session + read filter     | the **registered** repos, filtered against the session user's GitHub authorization     | the repos landing page; registration is stored, permission never is (see §Repos are registered, authorization is GitHub-derived) |
 | `GET /api/repos/candidates` | session + read filter     | repos both the user and App reach that are **not yet registered**                      | the onboarding wizard's pick list, minus what is already onboarded                                                |
 | `POST /api/repos`           | session + repo write      | stores the reviewed repo, raw manifest, resolved publish policy, and modules           | onboarding records exactly what the user reviewed, not whatever the default branch points at later; unreachable repo is 404, absent manifest is 409 |
-| `GET /api/repos/{owner}/{repo}/manifest` | session + repo read | returns the default-branch sha, parsed manifest, and resolved publish policy       | the onboarding review supplies the immutable sha that confirmation sends back; unreachable repo is 404, absent manifest is 409 |
+| `GET /api/repos/{owner}/{repo}/manifest` | session + repo read | returns the default-branch sha, exact raw manifest, parsed manifest, and resolved publish policy | the onboarding load step shows the raw file; review supplies the immutable sha that confirmation sends back; unreachable repo is 404, absent manifest is 409 |
 | `GET /api/repos/{owner}/{repo}/builds` | session + repo read | the repo's builds, newest first; `?limit=N` caps the page                          | builds nest under a repo in the UI; the landing page fans out `?limit=3` per visible repo                          |
 | `GET /api/builds`           | session + read filter     | last 50 authorized builds, newest first                                               | the global feed cannot disclose builds from inaccessible repos                                                     |
 | `GET /api/builds/{id}`      | session + repo read       | one build plus its selected modules and their folded states — no steps                 | the build detail view — the streams made readable, which is the reason the events are stored at all                |
@@ -337,13 +337,13 @@ serializing `framework.BuildUnit`, which is runtime behavior after interpretatio
 Onboarding is a wizard ([webui.md](webui.md)): pick from `GET /api/repos/candidates` (the
 App-reachable repos not yet registered, live), then review `GET
 /api/repos/{owner}/{repo}/manifest`. That read resolves the default-branch head and returns
-its commit sha, parsed modules, and resolved `[server].publish` policy. Confirmation posts
-owner, repo, and that sha. The server re-reads `platform.toml` at the supplied sha,
-parses it again, resolves the same policy, and transactionally inserts the repo, raw
-snapshot, parsed policy, and every parsed module. The browser never sends manifest content
-back across the
-trust boundary, and a moving default branch cannot change what gets registered after
-review. Registration is the only write; deregistration is not in this surface yet.
+its commit sha, exact raw text, parsed modules, and resolved `[server].publish` policy.
+Confirmation posts owner, repo, and that sha. The server re-reads `platform.toml` at the
+supplied sha, parses it again, resolves the same policy, and transactionally inserts the
+repo, raw snapshot, parsed policy, and every parsed module. The browser never sends
+manifest content back across the trust boundary, and a moving default branch cannot change
+what gets registered after review. Registration is the only write; deregistration is not
+in this surface yet.
 
 ### `webui/build/` is committed
 

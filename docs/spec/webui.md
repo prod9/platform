@@ -96,15 +96,16 @@ instructions render on the right. The wizard separates three concerns:
    intersection and direct a user whose repo is missing to verify their own GitHub access,
    then the App installation's repository access in the organization settings.
 2. **Load `platform.toml`.** Read the selected repo's default-branch manifest as its own
-   step. An accessible repository without the file stays here with instructions to run
-   `platform init` in the repository and commit the result, or author and commit
+   step. A successful read shows the exact raw file in this step before Review is
+   available. An accessible repository without the file stays here with instructions to
+   run `platform init` in the repository and commit the result, or author and commit
    `platform.toml` manually. Repository access failure remains a separate error.
-3. **Review and confirm.** Present the resolved commit sha, modules, framework detections,
-   and resolved `[server].publish` policy. Policy is stated as behavior: which successful
-   builds publish and which image tag they receive, not merely the config value. The
-   confirm sends the reviewed sha, not manifest content; the server re-reads the immutable
-   commit and atomically stores the repository, exact raw manifest, resolved
-   `publish_policy`, and parsed modules.
+3. **Review and confirm.** Present the resolved commit sha, modules one line per module
+   with its framework, framework detections, and resolved `[server].publish` policy.
+   Policy is stated as behavior: which successful builds publish and which image tag they
+   receive, not merely the config value. The confirm sends the reviewed sha, not manifest
+   content; the server re-reads the immutable commit and atomically stores the repository,
+   exact raw manifest, resolved `publish_policy`, and parsed modules.
 
 Registration model: [platform-server.md](platform-server.md) §Repos are registered,
 authorization is GitHub-derived.
