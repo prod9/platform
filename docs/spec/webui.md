@@ -28,6 +28,22 @@ the pages nest the same way. The left rail carries the wordmark only, and the wo
 goes home. Pages run full-width and carry no explainer copy — the UI states facts, it
 does not introduce itself.
 
+## Visual composition
+
+Shared visual structure is owned by components, never coordinated by route-local CSS.
+`PageHeader` owns the title, metadata, and action positions at the top of every product
+page. `SectionHeader` owns the corresponding heading and action rhythm within a page.
+`Facts` owns definition-list columns, key/value typography, and their shared vertical
+rhythm; its named measures cover the three established key widths. `SignalMark` owns the
+glyph, color, dimensions, and accessibility behavior for navigation and state signals;
+`OutcomeMark` maps build-domain outcomes onto it.
+
+Routes own only domain-specific composition such as wizard columns, navigator/terminal
+splits, responsive collapse, and the space between distinct sections. They do not restyle
+the shared primitives or reproduce their markup. A styling-only change preserves every
+visible word, value, state, behavior, and data/API contract; layout and iconography may
+change without rewriting the content they present.
+
 ## Route map
 
 | Route                            | Page                                    | Reads                                                                  |
