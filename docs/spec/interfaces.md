@@ -37,15 +37,17 @@ an operator.
 - A mark, abbreviation, relative time, duration, or other derived presentation may clarify
   a canonical value, but never replace it. Keep the source value visible and attach the
   derivation to it as a hint.
-- Vertical rhythm is structural. Derive one spacing lattice from the prose line height;
-  every block-flow margin, padding, gap, and line height lands on a whole lattice unit.
-  Half-units appear only as equal block-start and block-end padding that add up to one
-  unit. Components own complete rhythmic blocks, and parent layouts compose those blocks
-  without compensating margins.
-- Standalone action surfaces are comfortably large: buttons, form controls, navigation
-  targets, selectable rows, and other controls occupy at least two lattice units in the
-  block direction. The whole visible surface is interactive. Inline links inside prose
-  remain inline because they are reading affordances, not standalone controls.
+- Vertical rhythm is structural. The web interface sets 16px prose on a 24px content
+  line and derives its spacing lattice from that line. Every block-flow margin, padding,
+  gap, and line height lands on a whole lattice unit. Half-units appear only as equal
+  block-start and block-end padding that add up to one unit. Components own complete
+  rhythmic blocks, and parent layouts compose those blocks without compensating margins.
+- Control text keeps the same 24px content line as adjacent prose. Symmetric block
+  padding, not a taller content line, enlarges buttons and form controls into comfortable
+  action surfaces; mixed text-and-control rows center those boxes in the block direction.
+  A selectable row owns its padding so its whole visible surface is interactive. Inline
+  links inside prose remain inline because they are reading affordances, not standalone
+  controls.
 
 Repository onboarding therefore presents the resolved value that registration will
 persist, with a relevant derived tag kept on the same field as a hint:
