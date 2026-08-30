@@ -84,10 +84,13 @@ record exists yet.
 
 **Repos landing (`/`).** One block per registered repo — the nested-feed shape: the
 repo's name heads the block, its last three builds render as sub-rows, and the block links
-into the repo's feed. Each build keeps its canonical status, ref, resolved sha, and source
-timestamp visible; its outcome mark, recognizable tag, abbreviated sha, relative time, and
-duration may sit beside those values as hints. A "register repository" action leads to the
-onboarding wizard. Signed-out, the page is the sign-in door and nothing else.
+into the repo's feed. The page heading and its registered-repository count share a text
+baseline. Each build shows its ref and resolved sha. Status is the outcome mark alone, not
+a repeated text label. Its most recent source timestamp is presented as
+`finished HH:MM:SS`, `started HH:MM:SS`, or `created HH:MM:SS`; storage field names and
+full timestamps do not leak into the feed. A "register repository" action leads to the
+onboarding wizard.
+Signed-out, the page is the sign-in door and nothing else.
 
 **Repo onboarding (`/repos/new/`).** Runs as the install wizard does: a checklist on the
 left is the navigation, the selected step's action renders beside it, and operative
