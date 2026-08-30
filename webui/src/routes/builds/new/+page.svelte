@@ -6,15 +6,15 @@
 	// from platform.toml at that commit and selectable — all on by default. Webhook builds
 	// stay whole-repo; selection is the manual trigger's alone.
 	import Button from "$lib/components/Button.svelte";
+	import PageHeader from "$lib/components/PageHeader.svelte";
 	import Panel from "$lib/components/Panel.svelte";
 </script>
 
 <section>
-	<div class="head">
-		<h2><a href="/builds/">platform</a> / new build</h2>
-		<span class="spacer"></span>
-		<Button href="/builds/">Cancel</Button>
-	</div>
+	<PageHeader>
+		{#snippet title()}<h2><a href="/builds/">platform</a> / new build</h2>{/snippet}
+		{#snippet actions()}<Button href="/builds/">Cancel</Button>{/snippet}
+	</PageHeader>
 
 	<div class="stack">
 		<Panel label="Ref">
@@ -46,21 +46,6 @@
 </section>
 
 <style>
-	.head {
-		display: flex;
-		align-items: center;
-		gap: var(--lead);
-		margin-bottom: var(--lead);
-	}
-
-	.head h2 a {
-		text-decoration: none;
-	}
-
-	.spacer {
-		margin-left: auto;
-	}
-
 	.stack {
 		display: grid;
 		gap: var(--lead);

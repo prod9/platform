@@ -1,6 +1,7 @@
 <script>
 	import { onMount } from "svelte";
 	import Button from "$lib/components/Button.svelte";
+	import SectionHeader from "$lib/components/SectionHeader.svelte";
 	import {
 		Answered,
 		classifyMigrationPlan,
@@ -43,13 +44,13 @@
 </script>
 
 <section>
-	<div class="head">
-		<h3>Migrations</h3>
-		<span class="spacer"></span>
-		{#if phase === "ready" && state === "runnable"}
-			<Button variant="primary" onclick={run}>Run migrations</Button>
-		{/if}
-	</div>
+	<SectionHeader title="Migrations">
+		{#snippet actions()}
+			{#if phase === "ready" && state === "runnable"}
+				<Button variant="primary" onclick={run}>Run migrations</Button>
+			{/if}
+		{/snippet}
+	</SectionHeader>
 
 	{#if phase === "loading"}
 		<p class="muted">Reading migration plan…</p>
@@ -82,17 +83,6 @@
 </section>
 
 <style>
-	.head {
-		display: flex;
-		align-items: center;
-		gap: var(--lead);
-		margin-bottom: var(--lead);
-	}
-
-	.spacer {
-		margin-left: auto;
-	}
-
 	.plan {
 		margin: 0 0 var(--lead);
 		padding: 0;

@@ -1,6 +1,8 @@
 <script>
 	import { onMount } from "svelte";
 	import { Answered, errorText, systemSettings } from "$lib/server.js";
+	import Facts from "$lib/components/Facts.svelte";
+	import SectionHeader from "$lib/components/SectionHeader.svelte";
 
 	let sections = $state([]);
 	let loading = $state(true);
@@ -26,13 +28,13 @@
 {:else}
 	{#each sections as group (group.name)}
 		<section class="group">
-			<h3 class="crosshead">{group.name}</h3>
-			<dl class="kv">
+			<SectionHeader title={group.name} />
+			<Facts>
 				{#each group.facts as fact (fact.key)}
-					<dt class="mono key">{fact.key}</dt>
+					<dt class="mono">{fact.key}</dt>
 					<dd class="mono">{fact.value}</dd>
 				{/each}
-			</dl>
+			</Facts>
 		</section>
 	{/each}
 {/if}
@@ -40,29 +42,6 @@
 <style>
 	.group {
 		margin-bottom: var(--lead-2);
-	}
-
-	.crosshead {
-		margin-bottom: var(--lead);
-		box-shadow: 0 -1px 0 var(--border) inset;
-		color: var(--accent);
-	}
-
-	.kv {
-		display: grid;
-		grid-template-columns: 22ch minmax(0, 1fr);
-		gap: 0 var(--lead);
-		margin: 0;
-	}
-
-	.kv dt,
-	.kv dd {
-		margin: 0;
-		line-height: var(--lead);
-	}
-
-	.key {
-		color: var(--text-muted);
 	}
 
 	.failure {

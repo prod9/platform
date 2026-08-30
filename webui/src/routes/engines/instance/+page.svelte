@@ -7,7 +7,11 @@
 	// docs/spec/platform-server.md, "The status of a page is the server's answer").
 	// One engine instance: its facts, the builds it has carried, and its live log — the
 	// same night-ground terminal the build detail uses.
+	import Facts from "$lib/components/Facts.svelte";
 	import OutcomeMark from "$lib/components/OutcomeMark.svelte";
+	import PageHeader from "$lib/components/PageHeader.svelte";
+	import SectionHeader from "$lib/components/SectionHeader.svelte";
+	import SignalMark from "$lib/components/SignalMark.svelte";
 
 	const recent = [
 		{
@@ -45,27 +49,35 @@
 </script>
 
 <section>
-	<div class="head">
-		<h2><a href="/engines/">Engines</a> / 10.2.1.14</h2>
-		<span class="label ok">reachable</span>
-	</div>
+	<PageHeader>
+		{#snippet title()}
+			<h2><a href="/engines/">Engines</a> / 10.2.1.14</h2>
+		{/snippet}
+		{#snippet metadata()}
+			<span class="label ok">reachable</span>
+		{/snippet}
+	</PageHeader>
 
-	<dl class="kv">
-		<dt class="mono key">address</dt>
-		<dd class="mono">tcp://10.2.1.14:1234</dd>
-		<dt class="mono key">version</dt>
-		<dd class="mono">dagger v0.18.5</dd>
-		<dt class="mono key">uptime</dt>
-		<dd class="mono">6d 4h</dd>
-		<dt class="mono key">cache</dt>
-		<dd class="mono">41 GB · 87% hit ratio</dd>
-		<dt class="mono key">now</dt>
-		<dd class="mono live">◌ building prod9/infra #125 · v0.3.12</dd>
-	</dl>
+	<div class="facts">
+		<Facts measure="compact">
+			<dt class="mono">address</dt>
+			<dd class="mono">tcp://10.2.1.14:1234</dd>
+			<dt class="mono">version</dt>
+			<dd class="mono">dagger v0.18.5</dd>
+			<dt class="mono">uptime</dt>
+			<dd class="mono">6d 4h</dd>
+			<dt class="mono">cache</dt>
+			<dd class="mono">41 GB · 87% hit ratio</dd>
+			<dt class="mono">now</dt>
+			<dd class="mono live">
+				<SignalMark signal="active" /> building prod9/infra #125 · v0.3.12
+			</dd>
+		</Facts>
+	</div>
 
 	<div class="cols">
 		<div>
-			<h3 class="crosshead">Recent builds on this engine</h3>
+			<SectionHeader title="Recent builds on this engine" />
 			<ul class="rows">
 				{#each recent as build (build.id)}
 					<li>
@@ -83,43 +95,19 @@
 		</div>
 
 		<div>
-			<h3 class="crosshead">Engine log</h3>
+			<SectionHeader title="Engine log" />
 			<pre class="mono term">{log}</pre>
 		</div>
 	</div>
 </section>
 
 <style>
-	.head {
-		display: flex;
-		align-items: baseline;
-		gap: var(--lead);
-		margin-bottom: var(--lead);
-	}
-
-	.head h2 a {
-		text-decoration: none;
-	}
-
 	.ok {
 		color: var(--accent-ok);
 	}
 
-	.kv {
-		display: grid;
-		grid-template-columns: 12ch minmax(0, 1fr);
-		gap: 0 var(--lead);
-		margin: 0 0 var(--lead-2);
-	}
-
-	.kv dt,
-	.kv dd {
-		margin: 0;
-		line-height: var(--lead);
-	}
-
-	.key {
-		color: var(--text-muted);
+	.facts {
+		margin-bottom: var(--lead-2);
 	}
 
 	.live {
@@ -131,12 +119,6 @@
 		grid-template-columns: minmax(40ch, 1fr) minmax(0, 1.5fr);
 		gap: var(--lead-2);
 		align-items: start;
-	}
-
-	.crosshead {
-		color: var(--accent);
-		margin-bottom: var(--lead);
-		box-shadow: 0 -1px 0 var(--border) inset;
 	}
 
 	.rows {

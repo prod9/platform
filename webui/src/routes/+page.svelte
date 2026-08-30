@@ -9,6 +9,8 @@
 	import { lastActivity } from "$lib/build.js";
 	import Button from "$lib/components/Button.svelte";
 	import OutcomeMark from "$lib/components/OutcomeMark.svelte";
+	import PageHeader from "$lib/components/PageHeader.svelte";
+	import SignalMark from "$lib/components/SignalMark.svelte";
 
 	const recentLimit = 3;
 
@@ -68,12 +70,13 @@
 	<p class="mono muted">Loading…</p>
 {:else}
 	<section>
-		<div class="head">
-			<h2>Repositories</h2>
-			<p class="label">{repos.length} registered</p>
-			<span class="spacer"></span>
-			<Button variant="primary" href="/repos/new/">Register repository</Button>
-		</div>
+		<PageHeader>
+			{#snippet title()}<h2>Repositories</h2>{/snippet}
+			{#snippet metadata()}<p class="label">{repos.length} registered</p>{/snippet}
+			{#snippet actions()}
+				<Button variant="primary" href="/repos/new/">Register repository</Button>
+			{/snippet}
+		</PageHeader>
 
 		{#if loadError}
 			<p class="mono error">Repositories unavailable: {loadError}</p>
@@ -88,7 +91,7 @@
 						<a class="repo-head" href={`/repos/${repo.owner}/${repo.repo}/`}>
 							<OutcomeMark status={latestStatus(repo.recent)} />
 							<span class="mono name">{repo.full_name}</span>
-							<span class="mono chev">›</span>
+							<SignalMark signal="navigation" />
 						</a>
 
 						<span class="subs">
@@ -126,17 +129,6 @@
 		margin-bottom: var(--lead);
 	}
 
-	.head {
-		display: flex;
-		align-items: baseline;
-		gap: var(--lead);
-		margin-bottom: var(--lead);
-	}
-
-	.spacer {
-		margin-left: auto;
-	}
-
 	.error {
 		color: var(--accent-signal);
 	}
@@ -162,8 +154,11 @@
 		line-height: var(--lead);
 	}
 
-	.repo-head:hover .name,
-	.repo-head:hover .chev {
+	.repo-head:hover {
+		--navigation-mark: var(--accent-signal);
+	}
+
+	.repo-head:hover .name {
 		color: var(--accent-signal);
 	}
 
@@ -173,11 +168,6 @@
 		font-size: var(--size-prose);
 		font-weight: 600;
 		color: var(--accent);
-	}
-
-	.chev {
-		color: var(--text-muted);
-		text-align: center;
 	}
 
 	/* Sub-rows hang off a vertical hairline, so the nesting reads before any row does. */

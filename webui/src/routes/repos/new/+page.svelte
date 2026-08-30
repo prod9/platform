@@ -13,7 +13,10 @@
 	} from "$lib/server.js";
 	import { filterCandidates, moduleLabel, publishPolicyDetails } from "$lib/repos.js";
 	import Button from "$lib/components/Button.svelte";
+	import Facts from "$lib/components/Facts.svelte";
+	import PageHeader from "$lib/components/PageHeader.svelte";
 	import Panel from "$lib/components/Panel.svelte";
+	import SignalMark from "$lib/components/SignalMark.svelte";
 
 	let candidates = $state([]);
 	let loaded = $state(false);
@@ -131,11 +134,10 @@
 </script>
 
 <section>
-	<div class="head">
-		<h2><a href="/">Repositories</a> / register</h2>
-		<span class="spacer"></span>
-		<Button href="/">Cancel</Button>
-	</div>
+	<PageHeader>
+		{#snippet title()}<h2><a href="/">Repositories</a> / register</h2>{/snippet}
+		{#snippet actions()}<Button href="/">Cancel</Button>{/snippet}
+	</PageHeader>
 
 	<div class="wizard">
 		<ol class="checklist">
@@ -174,7 +176,7 @@
 								<li>
 									<button class="candidate" onclick={() => pick(repo)}>
 										<span class="mono repo-name">{repo.full_name}</span>
-										<span class="mono chev">›</span>
+										<SignalMark signal="navigation" />
 									</button>
 								</li>
 							{:else}
@@ -185,18 +187,22 @@
 				</Panel>
 			{:else if current === "manifest"}
 				<Panel label={`Load ${picked.full_name}/platform.toml`}>
-					<dl class="kv">
-						<dt class="mono key">status</dt>
+					<Facts measure="standard">
+						<dt class="mono">status</dt>
 						{#if manifest !== null}
-							<dd class="mono ok">✓ loaded from the default branch</dd>
+							<dd class="mono ok">
+								<SignalMark signal="positive" /> loaded from the default branch
+							</dd>
 						{:else if manifestAbsent}
-							<dd class="mono warn">✗ platform.toml is not committed</dd>
+							<dd class="mono warn">
+								<SignalMark signal="negative" /> platform.toml is not committed
+							</dd>
 						{:else if manifestError !== ""}
 							<dd class="mono warn">{manifestError}</dd>
 						{:else if manifestLoading}
 							<dd class="mono muted">Reading…</dd>
 						{/if}
-					</dl>
+					</Facts>
 
 					{#if manifest !== null}
 						<pre class="mono manifest"><code>{manifest.raw}</code></pre>
@@ -215,29 +221,29 @@
 				</Panel>
 			{:else}
 				<Panel label={picked.full_name}>
-					<dl class="kv">
-						<dt class="mono key">Commit</dt>
+					<Facts measure="standard">
+						<dt class="mono">Commit</dt>
 						<dd class="mono">{manifest.sha}</dd>
-						<dt class="mono key">Modules</dt>
+						<dt class="mono">Modules</dt>
 						<dd class="mono modules">
 							{#each manifest.modules as module (module.name)}
 								<span>{moduleLabel(module)}</span>
 							{/each}
 						</dd>
 						{#if manifest.maintainer !== ""}
-							<dt class="mono key">Maintainer</dt>
+							<dt class="mono">Maintainer</dt>
 							<dd class="mono">{manifest.maintainer}</dd>
 						{/if}
 						{#if manifest.repository !== ""}
-							<dt class="mono key">Repository</dt>
+							<dt class="mono">Repository</dt>
 							<dd class="mono">{manifest.repository}</dd>
 						{/if}
-						<dt class="mono key">Publish policy</dt>
+						<dt class="mono">Publish policy</dt>
 						<dd class="mono">
 							{policy.policy}
 							{#if policy.hint}<span class="muted"> ({policy.hint})</span>{/if}
 						</dd>
-					</dl>
+					</Facts>
 
 					{#if confirmError !== ""}
 						<p class="mono warn">{confirmError}</p>
@@ -298,21 +304,6 @@ framework = "go/basic"</code></pre>
 </section>
 
 <style>
-	.head {
-		display: flex;
-		align-items: center;
-		gap: var(--lead);
-		margin-bottom: var(--lead);
-	}
-
-	.head h2 a {
-		text-decoration: none;
-	}
-
-	.spacer {
-		margin-left: auto;
-	}
-
 	.wizard {
 		display: grid;
 		grid-template-columns: minmax(24ch, 1fr) minmax(0, 2fr) minmax(28ch, 1fr);
@@ -322,7 +313,7 @@ framework = "go/basic"</code></pre>
 
 	.instructions {
 		padding-left: var(--lead);
-		border-left: 1px solid var(--border);
+		box-shadow: 1px 0 0 var(--border) inset;
 	}
 
 	.instructions p {
@@ -428,24 +419,6 @@ framework = "go/basic"</code></pre>
 		color: var(--accent-signal);
 	}
 
-	.chev {
-		color: var(--text-muted);
-		text-align: center;
-	}
-
-	.kv {
-		display: grid;
-		grid-template-columns: 18ch minmax(0, 1fr);
-		gap: 0 var(--lead);
-		margin: 0 0 var(--lead);
-	}
-
-	.kv dt,
-	.kv dd {
-		margin: 0;
-		line-height: var(--lead);
-	}
-
 	.manifest {
 		overflow-x: auto;
 		margin: 0 0 var(--lead);
@@ -458,10 +431,6 @@ framework = "go/basic"</code></pre>
 
 	.modules {
 		display: grid;
-	}
-
-	.key {
-		color: var(--text-muted);
 	}
 
 	.ok {
@@ -486,7 +455,7 @@ framework = "go/basic"</code></pre>
 		.instructions {
 			grid-column: 2;
 			padding-left: 0;
-			border-left: 0;
+			box-shadow: none;
 		}
 	}
 

@@ -7,6 +7,7 @@
 	import StatusChip from "$lib/components/StatusChip.svelte";
 	import Button from "$lib/components/Button.svelte";
 	import OutcomeMark from "$lib/components/OutcomeMark.svelte";
+	import PageHeader from "$lib/components/PageHeader.svelte";
 
 	const units = [
 		{
@@ -68,16 +69,17 @@
 </script>
 
 <section>
-	<div class="head">
-		<h2><a href="/builds/">platform</a> / #127</h2>
-		<StatusChip status="failed" />
-		<p class="label mono">
-			ref refs/tags/v0.9.35 · sha e996f69000000000000000000000000000000000 ·
-			trigger webui · actor chakrit · created_at 2026-08-11T09:15:00Z
-		</p>
-		<span class="spacer"></span>
-		<Button href="/builds/new/">Retry</Button>
-	</div>
+	<PageHeader>
+		{#snippet title()}<h2><a href="/builds/">platform</a> / #127</h2>{/snippet}
+		{#snippet metadata()}
+			<StatusChip status="failed" />
+			<p class="label mono">
+				ref refs/tags/v0.9.35 · sha e996f69000000000000000000000000000000000 ·
+				trigger webui · actor chakrit · created_at 2026-08-11T09:15:00Z
+			</p>
+		{/snippet}
+		{#snippet actions()}<Button href="/builds/new/">Retry</Button>{/snippet}
+	</PageHeader>
 
 	<div class="detail">
 		<ul class="navigator">
@@ -123,21 +125,6 @@
 </section>
 
 <style>
-	.head {
-		display: flex;
-		align-items: center;
-		gap: var(--lead);
-		margin-bottom: var(--lead);
-	}
-
-	.head h2 a {
-		text-decoration: none;
-	}
-
-	.spacer {
-		margin-left: auto;
-	}
-
 	.detail {
 		display: grid;
 		grid-template-columns: 34ch minmax(0, 1fr);

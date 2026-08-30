@@ -6,6 +6,7 @@
 	// the exact ref and commit, per-module status, and the trigger's provenance.
 	import Button from "$lib/components/Button.svelte";
 	import OutcomeMark from "$lib/components/OutcomeMark.svelte";
+	import PageHeader from "$lib/components/PageHeader.svelte";
 
 	const builds = [
 		{
@@ -67,12 +68,13 @@
 </script>
 
 <section>
-	<div class="head">
-		<h2><a href="/">Repositories</a> / platform</h2>
-		<p class="label">prod9/platform</p>
-		<span class="spacer"></span>
-		<Button variant="primary" href="/builds/new/">New build</Button>
-	</div>
+	<PageHeader>
+		{#snippet title()}<h2><a href="/">Repositories</a> / platform</h2>{/snippet}
+		{#snippet metadata()}<p class="label">prod9/platform</p>{/snippet}
+		{#snippet actions()}
+			<Button variant="primary" href="/builds/new/">New build</Button>
+		{/snippet}
+	</PageHeader>
 
 	<ul class="rows">
 		{#each builds as build (build.id)}
@@ -108,21 +110,6 @@
 </section>
 
 <style>
-	.head {
-		display: flex;
-		align-items: center;
-		gap: var(--lead);
-		margin-bottom: var(--lead);
-	}
-
-	.head h2 a {
-		text-decoration: none;
-	}
-
-	.spacer {
-		margin-left: auto;
-	}
-
 	.rows {
 		list-style: none;
 		margin: 0;

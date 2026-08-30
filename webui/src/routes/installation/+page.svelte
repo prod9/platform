@@ -23,6 +23,7 @@
 	import { session } from "$lib/session.svelte.js";
 	import Panel from "$lib/components/Panel.svelte";
 	import Button from "$lib/components/Button.svelte";
+	import PageHeader from "$lib/components/PageHeader.svelte";
 	import InstallationAction from "$lib/components/InstallationAction.svelte";
 	import InstallationInstructions from "$lib/components/InstallationInstructions.svelte";
 
@@ -113,10 +114,10 @@
 </script>
 
 <section>
-	<div class="head">
-		<h2>Install</h2>
-		<p class="label">Each step brings the server up</p>
-	</div>
+	<PageHeader>
+		{#snippet title()}<h2>Install</h2>{/snippet}
+		{#snippet metadata()}<p class="label">Each step brings the server up</p>{/snippet}
+	</PageHeader>
 
 	{#if loadError}
 		<p class="failed mono">{loadError}</p>
@@ -187,13 +188,6 @@
 <style>
 	section {
 		max-width: 150ch;
-	}
-
-	.head {
-		display: flex;
-		align-items: baseline;
-		gap: var(--lead);
-		margin-bottom: var(--lead);
 	}
 
 	.wizard {

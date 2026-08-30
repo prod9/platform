@@ -1,5 +1,6 @@
 <script>
 	import { page } from "$app/state";
+	import PageHeader from "$lib/components/PageHeader.svelte";
 
 	let { children } = $props();
 
@@ -10,31 +11,25 @@
 </script>
 
 <section class="system">
-	<header class="head">
-		<h2>System</h2>
-		<nav aria-label="System">
-			{#each destinations as destination (destination.href)}
-				<a
-					class="label"
-					class:current={page.url.pathname.startsWith(destination.href)}
-					href={destination.href}>{destination.label}</a
-				>
-			{/each}
-		</nav>
-	</header>
+	<PageHeader>
+		{#snippet title()}<h2>System</h2>{/snippet}
+		{#snippet metadata()}
+			<nav aria-label="System">
+				{#each destinations as destination (destination.href)}
+					<a
+						class="label"
+						class:current={page.url.pathname.startsWith(destination.href)}
+						href={destination.href}>{destination.label}</a
+					>
+				{/each}
+			</nav>
+		{/snippet}
+	</PageHeader>
 
 	{@render children()}
 </section>
 
 <style>
-	.head {
-		display: flex;
-		align-items: baseline;
-		gap: var(--lead);
-		margin-bottom: var(--lead-2);
-		box-shadow: 0 -1px 0 var(--border) inset;
-	}
-
 	nav {
 		display: flex;
 		gap: var(--lead);

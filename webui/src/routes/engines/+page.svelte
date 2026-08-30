@@ -7,8 +7,11 @@
 	// The seed line states where the roster comes from; the roster itself is DNS, read
 	// per load.
 	import Button from "$lib/components/Button.svelte";
+	import Facts from "$lib/components/Facts.svelte";
 	import OutcomeMark from "$lib/components/OutcomeMark.svelte";
+	import PageHeader from "$lib/components/PageHeader.svelte";
 	import Panel from "$lib/components/Panel.svelte";
+	import SignalMark from "$lib/components/SignalMark.svelte";
 
 	const engines = [
 		{
@@ -39,21 +42,26 @@
 </script>
 
 <section>
-	<div class="head">
-		<h2>Engines</h2>
-		<p class="label">{engines.length} resolved</p>
-		<span class="spacer"></span>
-		<Button>Refresh</Button>
-	</div>
+	<PageHeader>
+		{#snippet title()}
+			<h2>Engines</h2>
+		{/snippet}
+		{#snippet metadata()}
+			<p class="label">{engines.length} resolved</p>
+		{/snippet}
+		{#snippet actions()}
+			<Button>Refresh</Button>
+		{/snippet}
+	</PageHeader>
 
 	<div class="seed">
 		<Panel label="Roster source">
-			<dl class="kv">
-				<dt class="mono key">DAGGER_ENGINE</dt>
+			<Facts>
+				<dt class="mono">DAGGER_ENGINE</dt>
 				<dd class="mono">dagger-engine.platform.svc</dd>
-				<dt class="mono key">DAGGER_ENGINE_PORT</dt>
+				<dt class="mono">DAGGER_ENGINE_PORT</dt>
 				<dd class="mono">1234</dd>
-			</dl>
+			</Facts>
 		</Panel>
 	</div>
 
@@ -61,14 +69,12 @@
 		{#each engines as engine (engine.addr)}
 			<li class="engine">
 				<a class="engine-head" href="/engines/instance/">
-					<span class="mono state" class:ok={engine.ok} class:bad={!engine.ok}>
-						{engine.ok ? "●" : "○"}
-					</span>
+					<SignalMark signal={engine.ok ? "positive" : "negative"} />
 					<span class="mono addr">{engine.addr}</span>
 					<span class="label reach" class:ok={engine.ok} class:warn={!engine.ok}>
 						{engine.ok ? "reachable" : "unreachable"}
 					</span>
-					<span class="mono chev">›</span>
+					<SignalMark signal="navigation" />
 				</a>
 
 				<span class="subs">
@@ -109,36 +115,8 @@
 </section>
 
 <style>
-	.head {
-		display: flex;
-		align-items: center;
-		gap: var(--lead);
-		margin-bottom: var(--lead);
-	}
-
-	.spacer {
-		margin-left: auto;
-	}
-
 	.seed {
 		margin-bottom: var(--lead);
-	}
-
-	.kv {
-		display: grid;
-		grid-template-columns: 22ch minmax(0, 1fr);
-		gap: 0 var(--lead);
-		margin: 0;
-	}
-
-	.kv dt,
-	.kv dd {
-		margin: 0;
-		line-height: var(--lead);
-	}
-
-	.key {
-		color: var(--text-muted);
 	}
 
 	.fleet {
@@ -162,14 +140,12 @@
 		color: var(--text);
 	}
 
-	.engine-head:hover .addr,
-	.engine-head:hover .chev {
-		color: var(--accent-signal);
+	.engine-head:hover {
+		--navigation-mark: var(--accent-signal);
 	}
 
-	.chev {
-		color: var(--text-muted);
-		text-align: center;
+	.engine-head:hover .addr {
+		color: var(--accent-signal);
 	}
 
 	.addr {
@@ -205,14 +181,6 @@
 
 	.state {
 		text-align: center;
-	}
-
-	.state.ok {
-		color: var(--accent-ok);
-	}
-
-	.bad {
-		color: var(--accent-signal);
 	}
 
 	.live {
