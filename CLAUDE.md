@@ -269,6 +269,20 @@ green tests are a **baked-in, non-configurable** precondition of every build —
 skip-tests opt-out will be added (opinionated flow, not CI phases). See the
 [test-in-build ADR](docs/decisions/2026-07-05-test-in-build-is-a-hard-gate.md).
 
+🚨 **Construction precedes regression tests (per-repo Law).** Before writing a test to
+fix a defect, move up one abstraction level and determine whether the design can make the
+invalid state unrepresentable. If it can, reshape the owning type, component, layout, or
+boundary first; test only meaningful behavior that remains after the structural fix. A
+test that coordinates several manually-correct call sites is evidence that the missing
+abstraction still needs to be built.
+
+Do not write low-value tests. Tests do not police CSS selectors, class names, source text,
+file layout, duplicated declarations, or implementation shape that a shared component,
+layout, type, compiler, or formatter can own by construction. Do not add trivial render,
+getter, mapping, or snapshot tests that merely restate the implementation or freeze the
+current output without a behavioral requirement. Prefer no new test over one that provides
+false confidence; the existing broad suites still run as regression gates.
+
 🚨 **Running `./test.sh` and `go test` is required completion work — it NEVER gates on the
 operator.** Do not ask permission to run them and do not defer them to a go-ahead; a slice
 is not complete until smoke has verified it (and its golden reviewed/re-recorded). The
