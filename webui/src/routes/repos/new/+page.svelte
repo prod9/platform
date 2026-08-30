@@ -326,12 +326,12 @@ framework = "go/basic"</code></pre>
 	}
 
 	.instructions p {
-		margin: 0 0 var(--lead-half);
+		margin: 0 0 var(--lead);
 	}
 
 	.instructions pre {
 		overflow-x: auto;
-		margin: 0 0 var(--lead-half);
+		margin: 0 0 var(--lead);
 		padding: var(--lead-half);
 		border: 1px solid var(--border);
 		border-radius: var(--radius-sm);
@@ -403,7 +403,7 @@ framework = "go/basic"</code></pre>
 		display: grid;
 		grid-template-columns: 1fr var(--lead);
 		align-items: baseline;
-		gap: var(--lead-half);
+		column-gap: var(--lead-half);
 		width: 100%;
 		padding: var(--lead-half) 0;
 		border: 0;

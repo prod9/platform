@@ -5,10 +5,17 @@
 	let { status } = $props();
 
 	const marks = { succeeded: "✓", failed: "✗", running: "◌", queued: "·", none: "·" };
+
+	function markOf(value) {
+		if (!Object.hasOwn(marks, value)) {
+			throw new Error(`unknown outcome status: ${value}`);
+		}
+		return marks[value];
+	}
 </script>
 
 <span class="mono outcome state--{status}">
-	<span class="mark" aria-hidden="true">{marks[status] ?? "·"}</span>
+	<span class="mark" aria-hidden="true">{markOf(status)}</span>
 	<span class="value">{status}</span>
 </span>
 

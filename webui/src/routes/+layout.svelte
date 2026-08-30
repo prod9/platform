@@ -171,7 +171,7 @@
 	.account {
 		display: flex;
 		align-items: center;
-		gap: var(--lead-half);
+		column-gap: var(--lead-half);
 		margin-left: auto;
 	}
 

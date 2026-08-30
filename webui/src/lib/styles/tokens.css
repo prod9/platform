@@ -49,6 +49,7 @@
 	--lead-2: 56px;
 	--lead-3: 84px;
 	--lead-4: 112px;
+	--action-size: var(--lead-2);
 
 	/* Type sizes. Prose and mono lead at one unit so two columns of different sizes land
 	   on the same baselines; display snaps its font-size to a whole unit and leads at 1,

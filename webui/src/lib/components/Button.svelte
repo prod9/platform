@@ -27,7 +27,9 @@
 	/* A button must read as a button at a glance: a raised plate with a firm edge and a
 	   pressed state, never a caps label with a hairline around it. */
 	.btn {
-		display: inline-block;
+		display: inline-grid;
+		place-items: center;
+		min-block-size: var(--action-size);
 		padding: 0 var(--lead);
 		border: 1px solid var(--text-muted);
 		border-radius: var(--radius-sm);
@@ -36,7 +38,7 @@
 		font-family: var(--p9-support);
 		font-size: var(--size-label);
 		font-weight: 600;
-		line-height: calc(var(--lead) - 2px);
+		line-height: var(--lead);
 		letter-spacing: 0.12em;
 		text-transform: uppercase;
 		text-decoration: none;

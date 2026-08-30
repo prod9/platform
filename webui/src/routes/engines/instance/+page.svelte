@@ -135,7 +135,7 @@
 
 	.crosshead {
 		color: var(--accent);
-		margin-bottom: var(--lead-half);
+		margin-bottom: var(--lead);
 		box-shadow: 0 -1px 0 var(--border) inset;
 	}
 
@@ -149,7 +149,7 @@
 		display: grid;
 		grid-template-columns: minmax(var(--lead), max-content) minmax(16ch, auto) 1fr auto;
 		align-items: baseline;
-		gap: var(--lead-half);
+		column-gap: var(--lead-half);
 		line-height: var(--lead);
 		padding: var(--lead-half) 0;
 		box-shadow: 0 -1px 0 var(--border) inset;
@@ -168,7 +168,7 @@
 	/* The engine's terminal holds fixed night pigments across modes, like the build log. */
 	.term {
 		margin: 0;
-		padding: var(--lead-half) var(--lead) var(--lead);
+		padding: var(--lead);
 		border-radius: var(--radius-md);
 		overflow-x: auto;
 		line-height: var(--lead);

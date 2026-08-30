@@ -77,7 +77,7 @@
 	}
 
 	.gap {
-		margin-top: var(--lead-half);
+		margin-top: var(--lead);
 	}
 
 	.confirm {

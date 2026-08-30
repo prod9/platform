@@ -156,7 +156,7 @@
 		display: grid;
 		grid-template-columns: var(--lead) auto 1fr var(--lead);
 		align-items: baseline;
-		gap: var(--lead-half);
+		column-gap: var(--lead-half);
 		line-height: var(--lead);
 		text-decoration: none;
 		color: var(--text);
@@ -193,7 +193,7 @@
 		display: grid;
 		grid-template-columns: minmax(var(--lead), max-content) 1fr auto;
 		align-items: baseline;
-		gap: var(--lead-half);
+		column-gap: var(--lead-half);
 		line-height: var(--lead);
 		text-decoration: none;
 		color: var(--text);

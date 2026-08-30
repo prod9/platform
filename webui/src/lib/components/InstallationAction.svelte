@@ -513,13 +513,13 @@
 
 	.fields {
 		display: grid;
-		gap: var(--lead-half);
+		gap: var(--lead);
 		margin: var(--lead) 0;
 	}
 
 	.fields label {
 		display: grid;
-		gap: 2px;
+		gap: 0;
 	}
 
 	.fields input {
@@ -544,7 +544,7 @@
 
 	.secret {
 		display: flex;
-		gap: var(--lead-half);
+		column-gap: var(--lead-half);
 	}
 
 	.secret input {

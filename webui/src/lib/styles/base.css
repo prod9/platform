@@ -60,6 +60,7 @@ p:last-child {
 }
 
 a {
+	min-block-size: var(--action-size);
 	color: var(--accent);
 	text-decoration-thickness: 1px;
 	text-underline-offset: 3px;
@@ -67,6 +68,24 @@ a {
 
 a:hover {
 	color: var(--accent-signal);
+}
+
+/* Blockified links and every native control inherit one comfortable action size. The
+   minimum has no effect on prose's non-replaced inline links, which remain in the text
+   flow. Checkbox and radio labels own their complete selectable surface. */
+button,
+input:not([type="checkbox"]):not([type="radio"]),
+select,
+textarea,
+label:has(input[type="checkbox"]),
+label:has(input[type="radio"]) {
+	min-block-size: var(--action-size);
+}
+
+label:has(input[type="checkbox"]),
+label:has(input[type="radio"]) {
+	display: flex;
+	align-items: center;
 }
 
 code,

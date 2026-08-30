@@ -30,7 +30,7 @@
 	}
 
 	h1 {
-		margin: var(--lead-half) 0 var(--lead);
+		margin: var(--lead) 0;
 	}
 
 	p {

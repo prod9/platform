@@ -43,7 +43,7 @@
 	}
 
 	.crosshead {
-		margin-bottom: var(--lead-half);
+		margin-bottom: var(--lead);
 		box-shadow: 0 -1px 0 var(--border) inset;
 		color: var(--accent);
 	}

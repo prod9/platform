@@ -213,7 +213,7 @@
 <style>
 	.label {
 		color: var(--accent);
-		margin-bottom: var(--lead-half);
+		margin-bottom: var(--lead);
 	}
 
 	/* Built URLs (org links, webhook/callback paths) can outgrow the column;
@@ -224,7 +224,7 @@
 	}
 
 	p {
-		margin: 0 0 var(--lead-half);
+		margin: 0 0 var(--lead);
 	}
 
 	.steps {

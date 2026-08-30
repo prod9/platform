@@ -153,7 +153,7 @@
 	.line {
 		display: flex;
 		align-items: baseline;
-		gap: var(--lead-half);
+		column-gap: var(--lead-half);
 		min-width: 0;
 	}
 
@@ -172,13 +172,13 @@
 
 	.mods {
 		display: flex;
-		gap: var(--lead-half);
+		column-gap: var(--lead-half);
 	}
 
 	.mod {
 		display: flex;
 		align-items: baseline;
-		gap: var(--lead-half);
+		column-gap: var(--lead-half);
 		white-space: nowrap;
 	}
 

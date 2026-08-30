@@ -165,7 +165,7 @@
 		display: grid;
 		grid-template-columns: minmax(var(--lead), max-content) 1fr auto;
 		align-items: baseline;
-		gap: var(--lead-half);
+		column-gap: var(--lead-half);
 		width: 100%;
 		line-height: var(--lead);
 	}
@@ -216,7 +216,7 @@
 	   these pigments across modes, so it never rebinds with the theme. */
 	.logpane pre {
 		margin: 0;
-		padding: var(--lead-half) var(--lead) var(--lead);
+		padding: var(--lead);
 		overflow-x: auto;
 		line-height: var(--lead);
 		background: var(--p9-night);
@@ -224,6 +224,6 @@
 	}
 
 	.pad {
-		padding: var(--lead-half) var(--lead) var(--lead);
+		padding: var(--lead);
 	}
 </style>
