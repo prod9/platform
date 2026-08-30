@@ -29,9 +29,8 @@
 	.btn {
 		display: inline-grid;
 		place-items: center;
-		min-block-size: var(--action-size);
-		padding: 0 var(--lead);
-		border: 1px solid var(--text-muted);
+		padding: calc(var(--lead-half) - var(--plate-edge)) var(--lead);
+		border: var(--plate-edge) solid var(--text-muted);
 		border-radius: var(--radius-sm);
 		background: var(--surface-raised);
 		box-shadow: var(--button-shadow);

@@ -41,25 +41,25 @@
 	--p9-mono: Iosevka, "SFMono-Regular", Menlo, Consolas, monospace;
 
 	/* The vertical lattice. Derived from the prose ratio rather than chosen round:
-	   17px prose at 1.65 lands on 28px, which is therefore the lead every line box and
+	   16px prose at 1.5 lands on 24px, which is therefore the lead every line box and
 	   every block-flow dimension is a whole multiple of. Halves appear only as symmetric
 	   pairs that sum back to a whole unit. */
-	--lead: 28px;
-	--lead-half: 14px;
-	--lead-2: 56px;
-	--lead-3: 84px;
-	--lead-4: 112px;
-	--action-size: var(--lead-2);
+	--lead: 24px;
+	--lead-half: 12px;
+	--lead-2: 48px;
+	--lead-3: 72px;
+	--lead-4: 96px;
 
 	/* Type sizes. Prose and mono lead at one unit so two columns of different sizes land
 	   on the same baselines; display snaps its font-size to a whole unit and leads at 1,
 	   never the other way around. */
-	--size-prose: 17px;
+	--size-prose: 16px;
 	--size-mono: 13px;
 	--size-label: 12px;
-	--size-heading: 28px;
-	--size-display: 56px;
+	--size-heading: 24px;
+	--size-display: 48px;
 
+	--plate-edge: 1px;
 	--radius-sm: 2px;
 	--radius-md: 6px;
 }

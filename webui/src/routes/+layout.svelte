@@ -102,7 +102,7 @@
 
 		<div class="account">
 			<button class="toggle label" onclick={toggleTheme}>
-				{warm.on ? "Use bright" : "Use warm"}
+				{warm.on ? "Too glum?" : "Too bright?"}
 			</button>
 			{#if session.user}
 				<span class="mono">{session.user.name}</span>
@@ -176,7 +176,7 @@
 	}
 
 	.toggle {
-		padding: 0;
+		padding: var(--lead-half) 0;
 		border: 0;
 		background: none;
 		color: var(--text-muted);

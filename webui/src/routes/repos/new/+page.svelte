@@ -300,7 +300,7 @@ framework = "go/basic"</code></pre>
 <style>
 	.head {
 		display: flex;
-		align-items: baseline;
+		align-items: center;
 		gap: var(--lead);
 		margin-bottom: var(--lead);
 	}
@@ -381,8 +381,8 @@ framework = "go/basic"</code></pre>
 
 	.filter {
 		width: 100%;
-		padding: 0 var(--lead-half);
-		border: 1px solid var(--border);
+		padding: calc(var(--lead-half) - var(--plate-edge)) var(--lead-half);
+		border: var(--plate-edge) solid var(--border);
 		border-radius: var(--radius-sm);
 		background: var(--surface-raised);
 		line-height: var(--lead);

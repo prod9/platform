@@ -523,8 +523,8 @@
 	}
 
 	.fields input {
-		padding: 0 var(--lead-half);
-		border: 1px solid var(--border);
+		padding: calc(var(--lead-half) - var(--plate-edge)) var(--lead-half);
+		border: var(--plate-edge) solid var(--border);
 		border-radius: var(--radius-sm);
 		background: var(--surface-raised);
 		font-family: var(--p9-mono);
@@ -553,8 +553,8 @@
 	}
 
 	.secret button {
-		padding: 0 var(--lead-half);
-		border: 1px solid var(--border);
+		padding: calc(var(--lead-half) - var(--plate-edge)) var(--lead-half);
+		border: var(--plate-edge) solid var(--border);
 		border-radius: var(--radius-sm);
 		background: var(--surface-raised);
 		color: var(--text);

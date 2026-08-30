@@ -111,7 +111,7 @@
 <style>
 	.head {
 		display: flex;
-		align-items: baseline;
+		align-items: center;
 		gap: var(--lead);
 		margin-bottom: var(--lead);
 	}
