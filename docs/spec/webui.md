@@ -17,7 +17,8 @@ The webui is the platform server's front end: a SvelteKit app built with
 binary ([platform-server.md](platform-server.md), "`webui/build/` is committed" and "The
 status of a page is the server's answer"). This file specs the **product surface** — the
 pages a signed-in user works in. The install wizard is specced separately in
-[installation.md](installation.md) §The wizard UI.
+[installation.md](installation.md) §The wizard UI. Human-facing semantics shared with the
+CLI follow [interfaces.md](interfaces.md).
 
 ## Navigation
 
@@ -102,10 +103,12 @@ instructions render on the right. The wizard separates three concerns:
    `platform.toml` manually. Repository access failure remains a separate error.
 3. **Review and confirm.** Present the resolved commit sha, modules one line per module
    with its framework, framework detections, and resolved `[server].publish` policy.
-   Policy is stated as behavior: which successful builds publish and which image tag they
-   receive, not merely the config value. The confirm sends the reviewed sha, not manifest
-   content; the server re-reads the immutable commit and atomically stores the repository,
-   exact raw manifest, resolved `publish_policy`, and parsed modules.
+   Present `publish_policy` under a human-readable label kept close to the field name, such
+   as `Publish policy`, and preserve the exact resolved enum value. A relevant derived
+   value appears as a hint on that field, never as a translated peer field. The confirm
+   sends the reviewed sha, not manifest content; the server re-reads the immutable commit
+   and atomically stores the repository, exact raw manifest, resolved `publish_policy`,
+   and parsed modules.
 
 Registration model: [platform-server.md](platform-server.md) §Repos are registered,
 authorization is GitHub-derived.
