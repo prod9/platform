@@ -7,27 +7,38 @@
 	const marks = { succeeded: "✓", failed: "✗", running: "◌", queued: "·", none: "·" };
 </script>
 
-<span class="mono state state--{status}">{marks[status] ?? "·"}</span>
+<span class="mono outcome state--{status}">
+	<span class="mark" aria-hidden="true">{marks[status] ?? "·"}</span>
+	<span class="value">{status}</span>
+</span>
 
 <style>
-	.state {
+	.outcome {
+		display: inline-grid;
+		grid-template-columns: var(--lead) auto;
+		align-items: baseline;
+		line-height: var(--lead);
+	}
+
+	.mark {
 		text-align: center;
 	}
 
-	.state--succeeded {
+	.state--succeeded .mark {
 		color: var(--accent-ok);
 	}
 
-	.state--failed {
+	.state--failed .mark {
 		color: var(--accent-signal);
 	}
 
-	.state--running {
+	.state--running .mark {
 		color: var(--accent);
 	}
 
-	.state--none,
-	.state--queued {
+	.state--none .mark,
+	.state--queued .mark,
+	.value {
 		color: var(--text-muted);
 	}
 </style>

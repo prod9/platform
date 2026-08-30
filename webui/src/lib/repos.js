@@ -27,21 +27,18 @@ export function publishPolicyDetails(policy) {
 	switch (policy) {
 		case "always":
 			return {
-				policy: "Always publish",
-				cadence: "Every successful build",
-				imageTag: "latest",
+				policy,
+				hint: "tag: latest",
 			};
 		case "tags":
 			return {
-				policy: "Publish tags",
-				cadence: "Successful tag builds",
-				imageTag: "The exact Git tag",
+				policy,
+				hint: "tag: exact Git tag",
 			};
 		case "never":
 			return {
-				policy: "Never publish",
-				cadence: "Builds validate without publishing",
-				imageTag: "None",
+				policy,
+				hint: "",
 			};
 		default:
 			throw new Error(`unknown server publish policy: ${policy}`);

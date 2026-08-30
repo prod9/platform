@@ -6,7 +6,7 @@
 	import { beginSignIn, session } from "$lib/session.svelte.js";
 	import { listRepos, listRepoBuilds, errorText, Answered } from "$lib/server.js";
 	import { latestStatus } from "$lib/repos.js";
-	import { tagOf, shortSHA, lastActivity } from "$lib/build.js";
+	import { lastActivity } from "$lib/build.js";
 	import Button from "$lib/components/Button.svelte";
 	import OutcomeMark from "$lib/components/OutcomeMark.svelte";
 
@@ -70,16 +70,16 @@
 	<section>
 		<div class="head">
 			<h2>Repositories</h2>
-			<p class="label">{repos.length} onboarded</p>
+			<p class="label">{repos.length} registered</p>
 			<span class="spacer"></span>
-			<Button variant="primary" href="/repos/new/">Add repository</Button>
+			<Button variant="primary" href="/repos/new/">Register repository</Button>
 		</div>
 
 		{#if loadError}
 			<p class="mono error">Repositories unavailable: {loadError}</p>
 		{:else if repos.length === 0}
 			<p class="mono muted">
-				Nothing onboarded yet — add the first repository to start building.
+				Nothing registered yet — register the first repository to start building.
 			</p>
 		{:else}
 			<ul class="repos">
@@ -93,11 +93,14 @@
 
 						<span class="subs">
 							{#each repo.recent as build (build.id)}
+								{@const activity = lastActivity(build)}
 								<a class="build" href={`/builds/${build.id}/`}>
 									<OutcomeMark status={build.status} />
-									<span class="mono tag">{tagOf(build.ref)}</span>
-									<span class="mono muted">#{build.id} · {shortSHA(build.sha)}</span>
-									<span class="mono muted timing">{lastActivity(build)}</span>
+									<span class="mono ref">{build.ref}</span>
+									<span class="mono muted">#{build.id} · {build.sha}</span>
+									<span class="mono muted timing">
+										{activity ? `${activity.field} ${activity.value}` : "no timestamp"}
+									</span>
 								</a>
 							{:else}
 								<span class="build none">
@@ -151,7 +154,7 @@
 
 	.repo-head {
 		display: grid;
-		grid-template-columns: var(--lead) 1fr var(--lead);
+		grid-template-columns: minmax(var(--lead), max-content) 1fr var(--lead);
 		align-items: baseline;
 		gap: var(--lead-half);
 		text-decoration: none;
@@ -187,7 +190,7 @@
 
 	.build {
 		display: grid;
-		grid-template-columns: var(--lead) 10ch 1fr auto;
+		grid-template-columns: max-content minmax(16ch, auto) 1fr auto;
 		align-items: baseline;
 		gap: var(--lead-half);
 		text-decoration: none;

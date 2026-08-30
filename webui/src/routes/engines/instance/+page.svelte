@@ -7,13 +7,34 @@
 	// docs/spec/platform-server.md, "The status of a page is the server's answer").
 	// One engine instance: its facts, the builds it has carried, and its live log — the
 	// same night-ground terminal the build detail uses.
-	const recent = [
-		{ id: 125, repo: "prod9/infra", tag: "v0.3.12", status: "running", took: "1m 03s", when: "4m ago" },
-		{ id: 128, repo: "prod9/platform", tag: "v0.9.36", status: "succeeded", took: "4m 12s", when: "2h ago" },
-		{ id: 126, repo: "prod9/platform", tag: "2f4c1d9", status: "succeeded", took: "3m 45s", when: "6h ago" },
-	];
+	import OutcomeMark from "$lib/components/OutcomeMark.svelte";
 
-	const marks = { succeeded: "✓", failed: "✗", running: "◌", queued: "·" };
+	const recent = [
+		{
+			id: 125,
+			repo: "prod9/infra",
+			ref: "refs/tags/v0.3.12",
+			status: "running",
+			duration: "1m 03s",
+			observed_at: "2026-08-12T09:15:06Z",
+		},
+		{
+			id: 128,
+			repo: "prod9/platform",
+			ref: "refs/tags/v0.9.36",
+			status: "succeeded",
+			duration: "4m 12s",
+			observed_at: "2026-08-12T07:16:12Z",
+		},
+		{
+			id: 126,
+			repo: "prod9/platform",
+			ref: "refs/heads/main",
+			status: "succeeded",
+			duration: "3m 45s",
+			observed_at: "2026-08-12T03:18:45Z",
+		},
+	];
 
 	const log =
 		"time=2026-08-12T09:14:03Z level=INFO msg=\"session opened\" client=platform-worker\n" +
@@ -49,10 +70,12 @@
 				{#each recent as build (build.id)}
 					<li>
 						<a class="row" href={`/builds/${build.id}/`}>
-							<span class="mono state state--{build.status}">{marks[build.status]}</span>
-							<span class="mono tag">{build.tag}</span>
+							<OutcomeMark status={build.status} />
+							<span class="mono tag">{build.ref}</span>
 							<span class="mono muted">{build.repo} · #{build.id}</span>
-							<span class="mono muted timing">{build.took} · {build.when}</span>
+							<span class="mono muted timing">
+								observed_at {build.observed_at} · duration {build.duration}
+							</span>
 						</a>
 					</li>
 				{/each}
@@ -124,7 +147,7 @@
 
 	.row {
 		display: grid;
-		grid-template-columns: var(--lead) 10ch 1fr auto;
+		grid-template-columns: minmax(var(--lead), max-content) minmax(16ch, auto) 1fr auto;
 		align-items: baseline;
 		gap: var(--lead-half);
 		line-height: var(--lead);
@@ -136,22 +159,6 @@
 
 	.row:hover {
 		background: var(--surface-quiet);
-	}
-
-	.state {
-		text-align: center;
-	}
-
-	.state--succeeded {
-		color: var(--accent-ok);
-	}
-
-	.state--failed {
-		color: var(--accent-signal);
-	}
-
-	.state--running {
-		color: var(--accent);
 	}
 
 	.timing {

@@ -124,10 +124,13 @@ async function probe(path) {
 // funnels through here instead of inventing its own strings.
 export function errorText(result) {
 	if (result.outcome === Offline) {
-		return "No answer from the platform server.";
+		return "No answer from the platform server. Check the server and retry.";
 	}
 	if (result.body === "") {
-		return `The server refused without a reason (status ${result.status}).`;
+		return (
+			`The server refused without a reason (status ${result.status}). ` +
+			"Retry; if it repeats, check the server logs."
+		);
 	}
 	return result.body;
 }
@@ -236,7 +239,7 @@ export function listSteps(id) {
 	return call(`/api/builds/${id}/steps`);
 }
 
-// listRepos is registered∩live: the onboarded repos the session user can still
+// listRepos is registered∩live: the registered repos the session user can still
 // reach on GitHub (docs/spec/platform-server.md §Repos are registered, visibility
 // is live).
 export function listRepos() {

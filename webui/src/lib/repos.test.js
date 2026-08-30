@@ -60,28 +60,25 @@ describe("publishPolicyDetails", () => {
 		[
 			"always",
 			{
-				policy: "Always publish",
-				cadence: "Every successful build",
-				imageTag: "latest",
+				policy: "always",
+				hint: "tag: latest",
 			},
 		],
 		[
 			"tags",
 			{
-				policy: "Publish tags",
-				cadence: "Successful tag builds",
-				imageTag: "The exact Git tag",
+				policy: "tags",
+				hint: "tag: exact Git tag",
 			},
 		],
 		[
 			"never",
 			{
-				policy: "Never publish",
-				cadence: "Builds validate without publishing",
-				imageTag: "None",
+				policy: "never",
+				hint: "",
 			},
 		],
-	])("explains %s as policy, cadence, and image tag", (policy, expected) => {
+	])("keeps %s canonical and attaches only its image-tag hint", (policy, expected) => {
 		expect(publishPolicyDetails(policy)).toEqual(expected);
 	});
 

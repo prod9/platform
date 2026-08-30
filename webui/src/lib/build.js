@@ -17,34 +17,19 @@ function stamped(value) {
 	return at;
 }
 
-// tagOf is the ref's last segment: a build's ref is refs/tags/vX.Y.Z and the image is
-// published under vX.Y.Z, so the tag is the part a reader recognizes.
-export function tagOf(ref) {
-	const lastSlash = ref.lastIndexOf("/");
-	if (lastSlash === -1) {
-		return ref;
-	}
-	return ref.slice(lastSlash + 1);
-}
-
-const shaDisplayLength = 7;
-
-export function shortSHA(sha) {
-	return sha.slice(0, shaDisplayLength);
-}
-
-// lastActivity is the most recent moment the build can speak to, falling back through its
-// own clock until one of them is real.
+// lastActivity selects the most recent source timestamp without translating it. The field
+// name travels with the exact value so presentation cannot make the sources look equivalent.
 export function lastActivity(build) {
-	const finished = stamped(build.finished_at);
-	const started = stamped(build.started_at);
-	const created = stamped(build.created_at);
-
-	const at = finished ?? started ?? created;
-	if (at === null) {
-		return "";
+	if (stamped(build.finished_at) !== null) {
+		return { field: "finished_at", value: build.finished_at };
 	}
-	return at.toLocaleString();
+	if (stamped(build.started_at) !== null) {
+		return { field: "started_at", value: build.started_at };
+	}
+	if (stamped(build.created_at) !== null) {
+		return { field: "created_at", value: build.created_at };
+	}
+	return null;
 }
 
 // byAttempt groups the flat steps read under their attempt ordinal — the wire keeps

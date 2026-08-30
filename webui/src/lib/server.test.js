@@ -235,7 +235,7 @@ describe("classifyMigrationPlan", () => {
 describe("errorText", () => {
 	test("gives Offline a human-readable message", () => {
 		expect(errorText({ outcome: Offline, body: "" })).toBe(
-			"No answer from the platform server.",
+			"No answer from the platform server. Check the server and retry.",
 		);
 	});
 
@@ -247,7 +247,8 @@ describe("errorText", () => {
 
 	test("a reasonless refusal still says something", () => {
 		expect(errorText({ outcome: Refused, body: "", status: 502 })).toBe(
-			"The server refused without a reason (status 502).",
+			"The server refused without a reason (status 502). " +
+				"Retry; if it repeats, check the server logs.",
 		);
 	});
 });

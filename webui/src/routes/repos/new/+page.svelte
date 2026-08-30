@@ -132,7 +132,7 @@
 
 <section>
 	<div class="head">
-		<h2><a href="/">Repositories</a> / add</h2>
+		<h2><a href="/">Repositories</a> / register</h2>
 		<span class="spacer"></span>
 		<Button href="/">Cancel</Button>
 	</div>
@@ -144,7 +144,7 @@
 					<span class="row">
 						<span class="mono name">{step.label}</span>
 						<span class="state state--{stateOf(step.name)} label">
-							{stateOf(step.name) === "fully_ready" ? "done" : "pending"}
+							{stateOf(step.name)}
 						</span>
 					</span>
 				</li>
@@ -153,14 +153,14 @@
 
 		<div class="action">
 			{#if current === "access"}
-				<Panel label="Repositories you and the App reach, not yet onboarded">
+				<Panel label="Repositories you and the App reach, not yet registered">
 					{#if !loaded}
 						<p class="mono muted">Loading…</p>
 					{:else if loadError}
 						<p class="mono warn">Candidates unavailable: {loadError}</p>
 					{:else if candidates.length === 0}
 						<p class="mono muted">
-							Every repository you and the App both reach is already onboarded.
+							Every repository you and the App both reach is already registered.
 						</p>
 					{:else}
 						<input
@@ -216,28 +216,27 @@
 			{:else}
 				<Panel label={picked.full_name}>
 					<dl class="kv">
-						<dt class="mono key">commit</dt>
+						<dt class="mono key">Commit</dt>
 						<dd class="mono">{manifest.sha}</dd>
-						<dt class="mono key">modules</dt>
+						<dt class="mono key">Modules</dt>
 						<dd class="mono modules">
 							{#each manifest.modules as module (module.name)}
 								<span>{moduleLabel(module)}</span>
 							{/each}
 						</dd>
 						{#if manifest.maintainer !== ""}
-							<dt class="mono key">maintainer</dt>
+							<dt class="mono key">Maintainer</dt>
 							<dd class="mono">{manifest.maintainer}</dd>
 						{/if}
 						{#if manifest.repository !== ""}
-							<dt class="mono key">repository</dt>
+							<dt class="mono key">Repository</dt>
 							<dd class="mono">{manifest.repository}</dd>
 						{/if}
-						<dt class="mono key">publish policy</dt>
-						<dd class="mono">{policy.policy}</dd>
-						<dt class="mono key">publish cadence</dt>
-						<dd class="mono">{policy.cadence}</dd>
-						<dt class="mono key">image tag</dt>
-						<dd class="mono">{policy.imageTag}</dd>
+						<dt class="mono key">Publish policy</dt>
+						<dd class="mono">
+							{policy.policy}
+							{#if policy.hint}<span class="muted"> ({policy.hint})</span>{/if}
+						</dd>
 					</dl>
 
 					{#if confirmError !== ""}
@@ -250,7 +249,7 @@
 							onclick={confirm}
 							disabled={confirming || manifest === null}
 						>
-							{confirming ? "Adding…" : "Confirm add"}
+							{confirming ? "Registering…" : "Register repository"}
 						</Button>
 					</div>
 				</Panel>

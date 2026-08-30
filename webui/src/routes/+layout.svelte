@@ -102,11 +102,11 @@
 
 		<div class="account">
 			<button class="toggle label" onclick={toggleTheme}>
-				{warm.on ? "Too glum?" : "Too bright?"}
+				{warm.on ? "Use bright" : "Use warm"}
 			</button>
 			{#if session.user}
 				<span class="mono">{session.user.name}</span>
-				<Button onclick={signOut}>Log out</Button>
+				<Button onclick={signOut}>Sign out</Button>
 			{/if}
 		</div>
 	</header>

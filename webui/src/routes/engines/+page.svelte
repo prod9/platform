@@ -7,6 +7,7 @@
 	// The seed line states where the roster comes from; the roster itself is DNS, read
 	// per load.
 	import Button from "$lib/components/Button.svelte";
+	import OutcomeMark from "$lib/components/OutcomeMark.svelte";
 	import Panel from "$lib/components/Panel.svelte";
 
 	const engines = [
@@ -73,20 +74,26 @@
 				<span class="subs">
 					{#if !engine.ok}
 						<span class="sub">
-							<span class="mono state bad">✗</span>
+							<OutcomeMark status="failed" />
 							<span class="mono warn">did not answer the dial</span>
-							<span class="mono muted timing">last seen 41m ago</span>
+							<span class="mono muted timing">
+								last_seen_at 2026-08-12T08:34:00Z
+							</span>
 						</span>
 					{:else}
 						<span class="sub">
 							<span class="mono state"></span>
-							<span class="mono muted">{engine.version} · {engine.uptime} · {engine.cache}</span>
+							<span class="mono muted">
+								{engine.version} · {engine.uptime} · {engine.cache}
+							</span>
 						</span>
 						{#if engine.work}
 							<a class="sub" href={`/builds/${engine.work.build}/`}>
-								<span class="mono state live">◌</span>
-								<span class="mono live">building {engine.work.repo} #{engine.work.build} · {engine.work.tag}</span>
-								<span class="mono muted timing">{engine.work.took}</span>
+								<OutcomeMark status="running" />
+								<span class="mono live">
+									building {engine.work.repo} #{engine.work.build} · {engine.work.tag}
+								</span>
+								<span class="mono muted timing">duration {engine.work.took}</span>
 							</a>
 						{:else}
 							<span class="sub">
@@ -184,7 +191,7 @@
 
 	.sub {
 		display: grid;
-		grid-template-columns: var(--lead) 1fr auto;
+		grid-template-columns: minmax(var(--lead), max-content) 1fr auto;
 		align-items: baseline;
 		gap: var(--lead-half);
 		line-height: var(--lead);

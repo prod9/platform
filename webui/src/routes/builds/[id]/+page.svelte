@@ -6,8 +6,7 @@
 	// delete canned data.
 	import StatusChip from "$lib/components/StatusChip.svelte";
 	import Button from "$lib/components/Button.svelte";
-
-	const marks = { succeeded: "✓", failed: "✗", running: "◌", queued: "·" };
+	import OutcomeMark from "$lib/components/OutcomeMark.svelte";
 
 	const units = [
 		{
@@ -72,7 +71,10 @@
 	<div class="head">
 		<h2><a href="/builds/">platform</a> / #127</h2>
 		<StatusChip status="failed" />
-		<p class="label mono">v0.9.35 · e996f69 · webui · chakrit · 1d ago</p>
+		<p class="label mono">
+			ref refs/tags/v0.9.35 · sha e996f69000000000000000000000000000000000 ·
+			trigger webui · actor chakrit · created_at 2026-08-11T09:15:00Z
+		</p>
 		<span class="spacer"></span>
 		<Button href="/builds/new/">Retry</Button>
 	</div>
@@ -82,9 +84,9 @@
 			{#each units as unit (unit.name)}
 				<li class="unit">
 					<span class="nav-row">
-						<span class="mono mark mark--{unit.status}">{marks[unit.status]}</span>
+						<OutcomeMark status={unit.status} />
 						<span class="mono unit-name">{unit.name}</span>
-						<span class="label">{unit.took}</span>
+						<span class="label">duration {unit.took}</span>
 					</span>
 					<ul class="steps">
 						{#each unit.steps as step (step.name)}
@@ -94,9 +96,9 @@
 									class:sel={selected.unit === unit.name && selected.step === step.name}
 									onclick={() => pick(unit, step)}
 								>
-									<span class="mark mark--{step.status}">{marks[step.status]}</span>
+									<OutcomeMark status={step.status} />
 									<span class="step-name">{step.name}</span>
-									<span class="muted">{step.took}</span>
+									<span class="muted">duration {step.took}</span>
 								</button>
 							</li>
 						{/each}
@@ -109,7 +111,7 @@
 			<div class="loghead">
 				<h3>{selected.unit} · {selected.step}</h3>
 				<StatusChip status={current.status} />
-				<span class="label">attempt 1 · {current.took}</span>
+				<span class="label">attempt 1 · duration {current.took}</span>
 			</div>
 			{#if current.output}
 				<pre class="mono">{current.output}</pre>
@@ -161,15 +163,11 @@
 	   stay in the machine's muted voice. */
 	.nav-row {
 		display: grid;
-		grid-template-columns: var(--lead) 1fr auto;
+		grid-template-columns: minmax(var(--lead), max-content) 1fr auto;
 		align-items: baseline;
 		gap: var(--lead-half);
 		width: 100%;
 		line-height: var(--lead);
-	}
-
-	.nav-row .mark {
-		text-align: center;
 	}
 
 	.unit-name {
@@ -198,22 +196,6 @@
 	.step.sel {
 		background: var(--surface-quiet);
 		box-shadow: 2px 0 0 var(--accent) inset;
-	}
-
-	.mark--succeeded {
-		color: var(--accent-ok);
-	}
-
-	.mark--failed {
-		color: var(--accent-signal);
-	}
-
-	.mark--running {
-		color: var(--accent);
-	}
-
-	.mark--queued {
-		color: var(--text-muted);
 	}
 
 	.logpane {
