@@ -34,6 +34,18 @@ an operator.
   `always` value rather than translating it to `Always publish`.
 - One source field does not become several translated rows that appear to be independently
   stored values.
+- A mark, abbreviation, relative time, duration, or other derived presentation may clarify
+  a canonical value, but never replace it. Keep the source value visible and attach the
+  derivation to it as a hint.
+- Vertical rhythm is structural. Derive one spacing lattice from the prose line height;
+  every block-flow margin, padding, gap, and line height lands on a whole lattice unit.
+  Half-units appear only as equal block-start and block-end padding that add up to one
+  unit. Components own complete rhythmic blocks, and parent layouts compose those blocks
+  without compensating margins.
+- Standalone action surfaces are comfortably large: buttons, form controls, navigation
+  targets, selectable rows, and other controls occupy at least two lattice units in the
+  block direction. The whole visible surface is interactive. Inline links inside prose
+  remain inline because they are reading affordances, not standalone controls.
 
 Repository onboarding therefore presents the resolved value that registration will
 persist, with a relevant derived tag kept on the same field as a hint:

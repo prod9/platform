@@ -83,10 +83,11 @@ record exists yet.
 ## Pages
 
 **Repos landing (`/`).** One block per registered repo — the nested-feed shape: the
-repo's name heads the block, its last three builds render as sub-rows (outcome mark,
-tag, resolved sha, when), and the block links into the repo's feed. An "add repository"
-action leads to the onboarding wizard. Signed-out, the page is the sign-in door and
-nothing else.
+repo's name heads the block, its last three builds render as sub-rows, and the block links
+into the repo's feed. Each build keeps its canonical status, ref, resolved sha, and source
+timestamp visible; its outcome mark, recognizable tag, abbreviated sha, relative time, and
+duration may sit beside those values as hints. A "register repository" action leads to the
+onboarding wizard. Signed-out, the page is the sign-in door and nothing else.
 
 **Repo onboarding (`/repos/new/`).** Runs as the install wizard does: a checklist on the
 left is the navigation, the selected step's action renders beside it, and operative
@@ -114,9 +115,11 @@ Registration model: [platform-server.md](platform-server.md) §Repos are registe
 authorization is GitHub-derived.
 
 **Repo build feed (`/repos/{owner}/{repo}/`).** The repo's builds as a CI feed: newest
-first, each row led by its outcome mark, carrying the tag, the commit it resolved to,
-per-module marks, and the trigger's provenance (who or what asked). A "new build" action
-leads to the manual-trigger wizard.
+first, each row led by its canonical status and supplementary outcome mark, carrying the
+ref, full commit sha, source timestamps, per-module statuses, and the trigger's
+provenance (who or what asked). Recognizable tags, abbreviated shas, relative times, and
+durations are hints on those source values. A "new build" action leads to the
+manual-trigger wizard.
 
 **Manual-trigger wizard (`/repos/{owner}/{repo}/builds/new/`).** A ref in, its sha
 resolved server-side and shown, the modules read from `platform.toml` at that commit and
@@ -170,8 +173,8 @@ read failing *is* the reachability signal.
 ## Shared components
 
 Four pieces repeat across the pages and are extracted as components when wiring lands
-(named in each mock's ⚠ MOCK note): the **outcome mark** (✓ ✗ ◌ · for
-succeeded/failed/running/queued), the **feed row** (mark-led row with trailing
-timestamp), the **kv list** (muted key, ink value — the settings and facts shape), and
-the **terminal pane** (the night-ground log view the build detail and the cluster-view
-slice's log reads share).
+(named in each mock's ⚠ MOCK note): the **outcome mark** (✓ ✗ ◌ · beside the canonical
+`succeeded`/`failed`/`running`/`queued` value), the **feed row** (status-led row with its
+source timestamp and optional derived hints), the **kv list** (muted key, ink value — the
+settings and facts shape), and the **terminal pane** (the night-ground log view the build
+detail and the cluster-view slice's log reads share).
