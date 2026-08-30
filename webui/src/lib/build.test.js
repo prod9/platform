@@ -5,17 +5,14 @@ import { lastActivity, ranFor, byAttempt } from "./build.js";
 const never = "0001-01-01T00:00:00Z";
 
 describe("lastActivity", () => {
-	test("returns the source field and exact finish value", () => {
+	test("reports the finish as a concise clock time", () => {
 		const build = {
 			created_at: "2026-08-01T10:00:00Z",
 			started_at: "2026-08-01T10:01:00Z",
 			finished_at: "2026-08-01T10:02:00Z",
 		};
 
-		expect(lastActivity(build)).toEqual({
-			field: "finished_at",
-			value: build.finished_at,
-		});
+		expect(lastActivity(build)).toBe("finished 10:02:00");
 	});
 
 	test("falls back to the start when nothing has finished", () => {
@@ -25,10 +22,7 @@ describe("lastActivity", () => {
 			finished_at: never,
 		};
 
-		expect(lastActivity(build)).toEqual({
-			field: "started_at",
-			value: build.started_at,
-		});
+		expect(lastActivity(build)).toBe("started 10:01:00");
 	});
 
 	test("falls back to creation for a build nothing has reported on", () => {
@@ -38,20 +32,15 @@ describe("lastActivity", () => {
 			finished_at: never,
 		};
 
-		expect(lastActivity(build)).toEqual({
-			field: "created_at",
-			value: build.created_at,
-		});
+		expect(lastActivity(build)).toBe("created 10:00:00");
 	});
 
-	test("is null when every moment is absent", () => {
-		expect(lastActivity({ created_at: never, started_at: never, finished_at: never })).toBe(
-			null,
-		);
+	test("is blank when every moment is absent", () => {
+		expect(lastActivity({ created_at: never, started_at: never, finished_at: never })).toBe("");
 	});
 
 	test("treats a missing field as absent rather than as a date", () => {
-		expect(lastActivity({})).toBe(null);
+		expect(lastActivity({})).toBe("");
 	});
 });
 

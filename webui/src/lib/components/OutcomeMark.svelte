@@ -14,21 +14,20 @@
 	}
 </script>
 
-<span class="mono outcome state--{status}">
+<span class="mono outcome state--{status}" role="img" aria-label={status}>
 	<span class="mark" aria-hidden="true">{markOf(status)}</span>
-	<span class="value">{status}</span>
 </span>
 
 <style>
 	.outcome {
-		display: inline-grid;
-		grid-template-columns: var(--lead) auto;
-		align-items: baseline;
+		display: inline-block;
+		width: var(--lead);
 		line-height: var(--lead);
+		text-align: center;
 	}
 
 	.mark {
-		text-align: center;
+		display: block;
 	}
 
 	.state--succeeded .mark {
@@ -44,8 +43,7 @@
 	}
 
 	.state--none .mark,
-	.state--queued .mark,
-	.value {
+	.state--queued .mark {
 		color: var(--text-muted);
 	}
 </style>

@@ -99,7 +99,7 @@
 									<span class="mono ref">{build.ref}</span>
 									<span class="mono muted">#{build.id} · {build.sha}</span>
 									<span class="mono muted timing">
-										{activity ? `${activity.field} ${activity.value}` : "no timestamp"}
+										{activity || "no timestamp"}
 									</span>
 								</a>
 							{:else}
@@ -128,7 +128,7 @@
 
 	.head {
 		display: flex;
-		align-items: center;
+		align-items: baseline;
 		gap: var(--lead);
 		margin-bottom: var(--lead);
 	}

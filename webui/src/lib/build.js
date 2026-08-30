@@ -17,19 +17,21 @@ function stamped(value) {
 	return at;
 }
 
-// lastActivity selects the most recent source timestamp without translating it. The field
-// name travels with the exact value so presentation cannot make the sources look equivalent.
+// lastActivity names the most recent real build moment and keeps only its clock time for
+// the compact feed.
 export function lastActivity(build) {
-	if (stamped(build.finished_at) !== null) {
-		return { field: "finished_at", value: build.finished_at };
+	const activities = [
+		{ label: "finished", at: stamped(build.finished_at) },
+		{ label: "started", at: stamped(build.started_at) },
+		{ label: "created", at: stamped(build.created_at) },
+	];
+	const activity = activities.find(({ at }) => at !== null);
+	if (activity === undefined) {
+		return "";
 	}
-	if (stamped(build.started_at) !== null) {
-		return { field: "started_at", value: build.started_at };
-	}
-	if (stamped(build.created_at) !== null) {
-		return { field: "created_at", value: build.created_at };
-	}
-	return null;
+
+	const clock = activity.at.toISOString().slice(11, 19);
+	return `${activity.label} ${clock}`;
 }
 
 // byAttempt groups the flat steps read under their attempt ordinal — the wire keeps
