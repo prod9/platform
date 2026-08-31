@@ -16,6 +16,7 @@
 		display: flex;
 		align-items: center;
 		gap: var(--lead);
+		min-height: var(--lead-2);
 		margin-bottom: var(--lead);
 		box-shadow: 0 -1px 0 var(--border) inset;
 	}

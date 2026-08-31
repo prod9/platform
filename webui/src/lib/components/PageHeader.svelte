@@ -21,6 +21,7 @@
 		display: flex;
 		align-items: center;
 		gap: var(--lead);
+		min-height: var(--lead-2);
 		margin-bottom: var(--lead);
 	}
 

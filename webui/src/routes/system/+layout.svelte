@@ -37,7 +37,8 @@
 
 	a {
 		color: var(--text-muted);
-		line-height: var(--lead-2);
+		padding-block: var(--lead-half);
+		line-height: var(--lead);
 		text-decoration: none;
 	}
 
