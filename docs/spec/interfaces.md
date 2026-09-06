@@ -48,6 +48,10 @@ an operator.
   A selectable row owns its padding so its whole visible surface is interactive. Inline
   links inside prose remain inline because they are reading affordances, not standalone
   controls.
+- Never present flashing content. While data loads, render the content's full structural
+  chrome — page and section headers, actions, panels, columns, lists, and controls — in
+  its final geometry, with static placeholders only for unknown values. Never hide a
+  large component or layout behind a `Loading` label.
 
 Repository onboarding therefore presents the resolved value that registration will
 persist, with a relevant derived tag kept on the same field as a hint:

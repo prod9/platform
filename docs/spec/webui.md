@@ -33,7 +33,9 @@ does not introduce itself.
 Shared visual structure is owned by components, never coordinated by route-local CSS.
 `PageHeader` owns the title, metadata, and action positions at the top of every product
 page. Its row has one stable height, independent of whether metadata or actions are
-present, so every page title occupies the same vertical position. `SectionHeader` owns
+present, so every page title occupies the same vertical position. Text metadata shares
+the title baseline; navigation occupies a separate, vertically centered slot so padded
+navigation controls cannot move that baseline. `SectionHeader` owns
 the corresponding heading and action rhythm within a page.
 `Facts` owns definition-list columns, key/value typography, and their shared vertical
 rhythm; its named measures cover the three established key widths. `SignalMark` owns the
@@ -73,6 +75,13 @@ The mock tree stands in with static paths (`/builds/`, `/engines/instance/`); th
 shapes above are the target.
 
 ## Session expiry and return
+
+During startup checks, the shell renders the destination page's own loading chrome with
+interaction disabled. Page reads wait until installation routing and the session read
+finish; the landing page shows its sign-in door only after the session is known. Unknown
+data uses static placeholders inside the destination's existing panels and controls,
+including the repository manifest source panel. Loading controls are disabled controls,
+with no pointer or hover affordance.
 
 Authentication recovery is a shell concern, not a page concern. The shared server client
 intercepts `401` from every product API operation and starts GitHub OAuth; a page never

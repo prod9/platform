@@ -61,11 +61,13 @@ The wizard UI holds these rules:
   takes values — the input fields and a save action posting the step's
   installer action. Non-secret fields pre-fill from the entry's `values`;
   secret fields always render empty.
-- **A form is editable only when its values are settled.** The wizard renders
-  nothing until the first state read has been adopted, and a panel's inputs are
-  disabled while its own save is in flight — adopting a state response must
-  never replace text the operator is still typing, and both windows where that
-  could happen are closed by construction rather than reconciled after.
+- **A form is editable only when its values are settled.** The wizard renders its full
+  three-column structural chrome while the first state read is pending, using static
+  placeholders for unknown progress and panel values. It renders no operative form or
+  value until that read has been adopted, and a panel's inputs are disabled while its own
+  save is in flight — adopting a state response must never replace text the operator is
+  still typing, and both windows where that could happen are closed by construction
+  rather than reconciled after.
 - **Done locks; Redo unlocks.** A `fully_ready` step's panel renders its form
   locked behind a **Redo** button. Redo is client-side only — it unlocks the
   form (secret fields empty and required; the webhook secret, being generated
