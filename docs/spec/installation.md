@@ -180,7 +180,7 @@ The credentials check compares `GET /app` (JWT auth) against the required set:
 
 The wizard is **complete** when the conjunction holds: **every entry
 `fully_ready`**. Completion is the wizard's own notion — what the final panel
-waits for — and is distinct from **installed**, the durable fact boot reads
+waits for — and is distinct from **installed**, the durable fact request-time gates read
 (§Boot composition): once the claim has written the `install.*` record, the
 server is installed regardless of what any live check reports later. The
 order matters twice over — it is both the wizard's sequence and the
