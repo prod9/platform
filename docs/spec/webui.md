@@ -34,8 +34,10 @@ Shared visual structure is owned by components, never coordinated by route-local
 `PageHeader` owns the title, metadata, and action positions at the top of every product
 page. Its row has one stable height, independent of whether metadata or actions are
 present, so every page title occupies the same vertical position. Text metadata shares
-the title baseline; navigation occupies a separate, vertically centered slot so padded
-navigation controls cannot move that baseline. `SectionHeader` owns
+the title baseline, and navigation labels share that same baseline. The title's
+symmetrically padded line anchors the baseline within the fixed header row; navigation
+retains its padded click targets without changing the title position. Actions remain
+vertically centered. `SectionHeader` owns
 the corresponding heading and action rhythm within a page.
 `Facts` owns definition-list columns, key/value typography, and their shared vertical
 rhythm; its named measures cover the three established key widths. `SignalMark` owns the
