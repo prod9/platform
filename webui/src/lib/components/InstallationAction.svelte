@@ -26,12 +26,13 @@
 	import { beginSignIn, session } from "$lib/session.svelte.js";
 	import Panel from "$lib/components/Panel.svelte";
 	import Button from "$lib/components/Button.svelte";
+	import LoadingBlock from "$lib/components/LoadingBlock.svelte";
 
 	let {
 		current,
-		entries,
+		entries = [],
 		locked,
-		origin,
+		origin = "",
 		installationID,
 		signInURL,
 		appInstallURL,
@@ -231,7 +232,17 @@
 	}
 </script>
 
-{#if current.name === "db-reachable"}
+{#if current === null}
+	<Panel label="Installation step">
+		<div class="fields" aria-busy="true">
+			<label>
+				<span class="label"><LoadingBlock measure="compact" /></span>
+				<input disabled aria-label="Loading installation value" />
+			</label>
+		</div>
+		<Button disabled><LoadingBlock measure="compact" /></Button>
+	</Panel>
+{:else if current.name === "db-reachable"}
 	<Panel label={locked ? "Database reachable" : "Database unreachable"}>
 		{#if locked}
 			<p class="muted">The server reaches its database. Nothing to redo.</p>

@@ -33,8 +33,8 @@
 	];
 
 	// Install is a gate, not a destination: it never appears in the nav, and the server
-	// decides which side of it a visitor is on. GET /api/installation is served only while the
-	// installer fragment is mounted, so specifically a 404 is the installed signal — no
+	// decides which side of it a visitor is on. GET /api/installation is served only while
+	// the installation is unclaimed, so specifically a 404 is the installed signal — no
 	// answer, or a server erroring on the probe, is neither state, and routing on it
 	// would be a guess, so the shell stays shut and says why.
 	async function gate() {
@@ -48,15 +48,15 @@
 
 		await routeToSide(signal === Installing);
 
-		// The auth fragment mounts in both compositions — the org-owner claim needs a
-		// login before the server is installed — so the session loads on both sides too.
+		// The org-owner claim needs a login before the server is installed, so the
+		// session loads on both sides of the installation gate.
 		await loadSession();
 		phase = Open;
 	}
 
 	async function routeToSide(installing) {
 		const path = page.url.pathname.replace(/\/+$/, "");
-		const onInstall = path === "/install";
+		const onInstall = path === "/installation";
 		if (path === "/session") {
 			return;
 		}
@@ -111,10 +111,8 @@
 		</div>
 	</header>
 
-	<main>
-		{#if phase === Checking}
-			<p class="muted">Asking the server where it stands…</p>
-		{:else if phase === Unreachable}
+	<main inert={phase !== Open} aria-busy={phase === Checking}>
+		{#if phase === Unreachable}
 			<p class="offline mono">{unreachableReason} Reload once it's back on :8210.</p>
 		{:else}
 			{@render children()}

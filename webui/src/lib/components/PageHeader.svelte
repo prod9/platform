@@ -1,5 +1,5 @@
 <script>
-	let { title, metadata, actions } = $props();
+	let { title, metadata, navigation, actions } = $props();
 </script>
 
 <header class="page-header">
@@ -9,6 +9,9 @@
 			{@render metadata()}
 		{/if}
 	</div>
+	{#if navigation}
+		{@render navigation()}
+	{/if}
 	{#if actions}
 		<div class="actions">
 			{@render actions()}

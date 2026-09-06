@@ -8,11 +8,14 @@
 	import { latestStatus } from "$lib/repos.js";
 	import { lastActivity } from "$lib/build.js";
 	import Button from "$lib/components/Button.svelte";
+	import LoadingBlock from "$lib/components/LoadingBlock.svelte";
 	import OutcomeMark from "$lib/components/OutcomeMark.svelte";
 	import PageHeader from "$lib/components/PageHeader.svelte";
 	import SignalMark from "$lib/components/SignalMark.svelte";
 
 	const recentLimit = 3;
+	const pendingRepos = Array.from({ length: 2 });
+	const pendingBuilds = Array.from({ length: recentLimit });
 
 	let repos = $state([]);
 	let loaded = $state(false);
@@ -43,14 +46,14 @@
 	}
 
 	$effect(() => {
-		if (session.user === null) {
+		if (!session.ready || session.user === null) {
 			return;
 		}
 		load();
 	});
 </script>
 
-{#if session.user === null}
+{#if session.ready && session.user === null}
 	<section class="door">
 		<h1>platform</h1>
 		<p>
@@ -66,19 +69,47 @@
 			{session.signingIn ? "Signing in…" : "Sign in with GitHub"}
 		</Button>
 	</section>
-{:else if !loaded}
-	<p class="mono muted">Loading…</p>
 {:else}
-	<section>
+	<section aria-busy={!loaded}>
 		<PageHeader>
 			{#snippet title()}<h2>Repositories</h2>{/snippet}
-			{#snippet metadata()}<p class="label">{repos.length} registered</p>{/snippet}
+			{#snippet metadata()}
+				<p class="label">
+					{#if loaded}
+						{repos.length} registered
+					{:else}
+						<LoadingBlock measure="compact" />
+					{/if}
+				</p>
+			{/snippet}
 			{#snippet actions()}
 				<Button variant="primary" href="/repos/new/">Register repository</Button>
 			{/snippet}
 		</PageHeader>
 
-		{#if loadError}
+		{#if !loaded}
+			<ul class="repos" aria-hidden="true">
+				{#each pendingRepos as _}
+					<li class="repo">
+						<button class="repo-head" disabled aria-label="Loading repository">
+							<span class="pending-mark"><LoadingBlock /></span>
+							<span class="mono name"><LoadingBlock measure="standard" /></span>
+							<SignalMark signal="navigation" />
+						</button>
+						<span class="subs">
+							{#each pendingBuilds as _}
+								<button class="build" disabled aria-label="Loading build">
+									<span class="pending-mark"><LoadingBlock /></span>
+									<span class="mono ref"><LoadingBlock measure="compact" /></span>
+									<span class="mono muted"><LoadingBlock measure="standard" /></span>
+									<span class="mono muted timing"><LoadingBlock measure="compact" /></span>
+								</button>
+							{/each}
+						</span>
+					</li>
+				{/each}
+			</ul>
+		{:else if loadError}
 			<p class="mono error">Repositories unavailable: {loadError}</p>
 		{:else if repos.length === 0}
 			<p class="mono muted">
@@ -154,11 +185,11 @@
 		line-height: var(--lead);
 	}
 
-	.repo-head:hover {
+	a.repo-head:hover {
 		--navigation-mark: var(--accent-signal);
 	}
 
-	.repo-head:hover .name {
+	a.repo-head:hover .name {
 		color: var(--accent-signal);
 	}
 
@@ -194,5 +225,20 @@
 
 	.timing {
 		text-align: right;
+	}
+
+	button.repo-head,
+	button.build {
+		width: 100%;
+		padding: 0;
+		border: 0;
+		background: none;
+		font: inherit;
+		text-align: left;
+		cursor: default;
+	}
+
+	.pending-mark {
+		width: var(--lead);
 	}
 </style>

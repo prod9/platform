@@ -3,6 +3,7 @@
 	// checklist navigates on the left, the action sits in the middle, and operative
 	// instructions sit on the right (docs/spec/webui.md).
 	import { goto } from "$app/navigation";
+	import { session } from "$lib/session.svelte.js";
 	import {
 		listCandidates,
 		getManifest,
@@ -14,9 +15,12 @@
 	import { filterCandidates, moduleLabel, publishPolicyDetails } from "$lib/repos.js";
 	import Button from "$lib/components/Button.svelte";
 	import Facts from "$lib/components/Facts.svelte";
+	import LoadingBlock from "$lib/components/LoadingBlock.svelte";
 	import PageHeader from "$lib/components/PageHeader.svelte";
 	import Panel from "$lib/components/Panel.svelte";
 	import SignalMark from "$lib/components/SignalMark.svelte";
+
+	const loadingCandidates = Array.from({ length: 3 });
 
 	let candidates = $state([]);
 	let loaded = $state(false);
@@ -129,7 +133,9 @@
 	}
 
 	$effect(() => {
-		load();
+		if (session.ready) {
+			load();
+		}
 	});
 </script>
 
@@ -157,7 +163,24 @@
 			{#if current === "access"}
 				<Panel label="Repositories you and the App reach, not yet registered">
 					{#if !loaded}
-						<p class="mono muted">Loading…</p>
+						<div class="candidate-loading" aria-busy="true">
+							<input
+								class="mono filter"
+								type="search"
+								placeholder="Filter repositories…"
+								disabled
+							/>
+							<ul class="candidates">
+								{#each loadingCandidates as _}
+									<li>
+										<button class="candidate" disabled aria-label="Loading repository">
+											<LoadingBlock />
+											<SignalMark signal="navigation" />
+										</button>
+									</li>
+								{/each}
+							</ul>
+						</div>
 					{:else if loadError}
 						<p class="mono warn">Candidates unavailable: {loadError}</p>
 					{:else if candidates.length === 0}
@@ -206,6 +229,12 @@
 
 					{#if manifest !== null}
 						<pre class="mono manifest"><code>{manifest.raw}</code></pre>
+					{:else if manifestLoading}
+						<div class="mono manifest" aria-busy="true" aria-label="Loading platform.toml">
+							<LoadingBlock measure="standard" />
+							<LoadingBlock />
+							<LoadingBlock />
+						</div>
 					{/if}
 
 					<div class="confirm">
@@ -390,6 +419,11 @@ framework = "go/basic"</code></pre>
 		padding: var(--lead-half) 0;
 	}
 
+	.candidate-loading {
+		display: grid;
+		gap: var(--lead);
+	}
+
 	.candidate {
 		display: grid;
 		grid-template-columns: 1fr var(--lead);
@@ -405,7 +439,7 @@ framework = "go/basic"</code></pre>
 		cursor: pointer;
 	}
 
-	.candidate:hover {
+	.candidate:enabled:hover {
 		background: var(--surface-quiet);
 	}
 
@@ -415,8 +449,12 @@ framework = "go/basic"</code></pre>
 		color: var(--accent);
 	}
 
-	.candidate:hover .repo-name {
+	.candidate:enabled:hover .repo-name {
 		color: var(--accent-signal);
+	}
+
+	.candidate:disabled {
+		cursor: default;
 	}
 
 	.manifest {

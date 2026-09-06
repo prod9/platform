@@ -13,7 +13,7 @@
 <section class="system">
 	<PageHeader>
 		{#snippet title()}<h2>System</h2>{/snippet}
-		{#snippet metadata()}
+		{#snippet navigation()}
 			<nav aria-label="System">
 				{#each destinations as destination (destination.href)}
 					<a

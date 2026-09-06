@@ -1,6 +1,7 @@
 <script>
-	import { onMount } from "svelte";
+	import { session } from "$lib/session.svelte.js";
 	import Button from "$lib/components/Button.svelte";
+	import LoadingBlock from "$lib/components/LoadingBlock.svelte";
 	import SectionHeader from "$lib/components/SectionHeader.svelte";
 	import {
 		Answered,
@@ -9,6 +10,8 @@
 		runSystemMigrations,
 		systemMigrations,
 	} from "$lib/server.js";
+
+	const loadingPlan = Array.from({ length: 3 });
 
 	let plan = $state([]);
 	let phase = $state("loading");
@@ -38,24 +41,37 @@
 		phase = "failed";
 	}
 
-	onMount(read);
+	$effect(() => {
+		if (session.ready) {
+			read();
+		}
+	});
 
 	let state = $derived(classifyMigrationPlan(plan));
 </script>
 
-<section>
+<section aria-busy={phase === "loading" || phase === "running"}>
 	<SectionHeader title="Migrations">
 		{#snippet actions()}
-			{#if phase === "ready" && state === "runnable"}
-				<Button variant="primary" onclick={run}>Run migrations</Button>
+			{#if phase === "loading"}
+				<Button disabled>Run migrations</Button>
+			{:else if state === "runnable"}
+				<Button variant="primary" onclick={run} disabled={phase === "running"}>
+					{phase === "running" ? "Running…" : "Run migrations"}
+				</Button>
 			{/if}
 		{/snippet}
 	</SectionHeader>
 
 	{#if phase === "loading"}
-		<p class="muted">Reading migration plan…</p>
-	{:else if phase === "running"}
-		<p class="muted">Running migrations…</p>
+		<ul class="plan">
+			{#each loadingPlan as _, index (index)}
+				<li class="line">
+					<LoadingBlock measure="compact" />
+					<LoadingBlock measure="standard" />
+				</li>
+			{/each}
+		</ul>
 	{:else if failure}
 		<p class="failure mono">{failure}</p>
 	{:else if state === "current"}

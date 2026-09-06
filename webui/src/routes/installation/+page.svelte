@@ -23,9 +23,12 @@
 	import { session } from "$lib/session.svelte.js";
 	import Panel from "$lib/components/Panel.svelte";
 	import Button from "$lib/components/Button.svelte";
+	import LoadingBlock from "$lib/components/LoadingBlock.svelte";
 	import PageHeader from "$lib/components/PageHeader.svelte";
 	import InstallationAction from "$lib/components/InstallationAction.svelte";
 	import InstallationInstructions from "$lib/components/InstallationInstructions.svelte";
+
+	const loadingSteps = Array.from({ length: 9 });
 
 	let entries = $state([]);
 	let loaded = $state(false);
@@ -79,12 +82,12 @@
 		redoing = true;
 	}
 
-	// The wizard renders only after this first read is adopted (§The wizard UI, a
-	// form is editable only when its values are settled). The read classifies by the
-	// install signal: a 404 means the server got installed since this shell loaded —
-	// force a fresh shell from the installed composition, same as rideRestart. Only a
-	// genuinely troubled read renders as the error it is, never as an empty checklist
-	// masquerading as done.
+	// The wizard renders operative values and controls only after this first read is
+	// adopted (§The wizard UI, a form is editable only when its values are settled).
+	// The read classifies by the install signal: a 404 means the server got installed
+	// since this shell loaded — load the product shell, same
+	// as rideRestart. Only a genuinely troubled read renders as the error it is, never as
+	// an empty checklist masquerading as done.
 	async function load() {
 		const result = await installState();
 		if (installSignal(result) === Installed) {
@@ -110,7 +113,11 @@
 	let appEditURL = $derived(appSettingsURL(entries));
 	let appInstallURL = $derived(appSettingsURL(entries, "/installations"));
 
-	load();
+	$effect(() => {
+		if (session.ready) {
+			load();
+		}
+	});
 </script>
 
 <section>
@@ -123,7 +130,28 @@
 		<p class="failed mono">{loadError}</p>
 		<Button onclick={() => ((loadError = ""), load())}>Retry</Button>
 	{:else if !loaded}
-		<p class="muted">Loading…</p>
+		<div class="wizard" aria-busy="true">
+			<ol class="checklist">
+				{#each loadingSteps as _}
+					<li>
+						<button class="row" disabled aria-label="Loading installation step">
+							<LoadingBlock measure="standard" />
+							<LoadingBlock measure="compact" />
+						</button>
+					</li>
+				{/each}
+			</ol>
+
+			<div class="action">
+				<InstallationAction current={null} />
+			</div>
+
+			<aside class="loading-instructions">
+				<LoadingBlock measure="standard" />
+				<LoadingBlock />
+				<LoadingBlock />
+			</aside>
+		</div>
 	{:else}
 		{#if mismatch}
 			<p class="mismatch mono">
@@ -239,6 +267,10 @@
 		line-height: var(--lead);
 	}
 
+	.checklist .row:disabled {
+		cursor: default;
+	}
+
 	.checklist li.active .name {
 		color: var(--accent);
 		font-weight: 600;
@@ -246,6 +278,11 @@
 
 	.checklist .state {
 		line-height: var(--lead);
+	}
+
+	.loading-instructions {
+		display: grid;
+		gap: var(--lead);
 	}
 
 	.checklist .message {

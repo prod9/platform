@@ -6,7 +6,7 @@ import { currentUser, endSession, Answered } from "./server.js";
 //
 // This is a *login* session. engine.Session is a different thing entirely — the span a
 // built container stays usable for — and the two never meet in this file.
-export const session = $state({ user: null, signingIn: false });
+export const session = $state({ ready: false, user: null, signingIn: false });
 
 export function beginSignIn(event) {
 	if (session.signingIn) {
@@ -20,6 +20,7 @@ export function beginSignIn(event) {
 export async function loadSession() {
 	const result = await currentUser();
 	session.user = result.outcome === Answered ? result.body : null;
+	session.ready = true;
 }
 
 // A session the server did not agree to end is still live, so the UI keeps showing the

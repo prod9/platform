@@ -1,8 +1,18 @@
 <script>
-	import { onMount } from "svelte";
+	import { session } from "$lib/session.svelte.js";
 	import { Answered, errorText, systemSettings } from "$lib/server.js";
 	import Facts from "$lib/components/Facts.svelte";
+	import LoadingBlock from "$lib/components/LoadingBlock.svelte";
 	import SectionHeader from "$lib/components/SectionHeader.svelte";
+
+	const pendingSections = [
+		{ name: "Server", keys: ["public_url", "org"] },
+		{
+			name: "GitHub App",
+			keys: ["app", "client_id", "private_key", "webhook_secret", "client_secret"],
+		},
+		{ name: "Registry", keys: ["ghcr.io token"] },
+	];
 
 	let sections = $state([]);
 	let loading = $state(true);
@@ -18,26 +28,48 @@
 		loading = false;
 	}
 
-	onMount(load);
+	$effect(() => {
+		if (session.ready) {
+			load();
+		}
+	});
+
+	let displayedSections = $derived(
+		loading
+			? pendingSections.map((group) => ({
+					name: group.name,
+					facts: group.keys.map((key) => ({
+						key,
+						value: "",
+					})),
+				}))
+			: sections,
+	);
 </script>
 
-{#if loading}
-	<p class="muted">Reading system settings…</p>
-{:else if failure}
-	<p class="failure mono">{failure}</p>
-{:else}
-	{#each sections as group (group.name)}
-		<section class="group">
-			<SectionHeader title={group.name} />
-			<Facts>
-				{#each group.facts as fact (fact.key)}
-					<dt class="mono">{fact.key}</dt>
-					<dd class="mono">{fact.value}</dd>
-				{/each}
-			</Facts>
-		</section>
-	{/each}
-{/if}
+<div aria-busy={loading}>
+	{#if failure}
+		<p class="failure mono">{failure}</p>
+	{:else}
+		{#each displayedSections as group (group.name)}
+			<section class="group">
+				<SectionHeader title={group.name} />
+				<Facts>
+					{#each group.facts as fact (fact.key)}
+						<dt class="mono">{fact.key}</dt>
+						<dd class="mono">
+							{#if loading}
+								<LoadingBlock measure="standard" />
+							{:else}
+								{fact.value}
+							{/if}
+						</dd>
+					{/each}
+				</Facts>
+			</section>
+		{/each}
+	{/if}
+</div>
 
 <style>
 	.group {
