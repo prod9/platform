@@ -4,14 +4,14 @@
 
 <header class="page-header">
 	<div class="identity">
-		{@render title()}
+		<div class="title">{@render title()}</div>
 		{#if metadata}
 			{@render metadata()}
 		{/if}
+		{#if navigation}
+			{@render navigation()}
+		{/if}
 	</div>
-	{#if navigation}
-		{@render navigation()}
-	{/if}
 	{#if actions}
 		<div class="actions">
 			{@render actions()}
@@ -32,6 +32,11 @@
 		display: flex;
 		align-items: baseline;
 		gap: var(--lead);
+		height: var(--lead-2);
+	}
+
+	.title {
+		padding-block: var(--lead-half);
 	}
 
 	.page-header :global(h2 a) {
