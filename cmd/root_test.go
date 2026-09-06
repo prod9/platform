@@ -19,3 +19,22 @@ func TestRootCommandHasCollectedWorker(t *testing.T) {
 	require.Empty(t, remaining)
 	require.Equal(t, "platform worker", workerCmd.CommandPath())
 }
+
+func TestServerStartupRequiresSecretWithoutDatabase(t *testing.T) {
+	t.Setenv("SECRET", "")
+	t.Setenv("DATABASE_URL", "://invalid")
+	cmd := buildSrvCmd()
+	cmd.SetContext(t.Context())
+
+	err := cmd.PreRunE(cmd, nil)
+	require.EqualError(t, err, "srv: SECRET must be set before startup (configure it in the environment)")
+}
+
+func TestServerStartupAllowsSecretWithoutDatabase(t *testing.T) {
+	t.Setenv("SECRET", "test-secret")
+	t.Setenv("DATABASE_URL", "://invalid")
+	cmd := buildSrvCmd()
+	cmd.SetContext(t.Context())
+
+	require.NoError(t, cmd.PreRunE(cmd, nil))
+}

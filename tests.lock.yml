@@ -5,6 +5,17 @@
         - name: exitcode
           data:
             - "0"
+- name: Platform \ Server Missing Secret
+  commands:
+    - command: env SECRET= DATABASE_URL=://invalid ./bin/platform srv
+      checks:
+        - name: exitcode
+          data:
+            - "1"
+        - name: stderr
+          data:
+            - 'ERR srv: SECRET must be set before startup (configure it in the environment) err="srv: SECRET must be set before startup (configure it in the environment)"'
+            - INF done obj=main
 - name: Platform \ Go Basic \ Init
   commands:
     - command: ./testbed.sh gobasic init "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform"

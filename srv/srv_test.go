@@ -10,10 +10,7 @@ import (
 	"time"
 
 	"fx.prodigy9.co/app"
-	"fx.prodigy9.co/config"
-	"fx.prodigy9.co/data"
 	"fx.prodigy9.co/fxtest"
-	"fx.prodigy9.co/secret"
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/require"
 	"platform.prodigy9.co/srv/auth"
@@ -77,47 +74,6 @@ func TestHealth(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &body))
 	require.False(t, body.Time.IsZero())
-}
-
-func TestValidateBootRequiresSecretAfterClaim(t *testing.T) {
-	ctx := srvtest.SetupDB(t)
-	seedClaim(t, ctx)
-	cfg := config.FromContext(ctx)
-	config.Set(cfg, secret.SecretConfig, "")
-
-	require.EqualError(t, ValidateBoot(ctx, cfg), "srv: SECRET must be set to boot the claimed server")
-}
-
-func TestValidateBootAllowsUnclaimedServerWithoutSecret(t *testing.T) {
-	ctx := srvtest.SetupDB(t)
-	cfg := config.FromContext(ctx)
-	config.Set(cfg, secret.SecretConfig, "")
-
-	require.NoError(t, ValidateBoot(ctx, cfg))
-}
-
-func TestValidateBootAllowsClaimedServerWithSecret(t *testing.T) {
-	ctx := srvtest.SetupDB(t)
-	seedClaim(t, ctx)
-	cfg := config.FromContext(ctx)
-	config.Set(cfg, secret.SecretConfig, "test-secret")
-
-	require.NoError(t, ValidateBoot(ctx, cfg))
-}
-
-func TestValidateBootAllowsInvalidDatabaseURL(t *testing.T) {
-	cfg := fxtest.Configure()
-	config.Set(cfg, data.DatabaseURLConfig, "://invalid")
-
-	require.NoError(t, ValidateBoot(t.Context(), cfg))
-}
-
-func TestValidateBootAllowsUnreachableDatabase(t *testing.T) {
-	cfg := fxtest.Configure()
-	config.Set(cfg, data.DatabaseURLConfig,
-		"postgres://postgres@127.0.0.1:1/platform?sslmode=disable&connect_timeout=1")
-
-	require.NoError(t, ValidateBoot(t.Context(), cfg))
 }
 
 // Module resolution is a static fact baked into every SPA shell, including the 404

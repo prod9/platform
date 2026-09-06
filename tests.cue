@@ -37,6 +37,11 @@ let testbeds = [...{name: string, dir: string}] &
 			checks: ["exitcode"]
 			commands: ["go build -v -o ./bin/platform ."]
 		},
+		{
+			name: "Server Missing Secret"
+			checks: ["exitcode", "stderr"]
+			commands: ["env SECRET= DATABASE_URL=://invalid ./bin/platform srv"]
+		},
 		for testbed in testbeds {
 			{
 				name: testbed.name

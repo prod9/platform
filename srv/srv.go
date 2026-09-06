@@ -3,12 +3,11 @@
 // embedded web UI at / and gates the API by install state. Installer and product
 // fragments stay mounted; the gate changes behavior after claim. Executing queued builds
 // belongs to a worker peer, not to this process (docs/spec/platform-server.md). The
-// server always boots — a DB unreachable is an install-state error, not a boot failure
-// — and migrations never auto-run at boot.
+// server requires a locally configured SECRET before startup. Database availability is
+// a request-time concern, and migrations never auto-run at boot.
 package srv
 
 import (
-	"context"
 	"errors"
 	"io/fs"
 	"net/http"
@@ -24,7 +23,6 @@ import (
 	"fx.prodigy9.co/httpserver/controllers"
 	"fx.prodigy9.co/httpserver/httperrors"
 	"fx.prodigy9.co/httpserver/render"
-	"fx.prodigy9.co/secret"
 	"github.com/go-chi/chi/v5"
 	"platform.prodigy9.co/srv/auth"
 	"platform.prodigy9.co/srv/builds"
@@ -52,36 +50,6 @@ var App app.Interface = app.Build().
 		Name("webui").
 		Controllers(controllers.FromFunc("/health", health), UI{})).
 	App()
-
-// ValidateBoot enforces boot-only configuration that depends on durable install state.
-// An unavailable database remains a request-time condition, so it is logged and softened.
-func ValidateBoot(ctx context.Context, cfg *config.Source) (err error) {
-	db, err := data.Connect(cfg)
-	if err != nil {
-		fxlog.Log("database unavailable at boot", fxlog.String("error", err.Error()))
-		return nil
-	}
-	defer func() {
-		err = errors.Join(err, db.Close())
-	}()
-
-	ctx = data.NewContext(config.NewContext(ctx, cfg), db)
-	if err := db.PingContext(ctx); err != nil {
-		fxlog.Log("database unavailable at boot", fxlog.String("error", err.Error()))
-		return nil
-	}
-
-	installed, err := install.IsInstalled(ctx, db)
-	if err != nil {
-		return err
-	}
-	if installed {
-		if _, ok := config.GetOK(cfg, secret.SecretConfig); !ok {
-			return errors.New("srv: SECRET must be set to boot the claimed server")
-		}
-	}
-	return nil
-}
 
 func health(resp http.ResponseWriter, req *http.Request) {
 	render.JSON(resp, req, struct {
