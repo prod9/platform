@@ -27,7 +27,7 @@ func TestServerStartupRequiresSecretWithoutDatabase(t *testing.T) {
 	cmd.SetContext(t.Context())
 
 	err := cmd.PreRunE(cmd, nil)
-	require.EqualError(t, err, "srv: SECRET must be set before startup (configure it in the environment)")
+	require.EqualError(t, err, "srv: SECRET is required")
 }
 
 func TestServerStartupAllowsSecretWithoutDatabase(t *testing.T) {

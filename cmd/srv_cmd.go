@@ -21,7 +21,7 @@ func buildSrvCmd() *cobra.Command {
 	cmd.Short = "Starts the platform server (API + web UI)"
 	cmd.PreRunE = func(*cobra.Command, []string) error {
 		if _, ok := config.GetOK(config.Configure(), secret.SecretConfig); !ok {
-			return errors.New("srv: SECRET must be set before startup (configure it in the environment)")
+			return errors.New("srv: SECRET is required")
 		}
 		return nil
 	}

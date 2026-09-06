@@ -14,7 +14,7 @@
             - "1"
         - name: stderr
           data:
-            - 'ERR srv: SECRET must be set before startup (configure it in the environment) err="srv: SECRET must be set before startup (configure it in the environment)"'
+            - 'ERR srv: SECRET is required err="srv: SECRET is required"'
             - INF done obj=main
 - name: Platform \ Go Basic \ Init
   commands:
