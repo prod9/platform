@@ -26,9 +26,11 @@ credentials, then the org binding — is saved into the settings app as its step
 completes, advancing the wizard to the next step. **All install-time settings
 live in settings**; the deployment supplies only `DATABASE_URL`, the listen
 address, and `SECRET` (the fx encryption key — it cannot live beside the
-ciphertext it protects) through fx config/env. srv refuses to boot while
-**claimed** with `SECRET` unset — fx would otherwise silently
-derive a publicly known key. The deployment also sets
+ciphertext it protects) through fx config/env. `SECRET` is required before every
+server startup, including a fresh installation: OAuth already encrypts tokens before
+claim, and fx would otherwise silently derive a publicly known key. Startup validates
+this local configuration without connecting to the database or reading claim state;
+a missing key produces an immediate error before HTTP serving. The deployment also sets
 `DAGGER_ENGINE` — plain runtime config on both srv and the worker: the Dagger
 engine pool's headless-Service DNS name, spread across pods by k8s DNS itself,
 so no engine binding is stored server-side.

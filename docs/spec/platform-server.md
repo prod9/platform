@@ -375,8 +375,11 @@ answering — the price of a static UI, and the reason a status is never left to
 infer. A wrong URL that answers 200 is a lie told to every crawler, monitor, and `curl` that
 ever reads it.
 
-**The server always boots.** A DB it cannot reach is an install-state error rather than a
-boot failure, and **migrations never run at boot** — they are the installer's button, the
+**Server startup requires local configuration, never database availability.** A missing
+`SECRET` encryption key fails immediately before serving, even before installation;
+startup performs no database connection, ping, or claim read. A DB it cannot reach is an
+install-state error rather than a boot failure, and **migrations never run at boot** —
+they are the installer's button, the
 System / Migrations page (`POST /api/system/migrations`), or
 `./platform srv data migrate` ([installation.md](installation.md)). The full fx application
 is composed regardless of install state; `install.IsInstalled` controls the request-time
