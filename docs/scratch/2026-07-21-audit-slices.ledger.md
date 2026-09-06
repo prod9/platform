@@ -3,6 +3,10 @@ output is the commits and docs/guides/go-coding-laws.md -->
 
 # Audit slices — 1-by-1 ledger (2026-07-21)
 
+Historical ruling record, not an execution queue. The statuses and interpretations below
+are the original July record; subsequent rulings live in the local `.ace/save.ledger.md`.
+Current design lives in [`../spec/`](../spec/).
+
 Findings numbered per [2026-07-21-audit-changes.md](2026-07-21-audit-changes.md).
 
 ## Self-resolved (vetoable, presented 2026-07-21)

@@ -33,36 +33,31 @@ the raw working material. Nothing else should depend on a scratch file continuin
 
 ## Index
 
-Newest first. Scratch is disposable, so this list may lag — the directory is the truth.
+These are dated reference records, not an execution queue. Current design lives in
+[`../spec/`](../spec/); old findings and proposals require re-verification before use.
 
 **Live state** lives in gitignored `.ace/` now, not here — `.ace/save.md` (current truth,
 **start there**) and `.ace/save.ledger.md` (ruling ledger; walk statuses live nowhere else).
 
-**Live** — committed work in flight:
+**Historical working records:**
 
-- [2026-07-26 — session lifetime options](2026-07-26-session-lifetime-options.md) — the
-  rejected A–D menu, kept for the failure analysis of the `export` 502 and why each option
-  missed the missing layer
-- [2026-07-17 — trail fix plan](2026-07-17-trail-fix-plan.md) — why the state trail split
-  from the journal (schema, provenance, disciplines)
 - [2026-07-17 — srv API/architecture 1-by-1](2026-07-17-srv-1by1.md) — frozen context for
   the ledger (derivations, evidence)
-- [2026-07-18 — srv RBAC & observability authz](2026-07-18-srv-rbac-observability.md) —
-  item 11 full record: zero-RBAC confirmed; cluster-view via GitHub rights + cluster-side
-  provenance discovery + a fat caching session (SETTLED; graduates to spec/ + ADR note)
-- [2026-07-19 — builder lifecycle structure](2026-07-19-builder-lifecycle-options.md) —
-  framework emits a serializable `Plan` → `Execute` with `.Sync()` phase boundaries + a
-  host-side observer feeding the event-sourced reconciler; one-install-per-cluster ruled
 - [2026-07-21 — audit fix-slices ledger](2026-07-21-audit-slices.ledger.md) — the batch-audit
-  backlog save.md points at; slices A–C statuses
-- [2026-07-21 — audit changes walk](2026-07-21-audit-changes.md) — the findings the fix-slices
-  were cut from
+  rulings from July; subsequent execution is recorded in Git history
+- [2026-07-21 — audit changes walk](2026-07-21-audit-changes.md) — original findings,
+  retained as evidence rather than current defects
+
+**Exploration and handoff records** — completion or adoption is not established here:
+
 - [2026-07-17 — containerd vs the Dagger engine](2026-07-17-containerd-vs-dagger-engine.md)
 - [2026-07-09 — fx handoff: slog LogValuer resolving sink](2026-07-09-fx-handoff-slog-logvaluer-sink.md)
 
 **Retained for provenance** — cited as the evidentiary record by a frozen decision or spec;
 kept so those links don't dangle:
 
+- [2026-07-18 — srv RBAC & observability authz](2026-07-18-srv-rbac-observability.md) —
+  worked record cited by the zero-RBAC ADR and `spec/platform-server.md`
 - [Prior-art digest](prior-art.md) — superseded design/plan scratch collapsed into one file
   (2026-07-12); the appliance, render-pure-function, dagger-engine, oras-retirement,
   terminology-lexicon, and monorepo decisions plus `spec/platform-server.md` cite its sections

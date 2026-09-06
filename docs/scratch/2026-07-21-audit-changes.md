@@ -3,18 +3,23 @@ the durable output is the commits and docs/guides/go-coding-laws.md -->
 
 # Audit changes — 2026-07-21
 
+Historical findings against the July tree, not a current backlog. The original statuses
+below describe the July review only; completion has not been re-audited here.
+Current requirements live in
+[`../spec/`](../spec/) and the repository's coding rules.
+
 Codebase-wide audit against every law in `general-coding`, `go-coding`,
 [`go-coding-laws.md`](../guides/go-coding-laws.md), and `CLAUDE.md`'s design section. One
 bucket: violations. No borderline.
 
 ## Scope
 
-| Auditor | Directories                                          | Status  |
-|---------|------------------------------------------------------|---------|
-| 1       | `framework/`, `conf/`, `cuemod/`                      | running |
-| 2       | `srv/`                                                | running |
-| 3       | `cmd/`, `gitops/` (incl. `dsl/`)                      | running |
-| 4       | `releases/`, `engine/`, `git/`, `internal/`, `webui/` | running |
+| Auditor   | Directories                                           |
+| --------- | ----------------------------------------------------- |
+| 1         | `framework/`, `conf/`, `cuemod/`                      |
+| 2         | `srv/`                                                |
+| 3         | `cmd/`, `gitops/` (incl. `dsl/`)                      |
+| 4         | `releases/`, `engine/`, `git/`, `internal/`, `webui/` |
 
 ## Findings and fixes
 
@@ -181,9 +186,7 @@ which rules out cache but does not name the slow step. Untested suspicion, recor
 suspicion: moving `WithWorkdir(SrcDir)` ahead of the toolchain re-keys the `withBuildPkgs`
 apk layer, so pnpm testbeds stop sharing it with the Go ones.
 
-Next attempt should measure the step first (`dagger` step timings on one testbed), not
-redesign on a guess. The timeout is not the variable — it is the budget the design has to
-fit.
+This was the July investigation's stopping point, not a current instruction to resume it.
 
 ## Already landed this session
 
