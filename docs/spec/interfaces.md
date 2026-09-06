@@ -45,6 +45,8 @@ an operator.
 - Control text keeps the same 24px content line as adjacent prose. Symmetric block
   padding, not a taller content line, enlarges buttons and form controls into comfortable
   action surfaces; mixed text-and-control rows center those boxes in the block direction.
+  Page-header navigation shares the title's text baseline while retaining padded click
+  targets; the header's action controls remain vertically centered.
   A selectable row owns its padding so its whole visible surface is interactive. Inline
   links inside prose remain inline because they are reading affordances, not standalone
   controls.
