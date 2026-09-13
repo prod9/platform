@@ -2,9 +2,13 @@
 
 Status: **design-of-record.** The `engine/` package is the reusable source and build driver
 behind both CLI and server adapters. Its source verb materializes a remote revision as a
-managed local worktree; its session verbs interpret an already-loaded model, place work on
-Dagger runners, execute steps, and optionally publish. It knows nothing about the web
+managed local worktree; its session verbs load configuration, interpret modules, place work
+on Dagger runners, execute steps, and optionally publish. It knows nothing about the web
 application that invokes it ([`architecture.md`](architecture.md)).
+
+The source-input and paired-observer contracts below are **intended, not yet
+implemented**. They change together with all observer consumers and the server's module
+event schema; a partially converted interface is not a usable intermediate version.
 
 ## A `*dagger.Client` is a session, not a connection
 
@@ -34,20 +38,21 @@ away does not take `engine.go` with it.
 
 ```go
 type Session struct {
-	ctx   context.Context   // carries both the lifetime and the config
-	mu    sync.Mutex
-	conns []*dagger.Client
+	ctx       context.Context // carries both the lifetime and the config
+	mu        sync.Mutex
+	conns     []*dagger.Client
+	worktrees []*Worktree
 }
 ```
 
-| Call                         | Role                                                             |
-|------------------------------|------------------------------------------------------------------|
-| `NewSession(ctx)`            | open a session; dials nothing                                    |
-| `Build(ctx, cfg, mods, obs)` | build every matched unit, one run each                           |
-| `BuildAndPublish(…, tag, …)` | build and push each image as its run finishes                    |
-| `Clean(ctx)`                 | prune every fleet engine's local cache (drives `platform clean`) |
-| `Unsafe()`                   | one raw connection for an ad-hoc caller (`ls` only)              |
-| `Close()`                    | end every connection it opened, and every container built on one |
+| Call                           | Role                                                               |
+| ------------------------------ | ------------------------------------------------------------------ |
+| `NewSession(ctx)`              | open a session; dials nothing                                      |
+| `Build(ctx, input, mods, obs)` | build every selected module, one operation each                    |
+| `BuildAndPublish(…, tag, …)`   | build and push each image as its run finishes                      |
+| `Clean(ctx)`                   | prune every fleet engine's local cache (drives `platform clean`)   |
+| `Unsafe()`                     | one raw connection for an ad-hoc caller (`ls` only)                |
+| `Close()`                      | close connections, then release operation-owned worktrees          |
 
 A session opens **as many connections as its work needs** — `connect()` dials one more and
 remembers it — and closes them together. One run uses one connection for all its steps,
@@ -55,8 +60,8 @@ because a container is bound to the connection that built it; a session driving 
 dials many, and *that* is what spreads runs across the fleet.
 
 Commands open **one** session and defer `Close`. It is safe for concurrent use, and
-`NewRun` does no dialing at all (a connection is taken at the first `Next`), so there is
-never a reason to open a second.
+module preparation dials inside its configuration phase, so there is never a reason to
+open a second session for a later phase of the same module.
 
 Repository checkout is independent of a Dagger session:
 
@@ -69,6 +74,62 @@ its directory and resolved commit SHA, and `Close(ctx)` removes it. Cache identi
 credential injection, mirror synchronization, revision resolution, unique worktree paths,
 and pruning stay private. A hypothetical checkout CLI could call this surface directly;
 that is the boundary test, not a command this design adds.
+
+### Build inputs and lifecycle ownership
+
+The existing `Build` and `BuildAndPublish` verbs accept an `Input` in place of an
+already-loaded model. `Input` is a closed choice of two value variants:
+
+| Input      | Carries                                      | Configuration source                   |
+| ---------- | -------------------------------------------- | -------------------------------------- |
+| `Local`    | `ConfigPath`, the selected config-file path  | that file, resolved by CLI preflight   |
+| `Source`   | remote URL, revision, fetch credentials      | `platform.toml` at the checkout root   |
+
+There is no local/remote boolean or set of nullable companion fields. `Source` remains
+the same generic input accepted by standalone `Checkout`; it carries no build record,
+manifest id, publication policy, job, or server identity. `conf` owns loading an explicit
+file, its defaults, environment overrides, and relative-path binding. Engine composes that
+existing owner with checkout and execution; neither it nor the worker copies the parser.
+
+Module selection precedes the per-module lifecycle. For `Local`, an empty name list
+retains the CLI's all-modules convention: engine reads the selected file in a selection
+preflight to discover names. A CLI may already have read that file to resolve its release
+tag or confirmation prompt; it still passes the file path, not a pre-interpreted unit or
+a model for execution. A failed selection preflight returns an invocation error and starts
+no module callbacks, because no selected module identity exists yet. An empty manifest
+returns `ErrNoJobs`. Explicit names need no discovery pass.
+
+For `Source`, the name list must be explicit and nonempty. The server supplies exactly
+its one persisted selected module name. Engine does not discover more work from the remote
+checkout or silently interpret an empty server selection as all modules.
+
+For each selected name, engine creates the accumulator and starts the outer operation
+before doing any source work. A remote input runs `Checkout` inside the clone pair; a
+local input starts configuration directly. The remote loader names the exact
+`worktree.Dir/platform.toml` file; it never searches parent directories for a substitute.
+Inside the config pair, engine loads the selected file, interprets exactly that module,
+validates its plan and any supplied publication credentials, and dials its connection.
+A missing selected name is a configuration failure for that name. Local configuration is
+loaded in this observed phase even when discovery preflight already read it; the preflight
+chooses names and is not an unreported substitute for the configuration phase.
+
+The outer operation then drives the step cursor and optional publication and reports
+`RunDone` once. The cursor cannot report an early whole-operation completion. All returned
+phase failures pass through this owner, including failures before a `BuildUnit` or a
+container exists. A preparation failure has an observer outcome and a returned error;
+it does not fabricate an interpreted unit or a usable container.
+
+The worker supplies source credentials, selected name, and its build-versus-publish
+decision. It never calls observer methods to manufacture missing engine events. A failure
+to obtain the request's prerequisites, such as a GitHub installation token or a database
+read, is a job error before engine invocation; the claim remains observable, and the job
+mechanism is not authority to execute that claimed module again.
+
+Standalone `Checkout` still transfers worktree ownership to its caller. When a session
+build verb performs checkout, the session retains that worktree until `Close`, which
+closes connections before releasing worktrees and returns cleanup errors. This keeps
+source files available to the live containers used by `preview`, `exec`, and `export`.
+Checkout itself still requires no Dagger session, and no adapter manages its cache paths.
 
 🚨 **A command that holds a session returns its errors; it never exits from inside.**
 `os.Exit` runs no deferred function, so a command that reaches `termlog.Fatalln` on a
@@ -124,11 +185,15 @@ engine." So unset `DAGGER_ENGINE` is an explicit operator choice for local, neve
 caller to dial around the driver that owns execution.
 
 **The one endpoint fact that does cross the boundary is the assigned one.** A run reports
-`EngineAssigned(unit, engine, at)` after its connection succeeds and before its first
-step starts. The scalar `engine` is one `host:port`, not a roster or dialing surface. The
-server stores that callback as the module's `engine_host` and `engine_assigned_at`, so
-engine detail can attribute builds to instances without duplicating the endpoint across
-every event ([platform-server.md](platform-server.md), the build tables).
+`ConfigDone(unit, engine, at, nil)` after its connection succeeds and before its first
+step starts. The scalar `engine` is `host:port` for a configured endpoint, or the literal
+`local` when the SDK manages the local engine. `local` names that selection mode, not a
+discovered pod or container identity; no SDK internals are inspected to invent one. It is
+distinct from a failed assignment, which carries an empty string. The server stores this
+observation as the module's `engine_host` and `engine_assigned_at`, without duplicating
+the endpoint across events ([platform-server.md](platform-server.md), the build tables).
+Configured endpoints permit instance attribution; `local` reports only SDK-managed
+execution on the claiming worker. Neither value exposes a roster or dialing surface.
 
 `dial(ctx)` picks **uniformly at random** among the resolved hosts. Random replaces the
 old round-robin cursor: the distribution over a run of picks is the same, and it needs
@@ -140,21 +205,19 @@ legitimately see different engines as pods come and go, and that is the point.
 
 ## `Run` — one unit, one step at a time
 
-`NewRun(sess, unit, caller)` is a **single-unit** run, and it is **engine-internal** — the
-domain verbs below open runs, no caller does. It asks the unit's framework for a `Plan`,
-then exposes a cursor:
+`Run` is the **engine-internal** step cursor for one interpreted unit. The domain verbs
+own the surrounding module operation: source preparation, configuration, the step cursor,
+and optional publication. Callers construct neither the operation nor the cursor.
+Configuration obtains the framework's `Plan` and the connection before the cursor starts:
 
 ```go
-run := NewRun(sess, unit, caller)  // caller may be nil; the run injects its own acc
-for run.Next(ctx) { }              // drives exactly one Step per call
+for run.Next(ctx) { } // drives exactly one framework Step per call
 ```
 
-The **first** `Next` takes the run's connection (`Session.connect()`), reports
-`EngineAssigned`, then reports `StepStarted` and executes the step. Every later step
-reuses the connection: a container is bound to the connection that built it, so one run's
-steps can never be spread across the fleet. The session spreads whole *runs*, not steps.
-A failed dial therefore produces `RunDone(err)`, with no engine assignment or step start
-before it.
+Every `Next` reports `StepStart` and executes the step on the already-connected client.
+Every step reuses that connection: a container is bound to the connection that built it,
+so one module's steps can never be spread across the fleet. A failed dial ends with
+`ConfigDone(error)` and `RunDone(error)`, with no assignment or step start.
 
 Each `Next` calls `Framework.Execute` for the current `Step` with the previous step's
 container, forces the work eagerly with `.Sync()`, and **times** the step across that
@@ -197,8 +260,8 @@ dependent operations such as `git subtree`; the mirror makes later full fetches 
 <cache>/work/<unique-id>/         <- independent worktree
 ```
 
-`Worktree.Close` owns removal and mirror pruning. An adapter may treat cleanup as
-best-effort after its operation has finished, but it must observe and report the error.
+`Worktree.Close` owns removal and mirror pruning. Its owner must observe and report cleanup
+errors after the operation; cleanup does not manufacture another `RunDone`.
 URL keys and mirror/worktree manipulation stay inside `engine`; callers receive no cache
 path or worktree identifier knob.
 
@@ -207,7 +270,7 @@ system's per-user cache directory plus `platform`; the worker deployment sets it
 `/var/cache/platform`. This is engine configuration, not a `Source` field, so adapters do
 not choose storage per operation.
 
-### One observer, ten callbacks
+### One observer, paired phases
 
 An engine operation reports everything to **one** `Observer`, supplied by its caller. The
 contract, the tee and the accumulator are their own package —
@@ -217,43 +280,52 @@ snapshot-plus-delta:
 
 ```go
 type Observer interface {
-    CloneStarted(unit string, at time.Time)
+    RunStart(unit string, at time.Time)
+    CloneStart(unit string, at time.Time)
     CloneDone(unit string, at time.Time, err error)
-    RunStarted(unit string, at time.Time)
-    EngineAssigned(unit, engine string, at time.Time)
-    StepStarted(unit, step string, at time.Time)
+    ConfigStart(unit string, at time.Time)
+    ConfigDone(unit, engine string, at time.Time, err error)
+    StepStart(unit, step string, at time.Time)
     StepOutput(unit, step string, at time.Time, stdout, stderr string)
     StepDone(unit, step string, at time.Time, err error)
-    ImageBuilt(unit, image string, at time.Time)
-    Published(unit, image, hash string, at time.Time)
-    RunDone(unit string, at time.Time, err error)
+    PublishStart(unit string, at time.Time)
+    PublishDone(unit string, at time.Time, err error)
+    RunDone(unit, image, hash string, at time.Time, err error)
 }
 ```
 
-The same Observer spans the entire operation. Engine reports `CloneStarted` / `CloneDone`
-around repository materialization. After a successful clone it reports `RunStarted` before
-config loading and unit interpretation, so any later failure is closed by `RunDone`.
-`EngineAssigned` follows a successful dial and precedes the first `StepStarted`. A clone
-failure ends with `CloneDone(err)` and produces no run callbacks. Local-model entrypoints
-start at `RunStarted` and therefore emit no clone callbacks.
+The eleven callbacks describe one module operation, with the same nonempty module name
+throughout:
 
-The output pair mirrors the build⊥publish orthogonality
-([execution-mode decision]):
-`ImageBuilt` is the common path — every successful build fires it, and four of the five
-commands that build (`build`, `export`, `exec`, `preview`) never publish — while
-`Published` fires only on the publish path and is the only place a registry hash exists.
-One callback per reported fact; nothing is inferred from a shared method with a mode flag.
+```text
+RunStart
+  CloneStart -> CloneDone                         # remote source only
+  ConfigStart -> ConfigDone                       # includes engine assignment
+  StepStart -> optional StepOutput -> StepDone    # for each framework step
+  PublishStart -> PublishDone                     # requested publication, after steps succeed
+RunDone
+```
 
-[execution-mode decision]: ../decisions/2026-08-24-execution-mode-does-not-define-delivery-policy.md
+Engine owns every callback. `RunStart` precedes checkout; `ConfigStart` precedes loading
+the selected configuration. Config covers parsing, module interpretation, plan validation,
+and connection. Successful `ConfigDone` carries the endpoint actually connected to;
+failed `ConfigDone` carries an empty endpoint. No step starts before configuration succeeds.
 
-The run and assignment callbacks let the server distinguish config/placement work, waiting
-for an engine, and execution of the first framework step while attributing the endpoint.
-`StepOutput` earned its place when `srv` began persisting captured output — see §Log capture
-below.
+Every started phase closes once on ordinary success or returned failure. Failure closes
+that phase with its error, then closes the outer operation with `RunDone(error)` without
+starting later phases. Clone failure therefore produces `CloneDone(error)` followed by
+`RunDone(error)`. Publish failure produces `PublishDone(error)` before `RunDone(error)`.
+Process termination can interrupt reporting; pairing does not promise a callback after a
+process has died. A local operation emits no clone callbacks; a build-only operation
+emits no publish callbacks.
 
-`RunDone` fires **exactly once** after every `RunStarted`, whichever way the build phase
-ends, which makes the report self-terminating. `CloneDone` provides the corresponding
-terminal callback when the operation fails before a run starts.
+`RunDone` carries the scalar result, so no separate image-output callback remains. Its
+`image` is empty until all framework steps succeed. A build-only success carries the
+built image reference and an empty `hash`; publish success carries the published reference
+and registry hash. A publish failure retains the built image reference, an empty hash,
+and the error. `PublishDone` reports phase completion, not a second copy of those outputs.
+An empty plan or failed build cannot report an image. The first phase failure remains the
+operation's error; a later completion never erases it.
 
 Signatures carry **scalars only, never engine or framework types**. Go interfaces are
 structural, so an implementation then needs no platform import at all — that is what lets
@@ -261,10 +333,11 @@ the leaf `internal/termlog` and, later, `srv` satisfy the same methods without i
 the engine or each other.
 
 Everything else is a **fold** of these callbacks: a step's elapsed time is
-`StepDone.at − StepStarted.at`; a run's current state, and its scalar outcome, are the
+`StepDone.at − StepStart.at`; a run's current state, and its scalar outcome, are the
 reduction of what it has reported so far. Failure is the `err` on the callback that ends
-the clone, step, or run — there is deliberately no separate failure callback, and no
-`Event`/`EventKind` type. `StepResult`, `Update`, and `Result` are collapsed into the fold;
+the clone, config, step, publish, or run — there is deliberately no separate failure
+callback, and no `Event`/`EventKind` type. `StepResult`, `Update`, and `Result` are
+collapsed into the fold;
 `Snapshot`/`Done` are dropped outright — execution moves to a worker that writes to the
 database and the webui reads it back, so there is no late-joining live observer to catch up.
 
@@ -282,7 +355,7 @@ names.
 
 **The fold is a type of its own, and the observer that writes it is unexported.** The
 accumulator is only a writer; what the rest of the engine wants is the accumulated scalars.
-So `Outcome` — the three-field fold — is the type `Run` and `BuildResult` hold, and no
+So `Outcome` — the three-field fold — is the type the operation and `BuildResult` hold, and no
 field anywhere is typed as a concrete `Observer` implementation. Composition and the fold
 are handed over together by one constructor:
 
@@ -296,8 +369,10 @@ the accumulator; nothing inside it names one either beyond that constructor.
 **Observer-typed fields stay `Observer`** — specializing one to an implementation is what
 this shape exists to prevent.
 
-The wrap site is `NewRun`. The composed observer and fold travel together into `Run`, so
-`Run.Result()` mints its scalars from that sole fold. Nil is eliminated once at that
+The wrap site is the module-operation boundary, **before `RunStart`**, rather than the
+later step-cursor constructor. The composed observer and fold cover preparation failures
+as well as steps and publication. `RunDone` supplies the image/hash and terminal error;
+the result reads those scalars from that sole fold. Nil is eliminated once at that
 boundary: `Accumulate` returns the bare accumulator when `caller` is nil and
 `Tee(acc, caller)` otherwise.
 
@@ -398,16 +473,25 @@ they are the known, bounded set of that, they announce it in one word, and no ne
 joins them. When the verbs land, they replace these callers and the door closes —
 reconcile this section then, never the code before then.
 
-### `Run.Result()` — consistent by construction
+### Operation results — consistent by construction
 
-`Run.Result()` returns a **`BuildResult`**: the join of the injected accumulator's scalar
-fold (ok/err, image, hash) with the unit and the live container the run itself owns — the
-unit rides the run as its `*framework.BuildUnit`, so the accumulator never restates it. The
-two halves are joined at exactly **one site**, because they can only come from there — the
+Both build verbs return **`BuildResult`** values after `RunDone`: the join of the injected
+accumulator's scalar fold (ok/err, image, hash) with the interpreted unit and the live
+container the step cursor owns. The unit stays a `*framework.BuildUnit`, so the accumulator
+never restates it. The two halves are joined at exactly **one site** — the
 scalars are *derived* from the event stream rather than authored anywhere, and the
-container never leaves the run that holds it. There is no hand-packed result assembled at a
+container remains owned by the cursor. There is no hand-packed result assembled at a
 call site, so an inconsistent `BuildResult` — a success with no image, a hash from a build
-that never published — is unconstructable rather than merely discouraged.
+that never published — is unconstructable rather than merely discouraged. Preparation
+failures return errors without constructing container-bearing results; their callbacks
+still close the operation. A multi-module invocation retains successful sibling results
+and joins failures after every selected module finishes.
+
+The result carries its interpreted `Unit` and `Err`, exposes the accumulated scalars through
+`Image() string` and `Hash() string`, and retains the existing `UnsafeContainer` boundary.
+There is no separate `PublishResult` with copied image/hash fields: both verbs consume
+the same completed outcome. Only the publication path can fill the hash. Results cannot
+continue publishing or emit more callbacks after being returned.
 
 That split is also why the container cannot ride the observer: a `*dagger.Container` is
 bound to a client and cannot cross a process boundary, while the scalar half is identical
@@ -434,7 +518,7 @@ Scheduling splits in two and the halves must not meet:
 | which build runs next    | worker | pending records, concurrency policy |
 | which runner executes it | engine | the roster, uniform choice at dial  |
 
-**The worker observes the assigned host; it never chooses one.** `EngineAssigned` reports
+**The worker observes the assigned host; it never chooses one.** Successful `ConfigDone` reports
 the engine's completed choice so the worker can store attribution. The worker receives no
 roster, makes no selection, and has no dialing surface; otherwise two schedulers would
 fight over the same capacity.
@@ -457,25 +541,26 @@ missing engine verb** — that is the working test for whether the boundary hold
 
 ## Fan-out lives inside the engine
 
-Fanning out over already-resolved units is **parallel execution, not coordination** — and
+Fanning out over selected module names is **parallel execution, not coordination** — and
 parallel execution is exactly what "the engine is capacity" means. So multi-unit fan-out
 stays **inside `engine/`**, behind domain verbs. Callers name what they want done, hand
 over an observer, and read results:
 
 ```go
-sess.Build(ctx, cfg, modnames, obs)                 // []BuildResult
-sess.BuildAndPublish(ctx, cfg, modnames, tag, obs)  // []PublishResult
+sess.Build(ctx, input, modnames, obs)                 // ([]BuildResult, error)
+sess.BuildAndPublish(ctx, input, modnames, tag, obs)  // ([]BuildResult, error)
 ```
 
 **There is no standalone `Publish` verb.** Its only possible argument is a `BuildResult`,
-which only `Run.Result` can mint, so holding one means you already built in that session —
-there is no reachable state where publishing without a build makes sense. "Publish something
-built earlier" is a registry-to-registry copy: no container, no engine, not this package.
-Publishing is a bracket inside the run, not a second pass over results.
+which only the completed operation can mint, so holding one means you already built in
+that session. There is no reachable state where publishing without a build makes sense.
+"Publish something built earlier" is a registry-to-registry copy: no container, no engine,
+not this package.
+Publishing is inside the module operation, before `RunDone`, not a second pass over results.
 
 The generic `multiplexer` is **unexported**. It provides orchestration and synchronization
-only and **owns no build method** — it drives the same single-unit path the engine already
-has, one `Run` per unit against the one open `*Session`. Nothing outside `engine/`
+only and **owns no build method** — it drives one module operation per selected name
+against the one open `*Session`. Nothing outside `engine/`
 constructs a multiplexer or touches a `Run`.
 
 There is nothing to merge on the reporting side: every unit reports to the same observer
@@ -483,10 +568,11 @@ and names itself in each callback, so the fan-in *is* the observer. A per-unit f
 surfaces as the `err` on that unit's `RunDone` and never aborts its siblings.
 
 `cmd` and the srv worker consume the same driver through different adapters. CLI build
-commands load a local model and call session verbs with a progress-rendering observer.
-The worker translates its persisted source facts into `Source`, calls `Checkout`, loads
-the returned directory through `conf`, then calls `Build` or `BuildAndPublish` with a
-`build_events` observer. Neither adapter drives a `Run` or sees the runner roster.
+commands resolve a local config path and call session verbs with a progress-rendering
+observer. The worker translates its persisted source facts into `Source` and calls
+`Build` or `BuildAndPublish` with one selected name and a `build_events` observer. Engine
+owns the checkout/config/step/publish composition for both inputs. Neither adapter drives
+a `Run`, emits engine callbacks, or sees the runner roster.
 
 ## Publishing
 
@@ -494,7 +580,7 @@ The publish bracket pushes a successfully-built container on the connection that
 so the registry secret is minted by the same session that owns the container, and logs the
 image via `termlog.Image`. `BuildAndPublish` composes the ordinary path — build the units
 at the publish arch, suffix each `ImageName` with the caller-supplied image tag, run, then
-push — and the `[]BuildAttempt` records of what shipped are assembled by `srv`
+push — and the per-module result folds of what shipped are assembled by `srv`
 ([platform-server.md](platform-server.md)), not by the engine.
 
 The engine owns neither invocation nor cadence. Local `./platform publish` and the server
@@ -510,6 +596,13 @@ The publish bracket reads three fx env-config values off the session's config so
 | `REGISTRY`          | registry host for auth                                      |
 | `REGISTRY_USERNAME` | registry user                                               |
 | `REGISTRY_PASSWORD` | registry secret (set via `client.SetSecret`, never inlined) |
+
+For an operation that publishes, a nonempty `REGISTRY_USERNAME` requires a nonempty
+password and a registry host matching the configured module image. Missing or mismatched
+credentials fail configuration before steps or publication. An absent saved server token
+therefore reaches `ConfigDone(error)` and `RunDone(error)` through this same validation;
+the server still supplies its registry and installation username. A build-only operation
+does not read or validate publication credentials.
 
 When `REGISTRY_USERNAME` is empty, the bracket skips `WithRegistryAuth` entirely — Dagger
 then pushes with the **local docker credentials** (osxkeychain). That is the local-publish
@@ -529,12 +622,12 @@ verb runs on a build-server, where nothing is local — so there is no `Target` 
 declared intent. There is a resolved arch string and the engine entrypoint that resolves
 it:
 
-| Entrypoint                       | Arch                                              |
-|----------------------------------|---------------------------------------------------|
-| `sess.BuildAndPublish`           | `publish_arch` — pushing *is* the answer          |
-| `sess.Build(ctx, cfg, modnames)` | `local_arch`, or `publish_arch` when `CI` is true |
+| Entrypoint                              | Arch                                                |
+| --------------------------------------- | --------------------------------------------------- |
+| `sess.BuildAndPublish`                  | `publish_arch` — pushing *is* the answer            |
+| `sess.Build(ctx, input, modnames, obs)` | `local_arch`, or `publish_arch` when `CI` is true   |
 
-Session entrypoints take `cfg` + module names and construct the units themselves; the arch
+Session entrypoints load configuration and construct the selected units themselves; the arch
 rule is engine-internal and unexported, because it is only ever an input to an entrypoint
 that is about to build (`CI` is read through fx's own `prompts.CIConfig`, a `config.Bool`
 — there is no second `CI` var). Callers never name an arch, and `preview`/`exec` read what

@@ -1,5 +1,9 @@
 # Platform Server
 
+The module-job, source-input, and paired-event contracts are **intended, not yet
+implemented**. The schema, every observer consumer, jobs, and readers must change together
+in the implementation slice; this document specifies their common target.
+
 The **route surface**, the **install/boot flow**, and the **build lifecycle** are settled:
 the [Operations](#operations-settled-surface) table teaches the surface,
 [installation.md](installation.md) owns the install model (installer fragment,
@@ -292,6 +296,14 @@ understood from it. Those are different historical facts, written together, neve
 cache. The current repository manifest is the newest observation by `created_at`; `repos`
 holds no current-manifest pointer to synchronize.
 
+Registration and build creation share one transaction-compatible snapshot writer. It
+inserts the observation with `ON CONFLICT (repo_id, sha) DO NOTHING`, then selects the
+winning row and its complete module set. Only the transaction that inserts the observation
+inserts its modules, in that same transaction. Reusing a commit never updates its raw text,
+parsed fields, policy, modules, or `created_at`; a newer platform parser does not rewrite
+the original observation. Concurrent requests therefore reference the same complete
+snapshot, including when registration already observed the build's commit.
+
 ```
 repo_manifests                  -- one immutable platform.toml observation
   id            bigserial
@@ -416,11 +428,23 @@ through GitHub first. Neither dispatcher nor executor re-derives what was asked 
 
 **A webhook build is whole-repo; a manual trigger may select modules.** `platform.toml`'s
 `[modules]` defines which modules exist. A webhook materializes one `build_modules` row for
-every module in the snapshot; a manual trigger materializes only the requested subset. An
-empty selection therefore means no work and is rejected — there is no empty-means-all
-convention. A selected name absent from the snapshot is rejected before the build exists.
+every module in the snapshot; a manual trigger materializes only the requested subset. A
+manual request omitting `modules` selects every snapshot module; an explicit empty
+`modules: []` or `modules: null` is invalid. The list contains distinct module names;
+duplicate or unknown names are rejected before the build exists. A snapshot with no modules
+cannot create a build. Selection always resolves against the winning snapshot, including when
+the snapshot writer reuses an existing observation.
 The srv database and API call these records **modules**; **unit** begins only when
 `framework.Units` interprets one into a runtime `framework.BuildUnit`.
+
+`BuildCtr` retains the session and repository-write gate, then requires registration:
+an inaccessible or unregistered repository and an unresolvable ref return `404`; missing
+`platform.toml` returns `409`; malformed input, invalid manifest, or invalid module
+selection returns `400`. Successful creation returns `201` only after the snapshot, build,
+and complete selected module set commit. `WebhookCtr` retains its HMAC gate: deleted
+pushes and pushes to unregistered repositories are acknowledged without creating work;
+a registered push with no manifest returns `409`, and an invalid manifest returns `400`.
+GitHub or persistence failures return an error rather than acknowledging a partial build.
 
 **Build cadence and publish cadence are separate.** Every non-deleted push to a registered
 repository records a build, whether its ref names a branch or any tag. After a successful
@@ -458,10 +482,10 @@ are jobs too. fx's queue is one-shot, so a recurring job reschedules itself at t
 
 **Two jobs carry a build**, and the split makes a module the unit of capacity and failure:
 
-| Job               | Shape                               | What it does                                                                                                             |
-|-------------------|-------------------------------------|--------------------------------------------------------------------------------------------------------------------------|
-| `dispatch-builds` | recurring, singleton                | Finds unclaimed build modules and schedules one `build-module` job for each; repeated scans reconcile missed scheduling. |
-| `build-module`    | one-shot, payload = build-module id | Checks out source, loads config, invokes one build verb, and records the Observer stream.                                |
+| Job                 | Shape                                 | What it does                                                                                                               |
+| ------------------- | ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `dispatch-builds`   | recurring, singleton                  | Finds unclaimed build modules and schedules one `build-module` job for each; repeated scans reconcile missed scheduling.   |
+| `build-module`      | one-shot, payload = build-module id   | Invokes one engine build verb for its selected module and records the Observer stream.                                     |
 
 All fx job names are dash-separated slugs.
 
@@ -532,30 +556,49 @@ serializes. The database *is* the channel; the webui reads it back. Nothing subs
 a live in-process stream across the process boundary, which is exactly why engine needs
 no late-joining observer.
 
-The event order is:
+The persisted event order transcribes the engine's paired callbacks:
 
 ```
-clone_started -> clone_done -> run_started -> step_started / step_done
-              -> image_built -> published -> run_done
+run_start
+  clone_start -> clone_done       # remote source only
+  config_start -> config_done
+  step_start -> step_done         # each framework step
+  publish_start -> publish_done   # publication requested only
+run_done
 ```
 
-`clone_done`, `step_done`, and `run_done` carry the error for the span they close. A clone
-failure ends at `clone_done` and never invents an engine run. Engine emits `run_started`
-after repository materialization and before config loading and unit interpretation. Before
-the first `step_started`, `EngineAssigned` records the selected endpoint and assignment
-time on `build_modules`. Every run phase ends with `run_done`; `published` is absent from
-a build-only run.
+Every `Done` callback carries the error for the phase it closes. `RunStart` encloses
+checkout, configuration, framework steps, and optional publication. An ordinarily returned
+failure closes its started phase and then `RunDone(error)`, without starting later phases;
+clone failure therefore records `clone_done` followed by `run_done`. Process termination or
+an event-write failure can interrupt the stream; a reader never invents the missing close.
+Configuration loads the checkout's manifest, interprets the selected module, and establishes
+its engine connection. Successful `ConfigDone` carries the assigned engine endpoint before
+the first framework step; there is no separate assignment callback. `StepOutput` is captured
+between `StepStart` and `StepDone` and persisted on `step_done`. Build-only operations have
+no publish callbacks, and publication completes before the outer `RunDone`.
 
 Display state is a **fold** of each module row and its event stream:
 
-| Fold              | Computed as                                                      |
-|-------------------|------------------------------------------------------------------|
-| module state      | claim + engine-assignment fields and one module's events         |
-| build state       | reduction of all selected module states                           |
-| stuck / timed-out | latest module transition vs the persisted module timeout          |
+| Fold         | Computed as                                                    |
+|--------------|----------------------------------------------------------------|
+| module state | claim + engine-assignment fields and one module's events        |
+| build state  | reduction of every selected module, including unstarted modules |
 
 There is no attempt model. A build module executes once; a failed or stalled execution
 remains history, and operator retry creates a new build with new module rows.
+
+A module is `queued` until claimed, `running` after claim until `run_done`, then `failed`
+if its stream reports an error or `succeeded` otherwise. Its first recorded error remains
+visible while running. A build is `queued` only while all modules are queued; it is
+`running` once any module is claimed and while any selected module is nonterminal. Only
+when every selected module is terminal does the aggregate become `failed` if any module
+failed, otherwise `succeeded`. A failed module beside queued or running siblings cannot
+finish the aggregate.
+
+No age threshold synthesizes a terminal event or a fifth status. A claimed module without
+`run_done` stays visibly incomplete, exposing its claim, engine assignment, and latest
+recorded observation. Automatic stalled-work detection and cleanup remain deferred.
 
 ### Build tables
 
@@ -573,6 +616,7 @@ builds                          -- one aggregate request per trigger; immutable 
   created_at    timestamptz
                                 -- composite FK (manifest_id, repo_id, sha)
                                 --   REFERENCES repo_manifests(id, repo_id, sha)
+                                -- UNIQUE (id, manifest_id)
 
 build_modules                   -- the explicit selected subset; one row = one worker job
   id            bigserial
@@ -581,24 +625,29 @@ build_modules                   -- the explicit selected subset; one row = one w
   manifest_module_id bigint      -- REFERENCES repo_manifest_modules(id)
   claimed_at    timestamptz NULL
   claimed_by    text NOT NULL DEFAULT ''  -- claiming worker's os.Hostname()
-  engine_host   text NOT NULL DEFAULT ''  -- selected host:port
+  engine_host   text NOT NULL DEFAULT ''  -- selected host:port or 'local' (SDK-managed)
   engine_assigned_at timestamptz NULL
   created_at    timestamptz
                                 -- UNIQUE (build_id, manifest_module_id)
-                                -- composite FKs require build + module to share manifest_id
+                                -- FK (build_id, manifest_id)
+                                --   REFERENCES builds(id, manifest_id)
+                                -- FK (manifest_module_id, manifest_id)
+                                --   REFERENCES repo_manifest_modules(id, manifest_id)
                                 -- CHECK ((claimed_at IS NULL) = (claimed_by = ''))
                                 -- CHECK ((engine_assigned_at IS NULL) = (engine_host = ''))
+                                -- CHECK (engine_assigned_at IS NULL OR claimed_at IS NOT NULL)
 
 build_events                    -- append-only; one row per module lifecycle event
   id            bigserial
   build_module_id bigint        -- REFERENCES build_modules(id)
-  kind          text            -- clone_started | clone_done | run_started
-                                -- step_started | step_done | image_built | published | run_done
+  kind          text            -- run_start | run_done | clone_start | clone_done
+                                -- config_start | config_done | step_start | step_done
+                                -- publish_start | publish_done
   step          text            -- '' unless step-scoped
   at            timestamptz     -- event time, not the insert time
-  error         text            -- clone_done, step_done, run_done
-  image         text            -- image_built, published
-  hash          text            -- published only
+  error         text            -- any Done event
+  image         text            -- run_done only
+  hash          text            -- run_done only, successful publication
   stdout        text            -- captured output, per step
   stderr        text
   created_at    timestamptz
@@ -608,13 +657,29 @@ The composite foreign keys make two mismatches unrepresentable: a build cannot n
 manifest from another repository or commit, and a `build_modules` row cannot select a
 module from another manifest.
 
+These schema changes use new forward migrations. Published migration files and their
+registration remain unchanged. Historical-build backfills, archival readers, and old-job
+transition handling are outside this slice; earlier build records do not constrain the
+module model.
+
 `build_events` transcribes the engine's reporting callbacks ([engine.md](engine.md)). Its
 module identity is the
 `build_module_id` foreign key, not a copied unit name. `at` preserves the time at which
 engine observed the event, so elapsed time survives a slow writer. Engine
-assignment is module metadata rather than a repeated stream fact: `EngineAssigned` updates
-`build_modules.engine_host` and `engine_assigned_at`, which engine detail reads directly.
+assignment is module metadata rather than a repeated stream fact: successful `ConfigDone`
+updates `build_modules.engine_host` and `engine_assigned_at` atomically with its
+`config_done` event insert. Assignment time is that callback's observation time; failed
+configuration never records an assignment. A transaction failure leaves neither the event
+nor the assignment, and is a job error. Engine detail reads the module metadata directly.
 Captured `stdout`/`stderr` ride the `step_done` row rather than a kind of their own.
+
+`RunDone` is the sole image/hash observation: no built image means both are empty; a
+successful build-only operation records the built image reference and an empty hash;
+publication failure retains the built image reference with an empty hash; successful
+publication records the published reference and hash. `PublishDone` records phase
+completion and its error without duplicating these output facts. Module result reads take
+their image/hash from `run_done`, so an interrupted run with no terminal observation has
+no recorded image result.
 
 **A `builds` row records who asked and what for, never how it went.** No `status`, no
 `image`, no `error` column: those are the stored state this design exists to remove, and
@@ -655,7 +720,8 @@ does not exist cannot go stale or be written to by mistake.
 
 **Dispatch is still reconciliation.** Its to-be state is one fx job for every module whose
 `claimed_at` is null; duplicate delivery loses the guarded update and does no work. Failed
-and stalled module executions are terminal until an operator creates a new build.
+modules remain terminal and claimed incomplete modules remain incomplete; neither is
+automatically retried. Operator retry creates a new build.
 
 `BuildEvent` carries the `Build` prefix deliberately: "event" is already live in this
 domain for GitHub App events and Kubernetes events, and the bare noun would collide.
@@ -668,9 +734,59 @@ persists Observer callbacks as `build_events`, not the result struct, and nothin
 is typed in terms of it.
 
 Persistence records **intent and observation, never runtime machinery**. The manifest and
-selected modules preserve what the trigger requested; the engine still interprets them
-through current framework code and never serializes or replays `framework.BuildUnit` or a
-stored execution plan. Build hooks remain deferred.
+selected modules preserve what the trigger requested. The snapshot's raw and parsed values
+remain the original admission-time observation; they are not a model replayed into engine.
+Inside `ConfigStart`/`ConfigDone`, engine loads `platform.toml` at the recorded commit using
+the current `conf` loader, including its defaults and `PLATFORM` architecture override,
+and interprets the selected name through current framework code. A selected name missing
+from that configuration fails configuration rather than changing the selected set.
+
+The persisted selection and resolved publication policy remain the server's intent; config
+loading cannot select extra modules or change build-versus-publish. The loaded module's
+timeout bounds its framework steps, as specified in [engine.md](engine.md); the saved
+`timeout_ns` describes the original observation and is not a clone, dial, publish, or
+staleness deadline. Neither path replays `framework.BuildUnit` or a stored execution plan.
+Build hooks remain deferred.
+
+### Build response contracts
+
+`BuildCtr` serves the following controller-owned wire representations; these do not add
+domain nesting or a shared API package. JSON keys retain the existing snake_case style.
+
+- `buildResponse` carries `id`, `trigger`, `retry_of`, `user_id`, `owner`, `repo`,
+  `clone_url`, `ref`, `sha`, `created_at`, `status`, `started_at`, `finished_at`, and
+  `error`, plus `repo_id` and `manifest_id` for the recorded intent, and the complete
+  `modules` collection described below. Its status reduces the complete selected module
+  set. It has no singular `image` or `hash`: a repository build may produce several images.
+  Detail and feed endpoints share this representation; no separate detail wrapper remains.
+- `moduleResponse` is each entry in `modules`, one for every
+  selected `build_modules` row, including rows with no events. Each module entry carries
+  `build_module_id`, `manifest_module_id`, `name`, `status`, `started_at`, `finished_at`,
+  `error`, `image`, `hash`, `claimed_at`, `claimed_by`, `engine_host`,
+  `engine_assigned_at`, `last_event_kind`, and `last_event_at`. There is no `attempts`
+  collection, separate attempt identity, or step output in this response.
+- `stepResponse` carries `build_module_id`, `step`, `started_at`, `finished_at`, `error`,
+  `stdout`, and `stderr`. The module foreign key replaces both attempt ordinals and copied
+  runtime unit names. `/api/builds/{id}/steps` returns the flat steps across every selected
+  module; a started step without its close has no finish time.
+
+Module `started_at` is its claim time, so a worker interrupted before `RunStart` is still
+visible as running; `finished_at` is its `run_done` observation time. Aggregate start is
+the earliest module start, and finish is the latest module finish only once all selected
+modules are terminal. The aggregate error is the first recorded module error in event-id
+order, even while siblings keep the aggregate running; each module retains its own error.
+Unset times use the existing zero-time JSON representation, and absent event kinds,
+engine strings, errors, and image/hash values are empty strings. `last_event_at` and
+`last_event_kind` identify the latest persisted event by event id; they do not infer that
+a silent worker is still alive. Modules are ordered by build-module id and steps by their
+start-event id.
+
+Global and per-repository feeds retain their existing limits, newest-first ordering, and
+GitHub read filtering. Read module rows and their event streams in batches for the entire
+authorized page, including modules with no events, then fold in memory; no query per build
+or module. Detail and list projections exclude `stdout` and `stderr` from their database
+reads as well as their JSON. Only the steps sub-resource loads captured output. Successful
+manual creation returns the same aggregate representation with `queued` state.
 
 ### No `api/` contract layer (deliberate)
 
@@ -799,12 +915,25 @@ still GitHub-derived, still zero-RBAC.
 
 ## Repository source for server builds
 
-The job mints the installation token, translates the stored clone URL and commit into an
-engine `Source`, and calls `Checkout`. It loads `platform.toml` from the returned worktree,
-opens a short-lived `Session`, then invokes `Build` or `BuildAndPublish` according to the
-stored publish policy. Checkout/cache mechanics and Dagger execution stay inside engine;
-the job owns web-record interpretation, policy, sequencing, Observer persistence, and
-reporting a best-effort worktree cleanup failure.
+After claiming its module, the job mints the installation token, translates the stored
+clone URL and commit into an engine `Source`, opens a `Session`, and invokes `Build` or
+`BuildAndPublish` with exactly the selected module name according to stored publication
+policy. Engine owns checkout, configuration, connection, steps, publication, and their
+paired callbacks. The job owns web-record interpretation, policy, and Observer persistence;
+it never fabricates callbacks for errors outside engine invocation.
+
+Failure to obtain an installation token or read request prerequisites is a job error;
+the module claim stays visible without an invented terminal build event. An absent registry
+token is passed as an empty password alongside the registry host and installation username,
+so engine's publication-credential validation closes configuration with an error. Database
+failure reading that token is a job error instead. Build-only jobs need no registry token.
+The configured image host must match the supplied credential host; engine validates this
+inside configuration and never attempts an unauthenticated push on a mismatch.
+
+The job closes its session and observes cleanup errors. Engine closes connections before
+releasing the worktrees its operations acquired. Event-write and cleanup failures remain
+job errors even when an engine failure or success was correctly recorded; a terminal
+module event does not prove the job mechanism completed successfully.
 
 ## Sequencing
 

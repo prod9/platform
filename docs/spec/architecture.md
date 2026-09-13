@@ -10,9 +10,9 @@ from either the CLI or `srv`; engine owns their mechanics without learning which
 invoked them. There is no shared mutable state.
 
 ```
-remote source ─▶ engine.Checkout ─▶ local tree ─▶ conf.Model
-local tree ─────────────────────────────────────▶ conf.Model
-conf.Model ─▶ engine.Build / BuildAndPublish ─▶ BuildUnit ─▶ Run ─▶ image
+engine.Input (Local | Source) ─▶ engine.Build / BuildAndPublish
+  Source ─▶ engine.Checkout ─▶ local tree
+  local config file ─▶ conf.Model ─▶ BuildUnit ─▶ framework steps ─▶ image
 ```
 
 | Stage        | Package      | Responsibility                                              |
@@ -36,8 +36,10 @@ procedure constrains server builds.
 time work reaches engine's execution core, every fact the build needs already lives in
 the `BuildUnit`: workdir, image name, build dir, env, command, the resolved framework, and
 the **arch target**. The execution core reads fields; it does not get told things through
-call arguments. A remote source becomes a local tree through `Checkout`; its adapter then
-parses that tree before handing the same complete model to an engine build verb.
+call arguments. Engine materializes a remote source through `Checkout`, loads its
+configuration through `conf`, and interprets it before entering the step-execution core.
+The source-input and paired-lifecycle contract is intended and awaits the coherent
+module-job implementation; [engine.md](engine.md) owns that boundary.
 
 This yields three standing rules:
 
@@ -45,8 +47,8 @@ This yields three standing rules:
   parameter to carry a fact through several calls, that fact belongs in the struct the
   pipeline already passes. A method growing a long argument list is the smell — stop and
   put the data where it lives. (`BuildUnit` already carries `BuildDir`/`ImageName`; the
-  arch sits right beside them.) Commands declare nothing: they pass `cfg` + module names
-  to an engine entrypoint, which resolves the arch and interprets config into concrete
+  arch sits right beside them.) Commands declare nothing: they pass an input + module names
+  to an engine entrypoint, which loads config, resolves the arch, and interprets concrete
   `BuildUnit` fields.
 
 - **The unit carries the resolved framework, not a name.** `BuildUnit.Framework` holds the
@@ -165,10 +167,11 @@ not settled here**; [`platform-server.md`](platform-server.md) is its only spec.
 `discover` or `bootstrap` — re-run `init` to see detected modules.
 
 **A multi-module verb finishes every module, then fails once.** `build`, `export` and
-`publish` fan out, and the engine already hands back one result per unit rather than
-stopping at the first bad one — so the command walks all of them, does the work each
-successful unit earned, and returns the failures joined. Bailing on the first failure
-would throw away units that had already built and would report a module count that
+`publish` fan out. Engine returns the available unit results and joins failures only after
+all selected modules finish; a preparation failure cannot fabricate a container-bearing
+result. Even when engine returns an error, the command processes the successful results,
+does the work each successful unit earned, and returns the failures joined. Bailing on the
+first failure would throw away units that had already built and would report a count that
 depends on which goroutine finished first. The exit code says whether *anything* failed;
 the log says which.
 
@@ -186,9 +189,10 @@ containers, so `BuildUnit.Arch` is derived as `"linux/" + arch` (or the host arc
 `auto`). The deprecated single-target `platform` key stays readable for backward
 compatibility and seeds `local_arch` when unset.
 
-`build` / `preview` / `export` / `ls` build with `local_arch`; `publish`
-builds with `publish_arch`. The infra manifest artifact is a `FROM scratch` image (YAML
-only, no executable) — arch is irrelevant to it, so it is untouched by this.
+`publish` builds with `publish_arch`; other session build verbs use `local_arch`, or
+`publish_arch` when `CI` is true, as specified in [engine.md](engine.md). `ls` uses
+`local_arch` for its debugging view. The infra manifest artifact is a `FROM scratch` image
+(YAML only, no executable) — arch is irrelevant to it, so it is untouched by this.
 
 ## Infra delivery is a framework, not a separate pipeline
 

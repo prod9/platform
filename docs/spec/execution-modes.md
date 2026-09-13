@@ -60,7 +60,7 @@ The CI/CD server is one execution mode with two cooperating processes:
 
 - `platform srv` authenticates incoming signals and records immutable build intent.
 - `platform worker` asynchronously claims that intent, constructs an immutable
-  remote-build request, and invokes the engine facade once.
+  source input for each claimed module, and invokes one engine build verb for that module.
 
 Together they are the server driver, peer to the local CLI driver. The HTTP request is
 not the build lifetime, the worker is not a second mode, and the server never shells out

@@ -358,7 +358,7 @@ and there is no skip-tests opt-out. Full rationale:
 
 ## Frameworks and the build model
 
-**The way to get a build running is an `engine` entrypoint — `cfg` + module names in,
+**The way to get a build running is an `engine` entrypoint — source input + module names in,
 results out.** Reaching into `framework` to assemble units by hand is not the normal path:
 it means naming an arch the engine is there to decide, and holding a unit before a build
 that would hand it back on `BuildResult.Unit` anyway. Do it only when a caller genuinely
@@ -369,9 +369,9 @@ needs something no entrypoint exposes, and treat that need as a missing engine v
 selected module, all built for the given arch. The arch arrives already resolved by the
 engine entrypoint that is about to build ([engine.md](engine.md) §Arch targets); this
 layer writes it into each unit and never asks what it is for. It returns the slice
-directly: there is no attempt wrapper in the build path,
-because `BuildAttempt` is now an **output** type owned by `srv` (see
-[platform-server.md](platform-server.md)), not an input the engine consumes.
+directly: there is no attempt wrapper in the build path. The server's module and aggregate
+results are output folds (see [platform-server.md](platform-server.md)), not inputs the
+engine consumes; the persisted `Build` itself identifies an attempt.
 
 Each `BuildUnit` is resolved by `unitFromModule`, which calls `FindFramework` on the
 module's `framework` name and stores the resolved `Framework` in `BuildUnit.Framework`
