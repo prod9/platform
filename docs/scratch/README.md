@@ -50,6 +50,8 @@ These are dated reference records, not an execution queue. Current design lives 
 
 **Exploration and handoff records** — completion or adoption is not established here:
 
+- [2026-09-13 — Module-job implementation plan](2026-09-13-module-job-plan.md) —
+  retained Phase 2 candidate, verification, and explicit stop boundary
 - [2026-07-17 — containerd vs the Dagger engine](2026-07-17-containerd-vs-dagger-engine.md)
 - [2026-07-09 — fx handoff: slog LogValuer resolving sink](2026-07-09-fx-handoff-slog-logvaluer-sink.md)
 

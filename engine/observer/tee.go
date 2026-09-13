@@ -2,16 +2,44 @@ package observer
 
 import "time"
 
-// teeObserver forwards every callback to each of its children. Its contract is non-nil
-// children only — nil is eliminated once, where the tee is composed, so nothing downstream
-// carries a guard.
+// teeObserver requires non-nil children; Accumulate eliminates nil at the boundary.
 type teeObserver []Observer
 
 func Tee(obs ...Observer) Observer { return teeObserver(obs) }
 
-func (t teeObserver) StepStarted(unit, step string, at time.Time) {
+func (t teeObserver) RunStart(unit string, at time.Time) {
 	for _, obs := range t {
-		obs.StepStarted(unit, step, at)
+		obs.RunStart(unit, at)
+	}
+}
+
+func (t teeObserver) CloneStart(unit string, at time.Time) {
+	for _, obs := range t {
+		obs.CloneStart(unit, at)
+	}
+}
+
+func (t teeObserver) CloneDone(unit string, at time.Time, err error) {
+	for _, obs := range t {
+		obs.CloneDone(unit, at, err)
+	}
+}
+
+func (t teeObserver) ConfigStart(unit string, at time.Time) {
+	for _, obs := range t {
+		obs.ConfigStart(unit, at)
+	}
+}
+
+func (t teeObserver) ConfigDone(unit, engine string, at time.Time, err error) {
+	for _, obs := range t {
+		obs.ConfigDone(unit, engine, at, err)
+	}
+}
+
+func (t teeObserver) StepStart(unit, step string, at time.Time) {
+	for _, obs := range t {
+		obs.StepStart(unit, step, at)
 	}
 }
 
@@ -27,20 +55,20 @@ func (t teeObserver) StepDone(unit, step string, at time.Time, err error) {
 	}
 }
 
-func (t teeObserver) ImageBuilt(unit, image string, at time.Time) {
+func (t teeObserver) PublishStart(unit string, at time.Time) {
 	for _, obs := range t {
-		obs.ImageBuilt(unit, image, at)
+		obs.PublishStart(unit, at)
 	}
 }
 
-func (t teeObserver) Published(unit, image, hash string, at time.Time) {
+func (t teeObserver) PublishDone(unit string, at time.Time, err error) {
 	for _, obs := range t {
-		obs.Published(unit, image, hash, at)
+		obs.PublishDone(unit, at, err)
 	}
 }
 
-func (t teeObserver) RunDone(unit string, at time.Time, err error) {
+func (t teeObserver) RunDone(unit, image, hash string, at time.Time, err error) {
 	for _, obs := range t {
-		obs.RunDone(unit, at, err)
+		obs.RunDone(unit, image, hash, at, err)
 	}
 }

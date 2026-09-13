@@ -7,6 +7,7 @@ package repos
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"fx.prodigy9.co/app"
@@ -14,11 +15,15 @@ import (
 	"platform.prodigy9.co/srv/install"
 )
 
-var App = app.Build().
-	Name("repos").
-	EmbedMigrations(Migrations).
-	Middlewares(install.ProductGate, install.RecordContext).
-	Controllers(RepoCtr{})
+var (
+	App = app.Build().
+		Name("repos").
+		EmbedMigrations(Migrations).
+		Middlewares(install.ProductGate, install.RecordContext).
+		Controllers(RepoCtr{})
+
+	ErrNotRegistered = errors.New("repos: repository is not registered")
+)
 
 // Repo is one registration row.
 type Repo struct {
@@ -27,6 +32,16 @@ type Repo struct {
 	Repo         string    `db:"repo"`
 	RegisteredBy int64     `db:"registered_by"`
 	CreatedAt    time.Time `db:"created_at"`
+}
+
+func Registered(ctx context.Context, owner, repo string) (*Repo, error) {
+	registration := &Repo{}
+	err := data.Get(ctx, registration, `SELECT * FROM repos
+		WHERE lower(owner) = lower($1) AND lower(repo) = lower($2)`, owner, repo)
+	if data.IsNoRows(err) {
+		return nil, ErrNotRegistered
+	}
+	return registration, err
 }
 
 // ListRegistered reads every registration, oldest first — the stored half of the

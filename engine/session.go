@@ -6,9 +6,7 @@ import (
 	"sync"
 
 	"dagger.io/dagger"
-	"platform.prodigy9.co/conf"
 	"platform.prodigy9.co/engine/observer"
-	"platform.prodigy9.co/framework"
 )
 
 // Session is the span during which containers are usable. Every container is a handle into
@@ -24,8 +22,9 @@ import (
 type Session struct {
 	ctx context.Context // carries both the lifetime and the config
 
-	mu    sync.Mutex
-	conns []*dagger.Client
+	mu        sync.Mutex
+	conns     []*dagger.Client
+	worktrees []*Worktree
 }
 
 // NewSession opens a session on the fleet. It dials nothing: connections are made as runs
@@ -47,6 +46,10 @@ func (s *Session) Close() error {
 		errs = append(errs, conn.Close())
 	}
 
+	for _, worktree := range s.worktrees {
+		errs = append(errs, worktree.Close(context.WithoutCancel(s.ctx)))
+	}
+	s.worktrees = nil
 	s.conns = nil
 	return errors.Join(errs...)
 }
@@ -54,57 +57,38 @@ func (s *Session) Close() error {
 // Unsafe hands over a raw connection, and the name is the warning: past here a caller
 // expresses Dagger operations the session otherwise owns. ls's ad-hoc container reaches
 // through it because it never builds; no new caller joins it.
-func (s *Session) Unsafe() (*dagger.Client, error) { return s.connect() }
-
-// Build builds every module matched by modnames (all of them when it is empty), one run per
-// unit, each on its own connection. It constructs the units itself — resolving the arch from
-// cfg — so callers never name a platform; what they need afterwards they read off
-// BuildResult.Unit.
-func (s *Session) Build(ctx context.Context, cfg *conf.Model, modnames []string, obs observer.Observer) ([]BuildResult, error) {
-	units, err := framework.Units(cfg, modnames, s.buildArch(cfg))
-	if err != nil {
-		return nil, err
-	}
-	if len(units) == 0 {
-		return nil, ErrNoJobs
-	}
-
-	m := &multiplexer[*framework.BuildUnit, BuildResult]{}
-	m.Reset(units)
-	return m.Start(func(unit *framework.BuildUnit) BuildResult {
-		return s.runUnit(ctx, unit, obs).Result()
-	}), nil
+func (s *Session) Unsafe() (*dagger.Client, error) {
+	client, _, err := s.connect()
+	return client, err
 }
 
-// BuildAndPublish builds every matched module at the publish arch and pushes each image as
-// its own run finishes. Publishing is a bracket around the run rather than a second pass
-// over results: the connection that built the container is still in hand, so the registry
-// secret is minted by the session that owns the container it authenticates.
-func (s *Session) BuildAndPublish(ctx context.Context, cfg *conf.Model, modnames []string, tag string, obs observer.Observer) ([]PublishResult, error) {
-	units, err := framework.Units(cfg, modnames, cfg.PublishArch)
+// Build executes selected modules; an empty local selection discovers all names.
+func (s *Session) Build(ctx context.Context, input Input, modnames []string, obs observer.Observer) ([]BuildResult, error) {
+	return s.build(ctx, input, modnames, buildOnly{}, obs)
+}
+
+// BuildAndPublish publishes each module before closing its operation.
+func (s *Session) BuildAndPublish(ctx context.Context, input Input, modnames []string, tag string, obs observer.Observer) ([]BuildResult, error) {
+	return s.build(ctx, input, modnames, publication{tag: tag, creds: registryCredsFrom(cfgFrom(s.ctx))}, obs)
+}
+
+func (s *Session) build(ctx context.Context, input Input, modnames []string, intent buildIntent, obs observer.Observer) ([]BuildResult, error) {
+	names, err := selectedNames(input, modnames)
 	if err != nil {
 		return nil, err
 	}
-	if len(units) == 0 {
-		return nil, ErrNoJobs
-	}
 
-	for _, unit := range units {
-		unit.ImageName = unit.ImageName + ":" + tag
-	}
-	creds := registryCredsFrom(cfgFrom(s.ctx))
-
-	m := &multiplexer[*framework.BuildUnit, PublishResult]{}
-	m.Reset(units)
-	results := m.Start(func(unit *framework.BuildUnit) PublishResult {
-		return s.runUnit(ctx, unit, obs).publish(ctx, creds)
+	m := &multiplexer[string, operationResult]{}
+	m.Reset(names)
+	completed := m.Start(func(name string) operationResult {
+		return (&moduleOperation{session: s, input: input, name: name, intent: intent, caller: obs}).run(ctx)
 	})
 
+	var results []BuildResult
 	var errs []error
-	for _, result := range results {
-		if result.Err != nil {
-			errs = append(errs, result.Err)
-		}
+	for _, operation := range completed {
+		errs = append(errs, operation.err)
+		results = append(results, operation.results...)
 	}
 	return results, errors.Join(errs...)
 }
@@ -135,32 +119,18 @@ func (s *Session) Clean(ctx context.Context) error {
 	return nil
 }
 
-// runUnit drives one unit's whole plan and hands back the finished run, which still holds
-// the connection its container is bound to. The timeout bounds the unit's steps and nothing
-// else — it is never the context a connection is dialed into, so a unit ending cannot close
-// a session whose containers the caller still holds.
-func (s *Session) runUnit(ctx context.Context, unit *framework.BuildUnit, obs observer.Observer) *Run {
-	unitCtx, cancel := context.WithTimeout(ctx, unit.Timeout)
-	defer cancel()
-
-	run := NewRun(s, unit, obs)
-	for run.Next(unitCtx) {
-	}
-	return run
-}
-
 // connect adds one connection to the session and hands it over. A run calls this once and
 // reuses what it gets, because a container is bound to the connection that built it; a
 // session driving many runs calls it many times, and that is what spreads runs across the
 // fleet.
-func (s *Session) connect() (*dagger.Client, error) {
-	client, err := dial(s.ctx)
+func (s *Session) connect() (*dagger.Client, string, error) {
+	client, host, err := dial(s.ctx)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	s.keep(client)
-	return client, nil
+	return client, host, nil
 }
 
 // keep puts a connection under the session's ownership, so Close ends it.

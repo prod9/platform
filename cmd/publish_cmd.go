@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"os"
 
 	"fx.prodigy9.co/cmd/prompts"
@@ -20,7 +21,7 @@ var PublishCmd = &cobra.Command{
 	RunE:  runPublish,
 }
 
-func runPublish(cmd *cobra.Command, args []string) error {
+func runPublish(cmd *cobra.Command, args []string) (err error) {
 	cfg, err := conf.Load(".")
 	if err != nil {
 		return err
@@ -60,8 +61,8 @@ func runPublish(cmd *cobra.Command, args []string) error {
 
 	ctx := fxconfig.NewContext(context.Background(), fxconfig.Configure())
 	sess := engine.NewSession(ctx)
-	defer sess.Close()
+	defer func() { err = errors.Join(err, sess.Close()) }()
 
-	_, err = sess.BuildAndPublish(ctx, cfg, p.Args(), name, newObserver())
+	_, err = sess.BuildAndPublish(ctx, engine.Local{ConfigPath: cfg.ConfigPath}, p.Args(), name, newObserver())
 	return err
 }

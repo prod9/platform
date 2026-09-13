@@ -3,8 +3,6 @@ package repos
 import (
 	"context"
 	"errors"
-	"maps"
-	"slices"
 
 	"fx.prodigy9.co/data"
 	"fx.prodigy9.co/httpserver/controllers"
@@ -57,15 +55,9 @@ func (r *RegisterRepo) Execute(ctx context.Context, out any) error {
 			return err
 		}
 
-		snapshotID, err := insertManifestSnapshot(
-			scope, repo.ID, r.ManifestSHA, r.ManifestRaw, r.Manifest)
-		if err != nil {
+		record := &RecordManifest{RepoID: repo.ID, SHA: r.ManifestSHA, Raw: r.ManifestRaw, Manifest: r.Manifest}
+		if err := record.Execute(scope.Context(), &ManifestSnapshot{}); err != nil {
 			return err
-		}
-		for _, name := range slices.Sorted(maps.Keys(r.Manifest.Modules)) {
-			if err := insertManifestModule(scope, snapshotID, name, *r.Manifest.Modules[name]); err != nil {
-				return err
-			}
 		}
 
 		if out == nil {

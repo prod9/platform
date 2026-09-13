@@ -1,7 +1,6 @@
 package builds
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -19,6 +18,7 @@ import (
 	"platform.prodigy9.co/srv/auth"
 	"platform.prodigy9.co/srv/github"
 	"platform.prodigy9.co/srv/install"
+	"platform.prodigy9.co/srv/repos"
 )
 
 // listLimit is what the build list shows: enough history to see the last few pushes of
@@ -60,6 +60,13 @@ func trigger(resp http.ResponseWriter, req *http.Request) {
 	if !auth.RequireRepoWrite(resp, req, create.Owner, create.Repo) {
 		return
 	}
+	if _, err := repos.Registered(ctx, create.Owner, create.Repo); errors.Is(err, repos.ErrNotRegistered) {
+		render.Error(resp, req, 404, err)
+		return
+	} else if err != nil {
+		render.Error(resp, req, 500, err)
+		return
+	}
 
 	token, client, err := install.Token(ctx)
 	if err != nil {
@@ -83,13 +90,51 @@ func trigger(resp http.ResponseWriter, req *http.Request) {
 		render.Error(resp, req, 500, err)
 		return
 	}
-
-	build := &Build{}
-	if err := create.Execute(ctx, build); err != nil {
+	observed, err := client.RepoManifestAt(ctx, token, create.Owner, create.Repo, create.SHA)
+	if errors.Is(err, github.ErrRepoUnreachable) {
+		render.Error(resp, req, 404, err)
+		return
+	} else if errors.Is(err, github.ErrNoManifest) {
+		render.Error(resp, req, 409, err)
+		return
+	} else if err != nil {
 		render.Error(resp, req, 500, err)
 		return
 	}
-	renderCreated(resp, req, respond(build, Latest(nil)))
+	manifest, err := repos.ParseManifest(observed.Raw, create.Repo)
+	if err != nil {
+		render.Error(resp, req, 400, err)
+		return
+	}
+	create.ManifestRaw, create.Manifest = string(observed.Raw), *manifest
+	if create.RetryOf != 0 {
+		create.Trigger = TriggerRetry
+	}
+
+	build := &Build{}
+	var result Result
+	err = data.Run(ctx, func(scope data.Scope) error {
+		if err := create.Execute(scope.Context(), build); err != nil {
+			return err
+		}
+		results, err := ResultsFor(scope.Context(), []*Build{build})
+		if err != nil {
+			return err
+		}
+		result = results[build.ID]
+		return nil
+	})
+	if errors.Is(err, ErrInvalidModules) || errors.Is(err, ErrInvalidRetry) {
+		render.Error(resp, req, 400, err)
+		return
+	} else if errors.Is(err, repos.ErrNotRegistered) {
+		render.Error(resp, req, 404, err)
+		return
+	} else if err != nil {
+		render.Error(resp, req, 500, err)
+		return
+	}
+	renderCreated(resp, req, respond(build, result))
 }
 
 // renderCreated is render.JSON at 201: fx's render fixes status 200 (a gap its own TODO
@@ -128,9 +173,9 @@ func listForRepo(resp http.ResponseWriter, req *http.Request) {
 
 	builds := []*Build{}
 	err := data.Select(ctx, &builds, `
-		SELECT `+buildColumns+` FROM builds
-		WHERE owner = $1 AND repo = $2
-		ORDER BY id DESC LIMIT $3`,
+		SELECT `+buildColumns+` FROM `+buildFrom+`
+		WHERE lower(r.owner) = lower($1) AND lower(r.repo) = lower($2)
+		ORDER BY b.id DESC LIMIT $3`,
 		owner, repo, limit)
 	if err != nil {
 		render.Error(resp, req, 500, err)
@@ -143,23 +188,42 @@ func listForRepo(resp http.ResponseWriter, req *http.Request) {
 // buildResponse is the record as stored plus the fold of its events. The fold is computed
 // per read — nothing about how a build went is stored on the row.
 type buildResponse struct {
-	ID        int64     `json:"id"`
-	Trigger   Trigger   `json:"trigger"`
-	RetryOf   int64     `json:"retry_of"`
-	UserID    int64     `json:"user_id"`
-	Owner     string    `json:"owner"`
-	Repo      string    `json:"repo"`
-	CloneURL  string    `json:"clone_url"`
-	Ref       string    `json:"ref"`
-	SHA       string    `json:"sha"`
-	CreatedAt time.Time `json:"created_at"`
+	ID         int64     `json:"id"`
+	Trigger    Trigger   `json:"trigger"`
+	RetryOf    int64     `json:"retry_of"`
+	UserID     int64     `json:"user_id"`
+	RepoID     int64     `json:"repo_id"`
+	ManifestID int64     `json:"manifest_id"`
+	Owner      string    `json:"owner"`
+	Repo       string    `json:"repo"`
+	CloneURL   string    `json:"clone_url"`
+	Ref        string    `json:"ref"`
+	SHA        string    `json:"sha"`
+	CreatedAt  time.Time `json:"created_at"`
 
-	Status     Status    `json:"status"`
-	StartedAt  time.Time `json:"started_at"`
-	FinishedAt time.Time `json:"finished_at"`
-	Image      string    `json:"image"`
-	Hash       string    `json:"hash"`
-	Error      string    `json:"error"`
+	Status     Status           `json:"status"`
+	StartedAt  time.Time        `json:"started_at"`
+	FinishedAt time.Time        `json:"finished_at"`
+	Error      string           `json:"error"`
+	Modules    []moduleResponse `json:"modules"`
+}
+
+type moduleResponse struct {
+	BuildModuleID    int64     `json:"build_module_id"`
+	ManifestModuleID int64     `json:"manifest_module_id"`
+	Name             string    `json:"name"`
+	Status           Status    `json:"status"`
+	StartedAt        time.Time `json:"started_at"`
+	FinishedAt       time.Time `json:"finished_at"`
+	Error            string    `json:"error"`
+	Image            string    `json:"image"`
+	Hash             string    `json:"hash"`
+	ClaimedAt        time.Time `json:"claimed_at"`
+	ClaimedBy        string    `json:"claimed_by"`
+	EngineHost       string    `json:"engine_host"`
+	EngineAssignedAt time.Time `json:"engine_assigned_at"`
+	LastEventKind    EventKind `json:"last_event_kind"`
+	LastEventAt      time.Time `json:"last_event_at"`
 }
 
 func list(resp http.ResponseWriter, req *http.Request) {
@@ -184,9 +248,9 @@ func list(resp http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 	builds := []*Build{}
 	err = data.Select(ctx, &builds, `
-		SELECT `+buildColumns+` FROM builds
-		WHERE lower(owner) || '/' || lower(repo) = ANY($1)
-		ORDER BY id DESC LIMIT $2`, keys, listLimit)
+		SELECT `+buildColumns+` FROM `+buildFrom+`
+		WHERE lower(r.owner) || '/' || lower(r.repo) = ANY($1)
+		ORDER BY b.id DESC LIMIT $2`, keys, listLimit)
 	if err != nil {
 		render.Error(resp, req, 500, err)
 		return
@@ -198,7 +262,7 @@ func list(resp http.ResponseWriter, req *http.Request) {
 // renderList folds each listed build's events and renders the page — the shared back
 // half of the global and per-repo lists.
 func renderList(resp http.ResponseWriter, req *http.Request, builds []*Build) {
-	streams, err := streamsFor(req.Context(), builds)
+	results, err := ResultsFor(req.Context(), builds)
 	if err != nil {
 		render.Error(resp, req, 500, err)
 		return
@@ -206,165 +270,122 @@ func renderList(resp http.ResponseWriter, req *http.Request, builds []*Build) {
 
 	out := make([]buildResponse, len(builds))
 	for i, build := range builds {
-		out[i] = respond(build, Latest(streams[build.ID]))
+		out[i] = respond(build, results[build.ID])
 	}
 	render.JSON(resp, req, out)
-}
-
-// streamsFor reads the listed builds' events in one query and groups them by build,
-// so a list of n builds costs two queries rather than n+1.
-func streamsFor(ctx context.Context, builds []*Build) (map[int64][]*BuildEvent, error) {
-	ids := make([]int64, len(builds))
-	for i, build := range builds {
-		ids[i] = build.ID
-	}
-
-	events := []*BuildEvent{}
-	err := data.Select(ctx, &events, `
-		SELECT * FROM build_events
-		WHERE build_id = ANY($1)
-		ORDER BY build_id, id`, ids)
-	if err != nil {
-		return nil, err
-	}
-
-	streams := map[int64][]*BuildEvent{}
-	for _, event := range events {
-		streams[event.BuildID] = append(streams[event.BuildID], event)
-	}
-	return streams, nil
-}
-
-// detailResponse is the detail view: the record plus every attempt folded. Steps stay
-// behind the /steps sub-resource so the heavy output payload never rides this read. It
-// is a view composed over the domain folds, per spec §Data-domain structs stay flat.
-type detailResponse struct {
-	buildResponse
-	Attempts []attemptResponse `json:"attempts"`
-}
-
-type attemptResponse struct {
-	Status     Status    `json:"status"`
-	StartedAt  time.Time `json:"started_at"`
-	FinishedAt time.Time `json:"finished_at"`
-	Image      string    `json:"image"`
-	Hash       string    `json:"hash"`
-	Error      string    `json:"error"`
 }
 
 func get(resp http.ResponseWriter, req *http.Request) {
-	build, events, ok := loadBuild(resp, req)
+	build, ok := loadBuild(resp, req)
 	if !ok {
 		return
 	}
 
-	attempts := fold(events)
-	out := detailResponse{
-		buildResponse: respond(build, Latest(events)),
-		Attempts:      make([]attemptResponse, len(attempts)),
+	results, err := ResultsFor(req.Context(), []*Build{build})
+	if err != nil {
+		render.Error(resp, req, 500, err)
+		return
 	}
-	for i, attempt := range attempts {
-		out.Attempts[i] = attemptResponse{
-			Status:     attempt.Status,
-			StartedAt:  attempt.StartedAt,
-			FinishedAt: attempt.FinishedAt,
-			Image:      attempt.Image,
-			Hash:       attempt.Hash,
-			Error:      attempt.Error,
-		}
-	}
-	render.JSON(resp, req, out)
+	render.JSON(resp, req, respond(build, results[build.ID]))
 }
 
 type stepResponse struct {
-	Attempt    int       `json:"attempt"`
-	Unit       string    `json:"unit"`
-	Step       string    `json:"step"`
-	StartedAt  time.Time `json:"started_at"`
-	FinishedAt time.Time `json:"finished_at"`
-	Error      string    `json:"error"`
-	Stdout     string    `json:"stdout"`
-	Stderr     string    `json:"stderr"`
+	BuildModuleID int64     `json:"build_module_id"`
+	Step          string    `json:"step"`
+	StartedAt     time.Time `json:"started_at"`
+	FinishedAt    time.Time `json:"finished_at"`
+	Error         string    `json:"error"`
+	Stdout        string    `json:"stdout"`
+	Stderr        string    `json:"stderr"`
 }
 
 func listSteps(resp http.ResponseWriter, req *http.Request) {
-	_, events, ok := loadBuild(resp, req)
+	build, ok := loadBuild(resp, req)
 	if !ok {
 		return
 	}
 
-	steps := Steps(events)
+	steps, err := ReadSteps(req.Context(), build.ID)
+	if err != nil {
+		render.Error(resp, req, 500, err)
+		return
+	}
 	out := make([]stepResponse, len(steps))
 	for i, step := range steps {
 		out[i] = stepResponse{
-			Attempt:    step.Attempt,
-			Unit:       step.Unit,
-			Step:       step.Step,
-			StartedAt:  step.StartedAt,
-			FinishedAt: step.FinishedAt,
-			Error:      step.Error,
-			Stdout:     step.Stdout,
-			Stderr:     step.Stderr,
+			BuildModuleID: step.BuildModuleID,
+			Step:          step.Step,
+			StartedAt:     step.StartedAt,
+			FinishedAt:    step.FinishedAt,
+			Error:         step.Error,
+			Stdout:        step.Stdout,
+			Stderr:        step.Stderr,
 		}
 	}
 	render.JSON(resp, req, out)
 }
 
-// loadBuild gates, resolves {id}, and reads the row plus its whole stream — the shared
+// loadBuild gates, resolves {id}, and reads the row — the shared
 // front half of the detail and steps reads. ok=false means a response was written.
-func loadBuild(resp http.ResponseWriter, req *http.Request) (*Build, []*BuildEvent, bool) {
+func loadBuild(resp http.ResponseWriter, req *http.Request) (*Build, bool) {
 	if _, authed := auth.RequireUser(resp, req); !authed {
-		return nil, nil, false
+		return nil, false
 	}
 	ctx := req.Context()
 
 	id, err := strconv.ParseInt(chi.URLParam(req, "id"), 10, 64)
 	if err != nil {
 		render.Error(resp, req, 404, httperrors.ErrNotFound)
-		return nil, nil, false
+		return nil, false
 	}
 
 	build := &Build{}
-	err = data.Get(ctx, build, `SELECT `+buildColumns+` FROM builds WHERE id = $1`, id)
+	err = data.Get(ctx, build, `SELECT `+buildColumns+` FROM `+buildFrom+` WHERE b.id = $1`, id)
 	if data.IsNoRows(err) {
 		render.Error(resp, req, 404, httperrors.ErrNotFound)
-		return nil, nil, false
+		return nil, false
 	} else if err != nil {
 		render.Error(resp, req, 500, err)
-		return nil, nil, false
+		return nil, false
 	}
 	if !auth.RequireRepoRead(resp, req, build.Owner, build.Repo) {
-		return nil, nil, false
+		return nil, false
 	}
-
-	events := []*BuildEvent{}
-	err = data.Select(ctx, &events, `
-		SELECT * FROM build_events WHERE build_id = $1 ORDER BY id`, id)
-	if err != nil {
-		render.Error(resp, req, 500, err)
-		return nil, nil, false
-	}
-	return build, events, true
+	return build, true
 }
 
-func respond(build *Build, latest BuildAttempt) buildResponse {
-	return buildResponse{
-		ID:        build.ID,
-		Trigger:   build.Trigger,
-		RetryOf:   build.RetryOf,
-		UserID:    build.UserID,
-		Owner:     build.Owner,
-		Repo:      build.Repo,
-		CloneURL:  build.CloneURL,
-		Ref:       build.Ref,
-		SHA:       build.SHA,
-		CreatedAt: build.CreatedAt,
+func respond(build *Build, result Result) buildResponse {
+	modules := make([]moduleResponse, len(result.Modules))
+	for i, module := range result.Modules {
+		modules[i] = moduleResponse{
+			BuildModuleID: module.ID, ManifestModuleID: module.ManifestModuleID,
+			Name: module.Name, Status: module.Status,
+			StartedAt: module.StartedAt, FinishedAt: module.FinishedAt,
+			Error: module.Error, Image: module.Image, Hash: module.Hash,
+			ClaimedAt: module.ClaimedAt, ClaimedBy: module.ClaimedBy,
+			EngineHost: module.EngineHost, EngineAssignedAt: module.EngineAssignedAt,
+			LastEventKind: module.LastEventKind, LastEventAt: module.LastEventAt,
+		}
+	}
 
-		Status:     latest.Status,
-		StartedAt:  latest.StartedAt,
-		FinishedAt: latest.FinishedAt,
-		Image:      latest.Image,
-		Hash:       latest.Hash,
-		Error:      latest.Error,
+	return buildResponse{
+		ID:         build.ID,
+		Trigger:    build.Trigger,
+		RetryOf:    build.RetryOf,
+		UserID:     build.UserID,
+		RepoID:     build.RepoID,
+		ManifestID: build.ManifestID,
+		Owner:      build.Owner,
+		Repo:       build.Repo,
+		CloneURL:   build.CloneURL,
+		Ref:        build.Ref,
+		SHA:        build.SHA,
+		CreatedAt:  build.CreatedAt,
+
+		Status:     result.Status,
+		StartedAt:  result.StartedAt,
+		FinishedAt: result.FinishedAt,
+		Error:      result.Error,
+		Modules:    modules,
 	}
 }

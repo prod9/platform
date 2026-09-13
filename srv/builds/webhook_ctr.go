@@ -16,6 +16,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"platform.prodigy9.co/srv/auth"
 	"platform.prodigy9.co/srv/github"
+	"platform.prodigy9.co/srv/install"
 	"platform.prodigy9.co/srv/repos"
 )
 
@@ -83,6 +84,25 @@ func githubWebhook(resp http.ResponseWriter, req *http.Request) {
 		render.JSON(resp, req, webhookReceipt{Status: "ignored"})
 		return
 	}
+	token, client, err := install.Token(ctx)
+	if err != nil {
+		render.Error(resp, req, 500, err)
+		return
+	}
+	observed, err := client.RepoManifestAt(ctx, token, create.Owner, create.Repo, create.SHA)
+	if errors.Is(err, github.ErrNoManifest) {
+		render.Error(resp, req, 409, err)
+		return
+	} else if err != nil {
+		render.Error(resp, req, 500, err)
+		return
+	}
+	model, err := repos.ParseManifest(observed.Raw, create.Repo)
+	if err != nil {
+		render.Error(resp, req, 400, err)
+		return
+	}
+	create.ManifestRaw, create.Manifest = string(observed.Raw), *model
 
 	// A webhook build is the App's own act, so it is attributed to the system principal —
 	// no human asked for it, and a build without a principal is a record with a hole in it.
@@ -92,7 +112,11 @@ func githubWebhook(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 	if err := create.Execute(ctx, nil); err != nil {
-		render.Error(resp, req, 500, err)
+		status := http.StatusInternalServerError
+		if errors.Is(err, ErrInvalidModules) {
+			status = http.StatusBadRequest
+		}
+		render.Error(resp, req, status, err)
 		return
 	}
 	renderAccepted(resp, req, webhookReceipt{Status: "queued"})

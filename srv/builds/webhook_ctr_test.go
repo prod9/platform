@@ -5,12 +5,13 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
-	"fx.prodigy9.co/app"
+	"fx.prodigy9.co/config"
 	"fx.prodigy9.co/data"
 	"fx.prodigy9.co/fxtest"
 	"fx.prodigy9.co/httpserver/middlewares"
@@ -18,14 +19,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"platform.prodigy9.co/srv/auth"
 	"platform.prodigy9.co/srv/github"
-	"platform.prodigy9.co/srv/repos"
+	"platform.prodigy9.co/srv/srvtest"
 )
 
 const testWebhookSecret = "whsec"
-
-func init() {
-	app.RegisterMigrations(repos.App.App())
-}
 
 func stubApp(t *testing.T, app *github.App, err error) {
 	orig := github.LoadApp
@@ -123,8 +120,10 @@ func webhookRequest(event, body, signature string) *http.Request {
 	return req
 }
 
-func webhookRouter(t *testing.T) chi.Router {
-	cfg := fxtest.Configure()
+func webhookRouter(t *testing.T, cfg *config.Source) chi.Router {
+	if cfg == nil {
+		cfg = fxtest.Configure()
+	}
 	router := chi.NewRouter()
 	router.Use(middlewares.Configure(cfg))
 	require.NoError(t, WebhookCtr{}.Mount(cfg, router))
@@ -133,7 +132,7 @@ func webhookRouter(t *testing.T) chi.Router {
 
 func TestWebhookWithoutGitHubApp(t *testing.T) {
 	stubApp(t, nil, github.ErrNoApp)
-	router := webhookRouter(t)
+	router := webhookRouter(t, nil)
 
 	resp := httptest.NewRecorder()
 	body := `{"zen":"ok"}`
@@ -144,7 +143,7 @@ func TestWebhookWithoutGitHubApp(t *testing.T) {
 
 func TestWebhookRejectsMissingSignature(t *testing.T) {
 	stubApp(t, &github.App{WebhookSecret: testWebhookSecret}, nil)
-	router := webhookRouter(t)
+	router := webhookRouter(t, nil)
 
 	resp := httptest.NewRecorder()
 	router.ServeHTTP(resp, webhookRequest("ping", `{"zen":"ok"}`, ""))
@@ -154,7 +153,7 @@ func TestWebhookRejectsMissingSignature(t *testing.T) {
 
 func TestWebhookRejectsBadSignature(t *testing.T) {
 	stubApp(t, &github.App{WebhookSecret: testWebhookSecret}, nil)
-	router := webhookRouter(t)
+	router := webhookRouter(t, nil)
 
 	resp := httptest.NewRecorder()
 	body := `{"zen":"ok"}`
@@ -165,7 +164,7 @@ func TestWebhookRejectsBadSignature(t *testing.T) {
 
 func TestWebhookPingIsNoOp(t *testing.T) {
 	stubApp(t, &github.App{WebhookSecret: testWebhookSecret}, nil)
-	router := webhookRouter(t)
+	router := webhookRouter(t, nil)
 
 	resp := httptest.NewRecorder()
 	body := `{"zen":"Design for failure."}`
@@ -176,7 +175,7 @@ func TestWebhookPingIsNoOp(t *testing.T) {
 
 func TestWebhookMalformedPushBody(t *testing.T) {
 	stubApp(t, &github.App{WebhookSecret: testWebhookSecret}, nil)
-	router := webhookRouter(t)
+	router := webhookRouter(t, nil)
 
 	resp := httptest.NewRecorder()
 	body := `{"ref": "refs/tags/v1"` // truncated JSON, correctly signed
@@ -186,11 +185,10 @@ func TestWebhookMalformedPushBody(t *testing.T) {
 }
 
 func TestWebhookTagPushCreatesBuild(t *testing.T) {
-	ctx := setupDB(t)
-	stubApp(t, &github.App{WebhookSecret: testWebhookSecret}, nil)
+	ctx := setupWebhookInstalled(t, testManifest, http.StatusOK)
 	registerWebhookRepo(t, ctx, "prod9", "app")
 
-	router := webhookRouter(t)
+	router := webhookRouter(t, config.FromContext(ctx))
 	resp := httptest.NewRecorder()
 	req := webhookRequest("push", tagPushBody, signBody(testWebhookSecret, tagPushBody))
 	router.ServeHTTP(resp, req.WithContext(ctx))
@@ -201,7 +199,7 @@ func TestWebhookTagPushCreatesBuild(t *testing.T) {
 	require.NoError(t, err)
 
 	build := &Build{}
-	require.NoError(t, data.Get(ctx, build, `SELECT `+buildColumns+` FROM builds`))
+	require.NoError(t, data.Get(ctx, build, `SELECT `+buildColumns+` FROM `+buildFrom))
 	require.Equal(t, TriggerGitHubPush, build.Trigger)
 	require.Equal(t, systemUserID, build.UserID)
 	require.Zero(t, build.RetryOf)
@@ -216,11 +214,10 @@ func TestWebhookTagPushCreatesBuild(t *testing.T) {
 }
 
 func TestWebhookBranchPushCreatesBuild(t *testing.T) {
-	ctx := setupDB(t)
-	stubApp(t, &github.App{WebhookSecret: testWebhookSecret}, nil)
+	ctx := setupWebhookInstalled(t, testManifest, http.StatusOK)
 	registerWebhookRepo(t, ctx, "prod9", "app")
 
-	router := webhookRouter(t)
+	router := webhookRouter(t, config.FromContext(ctx))
 	resp := httptest.NewRecorder()
 	req := webhookRequest("push", branchPushBody, signBody(testWebhookSecret, branchPushBody))
 	router.ServeHTTP(resp, req.WithContext(ctx))
@@ -228,7 +225,7 @@ func TestWebhookBranchPushCreatesBuild(t *testing.T) {
 	require.Equal(t, http.StatusAccepted, resp.Code)
 
 	build := &Build{}
-	require.NoError(t, data.Get(ctx, build, `SELECT `+buildColumns+` FROM builds`))
+	require.NoError(t, data.Get(ctx, build, `SELECT `+buildColumns+` FROM `+buildFrom))
 	require.Equal(t, "refs/heads/main", build.Ref)
 	require.Equal(t, "abc123", build.SHA)
 }
@@ -237,7 +234,7 @@ func TestWebhookPushToUnregisteredRepoIsIgnored(t *testing.T) {
 	ctx := setupDB(t)
 	stubApp(t, &github.App{WebhookSecret: testWebhookSecret}, nil)
 
-	router := webhookRouter(t)
+	router := webhookRouter(t, nil)
 	resp := httptest.NewRecorder()
 	req := webhookRequest("push", branchPushBody, signBody(testWebhookSecret, branchPushBody))
 	router.ServeHTTP(resp, req.WithContext(ctx))
@@ -254,4 +251,51 @@ func registerWebhookRepo(t *testing.T, ctx context.Context, owner, repo string) 
 	require.NoError(t, data.Exec(ctx, `
 		INSERT INTO repos (owner, repo, registered_by) VALUES ($1, $2, $3)`,
 		owner, repo, userID))
+}
+
+func setupWebhookInstalled(t *testing.T, manifest string, status int) context.Context {
+	ctx, cfg := setupInstalled(t)
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /repos/prod9/app", func(resp http.ResponseWriter, req *http.Request) {
+		fmt.Fprint(resp, `{"clone_url":"https://github.com/prod9/app.git"}`)
+	})
+	mux.HandleFunc("POST /app/installations/7/access_tokens", func(resp http.ResponseWriter, req *http.Request) {
+		resp.WriteHeader(http.StatusCreated)
+		fmt.Fprint(resp, `{"token":"ghs_tok"}`)
+	})
+	mux.HandleFunc("GET /repos/prod9/app/contents/platform.toml", func(resp http.ResponseWriter, req *http.Request) {
+		require.Equal(t, "abc123", req.URL.Query().Get("ref"))
+		resp.WriteHeader(status)
+		fmt.Fprint(resp, manifest)
+	})
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+	app := srvtest.TestApp(t)
+	app.WebhookSecret = testWebhookSecret
+	stubApp(t, app, nil)
+	config.Set(cfg, github.APIURLConfig, server.URL)
+	return config.NewContext(ctx, cfg)
+}
+
+func TestWebhookManifestAdmissionRejectsIncompleteBuild(t *testing.T) {
+	for _, tc := range []struct {
+		name, raw      string
+		upstream, want int
+	}{
+		{"missing", "", http.StatusNotFound, http.StatusConflict},
+		{"invalid", "[broken", http.StatusOK, http.StatusBadRequest},
+		{"empty", "", http.StatusOK, http.StatusBadRequest},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := setupWebhookInstalled(t, tc.raw, tc.upstream)
+			registerWebhookRepo(t, ctx, "prod9", "app")
+			resp := httptest.NewRecorder()
+			req := webhookRequest("push", branchPushBody, signBody(testWebhookSecret, branchPushBody))
+			webhookRouter(t, config.FromContext(ctx)).ServeHTTP(resp, req.WithContext(ctx))
+			require.Equal(t, tc.want, resp.Code, resp.Body.String())
+			var count int
+			require.NoError(t, data.Get(ctx, &count, `SELECT count(*) FROM builds`))
+			require.Zero(t, count)
+		})
+	}
 }

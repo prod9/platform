@@ -159,6 +159,16 @@ func Load(wd string) (*Model, error) {
 		return nil, err
 	}
 
+	return LoadFile(path)
+}
+
+// LoadFile loads exactly path, without searching its parents for another configuration.
+func LoadFile(path string) (*Model, error) {
+	path, err := filepath.Abs(path)
+	if err != nil {
+		return nil, err
+	}
+
 	proj := &Model{}
 	if _, err = toml.DecodeFile(path, proj); err != nil {
 		return nil, err

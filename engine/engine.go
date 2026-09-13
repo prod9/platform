@@ -12,6 +12,7 @@ import (
 	"math/rand/v2"
 	"net"
 	"sort"
+	"strings"
 
 	"dagger.io/dagger"
 	"fx.prodigy9.co/cmd/prompts"
@@ -23,6 +24,10 @@ import (
 )
 
 var (
+	RegistryConfig         = fxconfig.Str("REGISTRY")
+	RegistryUsernameConfig = fxconfig.Str("REGISTRY_USERNAME")
+	RegistryPasswordConfig = fxconfig.Str("REGISTRY_PASSWORD")
+
 	// DaggerEngineConfig is the headless-Service DNS name of the Dagger engine pool, e.g.
 	// dagger-engine.platform.svc.cluster.local. Unset means no remote engines are configured
 	// and the roster falls back to a local auto-provisioned one — an explicit operator choice,
@@ -38,33 +43,31 @@ var (
 	ErrEmptyPlan = errors.New("engine: framework planned no steps, nothing to build")
 
 	// lookupHost is the resolver seam: swapped in tests, never at runtime.
-	lookupHost = net.DefaultResolver.LookupHost
+	lookupHost    = net.DefaultResolver.LookupHost
+	connectEngine = dagger.Connect
 )
+
+// Input is the closed choice of a selected local config file or a remote revision.
+type Input interface{ buildInput() }
+type Local struct{ ConfigPath string }
 
 type (
 	BuildResult struct {
 		Unit *framework.BuildUnit
 		Err  error
 
-		// container is the image this run produced; it leaves the package only through
-		// UnsafeContainer and is valid only while the session that built it is open. client
-		// is the connection it is bound to.
 		container *dagger.Container
-		client    *dagger.Client
-
-		// out and obs are the run's report, carried past the run so a publish continues the
-		// same stream and mints its scalars from the same fold. Only Run.Result fills them
-		// in — a BuildResult is never assembled anywhere else.
-		out *observer.Outcome
-		obs observer.Observer
-	}
-
-	PublishResult struct {
-		BuildResult
-		ImageName string
-		ImageHash string
+		out       *observer.Outcome
 	}
 )
+
+func (Local) buildInput() {}
+
+func (Source) buildInput() {}
+
+func (r BuildResult) Image() string { return r.out.Image }
+
+func (r BuildResult) Hash() string { return r.out.Hash }
 
 // UnsafeContainer hands over the built image, and the name is the warning: past here a
 // caller expresses container operations, which the engine otherwise owns exclusively.
@@ -107,12 +110,23 @@ func hosts(ctx context.Context) ([]string, error) {
 
 // dial connects to one uniformly-chosen endpoint, or to a local auto-provisioned engine when
 // none are configured.
-func dial(ctx context.Context) (*dagger.Client, error) {
+func dial(ctx context.Context) (*dagger.Client, string, error) {
 	endpoints, err := hosts(ctx)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
-	return dialHost(ctx, pick(endpoints))
+
+	host := pick(endpoints)
+	client, err := dialHost(ctx, host)
+	if err != nil {
+		return nil, "", err
+	}
+
+	assigned := strings.TrimPrefix(host, "tcp://")
+	if assigned == "" {
+		assigned = "local"
+	}
+	return client, assigned, nil
 }
 
 // pick chooses one endpoint uniformly at random, or the empty host — the local engine — when
@@ -133,7 +147,7 @@ func dialHost(ctx context.Context, host string) (*dagger.Client, error) {
 	if host != "" {
 		opts = append(opts, dagger.WithRunnerHost(host))
 	}
-	return dagger.Connect(ctx, opts...)
+	return connectEngine(ctx, opts...)
 }
 
 // cfgFrom takes the config off ctx, falling back to a fresh Configure() when the caller

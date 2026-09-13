@@ -32,7 +32,7 @@ func init() {
 	PreviewCmd.Flags().StringVarP(&previewCmd, "exec", "e", "", "Specify custom command to run")
 }
 
-func runPreview(cmd *cobra.Command, args []string) error {
+func runPreview(cmd *cobra.Command, args []string) (err error) {
 	cfg, err := conf.Load(".")
 	if err != nil {
 		return err
@@ -45,9 +45,9 @@ func runPreview(cmd *cobra.Command, args []string) error {
 
 	ctx := fxconfig.NewContext(context.Background(), fxconfig.Configure())
 	sess := engine.NewSession(ctx)
-	defer sess.Close()
+	defer func() { err = errors.Join(err, sess.Close()) }()
 
-	results, err := sess.Build(ctx, cfg, []string{modname}, newObserver())
+	results, err := sess.Build(ctx, engine.Local{ConfigPath: cfg.ConfigPath}, []string{modname}, newObserver())
 	if err != nil {
 		return err
 	}

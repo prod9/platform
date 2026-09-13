@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"platform.prodigy9.co/srv/auth"
 	"platform.prodigy9.co/srv/builds"
+	"platform.prodigy9.co/srv/repos"
 	"platform.prodigy9.co/srv/srvtest"
 )
 
@@ -35,8 +36,8 @@ func TestAppCollectsPermanentServerConcerns(t *testing.T) {
 
 	jobs := app.CollectJobs(App)
 	require.Len(t, jobs, 2)
-	require.IsType(t, &builds.ScanBuilds{}, jobs[0])
-	require.IsType(t, &builds.RunBuild{}, jobs[1])
+	require.IsType(t, &builds.DispatchBuilds{}, jobs[0])
+	require.IsType(t, &builds.BuildModuleJob{}, jobs[1])
 	require.False(t, app.CollectFragment(App).IsEmpty())
 }
 
@@ -105,10 +106,17 @@ func TestUIBuildRouteStatusFollowsTheRecord(t *testing.T) {
 	systemUser, err := auth.SystemUserID(ctx)
 	require.NoError(t, err)
 
+	const raw = "repository = 'github.com/prod9/app'\n[modules.api]\nframework = 'go/basic'\n"
+	manifest, err := repos.ParseManifest([]byte(raw), "app")
+	require.NoError(t, err)
+	registration := &repos.RegisterRepo{Owner: "prod9", Repo: "app", UserID: systemUser,
+		ManifestSHA: "abc123", ManifestRaw: raw, Manifest: *manifest}
+	require.NoError(t, registration.Execute(ctx, nil))
+
 	build := &builds.Build{}
 	create := &builds.Create{Trigger: builds.TriggerWebUI, UserID: systemUser,
 		Owner: "prod9", Repo: "app", CloneURL: "https://github.com/prod9/app.git",
-		Ref: "refs/tags/v1.2.3", SHA: "abc123"}
+		Ref: "refs/tags/v1.2.3", SHA: "abc123", ManifestRaw: raw, Manifest: *manifest}
 	require.NoError(t, create.Execute(ctx, build))
 
 	router := uiRouter(t)

@@ -16,12 +16,12 @@
 
 let testbeds = [...{name: string, dir: string}] &
 [
-	{name: "Go Basic", dir:       "gobasic"},
-	{name: "Go Workspace", dir:   "gowork"},
-	{name: "PNPM Basic", dir:     "pnpmbasic"},
+	{name: "Go Basic", dir: "gobasic"},
+	{name: "Go Workspace", dir: "gowork"},
+	{name: "PNPM Basic", dir: "pnpmbasic"},
 	{name: "PNPM Workspace", dir: "pnpmwork"},
-	{name: "PNPM Static", dir:    "pnpmstatic"},
-	{name: "Dockerfile", dir:     "dockerfile"},
+	{name: "PNPM Static", dir: "pnpmstatic"},
+	{name: "Dockerfile", dir: "dockerfile"},
 ]
 
 #Test & {
@@ -41,6 +41,13 @@ let testbeds = [...{name: string, dir: string}] &
 			name: "Server Missing Secret"
 			checks: ["exitcode", "stderr"]
 			commands: ["env SECRET= DATABASE_URL=://invalid ./bin/platform srv"]
+		},
+		{
+			// A selected module that cannot be interpreted fails in the observed config
+			// phase, before any framework step or engine connection starts.
+			name: "Build Missing Module"
+			checks: ["exitcode", "stderr"]
+			commands: ["./bin/platform -f testbeds/gobasic/platform.toml build missing-module"]
 		},
 		for testbed in testbeds {
 			{

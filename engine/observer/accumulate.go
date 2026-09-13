@@ -36,32 +36,31 @@ func Accumulate(caller Observer) (Observer, *Outcome) {
 // inconsistent result unconstructable instead of merely discouraged.
 type accObserver struct{ out *Outcome }
 
-func (*accObserver) StepStarted(unit, step string, at time.Time) {}
+func (a *accObserver) RunStart(unit string, at time.Time) {}
 
-// StepOutput folds nothing: what a step printed belongs to whoever stores it, and an
-// outcome that grew with every line a build printed would no longer be a fold.
-func (*accObserver) StepOutput(unit, step string, at time.Time, stdout, stderr string) {}
+func (a *accObserver) CloneStart(unit string, at time.Time) {}
 
-func (a *accObserver) StepDone(unit, step string, at time.Time, err error) {
-	a.out.fail(err)
-}
+func (a *accObserver) CloneDone(unit string, at time.Time, err error) { a.out.fail(err) }
 
-func (a *accObserver) ImageBuilt(unit, image string, at time.Time) {
-	a.out.Image = image
-}
+func (a *accObserver) ConfigStart(unit string, at time.Time) {}
 
-// Published overwrites the image because pushing renames it: the tag a run built under is
-// not the ref that ended up in the registry.
-func (a *accObserver) Published(unit, image, hash string, at time.Time) {
+func (a *accObserver) ConfigDone(unit, engine string, at time.Time, err error) { a.out.fail(err) }
+
+func (a *accObserver) StepStart(unit, step string, at time.Time) {}
+
+func (a *accObserver) StepOutput(unit, step string, at time.Time, stdout, stderr string) {}
+
+func (a *accObserver) StepDone(unit, step string, at time.Time, err error) { a.out.fail(err) }
+
+func (a *accObserver) PublishStart(unit string, at time.Time) {}
+
+func (a *accObserver) PublishDone(unit string, at time.Time, err error) { a.out.fail(err) }
+
+func (a *accObserver) RunDone(unit, image, hash string, at time.Time, err error) {
 	a.out.Image, a.out.Hash = image, hash
-}
-
-func (a *accObserver) RunDone(unit string, at time.Time, err error) {
 	a.out.fail(err)
 }
 
-// fail keeps the first failure reported: the step that broke is the cause, and the run's own
-// terminal error is that same error arriving a second time.
 func (o *Outcome) fail(err error) {
 	if o.Err == nil {
 		o.Err = err

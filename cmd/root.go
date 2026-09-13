@@ -79,6 +79,9 @@ func Execute() int {
 
 	var exit exitError
 	if errors.As(err, &exit) {
+		if _, plainStatus := err.(exitError); !plainStatus {
+			termlog.Error(err)
+		}
 		return exit.code
 	}
 

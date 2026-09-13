@@ -1,50 +1,58 @@
 package builds
 
-import "time"
+import (
+	"context"
+	"time"
 
-// Step is one unit's step within one attempt, reduced from its step_started/step_done
-// pair. It is flat by convention (spec §Data-domain structs stay flat): the attempt
-// ordinal is a field indexing into the same stream's folded attempts, never a nesting.
+	"fx.prodigy9.co/data"
+)
+
+// Step is one selected module's step, reduced from its paired observations.
 type Step struct {
-	Attempt    int
-	Unit       string
-	Step       string
-	StartedAt  time.Time
-	FinishedAt time.Time
-	Error      string
-	Stdout     string
-	Stderr     string
+	BuildModuleID int64
+	Step          string
+	StartedAt     time.Time
+	FinishedAt    time.Time
+	Error         string
+	Stdout        string
+	Stderr        string
 }
 
-// Steps reduces a build's stream into its steps across all attempts, flat, in order of
-// first appearance. It rides the same span walk as fold, so the two folds cannot
-// disagree on where an attempt ends. A step with no step_done yet stays listed with a
-// zero FinishedAt — the detail view shows what is running, not only what finished.
-func Steps(events []*BuildEvent) []Step {
-	steps, attempt, span := []Step{}, 0, newSpan()
-	open := map[[2]string]int{} // unit+step → index into steps, reset per attempt
-	for _, event := range events {
-		if span.done() {
-			attempt++
-			span, open = newSpan(), map[[2]string]int{}
-		}
-		span.absorb(event)
+func ReadSteps(ctx context.Context, buildID int64) ([]Step, error) {
+	events := []*BuildEvent{}
+	err := data.Select(ctx, &events, `
+		SELECT e.* FROM build_events e JOIN build_modules bm ON bm.id = e.build_module_id
+		WHERE bm.build_id = $1 AND e.kind IN ('step_start', 'step_done')
+		ORDER BY e.id`, buildID)
+	if err != nil {
+		return nil, err
+	}
+	return Steps(events), nil
+}
 
-		key := [2]string{event.Unit, event.Step}
+// Steps consumes observations in event-id order, preserving step start order.
+func Steps(events []*BuildEvent) []Step {
+	type stepKey struct {
+		moduleID int64
+		name     string
+	}
+	steps := []Step{}
+	open := map[stepKey]int{}
+	for _, event := range events {
+		key := stepKey{moduleID: event.BuildModuleID, name: event.Step}
 		switch event.Kind {
-		case EventStepStarted:
+		case EventStepStart:
 			open[key] = len(steps)
 			steps = append(steps, Step{
-				Attempt:   attempt,
-				Unit:      event.Unit,
-				Step:      event.Step,
-				StartedAt: event.At,
+				BuildModuleID: event.BuildModuleID,
+				Step:          event.Step,
+				StartedAt:     event.At,
 			})
 		case EventStepDone:
 			if i, ok := open[key]; ok {
-				steps[i].FinishedAt = event.At
-				steps[i].Error = event.Error
+				steps[i].FinishedAt, steps[i].Error = event.At, event.Error
 				steps[i].Stdout, steps[i].Stderr = event.Stdout, event.Stderr
+				delete(open, key)
 			}
 		}
 	}

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -19,7 +20,7 @@ var ExecCmd = &cobra.Command{
 	RunE:  runExec,
 }
 
-func runExec(cmd *cobra.Command, args []string) error {
+func runExec(cmd *cobra.Command, args []string) (err error) {
 	selectors, command := splitAtDash(cmd, args)
 
 	cfg, err := conf.Load(".")
@@ -34,9 +35,13 @@ func runExec(cmd *cobra.Command, args []string) error {
 
 	ctx := fxconfig.NewContext(context.Background(), fxconfig.Configure())
 	sess := engine.NewSession(ctx)
-	defer sess.Close()
+	defer func() {
+		if cleanupErr := sess.Close(); cleanupErr != nil {
+			err = errors.Join(err, cleanupErr)
+		}
+	}()
 
-	results, err := sess.Build(ctx, cfg, []string{modname}, newObserver())
+	results, err := sess.Build(ctx, engine.Local{ConfigPath: cfg.ConfigPath}, []string{modname}, newObserver())
 	if err != nil {
 		return err
 	}

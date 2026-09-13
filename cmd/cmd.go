@@ -1,11 +1,9 @@
 package cmd
 
 import (
-	"errors"
 	"fmt"
 	"time"
 
-	"platform.prodigy9.co/engine"
 	"platform.prodigy9.co/internal/termlog"
 )
 
@@ -16,20 +14,6 @@ type exitError struct{ code int }
 
 func (e exitError) Error() string { return fmt.Sprintf("exit status %d", e.code) }
 
-// failedUnits joins whatever the fanned-out units failed with, so a multi-module verb can
-// finish every module and fail once. The observer has already shown each failure as it
-// happened; what the joined error decides is the exit code, not the report. Returning nil
-// when every unit succeeded is what lets a command end with this line.
-func failedUnits(results []engine.BuildResult) error {
-	var errs []error
-	for _, result := range results {
-		if result.Err != nil {
-			errs = append(errs, result.Err)
-		}
-	}
-	return errors.Join(errs...)
-}
-
 // observer renders a build's steps for the operator. It is where the CLI decides what a
 // build looks like — termlog is only the sink — and it is the reason a default `platform
 // build` shows named steps instead of Dagger's TUI.
@@ -39,7 +23,27 @@ type observer struct{}
 
 func newObserver() observer { return observer{} }
 
-func (observer) StepStarted(unit, step string, _ time.Time) {
+func (observer) RunStart(unit string, _ time.Time) {
+	termlog.Event(unit, "started")
+}
+
+func (observer) CloneStart(unit string, _ time.Time) {
+	termlog.Event(unit+"/clone", "started")
+}
+
+func (observer) CloneDone(unit string, _ time.Time, err error) {
+	reportPhaseDone(unit+"/clone", err)
+}
+
+func (observer) ConfigStart(unit string, _ time.Time) {
+	termlog.Event(unit+"/config", "started")
+}
+
+func (observer) ConfigDone(unit, engine string, _ time.Time, err error) {
+	reportPhaseDone(unit+"/config", err)
+}
+
+func (observer) StepStart(unit, step string, _ time.Time) {
 	termlog.Event(unit+"/"+step, "started")
 }
 
@@ -49,21 +53,32 @@ func (observer) StepStarted(unit, step string, _ time.Time) {
 func (observer) StepOutput(unit, step string, _ time.Time, stdout, stderr string) {}
 
 func (observer) StepDone(unit, step string, _ time.Time, err error) {
+	reportPhaseDone(unit+"/"+step, err)
+}
+
+func (observer) PublishStart(unit string, _ time.Time) {
+	termlog.Event(unit+"/publish", "started")
+}
+
+func (observer) PublishDone(unit string, _ time.Time, err error) {
+	reportPhaseDone(unit+"/publish", err)
+}
+
+func (observer) RunDone(unit, image, hash string, _ time.Time, err error) {
+	if err != nil {
+		return
+	}
+	if hash != "" {
+		termlog.Image("publish", image, hash)
+		return
+	}
+	termlog.Event(unit, "built")
+}
+
+func reportPhaseDone(object string, err error) {
 	if err != nil {
 		termlog.Error(err)
 		return
 	}
-	termlog.Event(unit+"/"+step, "done")
+	termlog.Event(object, "done")
 }
-
-func (observer) ImageBuilt(unit, _ string, _ time.Time) {
-	termlog.Event(unit, "built")
-}
-
-func (observer) Published(_, image, hash string, _ time.Time) {
-	termlog.Image("publish", image, hash)
-}
-
-// RunDone renders nothing: a failure was already shown by the step that failed, and a
-// success by the image it produced. The CLI's report is what happened, not that it ended.
-func (observer) RunDone(string, time.Time, error) {}

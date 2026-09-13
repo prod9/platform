@@ -48,7 +48,7 @@ func seedScan(cmd *cobra.Command, cfg *config.Source) (err error) {
 
 	ctx := data.NewContext(config.NewContext(cmd.Context(), cfg), db)
 
-	_, err = worker.ScheduleNowIfNotExists(ctx, &builds.ScanBuilds{})
+	_, err = worker.ScheduleNowIfNotExists(ctx, &builds.DispatchBuilds{})
 	if errors.Is(err, worker.ErrJobExists) {
 		return nil
 	}

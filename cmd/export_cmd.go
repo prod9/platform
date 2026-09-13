@@ -17,25 +17,22 @@ var ExportCmd = &cobra.Command{
 	RunE:  runExport,
 }
 
-func runExport(cmd *cobra.Command, args []string) error {
-	cfg, err := conf.Load(".")
+func runExport(cmd *cobra.Command, args []string) (err error) {
+	path, err := conf.ResolvePath(".")
 	if err != nil {
 		return err
 	}
 
 	ctx := fxconfig.NewContext(context.Background(), fxconfig.Configure())
 	sess := engine.NewSession(ctx)
-	defer sess.Close()
+	defer func() { err = errors.Join(err, sess.Close()) }()
 
-	results, err := sess.Build(ctx, cfg, args, newObserver())
-	if err != nil {
-		return err
-	}
+	results, err := sess.Build(ctx, engine.Local{ConfigPath: path}, args, newObserver())
 
 	// Every unit that did build gets written out, whatever its neighbours did: a module
 	// that succeeded has already paid for its image, and which goroutine failed first is
 	// no reason to withhold it. The joined error decides the exit code at the end.
-	errs := []error{failedUnits(results)}
+	errs := []error{err}
 	for _, result := range results {
 		if result.Err != nil {
 			continue

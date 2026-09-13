@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 
 	fxconfig "fx.prodigy9.co/config"
 	"github.com/spf13/cobra"
@@ -15,20 +16,16 @@ var BuildCmd = &cobra.Command{
 	RunE:  runBuild,
 }
 
-func runBuild(cmd *cobra.Command, args []string) error {
-	cfg, err := conf.Load(".")
+func runBuild(cmd *cobra.Command, args []string) (err error) {
+	path, err := conf.ResolvePath(".")
 	if err != nil {
 		return err
 	}
 
 	ctx := fxconfig.NewContext(context.Background(), fxconfig.Configure())
 	sess := engine.NewSession(ctx)
-	defer sess.Close()
+	defer func() { err = errors.Join(err, sess.Close()) }()
 
-	results, err := sess.Build(ctx, cfg, args, newObserver())
-	if err != nil {
-		return err
-	}
-
-	return failedUnits(results)
+	_, err = sess.Build(ctx, engine.Local{ConfigPath: path}, args, newObserver())
+	return err
 }

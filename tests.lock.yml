@@ -16,6 +16,20 @@
           data:
             - 'ERR srv: SECRET is required err="srv: SECRET is required"'
             - INF done obj=main
+- name: Platform \ Build Missing Module
+  commands:
+    - command: ./bin/platform -f testbeds/gobasic/platform.toml build missing-module
+      checks:
+        - name: exitcode
+          data:
+            - "1"
+        - name: stderr
+          data:
+            - INF started obj=missing-module
+            - INF started obj=missing-module/config
+            - 'ERR missing-module: invalid module err="missing-module: invalid module"'
+            - 'ERR missing-module: invalid module err="missing-module: invalid module"'
+            - INF done obj=main
 - name: Platform \ Go Basic \ Init
   commands:
     - command: ./testbed.sh gobasic init "Johnny Appleseed" "john@apple.com" "github.com/prod9/platform"

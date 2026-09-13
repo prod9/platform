@@ -134,7 +134,7 @@ func register(resp http.ResponseWriter, req *http.Request) {
 		render.Error(resp, req, 500, err)
 		return
 	}
-	parsed, err := parseManifest(observed.Raw, action.Repo)
+	parsed, err := ParseManifest(observed.Raw, action.Repo)
 	if err != nil {
 		render.Error(resp, req, 422, err)
 		return
@@ -195,7 +195,7 @@ func manifest(resp http.ResponseWriter, req *http.Request) {
 		render.Error(resp, req, 500, err)
 		return
 	}
-	parsed, err := parseManifest(observed.Raw, repo)
+	parsed, err := ParseManifest(observed.Raw, repo)
 	if err != nil {
 		render.Error(resp, req, 422, err)
 		return
@@ -214,20 +214,6 @@ func manifest(resp http.ResponseWriter, req *http.Request) {
 	}
 	sort.Slice(out.Modules, func(i, j int) bool { return out.Modules[i].Name < out.Modules[j].Name })
 	render.JSON(resp, req, out)
-}
-
-func parseManifest(raw []byte, repo string) (*conf.Model, error) {
-	model, err := conf.Parse(raw)
-	if err != nil {
-		return nil, err
-	}
-
-	policy, err := model.ResolvePublishPolicy(repo)
-	if err != nil {
-		return nil, err
-	}
-	model.Server.Publish = policy
-	return model, nil
 }
 
 // findRepo matches a registration row against the session snapshot; GitHub logins and
