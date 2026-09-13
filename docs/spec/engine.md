@@ -6,9 +6,10 @@ managed local worktree; its session verbs load configuration, interpret modules,
 on Dagger runners, execute steps, and optionally publish. It knows nothing about the web
 application that invokes it ([`architecture.md`](architecture.md)).
 
-The source-input and paired-observer contracts below are **intended, not yet
-implemented**. They change together with all observer consumers and the server's module
-event schema; a partially converted interface is not a usable intermediate version.
+The source-input and paired-observer contracts below are the **Phase 2 implementation
+target**. All observer consumers convert together with module execution and lifecycle
+reads; a partially converted interface is not a usable candidate. The server's later
+publication-policy rollout does not change these engine contracts.
 
 ## A `*dagger.Client` is a session, not a connection
 

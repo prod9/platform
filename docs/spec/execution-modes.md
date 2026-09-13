@@ -72,7 +72,12 @@ pushes all build; no `v` prefix is special. An App-installed repository that has
 registered is not admitted to the build queue. A manual webui build may name any ref and
 select modules, but it records the same domain intent before a worker acts.
 
-Publishing is a policy applied to a successful server build. Each `platform.toml` may
+The Phase 2 server candidate retains tag-only publication: tag refs publish under their
+exact tag name, and branch refs only build, regardless of stored policy. Applying the
+policy below is deferred to Phase 3; recording it with immutable admission intent remains
+part of Phase 2.
+
+The final design applies a policy to a successful server build. Each `platform.toml` may
 declare it independently of the local release strategy:
 
 ```toml
