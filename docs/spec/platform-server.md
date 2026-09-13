@@ -448,13 +448,13 @@ a registered push with no manifest returns `409`, and an invalid manifest return
 GitHub or persistence failures return an error rather than acknowledging a partial build.
 
 **Build cadence and publish cadence are separate.** Every non-deleted push to a registered
-repository records a build, whether its ref names a branch or any tag. After a successful
-build, the immutable manifest observation's resolved `publish_policy` value selects the
-policy: `always` publishes under `latest`, `tags` publishes tag builds under the exact
-tag, and `never` does not publish. No `v` prefix has server meaning. The absent-field
-default is
-the repository-name rule in [`execution-modes.md`](execution-modes.md), never release
-strategy or framework inference.
+repository records a build, whether its ref names a branch or any tag. Phase 2 publishes
+successful tag builds under the exact tag and only builds branch refs. Phase 3 will use
+the immutable manifest observation's resolved `publish_policy` value: `always` publishes
+under `latest`, `tags` publishes tag builds under the exact tag, and `never` does not publish.
+No `v` prefix has server meaning. Admission resolves the absent-field default using the
+repository-name rule in [`execution-modes.md`](execution-modes.md), never release strategy
+or framework inference.
 [`execution-modes.md`](execution-modes.md) owns the complete boundary.
 
 ### The worker is a peer *process*, and the jobs live in their fragments
