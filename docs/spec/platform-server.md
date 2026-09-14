@@ -956,13 +956,14 @@ wrap (webhook ingest, auth, and the build pipeline), the App API client, org-own
 credentialed clone, repository registration, whole-repository manual trigger,
 repository/build reads, build detail/steps, and truthful `/builds/{id}` status have
 shipped. Repository onboarding presents and persists the resolved server publish policy.
-The intended server surface is not complete: manual module selection is absent from the
-stored build and client request, no read resolves a ref and manifest before queueing, build
-events do not record engine attribution, engine reads do not exist, and repository/engine
-dynamic routes have no truthful fallback classifier. The repository landing, onboarding,
-and System pages have real client reads in source, but the live product does not yet present
-the complete repository experience; the repository build feed, manual trigger, build
-detail, and engine pages remain mocks.
+Manual module selection, the immutable manifest snapshot, module-based execution, and
+engine attribution on `config_done` have shipped with the Phase 2 candidate. The intended
+server surface is not complete: no read resolves a ref and its manifest modules before
+queueing, engine reads do not exist, the stored publish policy is not yet applied, and
+repository/engine dynamic routes have no truthful fallback classifier. The repository
+landing, onboarding, and System pages have real client reads in source, but the live
+product does not yet present the complete repository experience; the repository build
+feed, manual trigger, build detail, and engine pages remain mocks.
 
 The next planning pass maps the complete CI/CD experience over `platform srv` and its
 existing tooling into implementation slices. It starts from the live product experience,

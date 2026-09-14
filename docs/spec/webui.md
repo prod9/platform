@@ -6,11 +6,11 @@ presents the resolved server publish policy, and registration persists it. The r
 build feed, manual trigger, build detail, and engine pages remain mock presentations, and
 the live product does not yet deliver the complete repository experience this spec
 describes.
-The supporting server surface is partial too: repository/build reads, whole-repository
-manual triggers, build detail, and steps exist; pre-queue ref/module resolution, manual
-module selection, engine reads, engine attribution, and truthful repository/engine
-dynamic-route classification do not. Of the four planned shared components, only the
-outcome mark exists.
+The supporting server surface is partial too: repository/build reads, manual triggers with
+module selection, build detail with engine attribution, and steps exist; pre-queue
+ref/module resolution, engine reads, and truthful repository/engine dynamic-route
+classification do not. Of the four planned shared components, only the outcome mark
+exists.
 
 The webui is the platform server's front end: a SvelteKit app built with
 `adapter-static`, prerendered into `webui/build/` and embedded into the `platform`
