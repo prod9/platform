@@ -65,6 +65,7 @@ the part that prevents re-litigation.
 
 Newest first.
 
+- [2026-09-27 — Explicit prereleases and verbatim launcher pins](2026-09-27-explicit-prereleases-and-verbatim-launcher-pins.md)
 - [2026-08-24 — Execution mode does not define delivery policy][execution-mode-policy]
 - [2026-07-27 — Platform never reaches into the container](2026-07-27-platform-never-reaches-into-the-container.md)
 - [2026-07-27 — A `*dagger.Client` is a session, not a poolable connection](2026-07-27-a-dagger-client-is-a-session.md)

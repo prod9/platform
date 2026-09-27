@@ -52,12 +52,17 @@ run, because that run *is* the finding.
   reviewed, **in that same slice** — same tier as `go test` passing, never a session-end
   batch. The docker/runtime cost is mechanism, not a deferral.
 
-🚨 **Cutting a release moves smoke output — re-record in the release commit.** The
-scaffolded launcher embeds `PLATFORM_VERSION`, and `init` testbeds snapshot that launcher
-into the golden, so every `platform release` drifts `tests.lock.yml` by exactly that pin.
-Tagging without re-recording leaves smoke red on main for whoever runs it next (v0.9.16 did
-this). The version pin is the *only* line a release may move — any other drift in the same
-diff is a real regression, not release noise.
+**Launcher verification compares the pin with the binary that generated it.** Intended
+alongside verbatim SemVer scaffolding: Infra Init checks that the generated pin exactly
+matches `bin/platform --version`, then snapshots a projection with only that verified
+value replaced by a fixed placeholder. The generated file remains untouched. This keeps
+the launcher body under smoke coverage without recording commit-dependent build metadata
+in the golden. A release alone no longer requires launcher-pin golden changes; any drift
+still requires review before recording.
+
+An isolated release fixture uses a local repository and local bare `gh` remote to exercise
+named prereleases, annotated tag contents, collisions, validation before effects, and
+stable finalization. It never pushes to a shared repository.
 
 ## The 1m per-test timeout
 

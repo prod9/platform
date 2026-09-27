@@ -1,7 +1,7 @@
 # Cutting a release
 
 Repository runbook for `prod9/platform` itself. It takes this repository's green `main` to
-a published GitHub release: a notes file, a tag, a pushed branch, a re-recorded golden,
+a published GitHub release: a notes file, a tag, a pushed branch, a reviewed smoke result,
 and a release page carrying the notes. It is not a product contract for consuming
 repositories. The [execution-mode specification] owns that boundary.
 
@@ -13,7 +13,7 @@ Use `go run . release` and `go run . publish` for this repository's local CLI op
 The notes are drafted **outside the repo**, in `/tmp`. Their permanent home is the GitHub
 release page, so a copy in the tree is a second original that drifts, and `platform release`
 refuses a dirty worktree anyway — an uncommitted draft would block the tag it exists to
-describe. Nothing here commits until step 5, and that commit is the tag's own drift.
+describe. Commit any required reviewed golden changes separately.
 
 ## 0. Preconditions
 
@@ -24,9 +24,9 @@ go test ./...               # must pass
 ```
 
 A `CHANGED` golden here is unreviewed drift from earlier work — settle it before releasing,
-never in the same diff as the release. Once the tag exists, the *only* line smoke may move
-is the launcher's version pin (step 5), and that rule only holds if the golden was clean
-going in.
+never in the same diff as the release. The launcher test compares the pin with its binary
+and snapshots a normalized projection, so a version change alone should not move the
+golden (step 5).
 
 ## 1. Compile the changelog
 
@@ -58,12 +58,23 @@ changelog is complete precisely because no release-prep commit exists to be miss
 ## 3. Cut the tag
 
 ```sh
-go run . release --patch      # --minor / --major as the change warrants
+go run . release --patch      # platformv2 stays on v0.9.x
 ```
 
 The command prints the changelog for a confirm; `ALWAYS_YES=1` clears that confirm in a
 TTY-less shell. `Create` writes an annotated tag **and pushes it** to the `gh` remote —
 there is no local-only mode, so this step is the point of no return.
+
+For an explicitly authorized trial release, supply the full name instead of a bump flag:
+
+```sh
+go run . release v0.9.54-alpha.1
+```
+
+Choose the next unreleased patch core. Alpha/beta counters are manual; default/`--patch`
+finalizes the highest prerelease at its existing core. Local publish selects the highest
+SemVer, including prereleases, rather than the newest tag by creation time. Explicit
+names are the intended prerelease contract in [releases.md](../spec/releases.md).
 
 When the release contains server-side changes intended for deployment or live testing,
 run `go run . publish` after cutting the release. Report only the tag-qualified image name
@@ -78,19 +89,17 @@ git push gh main
 The tag push carried its objects, but no branch ref moved with it. Until this runs, `main`
 on the remote is behind its own tag.
 
-## 5. Re-record the golden
+## 5. Verify smoke after the tag
 
 ```sh
-./test.sh                     # expect CHANGED
-./test.sh --commit
-git add tests.lock.yml && git commit && git push gh main
+./test.sh                     # expect UNCHANGED
 ```
 
-The scaffolded launcher embeds `PLATFORM_VERSION`, and the `init` testbeds snapshot that
-launcher, so a new tag drifts `tests.lock.yml` by exactly that pin. **Read the diff before
-committing it:** the version pin is the only line a release may move, and anything else in
-that diff is a regression the release just shipped, not release noise. Skipping this leaves
-smoke red on `main` for whoever runs it next.
+The launcher pin is checked against the generating binary before normalization for the
+snapshot. If smoke reports `CHANGED`, read the complete diff and explain the drift;
+do not dismiss it as version noise. Record only reviewed intended changes with
+`./test.sh --commit`, then commit and push that golden through the normal authorization
+boundary.
 
 ## 6. Create the GitHub release
 
@@ -103,6 +112,14 @@ gh release create v0.9.17 --verify-tag \
 `--verify-tag` refuses to invent a tag that does not exist, which is what catches a step-3
 that never ran. The release page is the canonical home of the text from here on — edit it
 there, not in a file.
+
+For a trial tag, mark the GitHub release explicitly as a prerelease:
+
+```sh
+gh release create v0.9.54-alpha.1 --verify-tag --prerelease \
+  --title v0.9.54-alpha.1 \
+  --notes-file /tmp/v0.9.54-alpha.1-release.md
+```
 
 ## What this does not do
 

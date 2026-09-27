@@ -24,10 +24,16 @@ how much `Infra.Scaffold` contributes — pure polymorphism, **no `IsInfra` pred
 
 The launcher is the driver's own contribution, so the driver resolves its one hole the
 same way frameworks resolve theirs: `PLATFORM_VERSION` is stamped with
-`framework.PlatformVersion()` — the nearest release the running binary descends from (an
-exact tag verbatim; a between-releases pseudo-version resolves to the predecessor tag it
-encodes, keeping smoke goldens deterministic between cuts; nothing derivable is a hard
-init error).
+`framework.PlatformVersion()` — the valid SemVer value in the running binary's build
+metadata, verbatim. This contract is intended and replaces predecessor-release recovery:
+validate SemVer only; do not canonicalize, strip suffixes, recover predecessors, or check
+publication. Missing or invalid SemVer is a hard init error.
+
+Launcher generation targets publicly released builds, versions, and tags. For an
+in-development build, the pin may name a version that does not exist publicly; no
+fallback or launcher development mode is provided. Development testing uses an installed
+binary directly, for example `go install platform.prodigy9.co@<commit>`, rather than a
+pinned launcher.
 
 For the pipeline this feeds, see [architecture](architecture.md); the `Framework` contract
 and scaffold-time stack discovery live in [frameworks](frameworks.md) (the build path reads
