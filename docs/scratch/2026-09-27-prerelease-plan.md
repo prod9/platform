@@ -78,12 +78,12 @@ Authority: chakrit answered "finalize is fine" when asked whether
 `v1.2.3-alpha.1` should become `v1.2.3` or `v1.2.4`.
 The implementation plan retains literal numeric minor/major increments.
 
-| Previous highest version | Default / `--patch` | `--minor` | `--major` |
-|--------------------------|--------------------|-----------|-----------|
-| `v1.2.3`                 | `v1.2.4`           | `v1.3.0`  | `v2.0.0`  |
-| `v1.2.3-alpha.1`         | `v1.2.3`           | `v1.3.0`  | `v2.0.0`  |
-| `v1.3.0-beta.2`          | `v1.3.0`           | `v1.4.0`  | `v2.0.0`  |
-| `v2.0.0-rc.1`            | `v2.0.0`           | `v2.1.0`  | `v3.0.0`  |
+| Previous highest version   | Default / `--patch`  | `--minor`   | `--major`   |
+| -------------------------- | -------------------- | ----------- | ----------- |
+| `v1.2.3`                   | `v1.2.4`             | `v1.3.0`    | `v2.0.0`    |
+| `v1.2.3-alpha.1`           | `v1.2.3`             | `v1.3.0`    | `v2.0.0`    |
+| `v1.3.0-beta.2`            | `v1.3.0`             | `v1.4.0`    | `v2.0.0`    |
+| `v2.0.0-rc.1`              | `v2.0.0`             | `v2.1.0`    | `v3.0.0`    |
 
 Minor and major remain literal numeric increments with lower fields reset. Every
 automatic result is stable. No automatic `alpha.1 → alpha.2`, alpha-to-beta, or
