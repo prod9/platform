@@ -44,7 +44,7 @@ func TestPlan_freshRepoWritesEverything(t *testing.T) {
 	r.Contains(t, byPath, "platform.toml")
 	r.Contains(t, byPath, "platform")
 
-	// The launcher pins the release this binary descends from — never a stale literal.
+	// The launcher pins the binary's version verbatim — never a stale literal.
 	r.Contains(t, string(byPath["platform"].Content), `PLATFORM_VERSION="v0.9.1"`)
 
 	// Apply lands them on disk; the platform script is executable.

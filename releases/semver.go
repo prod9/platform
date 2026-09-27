@@ -27,9 +27,17 @@ func (s Semver) NextName(prevName string, bump Bump) (string, error) {
 	}
 
 	v := semver.Canonical(prevName)
-	parts := strings.Split(v, ".")
+	if v == "" {
+		return "", fmt.Errorf("%w: %q", ErrBadVersion, prevName)
+	}
+	prerelease := semver.Prerelease(v)
+	core := strings.TrimSuffix(v, prerelease)
+	parts := strings.Split(core, ".")
 	switch bump {
 	case BumpPatch:
+		if prerelease != "" {
+			return core, nil
+		}
 		n, err := strconv.Atoi(parts[2])
 		if err != nil {
 			return "", fmt.Errorf("%w: bad patch part: %q: %w", ErrBadVersion, parts[2], err)

@@ -92,12 +92,11 @@ func (t *Target) Plan(info Info, inputs map[string]string) (*Plan, error) {
 	return &Plan{Dir: t.dir, Files: files, Vars: vars}, nil
 }
 
-// resolveLauncher fills the launcher's version hole with the release this binary descends
-// from. No derivable release is a hard error — a launcher pinned to nothing cannot run.
+// resolveLauncher pins the binary's valid SemVer verbatim, per docs/spec/scaffolding.md.
 func resolveLauncher() (fwscaffold.File, error) {
 	version := platformVersion()
 	if version == "" {
-		return fwscaffold.File{}, errors.New("init: no platform release version is derivable from this binary's build info")
+		return fwscaffold.File{}, errors.New("init: missing or invalid platform SemVer in this binary's build info")
 	}
 
 	resolved, err := fwscaffold.Resolve(

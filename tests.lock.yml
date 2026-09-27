@@ -5,6 +5,40 @@
         - name: exitcode
           data:
             - "0"
+- name: Platform \ Release
+  commands:
+    - command: sh ./testbeds/release/test.sh
+      checks:
+        - name: exitcode
+          data:
+            - "0"
+        - name: stdout
+          data:
+            - 'malformed: rejected before fetch'
+            - 'shorthand: rejected before fetch'
+            - 'metadata: rejected before fetch'
+            - 'extra-argument: rejected before fetch'
+            - 'name-and-patch: rejected before fetch'
+            - 'name-and-false-patch: rejected before fetch'
+            - 'conflicting-false-bumps: rejected before fetch'
+            - 'unsupported-strategy: rejected before fetch'
+            - 'v1.2.3-alpha.1: annotated tag pushed to local remote'
+            - 'v1.2.3-beta.2: annotated tag pushed to local remote'
+            - 'v1.2.3: annotated tag pushed to local remote'
+            - 'v1.2.4: annotated tag pushed to local remote'
+            - 'collision: rejected; local and remote tags unchanged'
+            - ""
+            - 'Alpha annotation:'
+            - v1.2.3-alpha.1
+            - ""
+            - '* [2ac4bee][https://github.com/example/release-fixture/commit/2ac4bee] fixture: SemVer strategy'
+            - '* [0ed2bd4][https://github.com/example/release-fixture/commit/0ed2bd4] fixture: Date strategy'
+            - ""
+            - 'Remote tags:'
+            - v1.2.3 tag
+            - v1.2.3-alpha.1 tag
+            - v1.2.3-beta.2 tag
+            - v1.2.4 tag
 - name: Platform \ Server Missing Secret
   commands:
     - command: env SECRET= DATABASE_URL=://invalid ./bin/platform srv
@@ -286,8 +320,6 @@
             - "0"
         - name: ./testbeds/infra-init/platform.toml
           data: []
-        - name: ./testbeds/infra-init/platform
-          data: []
     - command: ALWAYS_YES=1 ./testbed.sh infra-init init "Johnny Appleseed" "john@apple.com" "prod9/infra-new" "example.com"
       checks:
         - name: exitcode
@@ -319,14 +351,20 @@
             - '  PLATFORM_HOSTNAME = "platform.prodigy9.co"'
             - '-----END platform.toml-----'
             - ""
-        - name: ./testbeds/infra-init/platform
+- name: Platform \ Infra Init Launcher
+  commands:
+    - command: sh ./testbeds/check-launcher.sh
+      checks:
+        - name: exitcode
           data:
-            - '-----BEGIN platform-----'
+            - "0"
+        - name: stdout
+          data:
             - '#!/bin/sh'
             - set -e
             - ""
             - PLATFORM_MODULE="platform.prodigy9.co"
-            - PLATFORM_VERSION="v0.9.53"
+            - PLATFORM_VERSION="<verified-build-version>"
             - ""
             - bindir="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)/bin"
             - bin="$bindir/platform-$PLATFORM_VERSION"
@@ -340,8 +378,6 @@
             - fi
             - ""
             - exec "$bin" "$@"
-            - '-----END platform-----'
-            - ""
 - name: Platform \ Infra Init Render
   commands:
     - command: ./testbed.sh infra-init render

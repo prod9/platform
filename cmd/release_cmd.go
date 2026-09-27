@@ -7,17 +7,17 @@ import (
 	"github.com/spf13/cobra"
 	"platform.prodigy9.co/conf"
 	"platform.prodigy9.co/git"
-	"platform.prodigy9.co/internal/termlog"
 	"platform.prodigy9.co/releases"
 )
 
-var ReleaseCmd = &cobra.Command{
-	Use:   "release (name)",
-	Short: "Create a new release with the given name.",
-	Run:   runReleaseCmd,
-}
-
 var (
+	ReleaseCmd = &cobra.Command{
+		Use:   "release [name]",
+		Short: "Create a release by bumping or supplying a full SemVer name.",
+		Args:  releaseArgs,
+		RunE:  runReleaseCmd,
+	}
+
 	forceRelease bool
 
 	bumpPatch bool
@@ -30,51 +30,59 @@ func init() {
 		"Force release even if worktree is dirty")
 
 	ReleaseCmd.Flags().BoolVarP(&bumpPatch, "patch", "p", false,
-		"(semver only) Create new release by incrementing patch version from the most recent release")
+		"(semver only) Increment the patch version or finalize the most recent prerelease")
 	ReleaseCmd.Flags().BoolVarP(&bumpMinor, "minor", "m", false,
 		"(semver only) Create new release by incrementing minor version from the most recent release")
 	ReleaseCmd.Flags().BoolVar(&bumpMajor, "major", false,
 		"(semver only) Create new release by incrementing major version from the most recent release")
 }
 
-func runReleaseCmd(cmd *cobra.Command, args []string) {
-	if (bumpPatch && bumpMinor) ||
-		(bumpPatch && bumpMajor) ||
-		(bumpMinor && bumpMajor) {
-		termlog.Fatalln(errors.New("only one of --patch, --minor, or --major may be specified"))
+func releaseArgs(cmd *cobra.Command, args []string) error {
+	if err := cobra.MaximumNArgs(1)(cmd, args); err != nil {
+		return err
 	}
+	flags := cmd.Flags()
+	patch, minor, major := flags.Changed("patch"), flags.Changed("minor"), flags.Changed("major")
+	if (patch && minor) || (patch && major) || (minor && major) {
+		return errors.New("only one of --patch, --minor, or --major may be specified")
+	}
+	if len(args) == 1 && (patch || minor || major) {
+		return errors.New("release name and bump flags are mutually exclusive")
+	}
+	return nil
+}
 
-	opts := &releases.Options{Force: forceRelease}
+func runReleaseCmd(cmd *cobra.Command, args []string) error {
+	var request releases.Request = releases.BumpAny
 	switch {
+	case len(args) == 1:
+		request = releases.Name(args[0])
 	case bumpPatch:
-		opts.Bump = releases.BumpPatch
+		request = releases.BumpPatch
 	case bumpMinor:
-		opts.Bump = releases.BumpMinor
+		request = releases.BumpMinor
 	case bumpMajor:
-		opts.Bump = releases.BumpMajor
-	default:
-		opts.Bump = releases.BumpAny
+		request = releases.BumpMajor
 	}
 
 	cfg, err := conf.Load(".")
 	if err != nil {
-		termlog.Fatalln(err)
+		return err
 	}
 
 	g := git.New(cfg)
+	opts := &releases.Options{Force: forceRelease, Request: request}
 
 	rel, err := releases.Generate(cfg, g, opts)
 	if err != nil {
-		termlog.Fatalln(err)
+		return err
 	}
 
 	rel.Changelog()
 	sess := prompts.New(nil, nil)
 	if !sess.YesNo("create this release?") {
-		return
+		return nil
 	}
 
-	if err = releases.Create(cfg, g, rel); err != nil {
-		termlog.Fatalln(err)
-	}
+	return releases.Create(cfg, g, rel)
 }

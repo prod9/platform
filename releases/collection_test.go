@@ -6,6 +6,21 @@ import (
 	r "github.com/stretchr/testify/require"
 )
 
+func TestLatestNamePrereleasePrecedence(t *testing.T) {
+	c := &Collection{names: []string{
+		"v1.2.3-alpha.2", "v1.2.3-beta.1", "v1.2.3-alpha.10", "v1.2.3",
+	}}
+	sortReleaseNames(c.names)
+	r.Equal(t, []string{
+		"v1.2.3", "v1.2.3-beta.1", "v1.2.3-alpha.10", "v1.2.3-alpha.2",
+	}, c.names)
+	r.Equal(t, "v1.2.3", c.LatestName(Semver{}))
+
+	c.names = append(c.names, "v1.2.4-alpha.1")
+	sortReleaseNames(c.names)
+	r.Equal(t, "v1.2.4-alpha.1", c.LatestName(Semver{}))
+}
+
 // TestSortReleaseNames pins version-aware ordering: lexicographic sort put v0.9.9 above
 // v0.9.10, so LatestName returned the wrong latest at any double-digit segment and
 // release tried to re-cut an existing tag. Semver compares numerically; names that

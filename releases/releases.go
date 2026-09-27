@@ -43,8 +43,8 @@ type (
 		Commits []CommitRef `toml:"commits"`
 	}
 	Options struct {
-		Force bool
-		Bump  Bump
+		Force   bool
+		Request Request
 	}
 
 	Strategy interface {
@@ -66,16 +66,21 @@ var knownStrategies = map[string]Strategy{
 }
 
 func Generate(cfg *conf.Model, g *git.Context, opts *Options) (*Release, error) {
-	if err := checkGitStatus(cfg, g, opts); err != nil {
+	strat, err := FindStrategy(cfg.Strategy)
+	if err != nil {
+		return nil, err
+	}
+	if opts.Request == nil {
+		return nil, errors.New("release: missing version request")
+	}
+	if err := opts.Request.validate(strat); err != nil {
+		return nil, err
+	}
+	if err := checkGitStatus(g, opts); err != nil {
 		return nil, err
 	}
 
 	collection, err := Recover(cfg, g)
-	if err != nil {
-		return nil, err
-	}
-
-	strat, err := FindStrategy(cfg.Strategy)
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +96,7 @@ func Generate(cfg *conf.Model, g *git.Context, opts *Options) (*Release, error) 
 		return nil, err
 	}
 
-	nextName, err := strat.NextName(prevName, opts.Bump)
+	nextName, err := opts.Request.nextName(strat, prevName)
 	if err != nil {
 		return nil, err
 	}
@@ -127,7 +132,7 @@ func (r *Release) Changelog() {
 	}
 }
 
-func checkGitStatus(cfg *conf.Model, g *git.Context, opts *Options) error {
+func checkGitStatus(g *git.Context, opts *Options) error {
 	if !opts.Force {
 		if err := g.IsClean(); err != nil {
 			if err == git.ErrDirtyWorkdir {

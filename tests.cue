@@ -38,6 +38,11 @@ let testbeds = [...{name: string, dir: string}] &
 			commands: ["go build -v -o ./bin/platform ."]
 		},
 		{
+			name: "Release"
+			checks: ["exitcode", "stdout"]
+			commands: ["sh ./testbeds/release/test.sh"]
+		},
+		{
 			name: "Server Missing Secret"
 			checks: ["exitcode", "stderr"]
 			commands: ["env SECRET= DATABASE_URL=://invalid ./bin/platform srv"]
@@ -100,10 +105,6 @@ let testbeds = [...{name: string, dir: string}] &
 			checks: [
 				"exitcode",
 				"./testbeds/infra-init/platform.toml",
-				// The launcher is generated here (the app-testbed Init tests never apply —
-				// their launchers are committed fixtures), so this snapshot is the one place
-				// smoke sees the version stamp: the nearest release, drifting once per cut.
-				"./testbeds/infra-init/platform",
 			]
 			commands: [
 				// Wipe any generated leftovers from a prior local run so init GENERATES fresh
@@ -114,6 +115,12 @@ let testbeds = [...{name: string, dir: string}] &
 				// committed files to fall back on, so init must actually run to generate them.
 				"ALWAYS_YES=1 ./testbed.sh infra-init init \"Johnny Appleseed\" \"john@apple.com\" \"prod9/infra-new\" \"example.com\"",
 			]
+		},
+		{
+			// Check the exact generated pin before projecting commit-dependent metadata.
+			name: "Infra Init Launcher"
+			checks: ["exitcode", "stdout"]
+			commands: ["sh ./testbeds/check-launcher.sh"]
 		},
 		{
 			name: "Infra Init Render"
