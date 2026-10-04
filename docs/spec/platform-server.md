@@ -669,10 +669,30 @@ The composite foreign keys make two mismatches unrepresentable: a build cannot n
 manifest from another repository or commit, and a `build_modules` row cannot select a
 module from another manifest.
 
-These schema changes use new forward migrations. Published migration files and their
-registration remain unchanged. Historical-build backfills, archival readers, and old-job
-transition handling are outside this slice; earlier build records do not constrain the
-module model.
+The module transition preserves earlier records without manufacturing manifest snapshots
+or module identities. Migration `202609130900_create_build_modules` moves the original
+`builds` and `build_events` tables into the `build_history` schema, including their
+indexes, owned sequences, foreign keys, and unmodified rows. It creates empty
+module-aware tables under the original names. The archive is outside ordinary build
+queries and dispatch; historical readers and old-job transition handling remain deferred.
+An existing `build_history` schema is a conflict that fails the migration rather than
+merging with unrelated data.
+
+New build and event sequences continue beyond both the historical rows and the original
+sequences' allocated values, so old build URLs cannot identify new builds. Fresh databases
+retain the ordinary first ID of 1. The archive never substitutes invented repository,
+manifest, or module references for missing historical facts.
+
+Rollback restores the original tables only while the new build, module, and event tables
+are empty. It locks those tables before checking, refuses to discard any new records,
+and preserves allocated sequence values across rollback and reapplication. It removes
+only the empty replacement tables and the emptied archive schema.
+
+Chakrit explicitly approved repairing this specific published migration on 2026-10-04
+after its populated-database upgrade failed; he reported that it had not run on production
+because of that error. This exception covers its up and down SQL, not other published
+migrations. Registration and sequence remain unchanged; subsequent schema changes still
+use new forward migrations under the published-migration rule above.
 
 `build_events` transcribes the engine's reporting callbacks ([engine.md](engine.md)). Its
 module identity is the
