@@ -10,21 +10,40 @@ sits at the `interpret`/`strategies` stages of the pipeline. The
 mechanism and `scaffolding/` orchestration behind `cmd/init_cmd.go` — read
 [architecture.md](architecture.md) first.
 
+## Intended catalog changes pending implementation
+
+`pnpm/workspace` is withdrawn from the intended framework catalog. Its current runner,
+discovery, and tests still exist and await a removal slice; their descriptions below
+document implemented legacy behavior, not an accepted target. The removal must cover
+runner, discovery, catalog, fixtures, and reviewed smoke goldens together. Existing
+`pnpm/workspace` configurations have no replacement prescribed by this ruling.
+
+Any future workspace support requires a fresh design based on Node-ecosystem standards,
+including corepack-managed package managers, rather than reviving the current
+pnpm-specific runner. Whether to add that support remains unresolved until a concrete
+need establishes it.
+
+The intended default module timeout is **5m for pnpm frameworks**, while non-pnpm
+frameworks retain **1m**. This is an explicit user-approved budget change, pending
+implementation: `conf.ModuleDefaults` still applies 1m to every module today. A module's
+explicit timeout remains authoritative. Module step timeouts are separate from the smoke
+harness's unchanged one-minute per-test deadline ([testing.md](testing.md)).
+
 ## The `Framework` contract
 
 A framework is a stateless value (an empty struct) implementing `framework.Framework`. It
 carries per-stack knowledge and nothing else — no config, no engine handle, no build
 state. Seven methods:
 
-| Method                                                    | Returns   | Role                                                      |
-|-----------------------------------------------------------|-----------|-----------------------------------------------------------|
-| `Name() string`                                           | id        | Stable id (`go/basic`, `pnpm/static`, …); `[modules]` key |
-| `Layout() Layout`                                         | shape     | `basic` \| `workspace` — module topology                  |
-| `Discover(wd string) bool`                                | detect    | True if this stack owns `wd` (scaffold-time only)         |
-| `ScaffoldVars(wd) []string`                               | inputs    | Operator inputs to prompt at init, by name (usually nil)  |
-| `Scaffold(ctx, wd, env, inputs) Spec`                     | seed      | The framework's full, **resolved** contribution (below)   |
-| `Plan(*BuildUnit) []Step`                                 | steps     | The ordered steps this unit's build is made of            |
-| `Execute(ctx, client, *BuildUnit, Step, in) (out, error)` | container | Run **one** step: container in → container out            |
+| Method                                                    | Returns   | Role                                                                 |
+| --------------------------------------------------------- | --------- | -------------------------------------------------------------------- |
+| `Name() string`                                           | id        | Stable id (`go/basic`, `pnpm/static`, …); module's `framework` value |
+| `Layout() Layout`                                         | shape     | `basic` \| `workspace` — module topology                             |
+| `Discover(wd string) bool`                                | detect    | True if this stack owns `wd` (scaffold-time only)                    |
+| `ScaffoldVars(wd) []string`                               | inputs    | Operator inputs to prompt at init, by name (usually nil)             |
+| `Scaffold(ctx, wd, env, inputs) Spec`                     | seed      | The framework's full, **resolved** contribution (below)              |
+| `Plan(*BuildUnit) []Step`                                 | steps     | The ordered steps this unit's build is made of                       |
+| `Execute(ctx, client, *BuildUnit, Step, in) (out, error)` | container | Run **one** step: container in → container out                       |
 
 `Discover` and `Scaffold` are scaffold-time: the build path reads `[modules]` (which pins
 `Name`), it never re-discovers.
@@ -79,7 +98,7 @@ shapes and the resolve mechanism live in [scaffolding](scaffolding.md).
 
 ## Layouts
 
-The module's topology on disk. Selects how `Build` roots the Dagger host directory.
+The module's topology on disk. Selects how build steps root the Dagger host directory.
 
 | Layout      | Meaning                                             | Marker                           |
 |-------------|-----------------------------------------------------|----------------------------------|
@@ -118,7 +137,7 @@ key is a deprecated read-alias — scaffolding writes only `framework`). The lis
 **order-sensitive** — several stacks' markers coexist in one tree, so the broader/more-specific
 match must be checked before the one it would also satisfy.
 
-Order and detection rules:
+Implemented order and detection rules (`pnpm/workspace` awaits removal as ruled above):
 
 | # | Framework       | Name             | Layout      | Family        | Detects on                                   |
 |---|-----------------|------------------|-------------|---------------|----------------------------------------------|
@@ -315,12 +334,14 @@ and there is no skip-tests opt-out. Full rationale:
   stay in the build. Getting this wrong is invisible in every test — the site serves
   identically either way — and cost a 1.13GB image where 96MB serves the same bytes.
 
-  🚨 **Platform names no toolchain version, anywhere — never pin.** Node is whatever `n`
+  🚨 **Platform declares no Node or pnpm toolchain version — never pin them here.**
+  Node is whatever `n`
   calls `lts`; pnpm is whatever the repo's `package.json` `packageManager` field says, which
   corepack resolves per-project. Platform declares no Node or pnpm version of its own, and a
   repo without `packageManager` is simply not built — platform is opinionated about how each
   stack builds, and the way is to always declare it. This is the same rule as the Wolfi base
-  above: nothing in platform is version-pinned.
+  above: platform supplies no pin for this base or these two toolchains. Go toolchains
+  and baseline component versions retain their separately specified pins.
 
   🚨 **This provisioning is deliberate — never "simplify" it to distro packages.** Never
   `apk add nodejs`/`corepack`. Node, corepack, pnpm, and the distro are four uncoordinated

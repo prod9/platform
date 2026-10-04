@@ -1,9 +1,9 @@
 # Platform Server
 
-The module-job, source-input, and paired-event contracts are the **Phase 2 implementation
-target**, including immutable admission records, module execution, and lifecycle reads.
-Every observer consumer converts together. Server publication remains tag-only in this
-candidate; applying the stored `always`/`tags`/`never` policy is deferred to Phase 3.
+Status: **Phase 2 implemented; remaining product surfaces are intended.** The module-job,
+source-input, and paired-event contracts ship, including immutable admission records,
+module execution, lifecycle reads, and every CLI observer consumer. Server publication
+remains tag-only; applying the stored `always`/`tags`/`never` policy is deferred to Phase 3.
 
 The **route surface**, the **install/boot flow**, and the **build lifecycle** are settled:
 the [Operations](#operations-settled-surface) table teaches the surface,
@@ -48,8 +48,8 @@ a result's container continue to hold their session explicitly; see
 a user's authenticated session: the `sessions` table, the `platform_session` cookie,
 `auth.SessionCtr`, `GET /api/session`. An **engine session** is `engine.Session`, the span a
 built container stays usable for ([engine.md](engine.md)). They share no code, no lifetime and
-no table. Which one gives ground — if either — is **deferred to the srv slice**; until then
-qualify every use and write neither bare.
+no table. Naming them differently remains unresolved; qualify every use and write neither
+bare.
 
 `srv` ships **in the same binary** as the CLI — `platform srv` starts the process (`platform serve` is a back-compat alias). One
 Go module (`platform.prodigy9.co`); the shared packages, `cmd`, and `srv` are conceptual
@@ -602,9 +602,15 @@ when every selected module is terminal does the aggregate become `failed` if any
 failed, otherwise `succeeded`. A failed module beside queued or running siblings cannot
 finish the aggregate.
 
-No age threshold synthesizes a terminal event or a fifth status. A claimed module without
-`run_done` stays visibly incomplete, exposing its claim, engine assignment, and latest
-recorded observation. Automatic stalled-work detection and cleanup remain deferred.
+Current Phase 2 reads use no age threshold to synthesize a terminal event or a fifth
+status. A claimed module without `run_done` stays visibly incomplete, exposing its claim,
+engine assignment, and latest recorded observation.
+
+The intended follow-up is a cleanup/reconcile loop that surfaces stalled or abandoned
+work truthfully after a period without observations. It never automatically requeues a
+claimed module; retry remains the operator's action and creates another build. The
+staleness window, observation mechanism, and resulting wire/status representation are
+unsettled and require design in that later slice; the loop is not implemented.
 
 ### Build tables
 
@@ -797,21 +803,24 @@ manual creation returns the same aggregate representation with `queued` state.
 
 ### No `api/` contract layer (deliberate)
 
-A shared `api/` package of wire types + generated client is **rejected as over-engineering**
-at this stage: it earns its keep only with *independent*, *public/versioned*, or *polyglot*
-consumers — none true for an internal, single-consumer, Go-to-Go tool with no backward-compat
-obligation. When the CLI eventually calls `srv`, it carries its own small **hand-written
-client structs**, kept in step with the handlers by hand; the cost (a few duplicated structs,
-contract drift surfacing at runtime not compile time) is acceptable at this surface size. The
-hard rule: **`cli` must not import `srv`** — that would drag the server's DB and transitive
-deps into the CLI binary; `cli` stays shared-packages + stdlib `net/http` only. A
-contract/codegen layer returns to the table only when a real second consumer appears (a
-non-Go `webui`, or external API users), i.e. when versioning actually bites.
+A shared `api/` package of wire types + generated client is not part of the current
+design. The JavaScript webui consumes the controller-owned JSON surface through its
+hand-written client; server response structs remain in their owning controllers. When
+the CLI eventually calls `srv`, it carries its own small hand-written client structs,
+kept in step with the handlers. Contract drift is an accepted cost at this surface size;
+a generated contract layer requires a separate design decision when independent clients
+or API versioning create a concrete need.
+
+The hard rule: the CLI's client code must not import `srv`; it consumes shared packages
+and stdlib `net/http`. This client boundary is distinct from the product's existing
+single-binary composition, whose Cobra root mounts the server commands.
 
 ## Authorization: delegate to GitHub, zero platform RBAC
 
-Platform stores **no permission tables and configures no roles**. Authorization is
-whatever GitHub already says:
+Platform grants **no independent repository permissions and configures no roles**.
+Its session-owned repository snapshot caches GitHub's authorization for the session's
+bounded lifetime; it is not a second permission authority. Authorization is whatever
+GitHub already says:
 
 - A user with read access can inspect a repo; write access is required to onboard it,
   trigger a build, or retry one.
@@ -859,13 +868,15 @@ installer fragment — **not** `platform init`. See [installation.md](installati
 
 ### Two token types, chosen per operation
 
-| Token                  | Identity            | Scope                                        | Used for                                        |
-| ---------------------- | ------------------- | -------------------------------------------- | ----------------------------------------------- |
-| **Installation token** | `platform[bot]`     | installed repos ∩ granted permissions, ~1h   | webhook-driven / autonomous work (clone, build, publish) |
-| **User-to-server**     | the triggering user | (user's access) ∩ (app's granted perms)      | where attribution + per-user gating matter (a deploy) |
+| Token                  | Identity            | Scope                                      | Used for                                              |
+| ---------------------- | ------------------- | ------------------------------------------ | ----------------------------------------------------- |
+| **Installation token** | `platform[bot]`     | installed repos ∩ granted permissions, ~1h | autonomous GitHub reads and source cloning            |
+| **User-to-server**     | the triggering user | (user's access) ∩ (app's granted perms)    | where attribution + per-user gating matter (a deploy) |
 
 - **Installation token** — minted from the app key (JWT → installation), app/bot identity,
   short-lived. No bus-factor; commits attributed to `platform[bot]`.
+- Registry publication uses the separately saved classic PAT, never either App token
+  ([installation.md](installation.md), §The registry token).
 - **`srv/github` owns the App API client**: the App JWT, installation-token minting, and
   the App-identity queries the server makes (installation→org resolution, org-owner
   check, the installation's repo list, ref→sha resolution). Fragments consume it; none
@@ -894,24 +905,26 @@ installer fragment — **not** `platform init`. See [installation.md](installati
 - **User-token freshness** — every successful OAuth login replaces the encrypted stored
   user token. GitHub controls that token's own expiry policy; platform's two-hour login
   session independently bounds how long the browser may act before reauthentication.
-- **Secret footprint** — one app private key + webhook secret (server-side), encrypted at
-  rest; *not* a token per user. This is the first long-lived secret platform holds.
+- **Secret footprint** — server-global App credentials and registry PATs, plus the
+  encrypted GitHub user token saved on each successful OAuth login. Login-session
+  tokens are stored only as hashes. App and registry settings use fx's settings store;
+  their encryption-at-rest requirement remains separate from user-token encryption
+  ([installation.md](installation.md), §The install settings).
 - **Callback reachability** — the manifest/install/OAuth redirects need a URL the
   operator's browser can hit that routes back to the platform process: the server's own
   (tailnet/public) URL for `srv`; a temporary local listener for a pure-CLI flow (the `gh
   auth login` pattern). The app private key is shown **once** — capture it immediately.
 
-### Onboarding: `platform init` installs, it does not create
+### Onboarding: scaffold locally, register through the server
 
-`platform init` is **client-side onboarding only**. It reads a marker identifying which
-platform server governs this repo (open detail: a `[server]` field in `platform.toml`, or
-CLI-global config → e.g. `platform.some-domain.com`), then drives **installation of that
-server's existing App** onto the current repo (opens
-`https://github.com/apps/<app-slug>/installations/new` scoped to the repo; GitHub
-redirects back with the `installation_id`, which the server records). It **creates
-nothing** — the App is the server's.
+`platform init` scaffolds local repository files; it performs no App installation or
+server registration ([scaffolding.md](scaffolding.md)). The install wizard creates and
+binds the server's App. Repository onboarding then selects from the user/App access
+intersection, reads the committed manifest, and registers the reviewed commit through
+`POST /api/repos` ([webui.md](webui.md)). No CLI-to-server marker or App-installation
+flow is implemented or required by the current init contract.
 
-### Ownership: live from GitHub, a product concept
+### Intended ownership: GitHub-derived, not implemented
 
 "Who owns this repo's pipeline" is **derived live from GitHub admin permission**, not a
 platform table. To claim ownership, a user proves they currently hold **admin** on the
@@ -971,8 +984,3 @@ not from the completed builder internals, and includes the forthcoming cluster-v
 capability without pre-cutting that work here. Cluster installation and delivery already
 live in the `prod9/infra` GitOps repo; platform deploys nothing — publish pushes the image
 and Flux pulls.
-
-## Open details (not blockers)
-
-- Where the `init` server marker lives — `platform.toml` `[server]` field vs CLI-global
-  config.

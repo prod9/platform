@@ -52,10 +52,10 @@ run, because that run *is* the finding.
   reviewed, **in that same slice** — same tier as `go test` passing, never a session-end
   batch. The docker/runtime cost is mechanism, not a deferral.
 
-**Launcher verification compares the pin with the binary that generated it.** Intended
-alongside verbatim SemVer scaffolding: Infra Init checks that the generated pin exactly
-matches `bin/platform --version`, then snapshots a projection with only that verified
-value replaced by a fixed placeholder. The generated file remains untouched. This keeps
+**Launcher verification compares the pin with the binary that generated it.** Infra Init
+checks that the generated pin exactly matches `bin/platform --version`, then snapshots a
+projection with only that verified value replaced by a fixed placeholder. The generated
+file remains untouched. This keeps
 the launcher body under smoke coverage without recording commit-dependent build metadata
 in the golden. A release alone no longer requires launcher-pin golden changes; any drift
 still requires review before recording.

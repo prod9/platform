@@ -53,16 +53,17 @@ separate downstream check can only make the build fail **loud** instead of green
 still needs a cache prune to recover. So the fix is operational (`platform clean`), not a
 framework change.
 
-This is an upstream Dagger bug. v0.21.7 is the latest release — there is nothing to
-upgrade to.
+This documents the failure observed with Dagger v0.21.7; it is not a statement about
+the latest upstream release. Re-check upstream before making an upgrade decision.
 
 ## Never switch pnpm → apk
 
 When Node provisioning fails, `apk add nodejs corepack` is **not** the fix and must not
 be proposed. The provisioning path (Node from nodejs.org via tj/n, pnpm via Node's own
-corepack) is deliberate; see the Node/pnpm note in
-[`../../CLAUDE.md`](../../CLAUDE.md). A cache or build failure is never a reason to change
-where Node comes from. **Shed the cache with `platform clean`, then fix the real cause.**
+corepack) is deliberate; see the stack notes in
+[`../spec/frameworks.md`](../spec/frameworks.md#stack-notes). A cache or build failure is
+never a reason to change where Node comes from. **Shed the cache with `platform clean`,
+then fix the real cause.**
 
 (The `apk` here is Wolfi's, not Alpine's — see [`../vendor/wolfi.md`](../vendor/wolfi.md)
 before reasoning about what any package name provides.)

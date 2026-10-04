@@ -25,7 +25,7 @@ how much `Infra.Scaffold` contributes — pure polymorphism, **no `IsInfra` pred
 The launcher is the driver's own contribution, so the driver resolves its one hole the
 same way frameworks resolve theirs: `PLATFORM_VERSION` is stamped with
 `framework.PlatformVersion()` — the valid SemVer value in the running binary's build
-metadata, verbatim. This contract is intended and replaces predecessor-release recovery:
+metadata, verbatim. This implemented contract replaces predecessor-release recovery:
 validate SemVer only; do not canonicalize, strip suffixes, recover predecessors, or check
 publication. Missing or invalid SemVer is a hard init error.
 
@@ -100,6 +100,14 @@ flux-sync (the GitHub→Flux `Receiver`
 host-agnostic operator `Gateway` app, and the ACME cluster-issuer. Components own their
 hostnames via `ListenerSet`s (distributed-hosts shape) — the gateway app carries none. It
 installs whole — selection is not an operator choice at init time.
+
+The generated platform deployment is a seed, not a configured server installation.
+`framework/skel/apps-platform.cue.tmpl` emits the server with an empty environment and
+does not emit a worker workload. The operator supplies the server's required runtime
+configuration and a separate `platform worker` process with its checkout-cache storage
+before queued builds can execute ([installation.md](installation.md)). The scaffolded
+Dagger StatefulSet mounts `/var/lib/dagger` with `emptyDir`; its disposable cache does
+not survive pod replacement.
 
 ### Multi-tenant clusters: baseline owner vs tenant (convention, not code)
 
@@ -208,7 +216,12 @@ orthogonal:
 
 ### Re-init: surgical `[vars]` merge
 
-Re-running `init` must not clobber an operator's `platform.toml`. The merge (owned by
+Planning a re-init computes the surgical `[vars]` merge below. Applying the plan while
+keeping existing files leaves `platform.toml` untouched, so the planned additions are
+written only when replacement is accepted (`--force` or the overwrite confirmation).
+Replacement uses the merged bytes, preserving the operator's existing config.
+
+The merge (owned by
 `conf/`, alongside `Generate`) folds the baseline default `[vars]` in **line-by-line,
 not by decode/re-encode** — a round-trip through the TOML encoder would lose the operator's
 comments, ordering, and formatting. The merge:
@@ -220,9 +233,10 @@ comments, ordering, and formatting. The merge:
 
 Each default's disposition is recorded as a `VarChange` (`Appended` true = newly added,
 false = operator value kept), surfaced in the plan. Values keep their TOML type on the
-append (strings quoted/escaped, bools and numbers bare). A directive *file* edit is **not**
-preserved across re-init — customization is via vars; the directive files are platform's
-opinion, re-shipped whole.
+append (strings quoted/escaped, bools and numbers bare). Keeping existing files also
+preserves directive edits. When replacement is accepted, directive files are re-shipped
+whole and their edits are overwritten; durable customization belongs in vars or in
+operator-maintained CUE.
 
 ## Invariants — do NOT re-litigate
 

@@ -6,6 +6,11 @@ The background-job machinery platform's jobs run on: `worker.New(cfg, jobs...)` 
 `Start()`. Upstream is <https://fx.prodigy9.co>; the module source under
 `$(go env GOMODCACHE)/fx.prodigy9.co@<ver>/worker/` is the truth for everything below.
 
+This is a historical v0.8.6 capture. The repository now depends on fx v0.10.4; private
+worker mechanics and capability limitations below have not been re-verified for that
+version. Use the current dependency's sanctioned surface before designing new jobs or
+queue behavior from this reference.
+
 ## The job contract
 
 A job is `worker.Interface` — `Name() string`, `Run(ctx) error` — and **its own struct is

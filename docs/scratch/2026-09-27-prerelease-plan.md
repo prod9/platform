@@ -2,8 +2,12 @@
 
 # Explicit prerelease versions — analysis and implementation plan
 
-Status: authorized for implementation, 2026-09-27. Audience: chakrit and the engineer
-implementing the approved specification later.
+Status: completed on 2026-09-27 in `496eaab` (specification), `8621634`
+(implementation), and `55d9292` (table alignment). Audience: engineers inspecting the
+historical feature plan; this is not an implementation queue. Current contracts live in
+[releases.md](../spec/releases.md), [scaffolding.md](../spec/scaffolding.md), and
+[testing.md](../spec/testing.md); verification is in `tmp/prerelease.local/report.md`.
+The behavior described as current below is the pre-implementation observation.
 
 ## Goal and authority
 

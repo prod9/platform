@@ -1,10 +1,14 @@
 <!-- not spec/decision because: srv 1-by-1 walk derivation for item 11 (RBAC + cluster-
-observability authz). SETTLED in shape (2026-07-18) but not yet executed — graduates to
-spec/ (the srv observability/authz surface) + an annotation on the zero-RBAC ADR in the
-post-walk execution pass. Kept in full because the short ledger summary loses the reasoning
+observability authz). Historical derivation, graduated to the zero-RBAC ADR addendum
+and platform-server.md. Kept in full because the short ledger summary loses the reasoning
 and re-confuses a fresh session. -->
 
 # srv item 11 — RBAC & cluster-observability authz (SETTLED 2026-07-18)
+
+Historical evidence, not current implementation instructions. The authz ruling is in
+[the zero-RBAC ADR](../decisions/2026-06-29-platform-server-github-app-zero-rbac.md)
+and [platform-server.md](../spec/platform-server.md). Later addenda refine authorization;
+the cluster-view endpoint and UI surface remain deferred in `.ace/save.ledger.md`.
 
 **Outcome: zero-RBAC confirmed — no reversal.** The walk stress-tested whether a pure
 GitHub-token model supports *every* srv action (especially viewing cluster/flux rollout
@@ -111,7 +115,7 @@ End-to-end flow:
     session for caching (repo list + provenance; rights with a TTL) + repo-first IA (no
     namespace leak). No informer. The app→infra handoff stays manual.
 
-## Graduation (post-walk execution)
+## Historical graduation plan (fulfilled for the authz ruling)
 
 - The **authz model** in this doc is settled and graduates to `spec/`. The full
   observability **surface** (endpoint set, response shapes, webui) is **not designed here** —

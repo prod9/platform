@@ -9,8 +9,9 @@ describes.
 The supporting server surface is partial too: repository/build reads, manual triggers with
 module selection, build detail with engine attribution, and steps exist; pre-queue
 ref/module resolution, engine reads, and truthful repository/engine dynamic-route
-classification do not. Of the four planned shared components, only the outcome mark
-exists.
+classification do not. Shared visual primitives (`PageHeader`, `SectionHeader`, `Facts`,
+`SignalMark`, and `OutcomeMark`) exist; shared feed rows and the terminal pane remain
+unbuilt.
 
 The webui is the platform server's front end: a SvelteKit app built with
 `adapter-static`, prerendered into `webui/build/` and embedded into the `platform`
@@ -119,6 +120,9 @@ a repeated text label. Its most recent source timestamp is presented as
 `finished HH:MM:SS`, `started HH:MM:SS`, or `created HH:MM:SS`; storage field names and
 full timestamps do not leak into the feed. A "register repository" action leads to the
 onboarding wizard.
+The shared [interface draft](interfaces.md#web-ui) proposes canonical source values
+remaining visible beside every derived mark or timestamp; reconciling that proposal with
+this landing-page presentation remains an unresolved design question.
 Signed-out, the page is the sign-in door and nothing else.
 
 **Repo onboarding (`/repos/new/`).** Runs as the install wizard does: a checklist on the
@@ -204,9 +208,10 @@ read failing *is* the reachability signal.
 
 ## Shared components
 
-Four pieces repeat across the pages and are extracted as components when wiring lands
-(named in each mock's ⚠ MOCK note): the **outcome mark** (✓ ✗ ◌ · beside the canonical
-`succeeded`/`failed`/`running`/`queued` value), the **feed row** (status-led row with its
-source timestamp and optional derived hints), the **kv list** (muted key, ink value — the
-settings and facts shape), and the **terminal pane** (the night-ground log view the build
-detail and the cluster-view slice's log reads share).
+Four pieces repeat across the pages. The **outcome mark** is implemented by `OutcomeMark`
+over `SignalMark`; the **kv list** is implemented by `Facts` (muted key, ink value — the
+settings and facts shape). The **feed row** (status-led row with its source timestamp and
+optional derived hints) and the **terminal pane** (the night-ground log view the build
+detail and the cluster-view slice's log reads share) await extraction when product wiring
+lands. Mock notes describe those pending pieces rather than overriding the implemented
+shared primitives.

@@ -6,9 +6,9 @@ architecture / "how it works" overviews. Prose you read to *understand the
 system*. Updated in place as understanding evolves; always reflects present
 design, not history.
 
-If it's a ruling on a question, that's a decision — `../decisions/`. If it's
-enumerable lookup detail (every flag, every config key, a schema table), that's
-`../vendor/`. If it's research, exploration, or a draft, `../scratch/`.
+If it's a ruling on a question, that's a decision — `../decisions/`. Our own flags,
+config keys, API routes, and schemas belong here; third-party lookup detail belongs in
+`../vendor/`. Unsettled exploration belongs in `../scratch/`.
 
 ## Format
 

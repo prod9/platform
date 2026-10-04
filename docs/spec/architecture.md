@@ -38,8 +38,8 @@ the `BuildUnit`: workdir, image name, build dir, env, command, the resolved fram
 the **arch target**. The execution core reads fields; it does not get told things through
 call arguments. Engine materializes a remote source through `Checkout`, loads its
 configuration through `conf`, and interprets it before entering the step-execution core.
-The source-input and paired-lifecycle contract is intended and awaits the coherent
-module-job implementation; [engine.md](engine.md) owns that boundary.
+The source-input and paired-lifecycle contract is implemented with the Phase 2
+module-job model; [engine.md](engine.md) owns that boundary.
 
 This yields three standing rules:
 
@@ -60,8 +60,8 @@ This yields three standing rules:
   maps *from* `BuildUnit`; `framework`/`engine` never contort to be row-shaped.
 
 - **The consumer defines what it needs of the engine.** A framework needs only a Dagger
-  client to build, so `Build` takes the raw `*dagger.Client` as a parameter — `framework`
-  never imports `engine` at all. **That** is what keeps the import graph one-directional
+  client to execute a step, so `Execute` takes the raw `*dagger.Client` as a parameter.
+  `framework` never imports `engine` at all. **That** keeps the import graph one-directional
   (not any stringly-typing): `engine → framework → project`.
 
 ## Two models, both data
@@ -117,8 +117,9 @@ graph `conf ← framework/scaffold ← framework ← scaffolding ← cmd`:
   `FROM scratch` image (see
   [infra-publishes-as-plain-image-retire-oras](../decisions/2026-07-05-infra-publishes-as-plain-image-retire-oras.md)).
 - `framework/gitops/` — the Infra framework's **render** machinery (CUE/`.platform` →
-  manifest `Tree`), consumed by `Infra.Build` and the `render` command — nested under
-  `framework/` like `gowork`, its stack-specific companion. Publishing is the ordinary
+  manifest `Tree`), consumed by the Infra framework's render step and the `render` command.
+  It is nested under `framework/` like `gowork`, its stack-specific companion. Publishing is
+  the ordinary
   `publish` path now that infra is a framework; the oras packer is retired.
 - `cmd/` — `main.go` defers to `cmd.Execute()`. `cmd` holds the root Cobra command
   (persistent `-q`/`-v`, and `-f` for an alt `platform.toml`) plus one file per command.
@@ -156,7 +157,8 @@ folds into `framework/scaffold/`, its discovery into `framework/`, and its orche
 into `scaffolding/`, behind the `cmd/init_cmd.go` adapter.
 
 Command surface: `init  build  configure  exec  export  ls  preview  publish  release
-render  clean  srv  versions`. `clean` prunes the local Dagger build cache
+render  clean  srv  worker  versions  print-config`.
+`clean` prunes the local Dagger build cache
 (first-line cache diagnostics — see
 [`../guides/troubleshooting-build-cache.md`](../guides/troubleshooting-build-cache.md));
 `versions` lists the release history. The local `publish` command is uniform (infra is
@@ -198,8 +200,8 @@ compatibility and seeds `local_arch` when unset.
 
 Rendering and shipping the infra repo uses **the same build pipeline**, not a parallel
 one.
-Infra is a framework: its `Build` renders the `apps/` CUE + `.platform` directives (via
-the linked CUE evaluator + `dsl`) into a manifest tree and packs that tree into a `FROM scratch`
+Infra is a framework: its render step transforms the `apps/` CUE + `.platform` directives
+(via the linked CUE evaluator + `dsl`) into a manifest tree and packs it into a `FROM scratch`
 image. The same publish capability pushes it, whether explicitly invoked by local
 `./platform publish` or selected by server delivery policy. There is no bespoke OCI
 pusher and no separate `ops publish`; the two drivers' invocation context and cadence

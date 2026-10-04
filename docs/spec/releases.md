@@ -1,7 +1,7 @@
 # Releases
 
-Status: **design-of-record.** Explicit names and prerelease finalization are intended;
-implementation follows this specification. Describes the `releases/` subsystem — naming
+Status: **implemented.** Includes explicit names and prerelease finalization.
+Describes the `releases/` subsystem — naming
 strategies, the two-step generate/create flow, and how the local CLI release command
 relates to the local publish command.
 
@@ -86,7 +86,13 @@ requested field and reset lower fields. First automatic release remains `v0.1.0`
 
 There are no channel counters, automatic alpha/beta transitions, separate stable and
 prerelease tracks, or publication checks. For this repository, platformv2 remains on
-`v0.9.x`; manually named trials use the next intended unreleased patch core.
+`v0.9.x`; manually named trials use the next intended unreleased patch core. Releases of
+this repository remain patch releases in v0.9 until the complete platform CI/CD
+functionality works; this repository convention does not restrict consumer repositories.
+
+The operator's governing instruction is: "cut new v0.9.XX patch releases if you need
+tagged releases, stay in v0.9 until the whole platform ci/cd functionality are fully
+working".
 
 ### datestamp (`datestamp.go`, `dateref/`)
 

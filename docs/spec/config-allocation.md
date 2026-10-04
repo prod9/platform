@@ -1,12 +1,19 @@
 # Config Allocation Map — platformv2
 
-**Status:** living spec. Companion to [`platform.md`](platform.md) and
+**Status:** intended control-plane allocation; implementation is partial. Companion to
+[`platform.md`](platform.md) and
 [`architecture.md`](architecture.md); frozen rulings in
 [`../decisions/`](../decisions/). Distilled from the 2026-06 design walk.
 
 The job of this document: **exactly one owner per config kind.** Nothing settable in two
 places, no gaps. The Flux pivot left us with several surfaces — this map is the discipline
 that stops them overlapping.
+
+This map includes the wider vision's Projects, Project bindings, infra pointers, secret
+broker, and OpenTofu client; it does not claim those surfaces ship. Current
+`platform.toml` carries build metadata and `[server].publish`, without a Project binding
+or infra-pointer field. Current server registration, identity, installation settings,
+and module execution are specified in [`platform-server.md`](platform-server.md).
 
 ## The invariant
 

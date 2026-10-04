@@ -5,6 +5,19 @@ Runbook for standing up a **brand-new cluster** on the platformv2 delivery path
 platform session is the design authority. Scope is the baseline only — app onboarding and
 legacy teardown are later phases, out of scope here.
 
+The rendered platform Deployment is a scaffold seed: review its command, database and
+public URL configuration, release-qualified image, and separate worker process against
+[the current server specification](../spec/platform-server.md) before treating it as a
+working server installation. Applying the seed alone does not establish those runtime
+requirements.
+
+This runbook is for the **baseline owner**, which creates a new cluster's shared
+components. A tenant joining an existing cluster commits only its own
+`OCIRepository` + `Kustomization`; follow the
+[baseline-owner/tenant convention](../spec/scaffolding.md#multi-tenant-clusters-baseline-owner-vs-tenant-convention-not-code)
+instead of applying a second baseline. The owner adds tenant namespaces to the shared
+Receiver's `#target_ns` list.
+
 > Authority: platformv2 supersedes the legacy ArgoCD/Keel path fleet-wide. Legacy-grounded
 > objections do not bind this runbook; when it conflicts with old-cluster practice, this
 > runbook wins. Questions go back to the platform session, not to legacy artifacts.
@@ -12,11 +25,11 @@ legacy teardown are later phases, out of scope here.
 ## Prerequisites (before any step)
 
 - A fresh Kubernetes cluster with **amd64 nodes** (`publish` ships amd64 images) and a
-  working `kubectl` context. Provider per the executing agent's tooling (prior clusters
-  are Linode; the nginx-gateway LB expects a Linode firewall — capture its **firewall id**).
+  working `kubectl` context. The scaffold is provider-neutral; obtain any provider-specific
+  LoadBalancer settings through the operator's tooling and add them to the infra repo.
 - A **new GitHub repo whose name contains `infra`** (framework discovery matches the
-  directory name glob — `framework/platform_infra.go` `hasInfraName`). Clone it; rename the
-  remote to `gh`.
+  directory name substring — `framework/platform_infra.go` `PlatformInfra.Discover`).
+  Clone it; rename the remote to `gh`.
 - ghcr.io credentials able to **pull** the infra image (read-only PAT is enough for the
   cluster; the operator's local docker creds handle the push side).
 - DNS control for the two ingress hosts (`PLATFORM_HOSTNAME`, `FLUX_HOSTNAME`).
@@ -36,21 +49,24 @@ a dot, e.g. `prodigy9.co`) — asked greenfield only; an existing `cue.mod` is r
 
 This writes the full baseline: `platform.toml` (strategy `rolling`, default `[vars]`
 version pins), `apps/` (cert-manager, flux, flux-sync, nginx-gateway, platform),
-`defaults/basics.cue`, `cue.mod`, and the `platform` launcher.
+the shared Gateway and cluster-issuer, `defaults/`, `cue.mod`, and the `platform`
+launcher. The platform component includes the Dagger engine and its NetworkPolicy.
 
 Re-running init later with `--force` replaces framework-owned files **including any
 secrets you wired into them** (the flux-sync HMAC token, the basics registry creds) —
 that's what "replace existing files" means. Commit before a `--force` re-scaffold and
 restore the wired values from git after. Only `platform.toml` merges surgically.
+Use git-crypt for committed credential-bearing files and verify that the staged Git
+blobs are encrypted before committing credentials or the webhook token.
 
 ## 2. Wire values (edit before first render)
 
-| File                   | What to set                                                            |
-|------------------------|------------------------------------------------------------------------|
-| `platform.toml` `[vars]` | `PLATFORM_HOSTNAME` / `FLUX_HOSTNAME` — this cluster's ingress hosts. Leave version pins alone. |
+| File                          | What to set                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `platform.toml` `[vars]`      | `PLATFORM_HOSTNAME` / `FLUX_HOSTNAME` — this cluster's ingress hosts. Leave version pins alone.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | `apps/nginx-gateway.platform` | **Provider LB wiring — your repo's edit; the scaffold ships none** ([ADR](../decisions/2026-07-16-baseline-is-provider-neutral.md)). On Linode, add the reserved-IP annotation to the NginxProxy service patch **before anything from `k8s/nginx-gateway/` first applies**: `set .spec.kubernetes.service.patches[0].type "StrategicMerge"` + `set …patches[0].value.metadata.annotations."service.beta.kubernetes.io/linode-loadbalancer-reserved-ipv4" "<ip>"`. The CCM honors it only at Service creation (retrofit = delete/recreate the Gateway) and rejects an empty value. Firewalls attach NB-side via terraform. |
-| `defaults/basics.cue`  | `#registry_username` / `#registry_password` — the ghcr **pull** creds (committed placeholders are empty). |
-| `apps/flux-sync.cue`   | `webhookToken` `#data: token:` — a fresh random HMAC secret (plaintext; `#Secret` base64-encodes). Generate with `openssl rand -hex 32`. |
+| `defaults/basics.cue`         | `#registry_username` / `#registry_password` — the ghcr **pull** creds (committed placeholders are empty).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `apps/flux-sync.cue`          | `webhookToken` `#data: token:` — a fresh random HMAC secret (plaintext; `#Secret` base64-encodes). Generate with `openssl rand -hex 32`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 
 Commit the lot. This repo is the delivery record — the cluster runs what this git says.
 
@@ -70,12 +86,16 @@ steps:
 2. `k8s/cert-manager/` — wait for the webhook deployment to be Ready
 3. `k8s/nginx-gateway/nginx-gateway.yaml`
 4. `k8s/flux/` — wait for Flux CRDs (`ocirepositories`, `kustomizations`, `receivers`)
-5. `k8s/flux-sync/` — the OCIRepository + Kustomization + webhook Receiver/Secret/Route.
+5. `k8s/gateway/` + `k8s/cluster-issuer/` — the shared Gateway and ACME issuer, after their
+   CRDs and controllers are ready.
+6. `k8s/flux-sync/` — the OCIRepository + Kustomization + shared webhook
+   Receiver/Secret/ListenerSet/Route.
    **Before this step**, verify `ghcr.io/<org>/<repo>` holds no leftover package from a
    previous repo generation — Flux adopts whatever `latest` resolves to, and a stale tree
    will silently overwrite live config (observed: a pre-reserved-IP NginxProxy clobbered
-   the gateway). Delete stale package versions first, or publish fresh before applying.
-6. `k8s/platform/`
+   the gateway). Publish the current committed tree before applying if the package already
+   exists; do not let a stale artifact become the initial desired state.
+7. `k8s/platform/` — includes the platform app and Dagger engine resources.
 
 A second idempotent `kubectl apply` pass over the whole tree is an acceptable
 convergence check; anything still failing is a real error, not ordering.
@@ -107,15 +127,15 @@ bootstrap-only.
 
 ## 6. Hand-wire the GitHub webhook (deferred-to-`srv` gap)
 
-Platform does not yet configure the GitHub side. On the GitHub org/repo that owns the
-ghcr package, create a webhook:
+Platform does not yet configure the GitHub side. On the GitHub **organization** that owns
+the ghcr packages, create one org-wide delivery webhook for the cluster:
 
 - URL: `https://<FLUX_HOSTNAME>` + the Receiver's path — read it from the cluster:
   `kubectl -n flux-system get receiver infra -o jsonpath='{.status.webhookPath}'`
 - Content type json; secret = the HMAC token from step 2; event: **`registry_package`**.
 
-The GitHub→Flux webhook is the primary reconcile trigger; the OCIRepository's 10m poll is only the
-dropped-webhook fallback. Expect **minutes**, not seconds: GitHub delivers
+The GitHub→Flux Receiver webhook is the primary reconcile trigger; the OCIRepository's
+10m poll is the dropped-webhook fallback. Expect **minutes**, not seconds: GitHub delivers
 `registry_package` events on a throttled cadence (~6m observed steady-state, 10–24m under
 publish surges) — the webhook's win is beating the poll's worst case and surviving poll
 misses, and everything after the event (receiver → fetch → apply) completes in seconds.
@@ -128,6 +148,10 @@ repo, and the first real publish must show a 2xx `registry_package` delivery in 
 hook's deliveries list. **A green webhook with zero deliveries is the signature of a
 missing link** — for a pre-existing unlinked package, connect it manually (package page →
 Connect repository; UI-only, no API).
+
+This GitHub→Flux Receiver hook is separate from the GitHub App webhook that sends
+repository events into platform srv; see
+[the installation contract](../spec/installation.md#the-org-wide-githubflux-delivery-webhook).
 
 ## 7. Verify end-to-end
 

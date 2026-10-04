@@ -1,4 +1,6 @@
-<!-- derived from: docs/notes/2026-06-16-platformv2-implementation-plan.md, docs/spec/config-allocation.md, docs/spec/platform.md, docs/decisions/2026-06-14-pull-based-gitops-timoni-flux.md @ 6e6502c -->
+<!-- derived from: docs/spec/architecture.md, docs/spec/scaffolding.md,
+     docs/spec/execution-modes.md, docs/spec/engine.md,
+     docs/guides/cluster-bringup.md @ 55d9292; refreshed 2026-10-04 -->
 <article>
   <h1>How GitOps works in platform</h1>
   <p class="lede">platform delivers software by making the git repository the single source of
@@ -15,15 +17,17 @@
 
   <h2>Phase 1 — Bootstrap the appliance</h2>
   <p>platform is an opinionated appliance: it ships <em>the</em> cluster setup, not a toolbox.
-    Onboarding a fresh infra repo writes three things into git&hellip;</p>
+    Onboarding a fresh infra repo writes the baseline sources into git&hellip;</p>
 
   <div class="tree"><span class="dir">infra-repo/</span>
-  <span class="file">platform.toml</span>   <span class="comment"># [ops.vars] — env-style version pins (NGINX_GATEWAY_VERSION, …)</span>
+  <span class="file">platform.toml</span>   <span class="comment"># [vars] — version pins and ingress hosts</span>
   <span class="dir">cue.mod/</span>        <span class="comment"># pins prodigy9.co/defs</span>
-  <span class="dir">apps/</span>           <span class="comment"># *.cue app definitions + *.platform baseline directives</span></div>
+  <span class="dir">apps/</span>           <span class="comment"># *.cue apps + *.platform directives</span>
+  <span class="dir">defaults/</span>       <span class="comment"># shared CUE definitions</span></div>
 
-  <p>&hellip;and installs the embedded baseline onto the cluster. These four are platform's
-    opinion — fixed, and version-locked with the tool:</p>
+  <p>Initialization writes the baseline into the infra repo; the operator commits its values,
+    renders it, and bootstraps the cluster with server-side <code>kubectl apply</code>.
+    The baseline owner installs these shared components:</p>
 
   <div class="panel">
     <h3>What lands on the cluster</h3>
@@ -32,24 +36,29 @@
       <li><strong>Flux</strong> — the in-cluster GitOps reconciler. From here on <em>Flux</em> is
         what applies desired state; nothing is <code>kubectl apply</code>-ed by hand.</li>
       <li><strong>NGINX Gateway Fabric</strong> — Gateway-API ingress.</li>
-      <li><strong>Dagger engine pool</strong> — a privileged StatefulSet of BuildKit daemons, the
+      <li><strong>Gateway and ACME issuer</strong> — shared ingress and TLS configuration.</li>
+      <li><strong>Platform server seed</strong> — review runtime configuration and a separate
+        worker before running the API, installation wizard, and web UI.</li>
+      <li><strong>Dagger engines</strong> — a privileged StatefulSet, the
         in-cluster build substrate. platform finds the pods through the headless Service's DNS
-        A-records and round-robins build sessions across them.</li>
+        A-records and picks one uniformly at random for each engine connection.</li>
     </ul>
   </div>
 
   <p class="note">Cold-start has no unbreakable cycle: the engine ships as plain manifests platform
-    applies directly, and the first platform image is built by a local auto-provisioned engine.
-    Once the pool is up, platform builds on its own engines.</p>
+    renders for operator bootstrap, and the first platform image is built by an SDK-managed
+    local engine. Later workers can use the in-cluster engines. A tenant joining this cluster
+    emits only its own Flux source and Kustomization; it does not install another baseline.</p>
 
   <h2>Phase 2 — The deploy loop</h2>
   <p>Once the appliance is up, every deploy is the same loop. The git commit is the gate; everything
     downstream is mechanical and reproducible from it.</p>
 
-  <figure class="figure" role="img" aria-label="deploy loop: platform build to GHCR, commit the image ref into infra CUE, render and publish an OCI artifact, Flux reconcile, cluster converges">
+  <figure class="figure" role="img" aria-label="delivery: publish app image, commit its ref,
+    publish infra image, Flux reconcile, cluster converges">
     <svg viewBox="0 0 1000 124" aria-hidden="true">
       <rect x="8" y="34" width="168" height="48"/>
-      <text x="92" y="62" text-anchor="middle">platform build</text>
+      <text x="92" y="62" text-anchor="middle">app publish</text>
       <text x="92" y="104" text-anchor="middle" font-size="11">→ GHCR image</text>
       <path class="fill" d="M176 58 l16 -6 v12 z"/>
 
@@ -75,18 +84,22 @@
   </figure>
 
   <ol class="steps">
-    <li><strong>platform build</strong> — Dagger builds the app's container on the in-cluster engine
-      pool and pushes it to GHCR under an immutable ref (digest / release tag).</li>
+    <li><strong>App publish</strong> — a publish operation builds and pushes the app image.
+      The local CLI invokes it explicitly; the server applies its separate delivery policy.
+      <code>build</code> alone pushes no image, and <code>release</code> only cuts a tag.</li>
     <li><strong>commit the ref</strong> — that immutable ref is written into the infra repo's
       <code>apps/*.cue</code> as a committed literal, and committed. <em>This commit is the
       deploy.</em></li>
-    <li><strong>platform ops render</strong> — exports the <code>apps</code> CUE package and applies
+    <li><strong>platform render</strong> — evaluates the <code>apps</code> CUE package and applies
       the <code>.platform</code> directives into a manifest tree. A pure function of the committed
       tree: the image is read from the literal in CUE, never injected.</li>
-    <li><strong>platform ops publish</strong> — packs the manifests as an OCI config artifact (Flux
-      media types) and pushes it to GHCR under a moving per-env tag.</li>
+    <li><strong>Infra publish</strong> — the infra framework packs the whole manifest tree into
+      one layer of a plain scratch image and pushes it under <code>latest</code>.
+      Local operators use <code>platform publish</code>; the server's intended policy publishes
+      successful infra builds. Environment separation belongs to the infra repo's CUE.</li>
     <li><strong>Flux reconcile</strong> — an <code>OCIRepository</code> watches that tag, pulls the
-      artifact, and applies it. The cluster converges to exactly what git holds.</li>
+      image, extracts its manifest layer, and applies it. The cluster converges to what git
+      holds. One org-wide GitHub→Flux Receiver webhook accelerates the pull loop.</li>
   </ol>
 
   <p>The loop closes on git: the next change is another commit, and Flux continuously drives the
@@ -97,17 +110,17 @@
     couldn't tell you what's deployed and a deploy couldn't be reproduced from the tree alone —
     the very thing GitOps exists to remove.</p>
 
-  <p>So the ref is a concrete value in <code>apps/*.cue</code>: deploying is a git commit, render and
-    publish are pure functions of the tree, and Flux reconciles exactly what's committed.</p>
+  <p>So the ref is a concrete value in <code>apps/*.cue</code>: deploying is a git commit,
+    the rendered manifests derive from the committed tree, and Flux reconciles them.</p>
 
-  <h2>Operator settings: [ops.vars]</h2>
+  <h2>Operator settings: [vars]</h2>
   <p>Versions and similar knobs the operator owns live in <code>platform.toml</code> under
-    <code>[ops.vars]</code> — also committed, so they too are desired state. They reach the baseline
+    <code>[vars]</code> — also committed, so they too are desired state. They reach the baseline
     hooks by a single convention:</p>
 
   <div class="code-block"><span class="comment"># platform.toml — env-style keys, the preferred form</span>
-[ops.vars]
-NGINX_GATEWAY_VERSION = "v2.6.0"
+[vars]
+NGINX_GATEWAY_VERSION = "v2.6.7"
 
 <span class="comment"># consumed lowercase-derived by both render routes:</span>
 <span class="comment">#   CUE  apps/*.cue   →  #version: string @tag(nginx_gateway_version)</span>

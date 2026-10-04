@@ -1,3 +1,7 @@
+<!-- derived from: upstream links in Sources @ 2026-06-21;
+     local topology checked against framework/skel/apps-platform.cue.tmpl @ 2026-10-04;
+     upstream not re-verified -->
+
 # Dagger Engine — Capabilities & Deployment Reference
 
 Lookup facts for deploying and connecting to the Dagger Engine, gathered to inform the
@@ -8,13 +12,13 @@ unstable by upstream — re-verify on engine upgrades.
 
 ## At a glance
 
-| Item                  | Value                                                       |
-|-----------------------|-------------------------------------------------------------|
-| SDK pinned (`go.mod`) | `dagger.io/dagger v0.21.7`                                  |
-| Latest engine + CLI   | `v0.21.7` (engine and all SDKs share one version number)    |
-| Our connect call      | `engine/engine.go` `dial` — bare `dagger.Connect(...)`      |
-| Today's behavior      | Auto-provisions an ephemeral engine in a local container    |
-| Compat mode           | Newer engines can simulate older-engine behavior on upgrade |
+| Item                    | Value                                                                       |
+| ----------------------- | --------------------------------------------------------------------------- |
+| SDK pinned (`go.mod`)   | `dagger.io/dagger v0.21.7`                                                  |
+| Captured engine + CLI   | `v0.21.7` (historical capture, not a latest-version claim)                  |
+| Platform contract       | [engine spec](../spec/engine.md): endpoint selection belongs to the session |
+| Local selection         | Unset `DAGGER_ENGINE` lets the SDK manage the local engine                  |
+| Compat mode             | Newer engines can simulate older-engine behavior on upgrade                 |
 
 ## Concurrency / session model
 
@@ -39,29 +43,29 @@ Set `_EXPERIMENTAL_DAGGER_RUNNER_HOST` before the SDK `Connect` call to skip
 auto-provisioning and target an existing engine. Companion var
 `_EXPERIMENTAL_DAGGER_CLI_BIN` points at a pre-installed CLI binary (skips download).
 
-| Scheme                         | Connects to                                                      |
-|--------------------------------|------------------------------------------------------------------|
-| `kube-pod://<pod>?namespace=…` | A specific k8s pod (params: `context`, `namespace`, `container`) |
-| `unix://<socket path>`         | Local UNIX socket (e.g. a shared `/var/run/buildkit`)            |
-| `tcp://<addr:port>`            | TCP — **plaintext, no wire encryption**                          |
-| `container://<name>`           | Runner in a named host container (needs local runtime)           |
-| `image://<image ref>`          | Starts a runner from an image (needs local runtime)              |
+| Scheme                           | Connects to                                                        |
+| -------------------------------- | ------------------------------------------------------------------ |
+| `kube-pod://<pod>?namespace=…`   | A specific k8s pod (params: `context`, `namespace`, `container`)   |
+| `unix://<socket path>`           | Local UNIX socket (e.g. a shared `/var/run/buildkit`)              |
+| `tcp://<addr:port>`              | TCP — **plaintext, no wire encryption**                            |
+| `container://<name>`             | Runner in a named host container (needs local runtime)             |
+| `image://<image ref>`            | Starts a runner from an image (needs local runtime)                |
 
 `kube-pod://` and `unix://` (shared volume) are the in-cluster paths. **`tcp://` behind a
 plain k8s `Service` is broken** — see the load-balancer pitfall. **platform's chosen path:**
-`tcp://` to a StatefulSet pod's stable ordinal DNS via a *headless* Service (not a VIP) — see
+`tcp://` to a pod IP resolved from a *headless* Service (not a VIP) — see
 the [engine-topology ADR](../decisions/2026-06-21-dagger-engine-statefulset-tcp.md).
 
 ## Engine runtime requirements
 
-| Requirement        | Detail                                                                                                                                          |
-|--------------------|-------------------------------------------------------------------------------------------------------------------------------------------------|
-| Privileges         | `--privileged`, root + `CAP_SYS_ADMIN`; **no rootless mode yet**                                                                                |
-| Snapshotter        | `overlayfs` required                                                                                                                            |
-| Cache volume       | Mount at `/var/lib/dagger` — without it, severe perf degradation                                                                                |
-| Node baseline      | ~2 vCPU / 8 GB RAM is the documented starting point                                                                                             |
-| Disk               | Moderate-to-large NVMe materially speeds builds (artifact cache)                                                                                |
-| Client co-location | Sessions expect the SDK client on the **same host** as the engine, with matching privileges + working directory (local dirs/sockets must match) |
+| Requirement          | Detail                                                                                                                                            |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Privileges           | `--privileged`, root + `CAP_SYS_ADMIN`; **no rootless mode yet**                                                                                  |
+| Snapshotter          | `overlayfs` required                                                                                                                              |
+| Cache volume         | Mount at `/var/lib/dagger` — without it, severe perf degradation                                                                                  |
+| Node baseline        | ~2 vCPU / 8 GB RAM is the documented starting point                                                                                               |
+| Disk                 | Moderate-to-large NVMe materially speeds builds (artifact cache)                                                                                  |
+| Client co-location   | Sessions expect the SDK client on the **same host** as the engine, with matching privileges + working directory (local dirs/sockets must match)   |
 
 ## Caching
 
@@ -72,12 +76,12 @@ the [engine-topology ADR](../decisions/2026-06-21-dagger-engine-statefulset-tcp.
 
 ## Deployment topologies
 
-| Topology                                                 | Concurrency                                                                                | Cache reuse                                                              | Routing                                                                                     | Caveat                                                                                                                  |
-|----------------------------------------------------------|--------------------------------------------------------------------------------------------|--------------------------------------------------------------------------|---------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------|
-| **DaemonSet** (upstream default)                         | per-node engine                                                                            | best on persistent nodes; dies with autoscaled nodes                     | client → **local** node pod via `kube-pod://`                                               | one engine per node whether used or not                                                                                 |
-| **StatefulSet r=2 + headless Svc** ← *platform's choice* | each engine multiplexes sessions; platform spreads runs across both by uniform random pick | per-ordinal PVC keeps cache warm (spreading fragments it across the two) | `tcp://<pod-ip>:1234` resolved from headless A-records, via `dagger.WithRunnerHost` per run | scale by editing `replicas` (auto-detected from DNS); cache fragmentation is the dumb-dispatch tradeoff                 |
-| **Deployment, N replicas + Service**                     | per-replica                                                                                | fragmented                                                               | round-robin Service                                                                         | **BROKEN** without session affinity — see pitfall; sticky-by-ClientIP pins all to one engine when the client is one pod |
-| **On-demand / ephemeral** (Karpenter + Argo CD)          | per-job engine                                                                             | poor cross-run (cold)                                                    | shared `/var/run/buildkit` volume per node                                                  | scales to zero (~80% cost cut reported); cold cache                                                                     |
+| Topology                                                   | Concurrency                                                                                  | Cache reuse                                                                | Routing                                                                                       | Caveat                                                                                                                    |
+| ---------------------------------------------------------- | -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| **DaemonSet** (upstream default)                           | per-node engine                                                                              | best on persistent nodes; dies with autoscaled nodes                       | client → **local** node pod via `kube-pod://`                                                 | one engine per node whether used or not                                                                                   |
+| **StatefulSet r=2 + headless Svc** ← *platform's choice*   | each engine multiplexes sessions; platform spreads runs across both by uniform random pick   | current scaffold uses disposable `emptyDir` cache; pod loss loses it       | `tcp://<pod-ip>:1234` resolved from headless A-records, via `dagger.WithRunnerHost` per run   | scale by editing `replicas` (auto-detected from DNS); cache fragmentation is the dumb-dispatch tradeoff                   |
+| **Deployment, N replicas + Service**                       | per-replica                                                                                  | fragmented                                                                 | round-robin Service                                                                           | **BROKEN** without session affinity — see pitfall; sticky-by-ClientIP pins all to one engine when the client is one pod   |
+| **On-demand / ephemeral** (Karpenter + Argo CD)            | per-job engine                                                                               | poor cross-run (cold)                                                      | shared `/var/run/buildkit` volume per node                                                    | scales to zero (~80% cost cut reported); cold cache                                                                       |
 
 Upstream's on-demand pattern dedicates nodes per Dagger *version* (taints/labels), runs a
 single unconstrained engine per node accepting many runners, and lets Karpenter add/remove
@@ -102,5 +106,3 @@ a round-robin Service VIP.
 - [On-demand engines: Argo CD + EKS + Karpenter](https://dagger.io/blog/argo-cd-kubernetes/)
 - [Operator manual (d7yxc)](https://github.com/dagger/dagger/blob/main/core/docs/d7yxc-operator_manual.md)
 - [Releases](https://github.com/dagger/dagger/releases)
-</content>
-</invoke>

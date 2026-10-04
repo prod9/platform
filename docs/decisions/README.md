@@ -3,8 +3,9 @@
 **Point-in-time defenses against future re-litigation** — rulings made on
 a specific date for a specific question, recorded so the same argument
 doesn't have to be re-fought next quarter. Each entry is frozen at the
-moment of decision; if a later ruling reverses it, write a new dated
-decision that links back and mark the old one `superseded`.
+moment of decision; if a later ruling reverses it, write a new dated decision that
+links back and mark the old decision's index entry `superseded`. Preserve the frozen
+decision body; current behavior belongs in the specs.
 
 **Spec first — always.** Never write a decision here before updating [`../spec/`](../spec/)
 to the design it rules on. The spec is the source of truth for current state; this log is
@@ -59,7 +60,8 @@ the part that prevents re-litigation.
 
 - **accepted** — active, follow this decision
 - **superseded** — replaced by a newer decision (link to it)
-- **revised** — updated in-place with new context
+- **revised** — historical entries carrying an addendum written before the frozen-record
+  convention; new context now goes in a new decision or the current spec
 
 ## Index
 
@@ -84,6 +86,8 @@ Newest first.
 - [2026-06-26 — Repo stays private for now](2026-06-26-repo-stays-private.md)
 - [2026-06-24 — Split build and server log channels](2026-06-24-split-build-and-server-log-channels.md)
 - [2026-06-23 — Render via the linked CUE engine](2026-06-23-render-via-linked-cue-engine.md)
+  *(linked-engine ruling stands; `ops` naming and tag injection are historical — see
+  [current architecture](../spec/architecture.md))*
 - [2026-06-22 — Flat baseline, install-time selection](2026-06-22-flat-baseline-install-time-selection.md) *(picker half superseded by 2026-07-11)*
 - [2026-06-21 — Dagger engine: StatefulSet + TCP](2026-06-21-dagger-engine-statefulset-tcp.md)
 - [2026-06-20 — DSL: focus scope, strict values](2026-06-20-dsl-focus-scope-strict-values.md)
@@ -91,8 +95,11 @@ Newest first.
 - [2026-06-17 — Opinionated appliance, embedded init](2026-06-17-opinionated-appliance-embedded-init.md) *(rulings stand; `bootstrap`/`bootstrapper` mechanics superseded)*
 - [2026-06-17 — Generic ops vars, single config](2026-06-17-generic-ops-vars-single-config.md)
 - [2026-06-16 — Renderer: cue export, not timoni](2026-06-16-renderer-cue-export-not-timoni.md)
+  *(external `cue` invocation superseded by the 2026-06-23 linked-engine decision)*
 - [2026-06-14 — Secrets: platform-pull](2026-06-14-secrets-platform-pull.md)
 - [2026-06-14 — Pull-based GitOps: timoni + Flux](2026-06-14-pull-based-gitops-timoni-flux.md)
+  *(pull-based Flux delivery stands; timoni, `ops`, and oras mechanics superseded by
+  the 2026-06-16, 2026-06-23, and 2026-07-05 renderer/image decisions)*
 - [2026-06-14 — Platform in-cluster control plane](2026-06-14-platform-in-cluster-control-plane.md)
 - [2026-06-14 — Monorepo and Svelte UI](2026-06-14-monorepo-and-svelte-ui.md)
 - [2026-06-14 — Identity and linked accounts](2026-06-14-identity-and-linked-accounts.md)

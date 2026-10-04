@@ -6,10 +6,9 @@ managed local worktree; its session verbs load configuration, interpret modules,
 on Dagger runners, execute steps, and optionally publish. It knows nothing about the web
 application that invokes it ([`architecture.md`](architecture.md)).
 
-The source-input and paired-observer contracts below are the **Phase 2 implementation
-target**. All observer consumers convert together with module execution and lifecycle
-reads; a partially converted interface is not a usable candidate. The server's later
-publication-policy rollout does not change these engine contracts.
+The source-input and paired-observer contracts below are **implemented in Phase 2**,
+together with module execution, lifecycle reads, and every CLI observer consumer. The
+server's deferred publication-policy rollout does not change these engine contracts.
 
 ## A `*dagger.Client` is a session, not a connection
 
@@ -267,8 +266,9 @@ URL keys and mirror/worktree manipulation stay inside `engine`; callers receive 
 path or worktree identifier knob.
 
 `CHECKOUT_CACHE` sets the checkout cache root. Unset, `Checkout` uses the operating
-system's per-user cache directory plus `platform`; the worker deployment sets it to
-`/var/cache/platform`. This is engine configuration, not a `Source` field, so adapters do
+system's per-user cache directory plus `platform`; the server deployment convention
+requires `/var/cache/platform` for the worker ([installation.md](installation.md)).
+This is engine configuration, not a `Source` field, so adapters do
 not choose storage per operation.
 
 ### One observer, paired phases

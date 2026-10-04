@@ -4,6 +4,12 @@ Status: **draft.** This is the shared presentation contract for platform's web U
 CLI. It governs the meaning carried across those interfaces; their layouts and interaction
 mechanics remain in their own specs.
 
+The canonical-value visibility rule below remains a draft proposal where it conflicts
+with the implemented repos landing presentation in [webui.md](webui.md#pages): that
+page uses outcome marks without repeated status text and abbreviated timestamps. This
+conflict requires a presentation ruling before either contract can prescribe a change
+to that page.
+
 Platform is a technical product for operators working directly with its configuration,
 records, builds, and delivery machinery. Its interfaces expose that system rather than
 translate it into a second, friendlier vocabulary.

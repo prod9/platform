@@ -18,8 +18,8 @@ without the ftdetect.
 A `.platform` file is a straight-line script over one working buffer — no branches, no
 loops, no variables of its own. `download` fills the buffer with a foreign manifest
 bundle; edits decode it lazily into a YAML document stream; `emit` writes the stream out.
-`\(var)` interpolation (from `platform.toml` `[vars]`) is the only dynamic input, and an
-undefined var is a hard error at render time — never a silent empty.
+Values come from `platform.toml` `[vars]`, through variable references or quoted
+interpolation; an undefined variable is a hard error at render time.
 
 The usual shape:
 
@@ -39,15 +39,16 @@ missing maps are created, `[N]` extends lists.
 
 ## The `set` family — existing implementation
 
-All three run per focused node; V is a string after interpolation (quote numeric-looking
-values — YAML output keeps them strings).
+All four run per focused node. Use quoted string values in the examples below; the
+[DSL value grammar](../spec/manifest-patch-dsl.md) defines typed variable references and
+interpolation, rather than this guide restating those rules.
 
-| Verb                   | Writes when…                          | Keyed on          |
-| ---------------------- | ------------------------------------- | ----------------- |
-| `set PATH V`           | always                                | —                 |
-| `set-if-absent PATH V` | PATH has no value yet                 | **target** state  |
-| `append PATH V`        | always (creates the list if missing)  | —                 |
-| `append-if-absent PATH V` | V not already in the list          | **target** state  |
+| Verb                      | Writes when…                          | Keyed on          |
+| ------------------------- | ------------------------------------- | ----------------- |
+| `set PATH V`              | always                                | —                 |
+| `set-if-absent PATH V`    | PATH has no value yet                 | **target** state  |
+| `append PATH V`           | always (creates the list if missing)  | —                 |
+| `append-if-absent PATH V` | V not already in the list             | **target** state  |
 
 In the implementation (`dsl/parse.go`, the `exec` switch) each verb is a small
 closure over the shared `execValueEdit` walk — `set-if-absent` is literally `set` behind

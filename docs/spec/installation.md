@@ -1,11 +1,11 @@
 # Installation
 
-Status: **partly built; composition rework intended.** The installer fragment, the
-`GET /api/installation` state surface, the migrations, GitHub App, and credentials
+Status: **implemented; fresh-install live verification deferred.** The installer fragment,
+`GET /api/installation` state surface, migrations, GitHub App, and credentials
 resources, the org-owner claim, and the wizard installation page
-(`webui/src/routes/installation/+page.svelte`) ship today (`srv/install`, `srv.Router`). The
-permanently composed fx application and request-time install gate specified below are the
-intended replacement for the current boot-selected router. The auth model this sits on is
+(`webui/src/routes/installation/+page.svelte`) ship today (`srv/install`, `srv.App`). The
+permanently composed fx application and request-time install gate specified below also
+ship. Full GitHub Setup URL verification awaits a fresh installation. The auth model is
 frozen in
 [platform-server-github-app-zero-rbac](../decisions/2026-06-29-platform-server-github-app-zero-rbac.md);
 the route surface lives in [platform-server.md](platform-server.md).
@@ -34,8 +34,10 @@ a missing key produces an immediate error before HTTP serving. The deployment al
 `DAGGER_ENGINE` — plain runtime config on both srv and the worker: the Dagger
 engine pool's headless-Service DNS name, spread across pods by k8s DNS itself,
 so no engine binding is stored server-side.
-The worker sets `CHECKOUT_CACHE=/var/cache/platform`, where the deployment mounts its
-writable checkout-cache volume. Other engine consumers default to the operating system's
+The worker deployment must set `CHECKOUT_CACHE=/var/cache/platform` and mount its
+writable checkout-cache volume there. The embedded baseline does not scaffold that
+worker workload ([scaffolding.md](scaffolding.md)); its setup is operator-owned.
+Other engine consumers default to the operating system's
 per-user cache directory, so the same `Checkout` surface works from the CLI without
 server-specific filesystem assumptions.
 
@@ -304,9 +306,9 @@ troubled read — no answer, or a non-404 refusal — renders as a load error.
 
 ## First-install gate — no secret, org-owner claim
 
-There is **no install secret**. Install endpoints require GitHub auth, and the
-authenticating (first) user must be an **org owner** of the org the server binds
-to. That user becomes the seed admin.
+There is **no install secret**. Bootstrap settings and migration endpoints require no
+session while unclaimed; the final claim requires GitHub authentication and an **org
+owner** of the org the server binds to. That user becomes the seed admin.
 
 No heavier scheme is warranted: platform srv is an internal tool on an
 unadvertised domain — its being live is not discoverable, so the org-owner check

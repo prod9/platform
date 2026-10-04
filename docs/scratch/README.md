@@ -48,10 +48,12 @@ These are dated reference records, not an execution queue. Current design lives 
 - [2026-07-21 — audit changes walk](2026-07-21-audit-changes.md) — original findings,
   retained as evidence rather than current defects
 
-**Exploration and handoff records** — completion or adoption is not established here:
+**Completed plans and retained explorations** — use each record's status and current
+spec pointers; none grants authority to resume work:
 
 - [2026-09-27 — Explicit prerelease plan](2026-09-27-prerelease-plan.md) — authorized
-  manual SemVer names, stable bump behavior, and launcher compatibility
+  manual SemVer names, stable bump behavior, and launcher compatibility; completed in
+  `496eaab`, `8621634`, and `55d9292`
 - [2026-09-13 — Module-job implementation plan](2026-09-13-module-job-plan.md) —
   retained Phase 2 candidate, verification, and explicit stop boundary
 - [2026-07-17 — containerd vs the Dagger engine](2026-07-17-containerd-vs-dagger-engine.md)

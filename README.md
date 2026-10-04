@@ -70,7 +70,7 @@ release procedure does not restrict what consuming repositories may build, tag, 
 
 ## Testing
 
-- `go test ./...` — hermetic unit tests; also run inside every image build (green tests
-  are a hard, non-configurable gate of every build).
+- `go test ./...` — the default hermetic suite; Go frameworks also run their module's
+  tests inside image builds as a hard, non-configurable gate.
 - `./test.sh` — blackbox smoke against the testbeds (needs Docker); a drift detector
   recording golden output in `tests.lock.yml`.

@@ -27,10 +27,11 @@ A static server is required — htmx fetches fragments over HTTP, so opening `in
 via `file://` fails.
 
 ```sh
-python3 -m http.server -d www 8000   # then open http://localhost:8000
-# or: mongoose       (run inside www/)
-# or: npx serve www
+uv run --no-project python -m http.server --bind 0.0.0.0 -d www "$DOCS_PREVIEW_PORT"
 ```
+
+The operator starts the server and sets `DOCS_PREVIEW_PORT` to the port assigned by the
+control agent within 8000–9000. Open the host's tailnet address at that port.
 
 ## Publish
 

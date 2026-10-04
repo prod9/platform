@@ -5,8 +5,8 @@ for whoever (human or agent) *uses* what this repo produces. Answers "how do I
 accomplish X?"
 
 A guide is goal-driven: it walks one real task start to finish. Enumerating
-facts (every flag, every config key) is `../vendor/`. Explaining how the
-system fits together or why it's shaped that way is `../spec/`.
+our own flags or config keys belongs in `../spec/`; third-party lookup belongs in
+`../vendor/`. Explaining how the system fits together belongs in `../spec/`.
 
 ## Format
 
