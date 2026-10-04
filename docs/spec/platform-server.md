@@ -957,7 +957,7 @@ module event does not prove the job mechanism completed successfully.
 
 ## Sequencing
 
-The current candidate includes Phase 1 admission and queued reads together with Phase 2
+The module-job candidate includes Phase 1 admission and queued reads together with Phase 2
 module execution, paired lifecycle events, full result folds, per-module credentials, and
 all CLI Observer consumers. These capabilities must compile and pass their verification
 gates before the candidate is complete. Stored publication-policy execution (Phase 3),
@@ -973,10 +973,13 @@ Manual module selection, the immutable manifest snapshot, module-based execution
 engine attribution on `config_done` have shipped with the Phase 2 candidate. The intended
 server surface is not complete: no read resolves a ref and its manifest modules before
 queueing, engine reads do not exist, the stored publish policy is not yet applied, and
-repository/engine dynamic routes have no truthful fallback classifier. The repository
-landing, onboarding, and System pages have real client reads in source, but the live
-product does not yet present the complete repository experience; the repository build
-feed, manual trigger, build detail, and engine pages remain mocks.
+the complete repository/engine dynamic-route surface remains later work. The bounded
+[first-build UI slice](webui.md#first-build-slice) adds a repository root page with the
+existing whole-repository manual trigger and explicit status refresh before the live
+trial. It adds no retry action or new API operation. The repository landing, onboarding,
+and System pages have real client reads in source; the complete repository feed and
+manual-trigger wizard remain the product target, and build detail and engine pages remain
+mocks.
 
 The next planning pass maps the complete CI/CD experience over `platform srv` and its
 existing tooling into implementation slices. It starts from the live product experience,

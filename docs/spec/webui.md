@@ -2,14 +2,14 @@
 
 Status: accepted intended surface; implementation is partial. The repository landing,
 repository-onboarding, and System pages have real client reads in source; onboarding
-presents the resolved server publish policy, and registration persists it. The repository
-build feed, manual trigger, build detail, and engine pages remain mock presentations, and
-the live product does not yet deliver the complete repository experience this spec
-describes.
+presents the resolved server publish policy, and registration persists it. The complete
+repository feed and manual-trigger wizard remain the product target; build detail and
+engine pages remain mock presentations. The live product does not yet deliver the
+complete repository experience this spec describes.
 The supporting server surface is partial too: repository/build reads, manual triggers with
 module selection, build detail with engine attribution, and steps exist; pre-queue
-ref/module resolution, engine reads, and truthful repository/engine dynamic-route
-classification do not. Shared visual primitives (`PageHeader`, `SectionHeader`, `Facts`,
+ref/module resolution, engine reads, and the complete repository/engine route surface
+remain later work. Shared visual primitives (`PageHeader`, `SectionHeader`, `Facts`,
 `SignalMark`, and `OutcomeMark`) exist; shared feed rows and the terminal pane remain
 unbuilt.
 
@@ -73,7 +73,8 @@ being pasted without its repo context.
 Every dynamic route here is a shape `srv`'s fallback classifier must know
 ([platform-server.md](platform-server.md), "The status of a page is the server's
 answer"): `/builds/{id}`, `/repos/{owner}/{repo}/…`, and `/engines/{addr}` all serve the
-fallback at the status the record deserves. Only `/builds/{id}` is implemented today.
+fallback at the status the record deserves. The first-build slice adds the repository
+root route alongside `/builds/{id}`; nested repository and engine routes remain later work.
 The mock tree stands in with static paths (`/builds/`, `/engines/instance/`); the dynamic
 shapes above are the target.
 
@@ -111,6 +112,38 @@ carries the App `installation_id` from the setup landing URL because no bound in
 record exists yet.
 
 ## Pages
+
+### First-build slice
+
+The immediate repository surface is bounded to starting one whole-repository build and
+reading its result on `/repos/{owner}/{repo}/`. This is the accepted implementation scope
+before the operator's live build trial; the complete feed and wizard below remain the
+product target. Chakrit's scope:
+
+> "is that too much. can you get just enough to just start first build? and pretty sure
+> we havn't talked about retry logic that much"
+
+The repository page uses the existing `GET /api/repos/{owner}/{repo}/builds` and
+`POST /api/builds` operations. It presents an initially empty ref field with an example
+such as `refs/heads/main`; the operator enters a ref and **Start build** sends `owner`,
+`repo`, and `ref`, omitting `modules` so every module at the server-resolved commit is
+selected. The page disables submission until the session and repository read have
+completed, and while a request is in flight. It never invents a default branch.
+
+A successful response appears immediately on the same page with its build id, canonical
+status, exact ref and SHA, trigger, timestamps, and module statuses and errors. Publication
+image and hash appear only when present in the response. **Refresh** reads current build
+states; the bounded slice adds no polling, step-output pane, module picker, pre-queue
+resolution, or retry action. Feed rows do not link into the mock build-detail page.
+Loading, empty, refused, and offline outcomes stay distinct; a failed refresh retains
+the last successful read with an explicit stale-state message. A failed submission never
+creates a success message or an automatic second request.
+
+The server recognizes exactly `/repos/{owner}/{repo}` with an optional trailing slash,
+applies the installation and repository-read gates, then checks registration before
+serving the SPA shell. Missing or inaccessible repositories return `404`; a missing
+session returns `401`; unexpected lookup failures return `500`. Extra path segments
+remain unknown routes. No database migration or new API operation is needed.
 
 **Repos landing (`/`).** One block per registered repo — the nested-feed shape: the
 repo's name heads the block, its last three builds render as sub-rows, and the block links
