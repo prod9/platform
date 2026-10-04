@@ -99,8 +99,8 @@ func TestUIUnknownPathIsFallbackAt404(t *testing.T) {
 	require.Contains(t, resp.Body.String(), "<html")
 }
 
-// The dynamic /builds/{id} route answers with the status the record deserves: 404 when
-// the build does not exist, 200 when it does — the fallback supplies only the body.
+// The build page shares the API's session and repository-read boundary.
+// See docs/spec/webui.md §Recorded build-detail slice.
 func TestUIBuildRouteStatusFollowsTheRecord(t *testing.T) {
 	ctx := srvtest.SetupDB(t)
 	seedClaim(t, ctx)
@@ -120,17 +120,42 @@ func TestUIBuildRouteStatusFollowsTheRecord(t *testing.T) {
 		Ref: "refs/tags/v1.2.3", SHA: "abc123", ManifestRaw: raw, Manifest: *manifest}
 	require.NoError(t, create.Execute(ctx, build))
 
+	for _, login := range []*auth.CreateLogin{
+		{Account: auth.GitHubAccount{ID: 12345, Login: "reader", Email: "reader@example.com"},
+			GitHubToken: "gho_reader", SessionToken: "reader-session", ExpiresAt: time.Now().Add(time.Hour),
+			Repositories: []github.Repo{{ID: 1, Owner: "prod9", Name: "app", Permission: github.RepoRead}}},
+		{Account: auth.GitHubAccount{ID: 23456, Login: "outsider", Email: "outsider@example.com"},
+			GitHubToken: "gho_outsider", SessionToken: "outsider-session", ExpiresAt: time.Now().Add(time.Hour)},
+	} {
+		require.NoError(t, login.Execute(ctx, &auth.User{}))
+	}
+
 	router := uiRouter(t)
-	found := serve(ctx, router, fmt.Sprintf("/builds/%d", build.ID))
-	require.Equal(t, http.StatusOK, found.Code)
-	require.Contains(t, found.Body.String(), "<html")
+	for _, test := range []struct {
+		name, path, session string
+		status              int
+	}{
+		{"signed out", fmt.Sprintf("/builds/%d", build.ID), "", http.StatusUnauthorized},
+		{"authorized", fmt.Sprintf("/builds/%d", build.ID), "reader-session", http.StatusOK},
+		{"trailing slash", fmt.Sprintf("/builds/%d/", build.ID), "reader-session", http.StatusOK},
+		{"missing", "/builds/999999", "reader-session", http.StatusNotFound},
+		{"inaccessible", fmt.Sprintf("/builds/%d", build.ID), "outsider-session", http.StatusNotFound},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			resp := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodGet, test.path, nil).WithContext(ctx)
+			if test.session != "" {
+				req.AddCookie(&http.Cookie{Name: "platform_session", Value: test.session})
+			}
+			router.ServeHTTP(resp, req)
 
-	slashed := serve(ctx, router, fmt.Sprintf("/builds/%d/", build.ID))
-	require.Equal(t, http.StatusOK, slashed.Code)
-
-	missing := serve(ctx, router, "/builds/999999")
-	require.Equal(t, http.StatusNotFound, missing.Code)
-	require.Contains(t, missing.Body.String(), "<html")
+			require.Equal(t, test.status, resp.Code)
+			if test.status == http.StatusOK {
+				require.Contains(t, resp.Header().Get("Content-Type"), "text/html")
+				require.Contains(t, resp.Body.String(), "<html")
+			}
+		})
+	}
 }
 
 // The first-build page exposes registered repositories only to their authorized session.

@@ -123,14 +123,10 @@ func (UI) Mount(_ *config.Source, router chi.Router) error {
 			}
 		}
 		if id, ok := buildRoute(req.URL.Path); ok {
-			exists, err := builds.Exists(req.Context(), id)
-			if err != nil {
-				render.Error(resp, req, 500, err)
+			if _, readable := builds.RequireRead(resp, req, strconv.FormatInt(id, 10)); !readable {
 				return
 			}
-			if exists {
-				status = http.StatusOK
-			}
+			status = http.StatusOK
 		}
 
 		resp.Header().Set("Content-Type", "text/html; charset=utf-8")

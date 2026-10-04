@@ -52,3 +52,42 @@ export function ranFor(build) {
 	const minutes = Math.floor(seconds / secondsPerMinute);
 	return `${minutes}m ${seconds % secondsPerMinute}s`;
 }
+
+export function stepStatus(step, moduleStatus) {
+	if (recordedTime(step.finished_at) !== null) {
+		return step.error === "" ? "succeeded" : "failed";
+	}
+	if (["succeeded", "failed"].includes(moduleStatus)) {
+		return "incomplete";
+	}
+
+	return "running";
+}
+
+export function groupBuildSteps(build, steps) {
+	const recorded = steps.map((step, recordedOrder) => ({ ...step, recordedOrder }));
+	return build.modules.map((module) => ({
+		...module,
+		steps: recorded
+			.filter((step) => step.build_module_id === module.build_module_id)
+			.map((step) => ({ ...step, status: stepStatus(step, module.status) })),
+	}));
+}
+
+export function selectBuildStep(groups, selected) {
+	const steps = groups.flatMap((module) => module.steps);
+	if (selected !== null) {
+		const retained = steps.find((step) => (
+			step.build_module_id === selected.build_module_id &&
+			step.step === selected.step &&
+			step.started_at === selected.started_at
+		));
+		if (retained !== undefined) {
+			return retained;
+		}
+	}
+
+	return steps.reduce((first, step) => (
+		first === null || step.recordedOrder < first.recordedOrder ? step : first
+	), null);
+}

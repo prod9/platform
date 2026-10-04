@@ -6,11 +6,9 @@
 package builds
 
 import (
-	"context"
 	"errors"
 
 	"fx.prodigy9.co/app"
-	"fx.prodigy9.co/data"
 	"platform.prodigy9.co/srv/install"
 )
 
@@ -43,12 +41,3 @@ const (
 // and differs only in how it was authorized, so the vocabulary is closed here rather than
 // growing per caller.
 type Trigger string
-
-// Exists reports whether a build row exists. It is the truthful-status lookup for the
-// webui's /builds/{id} dynamic route — the server decides the page's status, not the
-// browser (spec §The status of a page is the server's answer).
-func Exists(ctx context.Context, id int64) (bool, error) {
-	var found bool
-	err := data.Get(ctx, &found, `SELECT EXISTS (SELECT 1 FROM builds WHERE id = $1)`, id)
-	return found, err
-}

@@ -135,7 +135,7 @@
 			{#if startError}
 				<p class="error mono" role="alert">Build not confirmed: {startError}</p>
 			{:else if acceptedID !== 0}
-				<p class="mono" role="status">Build #{acceptedID} accepted.</p>
+				<p class="mono" role="status">Build <a href={`/builds/${acceptedID}/`}>#{acceptedID}</a> accepted.</p>
 			{/if}
 		</Panel>
 
@@ -166,6 +166,7 @@
 		{:else}
 			{#each builds as build (build.id)}
 				<Panel label={`Build #${build.id}`}>
+					<a class="mono" href={`/builds/${build.id}/`}>Build #{build.id}</a>
 					<div class="outcome mono"><OutcomeMark status={build.status} /> {build.status}</div>
 					<Facts measure="compact">
 						<dt class="mono">Ref</dt><dd class="mono">{build.ref}</dd>

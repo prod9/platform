@@ -276,7 +276,7 @@ func renderList(resp http.ResponseWriter, req *http.Request, builds []*Build) {
 }
 
 func get(resp http.ResponseWriter, req *http.Request) {
-	build, ok := loadBuild(resp, req)
+	build, ok := RequireRead(resp, req, chi.URLParam(req, "id"))
 	if !ok {
 		return
 	}
@@ -300,7 +300,7 @@ type stepResponse struct {
 }
 
 func listSteps(resp http.ResponseWriter, req *http.Request) {
-	build, ok := loadBuild(resp, req)
+	build, ok := RequireRead(resp, req, chi.URLParam(req, "id"))
 	if !ok {
 		return
 	}
@@ -325,15 +325,15 @@ func listSteps(resp http.ResponseWriter, req *http.Request) {
 	render.JSON(resp, req, out)
 }
 
-// loadBuild gates, resolves {id}, and reads the row — the shared
-// front half of the detail and steps reads. ok=false means a response was written.
-func loadBuild(resp http.ResponseWriter, req *http.Request) (*Build, bool) {
+// RequireRead applies the same session, lookup, and repository-read boundary to HTML
+// and API build reads. A false result means the failure response was already written.
+func RequireRead(resp http.ResponseWriter, req *http.Request, rawID string) (*Build, bool) {
 	if _, authed := auth.RequireUser(resp, req); !authed {
 		return nil, false
 	}
 	ctx := req.Context()
 
-	id, err := strconv.ParseInt(chi.URLParam(req, "id"), 10, 64)
+	id, err := strconv.ParseInt(rawID, 10, 64)
 	if err != nil {
 		render.Error(resp, req, 404, httperrors.ErrNotFound)
 		return nil, false
