@@ -997,9 +997,11 @@ the complete repository/engine dynamic-route surface remains later work. The bou
 [first-build UI slice](webui.md#first-build-slice) adds a repository root page with the
 existing whole-repository manual trigger and explicit status refresh before the live
 trial. It adds no retry action or new API operation. The repository landing, onboarding,
-and System pages have real client reads in source; the complete repository feed and
-manual-trigger wizard remain the product target, and build detail and engine pages remain
-mocks.
+and System pages have real client reads in source; the
+[recorded build-detail slice](webui.md#recorded-build-detail-slice) reads actual module
+results and captured step output with explicit Refresh and shared page/API authorization.
+The complete repository feed and manual-trigger wizard remain the product target, and
+engine pages remain mocks. Detail polling and retry controls remain later work.
 
 The next planning pass maps the complete CI/CD experience over `platform srv` and its
 existing tooling into implementation slices. It starts from the live product experience,

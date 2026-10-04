@@ -3,15 +3,16 @@
 Status: accepted intended surface; implementation is partial. The repository landing,
 repository-onboarding, and System pages have real client reads in source; onboarding
 presents the resolved server publish policy, and registration persists it. The complete
-repository feed and manual-trigger wizard remain the product target; build detail and
-engine pages remain mock presentations. The live product does not yet deliver the
+repository feed and manual-trigger wizard remain the product target; build detail uses
+recorded results and step output, while engine pages remain mock presentations. The live
+product does not yet deliver the
 complete repository experience this spec describes.
 The supporting server surface is partial too: repository/build reads, manual triggers with
 module selection, build detail with engine attribution, and steps exist; pre-queue
 ref/module resolution, engine reads, and the complete repository/engine route surface
 remain later work. Shared visual primitives (`PageHeader`, `SectionHeader`, `Facts`,
-`SignalMark`, and `OutcomeMark`) exist; shared feed rows and the terminal pane remain
-unbuilt.
+`SignalMark`, and `OutcomeMark`) exist; shared feed rows remain unbuilt. The build-detail
+terminal owns presentation of captured step output.
 
 The webui is the platform server's front end: a SvelteKit app built with
 `adapter-static`, prerendered into `webui/build/` and embedded into the `platform`
@@ -134,7 +135,8 @@ A successful response appears immediately on the same page with its build id, ca
 status, exact ref and SHA, trigger, timestamps, and module statuses and errors. Publication
 image and hash appear only when present in the response. **Refresh** reads current build
 states; the bounded slice adds no polling, step-output pane, module picker, pre-queue
-resolution, or retry action. Feed rows do not link into the mock build-detail page.
+resolution, or retry action. Build ids link into the recorded build-detail page described
+below.
 Loading, empty, refused, and offline outcomes stay distinct; a failed refresh retains
 the last successful read with an explicit stale-state message. A failed submission never
 creates a success message or an automatic second request.
@@ -144,6 +146,44 @@ applies the installation and repository-read gates, then checks registration bef
 serving the SPA shell. Missing or inaccessible repositories return `404`; a missing
 session returns `401`; unexpected lookup failures return `500`. Extra path segments
 remain unknown routes. No database migration or new API operation is needed.
+
+### Recorded build-detail slice
+
+`/builds/{id}` reads the actual route id through `GET /api/builds/{id}` and
+`GET /api/builds/{id}/steps`; no sample build, step, actor, attempt, or output is shown.
+Repository build rows link to this route, and its repository heading links back to the
+repository page. The page waits for the shell's session checks before reading.
+
+The header and facts show the canonical build id, repository, status, ref, full SHA,
+trigger, user id, and recorded timestamps. Retry ancestry is a fact when present, not a
+retry action. Modules retain their API order, including queued modules with no steps;
+their results include errors, image/hash, worker claim and engine attribution, and last
+recorded event when available. Empty strings and Go zero times do not become invented
+values or durations.
+
+The navigator groups the flat recorded steps by build-module id, preserving their start
+order and separating identical step names in different modules. Closed steps show
+succeeded or failed according to their recorded error. Unclosed steps show running while
+their module is nonterminal and incomplete after a terminal module result; neither case
+invent a finish time. Selection identifies the module and the step's name and start time,
+survives refresh while that observation remains present, and initially chooses the first
+recorded step. No steps yet is distinct from missing output for a recorded step.
+
+The terminal presents captured stdout and stderr as separately labeled, escaped text,
+with the recorded step error alongside them. Separate buffers do not imply chronological
+interleaving. Empty output is stated honestly; output is available only after the server
+has persisted it, and this page adds no live streaming.
+
+**Refresh** re-reads build results and steps without overlapping requests. Refused,
+offline, initial-loading, and empty outcomes stay distinct. A failed refresh retains the
+last successful snapshot with a stale-state message. Partial reads must not present new
+metadata alongside old step output as a fresh snapshot. Route changes discard prior
+build data and outstanding results. This slice adds no polling or retry control; the
+complete target below retains those as later work.
+
+The HTML route and both API reads share the build fragment's authorization and lookup
+boundary: a missing session returns `401`, and a missing or inaccessible build returns
+`404`. No new API operation or database migration is required.
 
 **Repos landing (`/`).** One block per registered repo — the nested-feed shape: the
 repo's name heads the block, its last three builds render as sub-rows, and the block links
@@ -199,8 +239,9 @@ whole-repo; selection is the manual trigger's alone
 **Build detail (`/builds/{id}`).** Two instruments. The **navigator**: facts up top,
 then modules and steps on one shared three-column grid — mark gutter, name, time — so
 every row aligns whatever its depth. The **terminal**: the selected step's captured
-output in a night-ground log pane. The page polls while the build is live; retry
-re-posts the same repo + ref as a new build.
+output in a night-ground log pane. The recorded-detail slice above implements explicit
+Refresh. Polling while a build is live and retrying the same repo + ref as a new build
+remain outside that slice.
 
 **Engine fleet (`/engines/`).** The fleet as the same nested feed the repo list uses:
 one block per resolved instance — reachability leading the header, its facts and current
