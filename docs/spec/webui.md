@@ -5,8 +5,7 @@ repository-onboarding, and System pages have real client reads in source; onboar
 presents the resolved server publish policy, and registration persists it. The complete
 repository feed and manual-trigger wizard remain the product target; build detail uses
 recorded results and step output, while engine pages remain mock presentations. The live
-product does not yet deliver the
-complete repository experience this spec describes.
+product does not yet deliver the complete repository experience this spec describes.
 The supporting server surface is partial too: repository/build reads, manual triggers with
 module selection, build detail with engine attribution, and steps exist; pre-queue
 ref/module resolution, engine reads, and the complete repository/engine route surface
@@ -165,7 +164,7 @@ The navigator groups the flat recorded steps by build-module id, preserving thei
 order and separating identical step names in different modules. Closed steps show
 succeeded or failed according to their recorded error. Unclosed steps show running while
 their module is nonterminal and incomplete after a terminal module result; neither case
-invent a finish time. Selection identifies the module and the step's name and start time,
+invents a finish time. Selection identifies the module and the step's name and start time,
 survives refresh while that observation remains present, and initially chooses the first
 recorded step. No steps yet is distinct from missing output for a recorded step.
 
@@ -285,7 +284,7 @@ read failing *is* the reachability signal.
 Four pieces repeat across the pages. The **outcome mark** is implemented by `OutcomeMark`
 over `SignalMark`; the **kv list** is implemented by `Facts` (muted key, ink value — the
 settings and facts shape). The **feed row** (status-led row with its source timestamp and
-optional derived hints) and the **terminal pane** (the night-ground log view the build
-detail and the cluster-view slice's log reads share) await extraction when product wiring
-lands. Mock notes describe those pending pieces rather than overriding the implemented
-shared primitives.
+optional derived hints) remains pending. `TerminalPane` owns the build detail's labeled
+stdout/stderr buffers and recorded error, with escaped output in a night-ground log view.
+The cluster-view slice's live log reads remain deferred. Mock notes describe pending
+pieces rather than overriding the implemented shared primitives.
