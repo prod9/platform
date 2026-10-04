@@ -5,7 +5,7 @@
 // date the server means.
 const earliestReal = 2000;
 
-function stamped(value) {
+export function recordedTime(value) {
 	if (!value) {
 		return null;
 	}
@@ -21,9 +21,9 @@ function stamped(value) {
 // the compact feed.
 export function lastActivity(build) {
 	const activities = [
-		{ label: "finished", at: stamped(build.finished_at) },
-		{ label: "started", at: stamped(build.started_at) },
-		{ label: "created", at: stamped(build.created_at) },
+		{ label: "finished", at: recordedTime(build.finished_at) },
+		{ label: "started", at: recordedTime(build.started_at) },
+		{ label: "created", at: recordedTime(build.created_at) },
 	];
 	const activity = activities.find(({ at }) => at !== null);
 	if (activity === undefined) {
@@ -38,8 +38,8 @@ const secondsPerMinute = 60;
 
 // ranFor is elapsed execution time, blank until both ends are real.
 export function ranFor(build) {
-	const from = stamped(build.started_at);
-	const to = stamped(build.finished_at);
+	const from = recordedTime(build.started_at);
+	const to = recordedTime(build.finished_at);
 	if (from === null || to === null) {
 		return "";
 	}

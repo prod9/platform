@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"platform.prodigy9.co/srv/auth"
 	"platform.prodigy9.co/srv/builds"
+	"platform.prodigy9.co/srv/github"
 	"platform.prodigy9.co/srv/repos"
 	"platform.prodigy9.co/srv/srvtest"
 )
@@ -130,6 +131,68 @@ func TestUIBuildRouteStatusFollowsTheRecord(t *testing.T) {
 	missing := serve(ctx, router, "/builds/999999")
 	require.Equal(t, http.StatusNotFound, missing.Code)
 	require.Contains(t, missing.Body.String(), "<html")
+}
+
+// The first-build page exposes registered repositories only to their authorized session.
+// See docs/spec/webui.md §First-build slice.
+func TestUIRepoRouteStatusFollowsRegistrationAndAccess(t *testing.T) {
+	ctx := srvtest.SetupDB(t)
+	seedClaim(t, ctx)
+	const token = "repository-page-session"
+	user := &auth.User{}
+	login := &auth.CreateLogin{
+		Account:     auth.GitHubAccount{ID: 12345, Login: "octocat", Email: "octo@example.com"},
+		GitHubToken: "gho_usertoken", SessionToken: token, ExpiresAt: time.Now().Add(time.Hour),
+		Repositories: []github.Repo{
+			{ID: 1, Owner: "prod9", Name: "app", Permission: github.RepoRead},
+			{ID: 2, Owner: "prod9", Name: "unregistered", Permission: github.RepoRead},
+		},
+	}
+	require.NoError(t, login.Execute(ctx, user))
+	const raw = "repository = 'github.com/prod9/app'\n[modules.api]\nframework = 'go/basic'\n"
+	manifest, err := repos.ParseManifest([]byte(raw), "app")
+	require.NoError(t, err)
+	for _, name := range []string{"app", "private"} {
+		registration := &repos.RegisterRepo{Owner: "prod9", Repo: name, UserID: user.ID,
+			ManifestSHA: "abc123", ManifestRaw: raw, Manifest: *manifest}
+		require.NoError(t, registration.Execute(ctx, nil))
+	}
+
+	router := uiRouter(t)
+	for _, test := range []struct {
+		path   string
+		status int
+	}{
+		{"/repos/prod9/app", http.StatusOK},
+		{"/repos/prod9/app/", http.StatusOK},
+		{"/repos/PROD9/APP/", http.StatusOK},
+		{"/repos/prod9/unregistered/", http.StatusNotFound},
+		{"/repos/prod9/private/", http.StatusNotFound},
+		{"/repos/prod9/app/builds/new/", http.StatusNotFound},
+		{"/repos/prod9/app//", http.StatusNotFound},
+	} {
+		t.Run(test.path, func(t *testing.T) {
+			resp := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodGet, test.path, nil).WithContext(ctx)
+			req.AddCookie(&http.Cookie{Name: "platform_session", Value: token})
+			router.ServeHTTP(resp, req)
+
+			require.Equal(t, test.status, resp.Code)
+			if test.status == http.StatusOK {
+				require.Contains(t, resp.Header().Get("Content-Type"), "text/html")
+				require.Contains(t, resp.Body.String(), "<html")
+			}
+		})
+	}
+	unsigned := serve(ctx, router, "/repos/prod9/app/")
+	require.Equal(t, http.StatusUnauthorized, unsigned.Code)
+}
+
+func TestUIHidesRepositoryBeforeClaim(t *testing.T) {
+	ctx := srvtest.SetupDB(t)
+
+	resp := serve(ctx, uiRouter(t), "/repos/prod9/app/")
+	require.Equal(t, http.StatusNotFound, resp.Code)
 }
 
 func seedClaim(t *testing.T, ctx context.Context) {

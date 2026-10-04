@@ -1,0 +1,1 @@
+function i(t){if(!t)return null;const e=new Date(t);return e.getFullYear()<2e3?null:e}function l(t){const a=[{label:"finished",at:i(t.finished_at)},{label:"started",at:i(t.started_at)},{label:"created",at:i(t.created_at)}].find(({at:r})=>r!==null);if(a===void 0)return"";const n=a.at.toISOString().slice(11,19);return`${a.label} ${n}`}export{l,i as r};

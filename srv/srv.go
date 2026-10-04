@@ -60,9 +60,9 @@ func health(resp http.ResponseWriter, req *http.Request) {
 // UI serves the embedded web UI (webui.Assets) at the site root; requests not matched
 // by an API route fall through to it. The server decides every page's status itself
 // (docs/spec/platform-server.md §The status of a page is the server's answer): a
-// prerendered file is served as-is, the known dynamic route /builds/{id} gets the SPA
-// fallback at the status the record deserves, and anything unrecognized gets the
-// fallback at 404.
+// prerendered file is served as-is, known dynamic build and repository routes get the
+// SPA fallback at the status their records deserve, and anything unrecognized gets
+// the fallback at 404.
 type UI struct{}
 
 var _ controllers.Interface = UI{}
@@ -82,7 +82,8 @@ func (UI) Mount(_ *config.Source, router chi.Router) error {
 		prerenderedPath := prerendered(build, req.URL.Path)
 		installerPath := installRoute(req.URL.Path)
 		_, dynamicBuildPath := buildRoute(req.URL.Path)
-		productPath := dynamicBuildPath || productPage(req.URL.Path, prerenderedPath)
+		owner, repo, dynamicRepoPath := repoRoute(req.URL.Path)
+		productPath := dynamicBuildPath || dynamicRepoPath || productPage(req.URL.Path, prerenderedPath)
 		if installerPath || productPath {
 			db, ok := data.LookupFromContext(req.Context())
 			if !ok {
@@ -108,6 +109,19 @@ func (UI) Mount(_ *config.Source, router chi.Router) error {
 		}
 
 		status := http.StatusNotFound
+		if dynamicRepoPath {
+			if !auth.RequireRepoRead(resp, req, owner, repo) {
+				return
+			}
+			exists, err := repos.RegistrationExists(req.Context(), owner, repo)
+			if err != nil {
+				render.Error(resp, req, http.StatusInternalServerError, err)
+				return
+			}
+			if exists {
+				status = http.StatusOK
+			}
+		}
 		if id, ok := buildRoute(req.URL.Path); ok {
 			exists, err := builds.Exists(req.Context(), id)
 			if err != nil {
@@ -159,7 +173,7 @@ func prerendered(build fs.FS, path string) bool {
 	return err == nil
 }
 
-// buildRoute matches the webui's one dynamic route shape, /builds/{id} — with or
+// buildRoute matches the webui's build detail route, /builds/{id} — with or
 // without a trailing slash, since the SPA links with one (trailingSlash = "always").
 // Knowing the shape is the price of a static UI answering with a real status.
 func buildRoute(path string) (int64, bool) {
@@ -174,4 +188,16 @@ func buildRoute(path string) (int64, bool) {
 		return 0, false
 	}
 	return id, true
+}
+
+func repoRoute(path string) (string, string, bool) {
+	rest, ok := strings.CutPrefix(path, "/repos/")
+	if !ok {
+		return "", "", false
+	}
+	owner, repo, ok := strings.Cut(strings.TrimSuffix(rest, "/"), "/")
+	if !ok || github.CheckRepoPath(owner, repo) != nil {
+		return "", "", false
+	}
+	return owner, repo, true
 }
