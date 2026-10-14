@@ -51,6 +51,59 @@ the shared primitives or reproduce their markup. A styling-only change preserves
 visible word, value, state, behavior, and data/API contract; layout and iconography may
 change without rewriting the content they present.
 
+### v2027 visual system
+
+Status: accepted redesign scope; implementation and first-screen visual review pending.
+The visual system follows
+PRODIGY9's settled v2027 sources, replacing the previous styling throughout `webui/`.
+Installation, session recovery, product pages, existing mock pages, and their loading,
+empty, refused, offline, stale, selected, and disabled states share this system.
+Mock pages retain their existing capabilities.
+
+The palette is paper `#fafaf5`, soft `#eef2f3`, ink `#1c1f33`, muted `#636c81`,
+hairline `#dfe5ea`, indigo `#3a4d98`, secondary indigo `#4f63a9`, bike red `#e2282e`,
+and night `#121526`. The monocolor logo, primary action, and lit tags use the same bike red.
+Paper is the page ground; night is contextual, including captured-output panes.
+Application adaptation: success retains a distinct accessible glyph, running work uses
+indigo, pending work uses muted ink, and failures use red. This treatment is subject to
+the first recorded build-detail screen's visual review, not a settled site brand ruling.
+Status meaning remains readable without color.
+Text and focus indicators must contrast with their actual surface.
+
+Iosevka Curly owns headings and names, Iosevka Aile owns body text, Iosevka owns data,
+and Mona Sans Extra Expanded owns buttons. Type follows the v2027 perfect-fourth scale,
+with line heights and spacing on a 4px unit. Operational screens adapt the site's
+proportions for readable facts, feeds, forms, and logs while keeping full-width pages.
+
+Controls use native semantics, soft fields, logo-angle chamfers (rise 1.48), visible
+focus, and crisp 3px depth with pressed and selected states. Raised panels and inset
+separators establish hierarchy. Leaning parallelograms are reserved for tags inside
+night caps. Selected Akira masks may texture caps at 6% strength with a 1.25 cap gain;
+technical values and output remain unobstructed. Reduced motion preserves state cues
+without animated travel. Narrow layouts wrap long values and collapse domain columns
+without clipping content or focus indicators.
+
+Shared components own this presentation; route-local styles own domain layout only.
+Replace previous rules directly, without legacy token aliases or an override skin.
+Fonts, logo masters, and selected art are self-hosted in platform, with source paths
+and revision recorded; neither runtime nor build depends on the sibling checkout.
+Regenerate the committed embedded `webui/build/` with the production UI build.
+
+Chakrit explicitly ruled: "remove EVERYTHING from the old design ok? including mode
+toggles." Remove the old tokens, styling, assets, unused dependencies, theme module,
+preference reads/writes, and mode toggle labels. There is no replacement theme toggle.
+This is the sole exception to the cosmetic preservation contract above; all other
+visible words, data, actions, state distinctions, and API contracts are preserved.
+
+Source provenance: `prod9/prodigy9.co` revision
+`04ce0e59e55a8fc7963e50cbc542994aefbf7b90`, `src/styles/{tokens,type,diagonals,depth,
+controls,components,texture}.css`, `src/components/preview/{akira-logo,nav}/meta.js`,
+`logo_bundle/akira/transparent/wordmark-red.png`, `public/fonts/`, and
+`public/art/akira-cap-full-1.webp`. The site's Outline
+collection remains its authority; connector access was unavailable during the local
+source review. Any subsequently discovered conflicting ruling must be reconciled before
+adopting the affected presentation. Earlier brand defaults do not supersede v2027.
+
 ## Route map
 
 | Route                            | Page                                    | Reads                                                                  |
