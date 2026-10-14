@@ -53,7 +53,7 @@ change without rewriting the content they present.
 
 ### v2027 visual system
 
-Status: accepted redesign scope; implementation and first-screen visual review pending.
+Status: implemented; first-screen and full-route browser review use isolated API fixtures.
 The visual system follows
 PRODIGY9's settled v2027 sources, replacing the previous styling throughout `webui/`.
 Installation, session recovery, product pages, existing mock pages, and their loading,

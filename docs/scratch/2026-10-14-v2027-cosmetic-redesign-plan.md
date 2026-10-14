@@ -1,8 +1,11 @@
-<!-- not spec/decision because: execution approach proposed; visual review pending -->
+<!-- not spec/decision because: execution record; visual contract lives in spec/webui.md -->
 
 # Platform web UI: rebuild the visual system from PRODIGY9 v2027
 
-Status: proposed execution approach; web UI scope and old-design removal settled.
+Status: executed locally in `942271f`, following spec-only commit `93a9c84`.
+Frontend tests/build, Go tests, and smoke completed; smoke was UNCHANGED. Browser
+fixture review covered every existing route and its selected states. Verification and
+captures: `tmp/v2027-redesign.local/report.md`. No push, release, or publication occurred.
 Audience: chakrit and engineers implementing the redesign in a fresh session.
 
 ## Goal and authority
@@ -14,7 +17,8 @@ content, data, actions, and state distinctions.
 
 Chakrit requested: "Plan for a long redesign (cosmetics) session please" and
 "Rip-out all stylings in platform and re-build it using stuff in v2027 please."
-This document prepares that work; no application styling has been changed.
+The visual contract is in `docs/spec/webui.md`; this document records the execution
+approach used for the completed cosmetic rebuild.
 
 Redesign scope is all of `webui/`, including installation, authentication, product
 screens, existing mock screens, and every loading/error/empty/disabled/stale state.
