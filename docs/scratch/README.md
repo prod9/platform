@@ -48,6 +48,11 @@ These are dated reference records, not an execution queue. Current design lives 
 - [2026-07-21 — audit changes walk](2026-07-21-audit-changes.md) — original findings,
   retained as evidence rather than current defects
 
+**Proposed execution plans** — follow each plan's recorded authority and review gates:
+
+- [2026-10-14 — v2027 cosmetic redesign plan](2026-10-14-v2027-cosmetic-redesign-plan.md)
+  — web UI visual replacement; old-design removal and explainer deletion settled
+
 **Completed plans and retained explorations** — use each record's status and current
 spec pointers; none grants authority to resume work:
 
