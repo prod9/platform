@@ -153,15 +153,16 @@
 <style>
 	.door {
 		max-width: 62ch;
-		padding: var(--lead-3) 0;
+		padding-block: var(--space-12);
 	}
 
 	.door h1 {
-		margin-bottom: var(--lead);
+		margin-bottom: var(--space-6);
 	}
 
 	.error {
-		color: var(--accent-signal);
+		color: var(--error-ink);
+		overflow-wrap: anywhere;
 	}
 
 	.repos {
@@ -171,56 +172,61 @@
 	}
 
 	.repo {
-		padding: var(--lead-half) 0;
-		box-shadow: 0 -1px 0 var(--border) inset;
+		padding-block: var(--space-6);
+		box-shadow: inset 0 -1px 0 var(--hairline);
 	}
 
 	.repo-head {
 		display: grid;
-		grid-template-columns: minmax(var(--lead), max-content) 1fr var(--lead);
+		grid-template-columns: var(--space-6) minmax(0, 1fr) var(--space-6);
 		align-items: baseline;
-		column-gap: var(--lead-half);
+		gap: var(--space-3);
+		padding-block: var(--space-3);
+		color: var(--ink);
 		text-decoration: none;
-		color: var(--text);
-		line-height: var(--lead);
 	}
 
 	a.repo-head:hover {
-		--navigation-mark: var(--accent-signal);
+		--navigation-mark: var(--red);
 	}
 
 	a.repo-head:hover .name {
-		color: var(--accent-signal);
+		color: var(--error-ink);
 	}
 
-	/* The repo's name is the block's headline: prose-size, indigo, unmistakably not one
-	   of the builds beneath it. */
 	.name {
-		font-size: var(--size-prose);
-		font-weight: 600;
-		color: var(--accent);
+		font-family: var(--face-display);
+		font-size: var(--step-1);
+		font-weight: 800;
+		line-height: var(--step-1-lh);
+		color: var(--indigo);
+		overflow-wrap: anywhere;
 	}
 
-	/* Sub-rows hang off a vertical hairline, so the nesting reads before any row does. */
 	.subs {
 		display: block;
-		margin-left: var(--lead-half);
-		padding-left: var(--lead-half);
-		box-shadow: 1px 0 0 var(--border) inset;
+		margin-left: var(--space-3);
+		padding-left: var(--space-3);
+		box-shadow: inset 1px 0 0 var(--hairline);
 	}
 
 	.build {
 		display: grid;
-		grid-template-columns: max-content minmax(16ch, auto) 1fr auto;
+		grid-template-columns: var(--space-6) minmax(0, 1fr) minmax(0, 1.5fr) minmax(12ch, auto);
 		align-items: baseline;
-		column-gap: var(--lead-half);
+		gap: var(--space-2) var(--space-3);
+		padding-block: var(--space-3);
+		color: var(--ink);
 		text-decoration: none;
-		color: var(--text);
-		line-height: var(--lead);
+	}
+
+	.build > span {
+		min-width: 0;
+		overflow-wrap: anywhere;
 	}
 
 	a.build:hover {
-		background: var(--surface-quiet);
+		background: var(--soft);
 	}
 
 	.timing {
@@ -230,7 +236,7 @@
 	button.repo-head,
 	button.build {
 		width: 100%;
-		padding: 0;
+		padding-inline: 0;
 		border: 0;
 		background: none;
 		font: inherit;
@@ -239,6 +245,20 @@
 	}
 
 	.pending-mark {
-		width: var(--lead);
+		width: var(--space-6);
+	}
+
+	@media (max-width: 48rem) {
+		.build {
+			grid-template-columns: var(--space-6) minmax(0, 1fr);
+		}
+
+		.build > span:nth-child(n + 3) {
+			grid-column: 2;
+		}
+
+		.timing {
+			text-align: left;
+		}
 	}
 </style>

@@ -3,77 +3,82 @@
 	// a navigation and an action never look like different species.
 	// variant names only the departures from the default face; the default emits no
 	// modifier class at all.
-	let { variant = "", href = "", target = "", disabled = false, onclick, children } = $props();
+	let {
+		variant = "",
+		href = "",
+		target = "",
+		disabled = false,
+		type,
+		title,
+		onclick,
+		children,
+	} = $props();
 </script>
 
 <!-- An <a> cannot be disabled, so a disabled link renders as the disabled button
      face — one disabling story for both faces. -->
 {#if href && !disabled}
 	<a
-		class={variant ? `btn btn--${variant}` : "btn"}
+		class={variant ? `btn key chamfer btn--${variant}` : "btn key chamfer"}
 		{href}
+		{title}
 		target={target || undefined}
 		{onclick}
 	>
 		{@render children()}
 	</a>
 {:else}
-	<button class={variant ? `btn btn--${variant}` : "btn"} {disabled} {onclick}>
+	<button class={variant ? `btn key chamfer btn--${variant}` : "btn key chamfer"} {disabled} {type} {title} {onclick}>
 		{@render children()}
 	</button>
 {/if}
 
 <style>
-	/* A button must read as a button at a glance: a raised plate with a firm edge and a
-	   pressed state, never a caps label with a hairline around it. */
 	.btn {
-		display: inline-grid;
-		place-items: center;
-		padding: calc(var(--lead-half) - var(--plate-edge)) var(--lead);
-		border: var(--plate-edge) solid var(--text-muted);
-		border-radius: var(--radius-sm);
-		background: var(--surface-raised);
-		box-shadow: var(--button-shadow);
-		font-family: var(--p9-support);
-		font-size: var(--size-label);
-		font-weight: 600;
-		line-height: var(--lead);
-		letter-spacing: 0.12em;
+		--face: var(--soft);
+		--on-face: var(--ink);
+		justify-content: center;
+		min-height: var(--space-12);
+		max-width: 100%;
+		padding: var(--space-3) var(--space-6);
+		clip-path: none;
+		font-family: var(--face-wide);
+		font-size: var(--step--1);
+		font-weight: 700;
+		line-height: var(--step--1-lh);
+		letter-spacing: 0.03em;
 		text-transform: uppercase;
+		text-align: center;
 		text-decoration: none;
-		color: var(--text);
-		cursor: pointer;
+		overflow-wrap: anywhere;
 	}
 
-	.btn:hover {
-		border-color: var(--accent);
-		background: var(--surface-quiet);
-		color: var(--accent);
+	.btn:not(:disabled):hover {
+		--face: var(--hairline);
+		--on-face: var(--ink);
 	}
 
-	.btn:active {
-		box-shadow: none;
-		transform: translateY(1px);
+	.btn--primary,
+	.btn--primary:not(:disabled):hover {
+		--face: var(--red);
+		--on-face: var(--white);
 	}
 
-	/* Primary is the one red note on a view — the key action, never a second one.
-	   Filled, not outlined: the confirm has to read as the page's action. */
-	.btn--primary {
-		border-color: var(--accent-signal);
-		background: var(--accent-signal);
-		color: var(--surface-raised);
+	.btn.key:focus-visible {
+		outline: 2px solid var(--indigo);
+		outline-offset: var(--space-1);
 	}
 
-	.btn--primary:hover {
-		border-color: var(--accent-signal-strong);
-		background: var(--accent-signal-strong);
-		color: var(--surface-raised);
+	.btn.key:focus-visible::after {
+		box-shadow: inset 0 0 0 2px var(--on-face);
 	}
 
-	.btn:disabled {
-		color: var(--text-muted);
-		border-color: var(--border);
-		background: none;
+	.btn.key:disabled {
+		--face: var(--soft);
+		--on-face: var(--muted);
+		--key-y: 0px;
+		--key-lift: 0px;
+		--key-edge: 0px;
 		cursor: default;
 	}
 </style>

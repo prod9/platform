@@ -103,22 +103,26 @@
 
 <style>
 	.ok {
-		color: var(--accent-ok);
+		color: var(--ink);
 	}
 
 	.facts {
-		margin-bottom: var(--lead-2);
+		margin-bottom: var(--space-8);
 	}
 
 	.live {
-		color: var(--accent);
+		color: var(--indigo);
 	}
 
 	.cols {
 		display: grid;
-		grid-template-columns: minmax(40ch, 1fr) minmax(0, 1.5fr);
-		gap: var(--lead-2);
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr);
+		gap: var(--space-8);
 		align-items: start;
+	}
+
+	.cols > div {
+		min-width: 0;
 	}
 
 	.rows {
@@ -129,32 +133,42 @@
 
 	.row {
 		display: grid;
-		grid-template-columns: minmax(var(--lead), max-content) minmax(16ch, auto) 1fr auto;
+		grid-template-columns: var(--space-6) minmax(0, 1fr);
 		align-items: baseline;
-		column-gap: var(--lead-half);
-		line-height: var(--lead);
-		padding: var(--lead-half) 0;
-		box-shadow: 0 -1px 0 var(--border) inset;
+		gap: var(--space-2) var(--space-3);
+		padding-block: var(--space-3);
+		box-shadow: inset 0 -1px 0 var(--hairline);
+		color: var(--ink);
 		text-decoration: none;
-		color: var(--text);
+	}
+
+	.row > span {
+		min-width: 0;
+		overflow-wrap: anywhere;
+	}
+
+	.row > span:nth-child(n + 3) {
+		grid-column: 2;
 	}
 
 	.row:hover {
-		background: var(--surface-quiet);
+		background: var(--soft);
 	}
 
-	.timing {
-		text-align: right;
-	}
-
-	/* The engine's terminal holds fixed night pigments across modes, like the build log. */
 	.term {
 		margin: 0;
-		padding: var(--lead);
-		border-radius: var(--radius-md);
-		overflow-x: auto;
-		line-height: var(--lead);
-		background: var(--p9-night);
-		color: var(--p9-line);
+		max-height: 36rem;
+		padding: var(--space-6);
+		overflow: auto;
+		line-height: var(--step--1-lh);
+		background: var(--night);
+		color: var(--paper);
+		box-shadow: 0 3px 0 var(--slab-edge);
+	}
+
+	@media (max-width: 64rem) {
+		.cols {
+			grid-template-columns: minmax(0, 1fr);
+		}
 	}
 </style>

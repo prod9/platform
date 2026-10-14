@@ -32,18 +32,21 @@
 <style>
 	nav {
 		display: flex;
-		gap: var(--lead);
+		flex-wrap: wrap;
+		gap: var(--space-2) var(--space-6);
 	}
 
 	a {
-		color: var(--text-muted);
-		padding-block: var(--lead-half);
-		line-height: var(--lead);
+		padding-block: var(--space-3);
+		color: var(--muted);
 		text-decoration: none;
 	}
 
-	a:hover,
+	a:hover, a.current {
+		color: var(--indigo);
+	}
+
 	a.current {
-		color: var(--accent);
+		box-shadow: inset 0 -3px 0 var(--indigo);
 	}
 </style>

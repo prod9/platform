@@ -48,30 +48,31 @@
 <style>
 	.stack {
 		display: grid;
-		gap: var(--lead);
+		gap: var(--space-6);
 	}
 
 	input[type="text"] {
 		width: 32ch;
-		padding: calc(var(--lead-half) - var(--plate-edge)) var(--lead-half);
-		border: var(--plate-edge) solid var(--border);
-		border-radius: var(--radius-sm);
-		background: var(--surface-raised);
-		line-height: var(--lead);
-		color: var(--text);
 	}
 
 	.gap {
-		margin-top: var(--lead);
+		margin-top: var(--space-6);
+		overflow-wrap: anywhere;
 	}
 
 	.confirm {
 		display: flex;
+		flex-wrap: wrap;
 		align-items: center;
 		justify-content: space-between;
-		gap: var(--lead);
-		padding: var(--lead-half) 0;
-		box-shadow: 0 1px 0 var(--border) inset;
+		gap: var(--space-6);
+		padding-block: var(--space-6);
+		box-shadow: inset 0 1px 0 var(--hairline);
+	}
+
+	.confirm > span {
+		min-width: 0;
+		overflow-wrap: anywhere;
 	}
 
 	.modpick {
@@ -80,13 +81,8 @@
 		padding: 0;
 	}
 
-	.modpick li {
-		line-height: var(--lead);
-	}
-
-	.modpick input {
-		vertical-align: baseline;
-		margin-right: var(--lead-half);
-		accent-color: var(--accent);
+	.modpick label {
+		flex-wrap: wrap;
+		overflow-wrap: anywhere;
 	}
 </style>

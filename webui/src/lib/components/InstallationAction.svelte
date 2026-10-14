@@ -319,11 +319,11 @@
 				<span class="label">Webhook secret (copy into GitHub's form)</span>
 				<span class="secret">
 					<input bind:value={app.webhook_secret} disabled={locked || savingApp} />
-					<button
+					<Button
 						type="button"
 						title="Regenerate"
 						disabled={locked || savingApp}
-						onclick={() => (app.webhook_secret = generateWebhookSecret())}>↻</button
+						onclick={() => (app.webhook_secret = generateWebhookSecret())}>↻</Button
 					>
 				</span>
 			</label>
@@ -515,69 +515,31 @@
 <style>
 	.mark,
 	.failed {
-		color: var(--accent-signal);
+		color: var(--error-ink);
 	}
 
 	.mark {
-		font-family: var(--p9-mono);
+		font-family: var(--face-figures);
 	}
 
 	.fields {
 		display: grid;
-		gap: var(--lead);
-		margin: var(--lead) 0;
+		gap: var(--space-6);
+		margin: var(--space-6) 0;
 	}
 
 	.fields label {
 		display: grid;
-		gap: 0;
-	}
-
-	.fields input {
-		padding: calc(var(--lead-half) - var(--plate-edge)) var(--lead-half);
-		border: var(--plate-edge) solid var(--border);
-		border-radius: var(--radius-sm);
-		background: var(--surface-raised);
-		font-family: var(--p9-mono);
-		line-height: var(--lead);
-		color: var(--text);
-	}
-
-	.fields input:focus {
-		outline: 2px solid var(--accent);
-		outline-offset: -1px;
-	}
-
-	.fields input:disabled {
-		color: var(--text-muted);
-		cursor: not-allowed;
+		gap: var(--space-2);
 	}
 
 	.secret {
 		display: flex;
-		column-gap: var(--lead-half);
+		column-gap: var(--space-3);
 	}
 
 	.secret input {
 		flex: 1;
 		min-width: 0;
-	}
-
-	.secret button {
-		padding: calc(var(--lead-half) - var(--plate-edge)) var(--lead-half);
-		border: var(--plate-edge) solid var(--border);
-		border-radius: var(--radius-sm);
-		background: var(--surface-raised);
-		color: var(--text);
-		cursor: pointer;
-	}
-
-	.secret button:hover:not(:disabled) {
-		color: var(--accent);
-	}
-
-	.secret button:disabled {
-		color: var(--text-muted);
-		cursor: not-allowed;
 	}
 </style>

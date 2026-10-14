@@ -1,0 +1,18 @@
+/* Adapted from PRODIGY9 v2027: logo-angle chamfer for operational controls. */
+:root { --rise: 1.48; }
+
+/* Corner chamfer for buttons and price tags: top-left and bottom-right cut,
+   parallel to each other, the way the wordmark's letters are cut. */
+.chamfer {
+  --cut: 0.5rem;
+
+  --chamfer-path: polygon(
+    var(--cut) 0,
+    100% 0,
+    100% calc(100% - var(--cut) * var(--rise)),
+    calc(100% - var(--cut)) 100%,
+    0 100%,
+    0 calc(var(--cut) * var(--rise))
+  );
+  clip-path: var(--chamfer-path);
+}

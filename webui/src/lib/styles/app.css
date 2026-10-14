@@ -1,4 +1,6 @@
-/* The one stylesheet a route imports; the layout pulls it in once. */
+/* The root layout imports the shared visual foundation once. */
 @import "./fonts.css";
 @import "./tokens.css";
+@import "./diagonals.css";
+@import "./depth.css";
 @import "./base.css";

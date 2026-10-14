@@ -26,14 +26,14 @@
 <style>
 	.session {
 		max-width: 38rem;
-		padding: var(--lead-3) 0;
+		padding-block: var(--space-12);
 	}
 
 	h1 {
-		margin: var(--lead) 0;
+		margin-block: var(--space-6);
 	}
 
 	p {
-		margin: 0 0 var(--lead);
+		margin: 0 0 var(--space-6);
 	}
 </style>

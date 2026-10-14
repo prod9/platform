@@ -64,39 +64,55 @@
 
 <style>
 	.terminal {
-		border: 1px solid var(--border);
-		border-radius: var(--radius-md);
-		background: var(--surface-raised);
 		min-width: 0;
-		overflow: hidden;
+		background: var(--white);
+		box-shadow: 0 3px 0 var(--slab-edge);
 	}
 
 	.heading {
+		--signal-positive: var(--paper);
+		--signal-negative: var(--paper);
+		--signal-active: var(--paper);
+		--signal-pending: var(--paper);
+		--signal-navigation: var(--paper);
 		display: flex;
 		align-items: baseline;
 		flex-wrap: wrap;
-		gap: var(--lead);
-		padding: var(--lead-half) var(--lead);
+		gap: var(--space-3) var(--space-6);
+		padding: var(--space-6);
+		background: var(--night);
+		color: var(--paper);
+	}
+
+	.heading h3 {
+		min-width: 0;
+		flex: 1;
+		color: var(--paper);
+		overflow-wrap: anywhere;
 	}
 
 	.outcome {
 		display: inline-flex;
 		align-items: baseline;
-		gap: var(--lead-half);
+		gap: var(--space-3);
 	}
 
 	.stream h3 {
-		padding: var(--lead-half) var(--lead);
-		box-shadow: 0 1px 0 var(--border) inset;
+		padding: var(--space-3) var(--space-6);
+		box-shadow: 0 1px 0 var(--hairline) inset;
 	}
 
 	pre {
+		max-width: 100%;
 		margin: 0;
-		padding: var(--lead);
+		padding: var(--space-6);
 		overflow-x: auto;
-		line-height: var(--lead);
-		background: var(--p9-night);
-		color: var(--p9-line);
+		font-family: var(--face-figures);
+		font-size: var(--step--1);
+		line-height: var(--step-0-lh);
+		background: var(--night);
+		color: var(--paper);
+		tab-size: 4;
 	}
 
 	.empty,
@@ -104,16 +120,16 @@
 	.facts,
 	.placeholder {
 		margin: 0;
-		padding: var(--lead);
+		padding: var(--space-6);
 	}
 
 	.placeholder {
 		display: grid;
-		gap: var(--lead);
+		gap: var(--space-3);
 	}
 
 	.error {
-		color: var(--accent-signal);
+		color: var(--error-ink);
 		white-space: pre-wrap;
 		overflow-wrap: anywhere;
 	}

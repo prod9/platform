@@ -1,4 +1,5 @@
 <script>
+	import "$lib/styles/wizard.css";
 	// The installation gate. GET /api/installation returns the ordered checklist; the progress
 	// list is navigation — the default selection is the first non-fully-ready entry,
 	// clicking an entry opens its panel — and the page renders three columns: progress
@@ -214,108 +215,17 @@
 </section>
 
 <style>
-	section {
-		max-width: 150ch;
-	}
-
-	.wizard {
-		display: grid;
-		grid-template-columns: minmax(26ch, 1fr) minmax(0, 2fr) minmax(30ch, 1.5fr);
-		gap: var(--lead-2);
-		align-items: start;
-	}
-
-	@media (max-width: 900px) {
-		.wizard {
-			grid-template-columns: minmax(0, 1fr);
-			gap: var(--lead);
-		}
-	}
-
-	.checklist {
-		margin: 0;
-		padding: 0;
-		list-style: none;
-	}
-
-	.checklist li {
-		box-shadow: 0 -1px 0 var(--border) inset;
-	}
-
-	.checklist li.active {
-		box-shadow:
-			2px 0 0 var(--accent-signal) inset,
-			0 -1px 0 var(--border) inset;
-	}
-
-	/* The whole row is the navigation affordance — the progress list is clickable
-	   by spec (§The wizard UI, progress is navigation). */
-	.checklist .row {
-		display: grid;
-		grid-template-columns: minmax(0, 1fr) auto;
-		width: 100%;
-		padding: var(--lead-half) 0 var(--lead-half) var(--lead-half);
-		border: 0;
-		background: none;
-		font: inherit;
-		color: inherit;
-		text-align: left;
-		cursor: pointer;
-	}
-
-	.checklist .name {
-		line-height: var(--lead);
-	}
-
-	.checklist .row:disabled {
-		cursor: default;
-	}
-
-	.checklist li.active .name {
-		color: var(--accent);
-		font-weight: 600;
-	}
-
-	.checklist .state {
-		line-height: var(--lead);
-	}
-
-	.loading-instructions {
-		display: grid;
-		gap: var(--lead);
-	}
-
-	.checklist .message {
-		grid-column: 1 / -1;
-	}
-
-	.state--fully_ready {
-		color: var(--accent);
-	}
-
-	.state--not_started,
-	.state--partially_ready {
-		color: var(--text-muted);
-	}
-
-	.state--intervention_required,
-	.state--unknown {
-		color: var(--accent-signal);
-	}
-
 	.failed {
-		color: var(--accent-signal);
+		color: var(--error-ink);
+		overflow-wrap: anywhere;
 	}
 
 	.mismatch {
-		color: var(--accent-signal);
-		border: 1px solid var(--accent-signal);
-		border-radius: var(--radius-sm);
-		padding: var(--lead-half);
-		margin-bottom: var(--lead);
-	}
-
-	.mismatch code {
+		padding: var(--space-4) var(--space-6);
+		margin-bottom: var(--space-6);
+		background: var(--soft);
+		box-shadow: inset 3px 0 0 var(--red);
+		color: var(--error-ink);
 		overflow-wrap: anywhere;
 	}
 </style>

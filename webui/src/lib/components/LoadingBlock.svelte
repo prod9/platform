@@ -21,10 +21,10 @@
 	.loading-block {
 		display: block;
 		max-width: 100%;
-		height: var(--lead);
-		background: var(--surface-quiet);
-		border-radius: var(--radius-sm);
-		line-height: var(--lead);
+		height: var(--space-6);
+		background: var(--soft);
+		box-shadow: 0 -1px 0 var(--hairline) inset;
+		line-height: var(--space-6);
 		color: transparent;
 		overflow: hidden;
 	}

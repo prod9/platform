@@ -211,11 +211,6 @@
 </aside>
 
 <style>
-	.label {
-		color: var(--accent);
-		margin-bottom: var(--lead);
-	}
-
 	/* Built URLs (org links, webhook/callback paths) can outgrow the column;
 	   break anywhere rather than pushing the grid past the viewport. */
 	a,
@@ -223,31 +218,27 @@
 		overflow-wrap: anywhere;
 	}
 
-	p {
-		margin: 0 0 var(--lead);
-	}
-
 	.steps {
 		margin: 0;
-		padding-left: var(--lead);
+		padding-left: var(--space-6);
 	}
 
 	.steps li {
-		line-height: var(--lead);
+		margin-bottom: var(--space-3);
 	}
 
 	.steps li::marker {
-		color: var(--accent-signal);
-		font-family: var(--p9-mono);
+		color: var(--error-ink);
+		font-family: var(--face-figures);
 	}
 
 	.steps ul {
 		margin: 0;
-		padding-left: var(--lead);
+		padding-left: var(--space-6);
 		list-style: square;
 	}
 
 	.steps ul li::marker {
-		color: var(--text-muted);
+		color: var(--muted);
 	}
 </style>

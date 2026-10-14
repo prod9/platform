@@ -206,7 +206,7 @@
 <style>
 	.stack {
 		display: grid;
-		gap: var(--lead);
+		gap: var(--space-6);
 		min-width: 0;
 		overflow-wrap: anywhere;
 	}
@@ -215,29 +215,19 @@
 		display: flex;
 		align-items: center;
 		flex-wrap: wrap;
-		row-gap: var(--lead);
-		column-gap: var(--lead-half);
+		row-gap: var(--space-6);
+		column-gap: var(--space-3);
 	}
 
 	input {
 		flex: 1;
-		min-width: 16ch;
-		padding: calc(var(--lead-half) - var(--plate-edge)) var(--lead-half);
-		border: var(--plate-edge) solid var(--border);
-		border-radius: var(--radius-sm);
-		background: var(--surface-raised);
-		line-height: var(--lead);
-		color: var(--text);
-	}
-
-	input:disabled {
-		color: var(--text-muted);
+		min-width: min(16ch, 100%);
 	}
 
 	.outcome {
 		display: flex;
 		align-items: baseline;
-		gap: var(--lead-half);
+		gap: var(--space-3);
 	}
 
 	.modules {
@@ -245,11 +235,11 @@
 		margin: 0;
 		padding: 0;
 		display: grid;
-		gap: var(--lead);
+		gap: var(--space-6);
 	}
 
 	.error {
-		color: var(--accent-signal);
+		color: var(--error-ink);
 		white-space: pre-wrap;
 	}
 </style>

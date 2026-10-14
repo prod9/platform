@@ -116,7 +116,7 @@
 
 <style>
 	.seed {
-		margin-bottom: var(--lead);
+		margin-bottom: var(--space-8);
 	}
 
 	.fleet {
@@ -126,57 +126,63 @@
 	}
 
 	.engine {
-		padding: var(--lead-half) 0;
-		box-shadow: 0 -1px 0 var(--border) inset;
+		padding-block: var(--space-6);
+		box-shadow: inset 0 -1px 0 var(--hairline);
 	}
 
 	.engine-head {
 		display: grid;
-		grid-template-columns: var(--lead) auto 1fr var(--lead);
+		grid-template-columns: var(--space-6) minmax(0, 1fr) auto var(--space-6);
 		align-items: baseline;
-		column-gap: var(--lead-half);
-		line-height: var(--lead);
+		gap: var(--space-3);
+		padding-block: var(--space-3);
+		color: var(--ink);
 		text-decoration: none;
-		color: var(--text);
 	}
 
 	.engine-head:hover {
-		--navigation-mark: var(--accent-signal);
+		--navigation-mark: var(--red);
 	}
 
 	.engine-head:hover .addr {
-		color: var(--accent-signal);
+		color: var(--error-ink);
 	}
 
 	.addr {
-		font-size: var(--size-prose);
-		font-weight: 600;
-		color: var(--accent);
+		font-size: var(--step-0);
+		font-weight: 700;
+		color: var(--indigo);
+		overflow-wrap: anywhere;
 	}
 
 	.reach.ok {
-		color: var(--accent-ok);
+		color: var(--ink);
 	}
 
 	.subs {
 		display: block;
-		margin-left: var(--lead-half);
-		padding-left: var(--lead-half);
-		box-shadow: 1px 0 0 var(--border) inset;
+		margin-left: var(--space-3);
+		padding-left: var(--space-3);
+		box-shadow: inset 1px 0 0 var(--hairline);
 	}
 
 	.sub {
 		display: grid;
-		grid-template-columns: minmax(var(--lead), max-content) 1fr auto;
+		grid-template-columns: var(--space-6) minmax(0, 1fr) minmax(0, auto);
 		align-items: baseline;
-		column-gap: var(--lead-half);
-		line-height: var(--lead);
+		gap: var(--space-2) var(--space-3);
+		padding-block: var(--space-2);
+		color: var(--ink);
 		text-decoration: none;
-		color: var(--text);
+	}
+
+	.sub > span {
+		min-width: 0;
+		overflow-wrap: anywhere;
 	}
 
 	a.sub:hover {
-		background: var(--surface-quiet);
+		background: var(--soft);
 	}
 
 	.state {
@@ -184,14 +190,34 @@
 	}
 
 	.live {
-		color: var(--accent);
+		color: var(--indigo);
 	}
 
 	.warn {
-		color: var(--accent-signal);
+		color: var(--error-ink);
 	}
 
 	.timing {
 		text-align: right;
+	}
+
+	@media (max-width: 48rem) {
+		.engine-head {
+			grid-template-columns: var(--space-6) minmax(0, 1fr) var(--space-6);
+		}
+
+		.reach {
+			grid-column: 2;
+			grid-row: 2;
+		}
+
+		.sub {
+			grid-template-columns: var(--space-6) minmax(0, 1fr);
+		}
+
+		.timing {
+			grid-column: 2;
+			text-align: left;
+		}
 	}
 </style>

@@ -1,4 +1,5 @@
 <script>
+	import "$lib/styles/wizard.css";
 	// The repo onboarding wizard separates access, manifest loading, and review. The
 	// checklist navigates on the left, the action sits in the middle, and operative
 	// instructions sit on the right (docs/spec/webui.md).
@@ -333,80 +334,8 @@ framework = "go/basic"</code></pre>
 </section>
 
 <style>
-	.wizard {
-		display: grid;
-		grid-template-columns: minmax(24ch, 1fr) minmax(0, 2fr) minmax(28ch, 1fr);
-		gap: var(--lead-2);
-		align-items: start;
-	}
-
-	.instructions {
-		padding-left: var(--lead);
-		box-shadow: 1px 0 0 var(--border) inset;
-	}
-
-	.instructions p {
-		margin: 0 0 var(--lead);
-	}
-
-	.instructions pre {
-		overflow-x: auto;
-		margin: 0 0 var(--lead);
-		padding: var(--lead-half);
-		border: 1px solid var(--border);
-		border-radius: var(--radius-sm);
-		background: var(--surface-quiet);
-		line-height: var(--lead);
-	}
-
-	.checklist {
-		margin: 0;
-		padding: 0;
-		list-style: none;
-	}
-
-	.checklist li {
-		box-shadow: 0 -1px 0 var(--border) inset;
-	}
-
-	.checklist li.active {
-		box-shadow:
-			2px 0 0 var(--accent-signal) inset,
-			0 -1px 0 var(--border) inset;
-	}
-
-	.checklist .row {
-		display: grid;
-		grid-template-columns: minmax(0, 1fr) auto;
-		padding: var(--lead-half) 0 var(--lead-half) var(--lead-half);
-	}
-
-	.checklist .name,
-	.checklist .state {
-		line-height: var(--lead);
-	}
-
-	.checklist li.active .name {
-		color: var(--accent);
-		font-weight: 600;
-	}
-
-	.state--fully_ready {
-		color: var(--accent-ok);
-	}
-
-	.state--not_started {
-		color: var(--text-muted);
-	}
-
 	.filter {
 		width: 100%;
-		padding: calc(var(--lead-half) - var(--plate-edge)) var(--lead-half);
-		border: var(--plate-edge) solid var(--border);
-		border-radius: var(--radius-sm);
-		background: var(--surface-raised);
-		line-height: var(--lead);
-		color: var(--text);
 	}
 
 	.candidates {
@@ -416,41 +345,46 @@ framework = "go/basic"</code></pre>
 	}
 
 	.empty {
-		padding: var(--lead-half) 0;
+		padding: var(--space-4) 0;
 	}
 
 	.candidate-loading {
 		display: grid;
-		gap: var(--lead);
+		gap: var(--space-6);
 	}
 
 	.candidate {
 		display: grid;
-		grid-template-columns: 1fr var(--lead);
+		grid-template-columns: minmax(0, 1fr) var(--space-6);
 		align-items: baseline;
-		column-gap: var(--lead-half);
+		gap: var(--space-3);
 		width: 100%;
-		padding: var(--lead-half) 0;
+		padding: var(--space-4) var(--space-3);
 		border: 0;
-		background: none;
+		background: transparent;
 		text-align: left;
-		line-height: var(--lead);
-		box-shadow: 0 -1px 0 var(--border) inset;
+		box-shadow: inset 0 -1px 0 var(--hairline);
 		cursor: pointer;
 	}
 
 	.candidate:enabled:hover {
-		background: var(--surface-quiet);
+		background: var(--soft);
+	}
+
+	.candidate:enabled:active {
+		box-shadow: inset 0 3px 0 var(--hairline);
 	}
 
 	.repo-name {
-		font-size: var(--size-prose);
-		font-weight: 600;
-		color: var(--accent);
+		font-family: var(--face-display);
+		font-size: var(--step-0);
+		font-weight: 800;
+		color: var(--indigo);
+		overflow-wrap: anywhere;
 	}
 
 	.candidate:enabled:hover .repo-name {
-		color: var(--accent-signal);
+		color: var(--error-ink);
 	}
 
 	.candidate:disabled {
@@ -458,13 +392,14 @@ framework = "go/basic"</code></pre>
 	}
 
 	.manifest {
+		min-width: 0;
+		max-width: 100%;
+		margin: 0;
+		padding: var(--space-6);
 		overflow-x: auto;
-		margin: 0 0 var(--lead);
-		padding: var(--lead-half);
-		border: 1px solid var(--border);
-		border-radius: var(--radius-sm);
-		background: var(--surface-quiet);
-		line-height: var(--lead);
+		background: var(--night);
+		color: var(--paper);
+		box-shadow: 0 3px 0 var(--slab-edge);
 	}
 
 	.modules {
@@ -472,38 +407,17 @@ framework = "go/basic"</code></pre>
 	}
 
 	.ok {
-		color: var(--accent-ok);
+		color: var(--ink);
 	}
 
 	.warn {
-		color: var(--accent-signal);
+		color: var(--error-ink);
 	}
 
 	.confirm {
 		display: flex;
 		justify-content: space-between;
-		gap: var(--lead);
-	}
-
-	@media (max-width: 70rem) {
-		.wizard {
-			grid-template-columns: minmax(22ch, 1fr) minmax(0, 2fr);
-		}
-
-		.instructions {
-			grid-column: 2;
-			padding-left: 0;
-			box-shadow: none;
-		}
-	}
-
-	@media (max-width: 48rem) {
-		.wizard {
-			grid-template-columns: 1fr;
-		}
-
-		.instructions {
-			grid-column: 1;
-		}
+		flex-wrap: wrap;
+		gap: var(--space-6);
 	}
 </style>

@@ -30,29 +30,32 @@
 
 <style>
 	.signal {
-		display: inline-block;
-		width: var(--lead);
-		line-height: var(--lead);
+		display: inline-grid;
+		place-items: center;
+		flex-shrink: 0;
+		width: var(--space-6);
+		font-weight: 700;
+		line-height: var(--step-0-lh);
 		text-align: center;
 	}
 
 	.signal--positive {
-		color: var(--accent-ok);
+		color: var(--signal-positive, var(--ink));
 	}
 
 	.signal--negative {
-		color: var(--accent-signal);
+		color: var(--signal-negative, var(--red));
 	}
 
 	.signal--active {
-		color: var(--accent);
+		color: var(--signal-active, var(--indigo));
 	}
 
 	.signal--pending {
-		color: var(--text-muted);
+		color: var(--signal-pending, var(--muted));
 	}
 
 	.signal--navigation {
-		color: var(--navigation-mark, var(--text-muted));
+		color: var(--signal-navigation, var(--navigation-mark, var(--muted)));
 	}
 </style>

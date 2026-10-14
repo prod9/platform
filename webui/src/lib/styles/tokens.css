@@ -1,87 +1,44 @@
-/* Tokens split in two layers. Pigments (--p9-*) are the fixed PRODIGY9 palette and never
-   move. Roles are what components consume, and are the only layer a mode rebinds. A
-   component naming a pigment directly is declaring that it holds that value across modes;
-   everything else speaks in roles. */
-
+/* PRODIGY9 v2027 pigments, type roles, and the operational application's 4px rhythm.
+   Asset provenance is recorded in webui/ASSETS.md. */
 :root {
-	/* Pigments — immutable. */
-	--p9-logo-indigo: #2a3b8e;
-	--p9-indigo: #43569f;
-	--p9-red: #d85b52;
-	--p9-red-deep: #c94a43;
-	--p9-ink: #202438;
-	--p9-night: #151827;
-	--p9-muted: #737b91;
-	--p9-green: #3a7d5c;
-	--p9-line: #e2e6f0;
-	--p9-soft: #f2f4f8;
-	--p9-paper: #fbfaf7;
+	--paper: #fafaf5;
+	--white: #fff;
+	--soft: #eef2f3;
+	--ink: #1c1f33;
+	--muted: #636c81;
+	--hairline: #dfe5ea;
+	--indigo: #3a4d98;
+	--indigo-2: #4f63a9;
+	--red: #e2282e;
+	--error-ink: color-mix(in srgb, var(--red) 88%, var(--ink));
+	--night: #121526;
 
-	/* Roles — bright is the default mode. */
-	--surface: var(--p9-paper);
-	--surface-raised: #ffffff;
-	--surface-quiet: var(--p9-soft);
-	--text: var(--p9-ink);
-	--text-muted: var(--p9-muted);
-	--border: var(--p9-line);
-	--accent: var(--p9-indigo);
-	--accent-signal: var(--p9-red);
-	--accent-signal-strong: var(--p9-red-deep);
-	--accent-ok: var(--p9-green);
+	--face-display: "Iosevka Curly", "Plex Thai for Iosevka Curly", "Iosevka Curly fallback", monospace;
+	--face-text: "Iosevka Aile", "Plex Thai for Iosevka Aile", "Iosevka Aile fallback", sans-serif;
+	--face-figures: "Iosevka", "Plex Thai for Iosevka", "Iosevka fallback", ui-monospace, monospace;
+	--face-wide: "Mona Sans Extra Expanded", "Plex Thai for Mona Sans Extra Expanded", "Mona Sans Extra Expanded fallback", sans-serif;
 
-	/* Letterpress depth belongs to warm alone; bright stays flat. Buttons are the one
-	   exception: their plate reads as pressable in both modes. */
-	--raised-shadow: none;
-	--button-shadow: 0 1px 2px rgba(32, 36, 56, 0.16);
+	--unit: 4px;
+	--space-1: var(--unit);
+	--space-2: calc(var(--unit) * 2);
+	--space-3: calc(var(--unit) * 3);
+	--space-4: calc(var(--unit) * 4);
+	--space-6: calc(var(--unit) * 6);
+	--space-8: calc(var(--unit) * 8);
+	--space-12: calc(var(--unit) * 12);
+	--space-18: calc(var(--unit) * 18);
+	--space-24: calc(var(--unit) * 24);
 
-	/* Voices. Never substituted: Curly speaks, Spectral reads, Iosevka computes. */
-	--p9-display: "Iosevka Curly", Iosevka, "SFMono-Regular", monospace;
-	--p9-support: "Iosevka Curly", Iosevka, "SFMono-Regular", monospace;
-	--p9-font: Spectral, Georgia, "Times New Roman", serif;
-	--p9-mono: Iosevka, "SFMono-Regular", Menlo, Consolas, monospace;
-
-	/* The vertical lattice. Derived from the prose ratio rather than chosen round:
-	   16px prose at 1.5 lands on 24px, which is therefore the lead every line box and
-	   every block-flow dimension is a whole multiple of. Halves appear only as symmetric
-	   pairs that sum back to a whole unit. */
-	--lead: 24px;
-	--lead-half: 12px;
-	--lead-2: 48px;
-	--lead-3: 72px;
-	--lead-4: 96px;
-
-	/* Type sizes. Prose and mono lead at one unit so two columns of different sizes land
-	   on the same baselines; display snaps its font-size to a whole unit and leads at 1,
-	   never the other way around. */
-	--size-prose: 16px;
-	--size-mono: 13px;
-	--size-label: 12px;
-	--size-heading: 24px;
-	--size-display: 48px;
-
-	--plate-edge: 1px;
-	--radius-sm: 2px;
-	--radius-md: 6px;
-}
-
-/* Warm — opt-in only, from a stored choice, never probed from the OS. It dims the paper
-   and leaves ink where it is: black-ink art reads only on a light ground, so the ground
-   moves down to the band where it still prints and no further. Accents deepen rather
-   than lift, because contrast on a lighter-than-mid ground is won by going darker. */
-:root[data-theme="warm"] {
-	--surface: #c7beb6;
-	--surface-raised: #e2dbd4;
-	--surface-quiet: #d6cec6;
-	--text: #1a1d2c;
-	--text-muted: #4b4539;
-	--border: #9f9891;
-	--accent: var(--p9-logo-indigo);
-	--accent-signal: #d04539;
-	--accent-signal-strong: #b93a2f;
-	--accent-ok: #2e6249;
-
-	/* Warm compresses the value range, so raised surfaces earn a letterpress cast under
-	   a lit top edge — paper laid on paper. */
-	--raised-shadow: 0 1px 0 rgba(255, 255, 255, 0.5) inset, 0 2px 6px rgba(26, 29, 44, 0.18);
-	--button-shadow: 0 1px 0 rgba(255, 255, 255, 0.5) inset, 0 1px 2px rgba(26, 29, 44, 0.25);
+	--step--1: 0.75rem;
+	--step--1-lh: 1.25rem;
+	--step-0: 1rem;
+	--step-0-lh: 1.5rem;
+	--step-1: 1.3125rem;
+	--step-1-lh: 1.75rem;
+	--step-2: 1.75rem;
+	--step-2-lh: 2rem;
+	--step-3: 2.375rem;
+	--step-3-lh: 2.5rem;
+	--step-4: 3.125rem;
+	--step-4-lh: 3.25rem;
 }

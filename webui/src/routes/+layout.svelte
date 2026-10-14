@@ -11,7 +11,6 @@
 		Unknown,
 	} from "$lib/server.js";
 	import { session, loadSession, signOut } from "$lib/session.svelte.js";
-	import { warm, loadTheme, toggleTheme } from "$lib/theme.svelte.js";
 	import Button from "$lib/components/Button.svelte";
 
 	let { children } = $props();
@@ -81,14 +80,13 @@
 	}
 
 	onMount(() => {
-		loadTheme();
 		gate();
 	});
 </script>
 
 <div class="shell">
 	<header class="rail">
-		<a class="wordmark" href="/">PRODIGY9</a>
+		<a class="wordmark" href="/"><img src="/logo/wordmark-red.png" alt="PRODIGY9" /></a>
 
 		<nav>
 			{#each destinations as destination (destination.href)}
@@ -101,9 +99,6 @@
 		</nav>
 
 		<div class="account">
-			<button class="toggle label" onclick={toggleTheme}>
-				{warm.on ? "Too glum?" : "Too bright?"}
-			</button>
 			{#if session.user}
 				<span class="mono">{session.user.name}</span>
 				<Button onclick={signOut}>Sign out</Button>
@@ -121,75 +116,48 @@
 </div>
 
 <style>
-	.shell {
-		min-height: 100vh;
-		background: var(--surface);
-	}
-
-	.rail {
-		display: flex;
-		align-items: center;
-		gap: var(--lead);
-		padding: var(--lead-half) var(--lead-2);
-		box-shadow: 0 -1px 0 var(--border) inset;
-	}
-
-	.wordmark {
-		font-family: var(--p9-display);
-		font-size: var(--size-prose);
-		font-weight: 700;
-		letter-spacing: 0.06em;
-		color: var(--accent);
-		text-decoration: none;
-	}
-
-	.wordmark:hover {
-		color: var(--accent-signal);
-	}
-
-	nav {
-		display: flex;
-		gap: var(--lead);
-	}
-
-	.nav-link {
-		color: var(--text-muted);
-		text-decoration: none;
-	}
-
-	.nav-link:hover {
-		color: var(--accent);
-	}
-
-	/* The current destination is stated by ink, not by a box around it. */
-	.nav-link--current {
-		color: var(--text);
-	}
-
-	.account {
-		display: flex;
-		align-items: center;
-		column-gap: var(--lead-half);
-		margin-left: auto;
-	}
-
-	.toggle {
-		padding: var(--lead-half) 0;
-		border: 0;
-		background: none;
-		color: var(--text-muted);
-		cursor: pointer;
-	}
-
-	.toggle:hover {
-		color: var(--accent-signal);
-	}
-
-	.offline {
-		color: var(--accent-signal);
-	}
-
-	main {
-		padding: var(--lead-2) var(--lead-2) var(--lead-4);
-	}
+ .shell { min-height: 100dvh; background: var(--paper); }
+ .rail {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-6) var(--space-12);
+  min-height: var(--space-18);
+  padding: var(--space-4) var(--space-12);
+  background: var(--white);
+  box-shadow: inset 0 -1px 0 var(--hairline), 0 3px 0 color-mix(in srgb, var(--hairline), var(--night) 12%);
+ }
+ .wordmark { display: block; flex: 0 0 auto; line-height: 0; }
+ .wordmark img { display: block; width: 10rem; height: auto; }
+ nav { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-6); }
+ .nav-link {
+  padding-block: var(--space-2);
+  font-family: var(--face-wide);
+  font-weight: 700;
+  color: var(--muted);
+  text-decoration: none;
+ }
+ .nav-link:hover { color: var(--indigo); }
+ .nav-link--current { color: var(--indigo); box-shadow: inset 0 -3px 0 var(--indigo); }
+ .account {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  min-width: 0;
+  margin-left: auto;
+ }
+ .account span { overflow-wrap: anywhere; }
+ .offline { color: var(--error-ink); overflow-wrap: anywhere; }
+ main { min-width: 0; padding: var(--space-8) var(--space-12) var(--space-24); }
+ @media (max-width: 48rem) {
+  .rail { gap: var(--space-3) var(--space-6); padding: var(--space-4); }
+  nav { order: 3; flex-basis: 100%; }
+  .account { max-width: 100%; }
+  main { padding: var(--space-6) var(--space-4) var(--space-12); }
+ }
+ @media (max-width: 26rem) {
+  .account { margin-left: 0; }
+  .nav-link { letter-spacing: 0; }
+ }
 </style>

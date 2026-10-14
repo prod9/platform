@@ -73,10 +73,15 @@
 
 <style>
 	.group {
-		margin-bottom: var(--lead-2);
+		margin-bottom: var(--space-8);
+	}
+
+	.group:last-child {
+		margin-bottom: 0;
 	}
 
 	.failure {
-		color: var(--accent-signal);
+		color: var(--error-ink);
+		overflow-wrap: anywhere;
 	}
 </style>

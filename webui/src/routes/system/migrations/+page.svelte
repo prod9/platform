@@ -100,7 +100,7 @@
 
 <style>
 	.plan {
-		margin: 0 0 var(--lead);
+		margin: 0 0 var(--space-6);
 		padding: 0;
 		list-style: none;
 	}
@@ -108,28 +108,40 @@
 	.line {
 		display: grid;
 		grid-template-columns: 14ch minmax(0, 1fr);
-		gap: var(--lead);
-		line-height: var(--lead);
-		box-shadow: 0 -1px 0 var(--border) inset;
+		gap: var(--space-3) var(--space-6);
+		padding-block: var(--space-3);
+		box-shadow: inset 0 -1px 0 var(--hairline);
+		overflow-wrap: anywhere;
 	}
 
 	.action {
-		color: var(--accent);
+		color: var(--indigo);
 	}
 
 	.warning {
-		padding: var(--lead-half) var(--lead);
-		box-shadow: 0 -1px 0 var(--accent-signal) inset;
-		background: var(--surface-quiet);
-		color: var(--accent-signal-strong);
+		padding: var(--space-6);
+		box-shadow: inset 3px 0 0 var(--red);
+		background: var(--soft);
+		color: var(--error-ink);
+		overflow-wrap: anywhere;
 	}
 
 	.warning p {
 		margin: 0;
-		line-height: var(--lead);
+	}
+
+	.warning p + p {
+		margin-top: var(--space-3);
 	}
 
 	.failure {
-		color: var(--accent-signal);
+		color: var(--error-ink);
+		overflow-wrap: anywhere;
+	}
+
+	@media (max-width: 40rem) {
+		.line {
+			grid-template-columns: minmax(0, 1fr);
+		}
 	}
 </style>

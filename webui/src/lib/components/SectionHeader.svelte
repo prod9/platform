@@ -15,17 +15,24 @@
 	.section-header {
 		display: flex;
 		align-items: center;
-		gap: var(--lead);
-		min-height: var(--lead-2);
-		margin-bottom: var(--lead);
-		box-shadow: 0 -1px 0 var(--border) inset;
+		flex-wrap: wrap;
+		gap: var(--space-3) var(--space-6);
+		min-height: var(--space-12);
+		margin-bottom: var(--space-6);
+		padding-block: var(--space-3);
+		box-shadow: 0 -1px 0 var(--hairline) inset;
 	}
 
 	h3 {
-		color: var(--accent);
+		min-width: 0;
+		color: var(--indigo);
+		overflow-wrap: anywhere;
 	}
 
 	.actions {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--space-3);
 		margin-left: auto;
 	}
 </style>

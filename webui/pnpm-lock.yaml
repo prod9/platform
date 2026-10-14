@@ -8,15 +8,6 @@ importers:
 
   .:
     devDependencies:
-      '@fontsource/iosevka':
-        specifier: ^5.2.5
-        version: 5.2.5
-      '@fontsource/iosevka-curly':
-        specifier: ^5.2.5
-        version: 5.2.5
-      '@fontsource/spectral':
-        specifier: ^5.2.5
-        version: 5.2.8
       '@sveltejs/adapter-static':
         specifier: ^3.0.8
         version: 3.0.10(@sveltejs/kit@2.69.3(@sveltejs/vite-plugin-svelte@5.1.1(svelte@5.56.6)(vite@6.4.3))(svelte@5.56.6)(vite@6.4.3))
@@ -193,15 +184,6 @@ packages:
     engines: {node: '>=18'}
     cpu: [x64]
     os: [win32]
-
-  '@fontsource/iosevka-curly@5.2.5':
-    resolution: {integrity: sha512-IwcvgwOpytFc59R3eeQrCGi4jYZrm07KvDM9DX2lvoSTr0rbw5hMvZf/y0PkPE6tmAG4ZEX1cPJ5sHXYizBufw==}
-
-  '@fontsource/iosevka@5.2.5':
-    resolution: {integrity: sha512-Zv/UHJodDug1LcnWv2u2+GPp3oWP3U6Xp16cJOsqqZQNsCu8sA/ttT331N0NypxBZ+7c8szlSRlYDcy9liZ8pw==}
-
-  '@fontsource/spectral@5.2.8':
-    resolution: {integrity: sha512-0CqZ8/z8A38BdeSz5t2NSd5tCO1R9P1k7SF2VpRLMbZTMSSR6+2Dk0ZBMfEQK/IrBLQS1HgHLMqpdTwRpnKpGQ==}
 
   '@jridgewell/gen-mapping@0.3.13':
     resolution: {integrity: sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==}
@@ -803,12 +785,6 @@ snapshots:
 
   '@esbuild/win32-x64@0.25.12':
     optional: true
-
-  '@fontsource/iosevka-curly@5.2.5': {}
-
-  '@fontsource/iosevka@5.2.5': {}
-
-  '@fontsource/spectral@5.2.8': {}
 
   '@jridgewell/gen-mapping@0.3.13':
     dependencies:

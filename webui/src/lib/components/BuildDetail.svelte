@@ -247,7 +247,7 @@
 <style>
 	.stack {
 		display: grid;
-		gap: var(--lead);
+		gap: var(--space-6);
 		min-width: 0;
 		overflow-wrap: anywhere;
 	}
@@ -259,7 +259,7 @@
 	.detail {
 		display: grid;
 		grid-template-columns: minmax(34ch, 1fr) minmax(0, 2fr);
-		gap: var(--lead-2);
+		gap: var(--space-6);
 		align-items: start;
 	}
 
@@ -276,57 +276,64 @@
 
 	.module {
 		display: grid;
-		gap: var(--lead);
-		padding: var(--lead-half) 0;
-		box-shadow: 0 -1px 0 var(--border) inset;
+		gap: var(--space-3);
+		padding: var(--space-3) 0;
+		box-shadow: 0 -1px 0 var(--hairline) inset;
 	}
 
 	.nav-row {
 		display: grid;
-		grid-template-columns: var(--lead) minmax(0, 1fr) auto;
+		grid-template-columns: var(--space-6) minmax(0, 1fr) auto;
 		align-items: baseline;
-		column-gap: var(--lead-half);
+		column-gap: var(--space-3);
 		width: 100%;
-		line-height: var(--lead);
+		line-height: var(--step-0-lh);
 	}
 
 	.module-name {
-		font-size: var(--size-prose);
-		font-weight: 600;
-		color: var(--accent);
+		font-family: var(--face-display);
+		font-size: var(--step-0);
+		font-weight: 800;
+		color: var(--indigo);
 	}
 
 	.step {
-		padding: var(--lead-half) 0;
+		padding: var(--space-3) var(--space-1);
 		border: 0;
-		background: none;
+		background: transparent;
 		text-align: left;
-		color: var(--text-muted);
+		color: var(--muted);
 		cursor: pointer;
 	}
 
 	.step:hover {
-		color: var(--accent);
+		background: var(--soft);
+		color: var(--indigo);
+	}
+
+	.step:active {
+		box-shadow: 0 3px 0 var(--hairline) inset;
 	}
 
 	.step.selected {
-		background: var(--surface-quiet);
-		box-shadow: 2px 0 0 var(--accent) inset;
+		background: var(--soft);
+		color: var(--ink);
+		box-shadow: 3px 0 0 var(--indigo) inset;
 	}
 
 	.outcome {
 		display: inline-flex;
 		align-items: baseline;
-		gap: var(--lead-half);
+		gap: var(--space-3);
 	}
 
 	.error {
 		margin: 0;
-		color: var(--accent-signal);
+		color: var(--error-ink);
 		white-space: pre-wrap;
 	}
 
-	@media (max-width: 56rem) {
+	@media (max-width: 64rem) {
 		.detail {
 			grid-template-columns: minmax(0, 1fr);
 		}
