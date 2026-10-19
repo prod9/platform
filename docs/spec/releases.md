@@ -85,14 +85,14 @@ requested field and reset lower fields. First automatic release remains `v0.1.0`
 | `v2.0.0-rc.1`    | `v2.0.0`            | `v2.1.0`  | `v3.0.0`  |
 
 There are no channel counters, automatic alpha/beta transitions, separate stable and
-prerelease tracks, or publication checks. For this repository, platformv2 remains on
-`v0.9.x`; manually named trials use the next intended unreleased patch core. Releases of
-this repository remain patch releases in v0.9 until the complete platform CI/CD
-functionality works; this repository convention does not restrict consumer repositories.
+prerelease tracks, or publication checks. This repository's release series starts at
+`v0.10.0-alpha.1` and increments the numeric alpha identifier for subsequent releases:
+`v0.10.0-alpha.2`, `v0.10.0-alpha.3`, and so on. Supply each full name explicitly; do
+not use default/`--patch`, which would finalize `v0.10.0` rather than increment alpha.
+This repository convention does not restrict consumer repositories.
 
-The operator's governing instruction is: "cut new v0.9.XX patch releases if you need
-tagged releases, stay in v0.9 until the whole platform ci/cd functionality are fully
-working".
+The operator's governing instruction is: "ok lets bump and uses v0.10.0-alpha.1 and
+increment from now on so we don't pollute the patch counts like v9".
 
 ### datestamp (`datestamp.go`, `dateref/`)
 

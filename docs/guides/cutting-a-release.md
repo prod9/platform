@@ -32,8 +32,8 @@ golden (step 5).
 
 ```sh
 git fetch gh --tags
-git describe --tags --abbrev=0                       # the previous tag, e.g. v0.9.16
-git log --reverse --format='- `%h` %s' v0.9.16..HEAD > /tmp/v0.9.17-release.md
+git describe --tags --abbrev=0                       # the previous tag, e.g. v0.9.56
+git log --reverse --format='- `%h` %s' v0.9.56..HEAD > /tmp/v0.10.0-alpha.1-release.md
 ```
 
 🚨 **Capture to a file and read the file.** `git log` on a release-sized range is long
@@ -58,23 +58,24 @@ changelog is complete precisely because no release-prep commit exists to be miss
 ## 3. Cut the tag
 
 ```sh
-go run . release --patch      # platformv2 stays on v0.9.x
+go run . release v0.10.0-alpha.1
 ```
 
 The command prints the changelog for a confirm; `ALWAYS_YES=1` clears that confirm in a
 TTY-less shell. `Create` writes an annotated tag **and pushes it** to the `gh` remote —
 there is no local-only mode, so this step is the point of no return.
 
-For an explicitly authorized trial release, supply the full name instead of a bump flag:
+Subsequent releases increment the alpha identifier explicitly:
 
 ```sh
-go run . release v0.9.54-alpha.1
+go run . release v0.10.0-alpha.2
 ```
 
-Choose the next unreleased patch core. Alpha/beta counters are manual; default/`--patch`
-finalizes the highest prerelease at its existing core. Local publish selects the highest
-SemVer, including prereleases, rather than the newest tag by creation time. Explicit
-names are the intended prerelease contract in [releases.md](../spec/releases.md).
+Keep the `v0.10.0` core fixed and increment the alpha identifier. Counters are manual;
+default/`--patch` finalizes the highest prerelease at its existing core. Local publish
+selects the highest SemVer, including prereleases, rather than the newest tag by creation
+time. Explicit names are the intended prerelease contract in
+[releases.md](../spec/releases.md).
 
 When the release contains server-side changes intended for deployment or live testing,
 run `go run . publish` after cutting the release. Report only the tag-qualified image name
@@ -104,22 +105,16 @@ boundary.
 ## 6. Create the GitHub release
 
 ```sh
-gh release create v0.9.17 --verify-tag \
-  --title v0.9.17 \
-  --notes-file /tmp/v0.9.17-release.md
+gh release create v0.10.0-alpha.1 --verify-tag --prerelease \
+  --title v0.10.0-alpha.1 \
+  --notes-file /tmp/v0.10.0-alpha.1-release.md
 ```
 
 `--verify-tag` refuses to invent a tag that does not exist, which is what catches a step-3
 that never ran. The release page is the canonical home of the text from here on — edit it
 there, not in a file.
 
-For a trial tag, mark the GitHub release explicitly as a prerelease:
-
-```sh
-gh release create v0.9.54-alpha.1 --verify-tag --prerelease \
-  --title v0.9.54-alpha.1 \
-  --notes-file /tmp/v0.9.54-alpha.1-release.md
-```
+Keep `--prerelease` for the alpha series so GitHub marks these releases as prereleases.
 
 ## What this does not do
 
