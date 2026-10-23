@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"fx.prodigy9.co/config"
@@ -319,18 +320,22 @@ func (c *Client) repository(ctx context.Context, token, owner, repo string) (*re
 	return &repository, err
 }
 
-// ResolveRef resolves a ref (sha, heads/BRANCH, or tags/TAG) to its commit sha via
-// the vnd.github.sha media type, whose response body is the bare sha. GitHub's 404
-// (repo absent) and 422 (unresolvable name) are both the caller's ref being wrong,
-// not a server fault.
+// ResolveRef resolves a ref to its commit sha via the vnd.github.sha media type.
+// Namespace-qualified refs use their full refs/... spelling because GitHub does not
+// consistently resolve abbreviated tags/TAG names for annotated tags. The commit
+// resource peels those tags rather than returning their tag-object sha.
 func (c *Client) ResolveRef(ctx context.Context, token, owner, repo, ref string) (string, error) {
 	if err := CheckRepoPath(owner, repo); err != nil {
 		return "", err
 	}
+	qualified := ref
+	if strings.HasPrefix(ref, "heads/") || strings.HasPrefix(ref, "tags/") {
+		qualified = "refs/" + ref
+	}
 
 	sha, err := fetchRaw(ctx, c, request{
 		method: "GET",
-		path:   fmt.Sprintf("/repos/%s/%s/commits/%s", owner, repo, ref),
+		path:   fmt.Sprintf("/repos/%s/%s/commits/%s", owner, repo, url.PathEscape(qualified)),
 		auth:   asToken(token),
 		accept: "application/vnd.github.sha",
 		op:     "ref resolution",

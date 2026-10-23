@@ -11,19 +11,19 @@
 
 ## Endpoints
 
-| Call                        | Method+path                                          | Auth               | OK  | Response                                             |
-|-----------------------------|------------------------------------------------------|--------------------|-----|------------------------------------------------------|
-| Mint installation token     | `POST /app/installations/{id}/access_tokens`         | JWT                | 201 | `token`, `expires_at`, `permissions`                 |
-| Get installation            | `GET /app/installations/{id}`                        | JWT                | 200 | `id`, `account` (`login`, `type`), `app_id`          |
-| List installation repos     | `GET /installation/repositories`                     | installation token | 200 | `total_count`, `repositories[]`; `per_page` ≤ 100    |
-| Org membership              | `GET /orgs/{org}/memberships/{username}`             | installation token | 200 | `role`: `admin`\|`member`\|`billing_manager`, `state`: `active`\|`pending` |
-| Resolve ref → sha           | `GET /repos/{owner}/{repo}/commits/{ref}`            | installation token | 200 | top-level `sha`; `ref` = SHA, `heads/BRANCH`, `tags/TAG` |
-| Get the authenticated App   | `GET /app`                                           | JWT                | 200 | `permissions`: map of slug → `read`\|`write`         |
-| Get org installation        | `GET /orgs/{org}/installation`                       | JWT                | 200 | one installation object (`id`, `account`, `app_id`)  |
-| List org webhooks           | `GET /orgs/{org}/hooks`                              | installation token | 200 | `[]` of `id`, `config` (`url`), `events`, `active`   |
-| List user-reachable repos   | `GET /user/installations/{id}/repositories`          | user OAuth token   | 200 | `total_count`, `repositories[]` — the repos *this user* reaches through the installation (owner, collaborator, or org member); `per_page` ≤ 100 |
-| Read a file, raw            | `GET /repos/{owner}/{repo}/contents/{path}`          | installation token | 200 | raw bytes with `Accept: application/vnd.github.raw+json`; `ref` param defaults to the default branch; absent file → 404 |
-| Create org webhook          | `POST /orgs/{org}/hooks`                             | installation token | 201 | `name` must be `"web"`; `config.url` + `content_type`; `events`, `active` |
+| Call                          | Method+path                                            | Auth                 | OK    | Response                                                                                                                                        |
+| ----------------------------- | ------------------------------------------------------ | -------------------- | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Mint installation token       | `POST /app/installations/{id}/access_tokens`           | JWT                  | 201   | `token`, `expires_at`, `permissions`                                                                                                            |
+| Get installation              | `GET /app/installations/{id}`                          | JWT                  | 200   | `id`, `account` (`login`, `type`), `app_id`                                                                                                     |
+| List installation repos       | `GET /installation/repositories`                       | installation token   | 200   | `total_count`, `repositories[]`; `per_page` ≤ 100                                                                                               |
+| Org membership                | `GET /orgs/{org}/memberships/{username}`               | installation token   | 200   | `role`: `admin`\|`member`\|`billing_manager`, `state`: `active`\|`pending`                                                                      |
+| Resolve ref → sha             | `GET /repos/{owner}/{repo}/commits/{ref}`              | installation token   | 200   | commit SHA; use full `refs/heads/BRANCH` or `refs/tags/TAG`                                                                                     |
+| Get the authenticated App     | `GET /app`                                             | JWT                  | 200   | `permissions`: map of slug → `read`\|`write`                                                                                                    |
+| Get org installation          | `GET /orgs/{org}/installation`                         | JWT                  | 200   | one installation object (`id`, `account`, `app_id`)                                                                                             |
+| List org webhooks             | `GET /orgs/{org}/hooks`                                | installation token   | 200   | `[]` of `id`, `config` (`url`), `events`, `active`                                                                                              |
+| List user-reachable repos     | `GET /user/installations/{id}/repositories`            | user OAuth token     | 200   | `total_count`, `repositories[]` — the repos *this user* reaches through the installation (owner, collaborator, or org member); `per_page` ≤ 100 |
+| Read a file, raw              | `GET /repos/{owner}/{repo}/contents/{path}`            | installation token   | 200   | raw bytes with `Accept: application/vnd.github.raw+json`; `ref` param defaults to the default branch; absent file → 404                         |
+| Create org webhook            | `POST /orgs/{org}/hooks`                               | installation token   | 201   | `name` must be `"web"`; `config.url` + `content_type`; `events`, `active`                                                                       |
 
 ## Pagination — the `Link` response header
 
@@ -43,6 +43,15 @@
 - `commits/{ref}` supports the `application/vnd.github.sha` media type — the response
   body is then the bare SHA-1, no JSON. A ref the repo does not have answers 422 (or
   404 when the repo itself is absent) — both mean the caller's ref, not a server fault.
+- Ref spelling was verified against the public API on 2026-10-24: resolving the
+  annotated `prod9/platform` tag `v0.10.0-alpha.2` as `tags/TAG` returned 422,
+  while `refs/tags/TAG` returned its peeled commit SHA
+  `1f13cb38dc879b3777c85d610fbea13e9d9ae92b`. The abbreviated spelling is advertised
+  in [GitHub's commit documentation](https://docs.github.com/en/rest/commits/commits#get-a-commit),
+  but did not work for that annotated tag; namespace-qualified inputs therefore use
+  their complete `refs/...` spelling, escaped as one path segment. Bare names and
+  commit SHAs remain accepted. The commit resource returns the commit, whereas a
+  Git ref resource can identify an annotated tag object instead.
 - Installation tokens live ~1 hour; mint per operation, never store.
 - `GET /app` permission slugs the wizard compares: `contents`, `metadata` (repository);
   `members` (organization). Values are only ever `read` or `write`; `write`

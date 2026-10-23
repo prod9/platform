@@ -66,7 +66,7 @@ func setupInstalledManifest(t *testing.T, manifest string, status int) (context.
 		require.Equal(t, "Bearer ghs_tok", req.Header.Get("Authorization"))
 		fmt.Fprint(resp, `{"clone_url":"https://github.com/prodigy9/app.git"}`)
 	})
-	mux.HandleFunc("GET /repos/prodigy9/app/commits/tags/v1.2.3", func(resp http.ResponseWriter, req *http.Request) {
+	mux.HandleFunc("GET /repos/prodigy9/app/commits/refs%2Ftags%2Fv1.2.3", func(resp http.ResponseWriter, req *http.Request) {
 		require.Equal(t, "application/vnd.github.sha", req.Header.Get("Accept"))
 		fmt.Fprint(resp, "e4c7a1d9")
 	})

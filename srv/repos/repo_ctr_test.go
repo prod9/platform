@@ -75,7 +75,7 @@ func setupInstalled(t *testing.T) (context.Context, *config.Source) {
 		require.Equal(t, "abc123", req.URL.Query().Get("ref"))
 		fmt.Fprint(resp, testAppManifest)
 	})
-	mux.HandleFunc("GET /repos/prodigy9/app/commits/heads/topic", func(resp http.ResponseWriter, req *http.Request) {
+	mux.HandleFunc("GET /repos/prodigy9/app/commits/refs%2Fheads%2Ftopic", func(resp http.ResponseWriter, req *http.Request) {
 		fmt.Fprint(resp, "topicsha")
 	})
 	mux.HandleFunc("GET /repos/prodigy9/app/commits/main", func(resp http.ResponseWriter, req *http.Request) {

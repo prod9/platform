@@ -359,18 +359,39 @@ func TestRepoCloneURLRejectsBadRepoPath(t *testing.T) {
 }
 
 func TestResolveRef(t *testing.T) {
-	client, _ := testClient(t, http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
-		require.Equal(t, "GET", req.Method)
-		require.Equal(t, "/repos/prodigy9/platform/commits/tags/v1.2.3", req.URL.Path)
-		require.Equal(t, "Bearer ghs_tok", req.Header.Get("Authorization"))
-		require.Equal(t, "application/vnd.github.sha", req.Header.Get("Accept"))
+	for _, test := range []struct {
+		ref  string
+		path string
+	}{
+		{"tags/v0.10.0-alpha.2", "refs/tags/v0.10.0-alpha.2"},
+		{"heads/topic/release", "refs/heads/topic/release"},
+		{"refs/tags/v0.10.0-alpha.2", "refs/tags/v0.10.0-alpha.2"},
+		{"refs/heads/main", "refs/heads/main"},
+		{"main", "main"},
+		{"v0.10.0-alpha.2", "v0.10.0-alpha.2"},
+		{"1f13cb38dc879b3777c85d610fbea13e9d9ae92b", "1f13cb38dc879b3777c85d610fbea13e9d9ae92b"},
+		{"heads/release#1", "refs/heads/release#1"},
+	} {
+		t.Run(test.ref, func(t *testing.T) {
+			// The commit resource peels annotated tags to their commit. In contrast,
+			// GitHub returns 422 for some abbreviated tags/TAG names.
+			client, _ := testClient(t, http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
+				require.Equal(t, "GET", req.Method)
+				require.Equal(t, "Bearer ghs_tok", req.Header.Get("Authorization"))
+				require.Equal(t, "application/vnd.github.sha", req.Header.Get("Accept"))
+				if req.URL.Path != "/repos/prodigy9/platform/commits/"+test.path {
+					resp.WriteHeader(http.StatusUnprocessableEntity)
+					return
+				}
 
-		fmt.Fprint(resp, "e4c7a1")
-	}))
+				fmt.Fprint(resp, "1f13cb38dc879b3777c85d610fbea13e9d9ae92b")
+			}))
 
-	sha, err := client.ResolveRef(context.Background(), "ghs_tok", "prodigy9", "platform", "tags/v1.2.3")
-	require.NoError(t, err)
-	require.Equal(t, "e4c7a1", sha)
+			sha, err := client.ResolveRef(context.Background(), "ghs_tok", "prodigy9", "platform", test.ref)
+			require.NoError(t, err)
+			require.Equal(t, "1f13cb38dc879b3777c85d610fbea13e9d9ae92b", sha)
+		})
+	}
 }
 
 func TestResolveRefUnresolvable(t *testing.T) {
