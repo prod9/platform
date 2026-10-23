@@ -72,13 +72,8 @@ pushes all build; no `v` prefix is special. An App-installed repository that has
 registered is not admitted to the build queue. A manual webui build may name any ref and
 select modules, but it records the same domain intent before a worker acts.
 
-The Phase 2 server candidate retains tag-only publication: tag refs publish under their
-exact tag name, and branch refs only build, regardless of stored policy. Applying the
-policy below is deferred to Phase 3; recording it with immutable admission intent remains
-part of Phase 2.
-
-The final design applies a policy to a successful server build. Each `platform.toml` may
-declare it independently of the local release strategy:
+The server applies the admitted build's stored policy to successful module builds.
+Each `platform.toml` may declare it independently of the local release strategy:
 
 ```toml
 [server]
@@ -96,6 +91,18 @@ When `server.publish` is absent, a case-sensitive repository name matching
 the resolved value with the immutable manifest observation used by the build. It never
 infers policy from release strategy, tag spelling, module names, or framework
 implementation.
+
+The worker reads that policy from the immutable manifest snapshot bound to the build,
+alongside the recorded ref. It selects publication once: `always` selects `latest`,
+`tags` selects the entire nonempty suffix of `refs/tags/`, and `never` selects no
+publication. Other refs under `tags` build only. An unknown or empty stored policy is
+an error, not a fallback to defaults or tag-only behavior.
+
+The same selection controls registry credential loading and the engine operation:
+publishing modules use `BuildAndPublish`; build-only modules use `Build` and load no
+registry credentials. The policy changes neither admission cadence nor the selected
+modules. A later manifest read or config default cannot change an admitted build's
+publication decision. Local CLI release and publish behavior remain independent.
 
 ## Intended delivery workflow
 

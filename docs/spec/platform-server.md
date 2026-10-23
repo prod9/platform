@@ -2,8 +2,9 @@
 
 Status: **Phase 2 implemented; remaining product surfaces are intended.** The module-job,
 source-input, and paired-event contracts ship, including immutable admission records,
-module execution, lifecycle reads, and every CLI observer consumer. Server publication
-remains tag-only; applying the stored `always`/`tags`/`never` policy is deferred to Phase 3.
+module execution, lifecycle reads, and every CLI observer consumer. Stored
+`always`/`tags`/`never` publication-policy execution is the approved next increment;
+its contract below leads implementation.
 
 The **route surface**, the **install/boot flow**, and the **build lifecycle** are settled:
 the [Operations](#operations-settled-surface) table teaches the surface,
@@ -35,8 +36,8 @@ is a category error. A reader who wants to know how a piece of `srv` should be s
 fx, then this file.
 
 `srv` is the API + webhook processor: every push for a registered repository records a
-build of the exact commit; the worker later builds it and publishes tag-triggered builds.
-Applying the manifest's stored server publish policy is deferred to Phase 3. It owns the
+build of the exact commit; the worker later builds it and applies the immutable manifest's
+stored server publish policy. It owns the
 GitHub App, the DB, and token minting. It is a layer above the **shared packages** (the stateless
 build/render/publish machinery: `framework`, `engine`, `gitops`, …)
 and consumes them per request. The worker owns a short-lived engine `Session` for each
@@ -448,8 +449,7 @@ a registered push with no manifest returns `409`, and an invalid manifest return
 GitHub or persistence failures return an error rather than acknowledging a partial build.
 
 **Build cadence and publish cadence are separate.** Every non-deleted push to a registered
-repository records a build, whether its ref names a branch or any tag. Phase 2 publishes
-successful tag builds under the exact tag and only builds branch refs. Phase 3 will use
+repository records a build, whether its ref names a branch or any tag. The worker uses
 the immutable manifest observation's resolved `publish_policy` value: `always` publishes
 under `latest`, `tags` publishes tag builds under the exact tag, and `never` does not publish.
 No `v` prefix has server meaning. Admission resolves the absent-field default using the
@@ -520,17 +520,17 @@ unattributed worker. Once claimed, a module is never automatically rescheduled. 
 dying afterward leaves visible stalled work for an operator, whose retry creates a new
 build aggregate rather than mutating this one.
 
-**Phase 2 retains tag-only server publication.** The worker strips `refs/tags/` and
-publishes under the entire remaining tag name; tags need no `v` prefix, and branch builds
-do not publish. This applies regardless of the stored policy, which remains an immutable
-admission fact but does not choose an engine verb in Phase 2.
-
-**The final server policy is deferred to Phase 3.** Under `tags`,
-the worker strips `refs/tags/` and publishes under the entire remaining tag name; tags
+**Server publication follows immutable admission intent.** The worker reads
+`publish_policy` from the manifest snapshot bound to the build and selects publication
+from that value and the recorded ref. Under `tags`, the worker strips `refs/tags/` and
+publishes under the entire nonempty remaining tag name; tags
 need no `v` prefix, and branch builds do not publish. `always` publishes under `latest`
 regardless of the triggering ref. `never` builds without publishing. This policy
 belongs to the server driver, not the engine and not the local `./platform publish`
-command.
+command. Empty or unknown stored policies fail before registry credential loading or
+engine invocation; the worker never recomputes a default or reads a later manifest to
+repair them. The one publication selection controls both registry credential loading
+and the engine verb, so build-only work never loads registry credentials.
 
 **The publish credential is the wizard-saved registry token.** The worker derives the
 registry host from the selected persisted manifest module's image name, reads
@@ -774,8 +774,8 @@ and interprets the selected name through current framework code. A selected name
 from that configuration fails configuration rather than changing the selected set.
 
 The persisted selection and resolved publication policy remain the server's intent.
-Phase 2 selects build-versus-publish from the recorded ref alone; Phase 3 will apply the
-stored policy. Config loading cannot select extra modules or change that choice. The loaded
+The worker selects build-versus-publish from the build's stored policy and recorded ref.
+Config loading cannot select extra modules or change that choice. The loaded
 module's timeout bounds its framework steps, as specified in [engine.md](engine.md); the saved
 `timeout_ns` describes the original observation and is not a clone, dial, publish, or
 staleness deadline. Neither path replays `framework.BuildUnit` or a stored execution plan.
@@ -957,9 +957,10 @@ still GitHub-derived, still zero-RBAC.
 
 After claiming its module, the job mints the installation token, translates the stored
 clone URL and commit into an engine `Source`, opens a `Session`, and invokes `Build` or
-`BuildAndPublish` with exactly the selected module name according to the Phase 2 tag-only
-rule above. Engine owns checkout, configuration, connection, steps, publication, and their
-paired callbacks. The job owns web-record interpretation, policy, and Observer persistence;
+`BuildAndPublish` with exactly the selected module name according to the stored
+publication policy above. Engine owns checkout, configuration, connection, steps,
+publication, and their paired callbacks. The job owns web-record interpretation, policy,
+and Observer persistence;
 it never fabricates callbacks for errors outside engine invocation.
 
 Failure to obtain an installation token or read request prerequisites is a job error;
@@ -980,9 +981,9 @@ module event does not prove the job mechanism completed successfully.
 The module-job candidate includes Phase 1 admission and queued reads together with Phase 2
 module execution, paired lifecycle events, full result folds, per-module credentials, and
 all CLI Observer consumers. These capabilities must compile and pass their verification
-gates before the candidate is complete. Stored publication-policy execution (Phase 3),
-cluster rollout observation, product-page wiring, streaming, and stalled-work cleanup are
-outside this candidate.
+gates before the candidate is complete. Stored publication-policy execution is the next
+approved increment, governed by the contract above. Cluster rollout observation,
+product-page wiring, streaming, and stalled-work cleanup remain separate increments.
 
 Each layer consumes the one below *after* it works. The CLI delivery path, the `srv`
 wrap (webhook ingest, auth, and the build pipeline), the App API client, org-owner claim,
@@ -992,8 +993,9 @@ shipped. Repository onboarding presents and persists the resolved server publish
 Manual module selection, the immutable manifest snapshot, module-based execution, and
 engine attribution on `config_done` have shipped with the Phase 2 candidate. The intended
 server surface is not complete: no read resolves a ref and its manifest modules before
-queueing, engine reads do not exist, the stored publish policy is not yet applied, and
-the complete repository/engine dynamic-route surface remains later work. The bounded
+queueing, engine reads do not exist, stored publish-policy execution awaits the approved
+implementation increment, and the complete repository/engine dynamic-route surface
+remains later work. The bounded
 [first-build UI slice](webui.md#first-build-slice) adds a repository root page with the
 existing whole-repository manual trigger and explicit status refresh before the live
 trial. It adds no retry action or new API operation. The repository landing, onboarding,
