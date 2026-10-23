@@ -12,6 +12,7 @@ type Result struct {
 	Status     Status
 	StartedAt  time.Time
 	FinishedAt time.Time
+	ObservedAt time.Time
 	Error      string
 	Modules    []ModuleResult
 }
@@ -52,8 +53,11 @@ func ResultsFor(ctx context.Context, builds []*Build) (map[int64]Result, error) 
 	for _, module := range modules {
 		selected[module.BuildID] = append(selected[module.BuildID], FoldModule(module, streams[module.ID]))
 	}
+	observedAt := time.Now()
 	for _, id := range ids {
-		results[id] = ReduceModules(selected[id])
+		result := ReduceModules(selected[id])
+		result.ObservedAt = observedAt
+		results[id] = result
 	}
 	return results, nil
 }

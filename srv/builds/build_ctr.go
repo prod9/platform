@@ -217,21 +217,22 @@ type buildResponse struct {
 }
 
 type moduleResponse struct {
-	BuildModuleID    int64     `json:"build_module_id"`
-	ManifestModuleID int64     `json:"manifest_module_id"`
-	Name             string    `json:"name"`
-	Status           Status    `json:"status"`
-	StartedAt        time.Time `json:"started_at"`
-	FinishedAt       time.Time `json:"finished_at"`
-	Error            string    `json:"error"`
-	Image            string    `json:"image"`
-	Hash             string    `json:"hash"`
-	ClaimedAt        time.Time `json:"claimed_at"`
-	ClaimedBy        string    `json:"claimed_by"`
-	EngineHost       string    `json:"engine_host"`
-	EngineAssignedAt time.Time `json:"engine_assigned_at"`
-	LastEventKind    EventKind `json:"last_event_kind"`
-	LastEventAt      time.Time `json:"last_event_at"`
+	BuildModuleID    int64       `json:"build_module_id"`
+	ManifestModuleID int64       `json:"manifest_module_id"`
+	Name             string      `json:"name"`
+	Status           Status      `json:"status"`
+	StartedAt        time.Time   `json:"started_at"`
+	FinishedAt       time.Time   `json:"finished_at"`
+	Error            string      `json:"error"`
+	Image            string      `json:"image"`
+	Hash             string      `json:"hash"`
+	ClaimedAt        time.Time   `json:"claimed_at"`
+	ClaimedBy        string      `json:"claimed_by"`
+	EngineHost       string      `json:"engine_host"`
+	EngineAssignedAt time.Time   `json:"engine_assigned_at"`
+	LastEventKind    EventKind   `json:"last_event_kind"`
+	LastEventAt      time.Time   `json:"last_event_at"`
+	Observation      Observation `json:"observation"`
 }
 
 func list(resp http.ResponseWriter, req *http.Request) {
@@ -373,6 +374,7 @@ func respond(build *Build, result Result) buildResponse {
 			ClaimedAt: module.ClaimedAt, ClaimedBy: module.ClaimedBy,
 			EngineHost: module.EngineHost, EngineAssignedAt: module.EngineAssignedAt,
 			LastEventKind: module.LastEventKind, LastEventAt: module.LastEventAt,
+			Observation: module.Observation(result.ObservedAt),
 		}
 	}
 
