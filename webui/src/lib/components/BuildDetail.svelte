@@ -7,6 +7,7 @@
 	import Facts from "./Facts.svelte";
 	import LoadingBlock from "./LoadingBlock.svelte";
 	import OutcomeMark from "./OutcomeMark.svelte";
+	import ObservationFreshness from "./ObservationFreshness.svelte";
 	import PageHeader from "./PageHeader.svelte";
 	import Panel from "./Panel.svelte";
 	import SignalMark from "./SignalMark.svelte";
@@ -122,6 +123,9 @@
 			{/if}
 		{/snippet}
 		{#snippet actions()}
+			{#if snapshot !== null}
+				<Button href={`/repos/${snapshot.build.owner}/${snapshot.build.repo}/builds/new/?retry_of=${snapshot.build.id}`} disabled={!canRefresh}>Retry</Button>
+			{/if}
 			<Button onclick={refresh} disabled={!canRefresh}>
 				{phase === Refreshing ? "Refreshing…" : "Refresh"}
 			</Button>
@@ -192,13 +196,14 @@
 									<span class="mono module-name">{module.name} · {module.status}</span>
 									<span class="mono muted">{ranFor(module)}</span>
 								</div>
+								<ObservationFreshness observation={module.observation} />
 								<Facts measure="compact">
 									<dt class="mono">Module id</dt><dd class="mono">{module.build_module_id}</dd>
 									{#if recordedTime(module.started_at) !== null}<dt class="mono">Started</dt><dd class="mono">{module.started_at}</dd>{/if}
 									{#if recordedTime(module.finished_at) !== null}<dt class="mono">Finished</dt><dd class="mono">{module.finished_at}</dd>{/if}
 									{#if module.claimed_by !== ""}<dt class="mono">Worker</dt><dd class="mono">{module.claimed_by}</dd>{/if}
 									{#if recordedTime(module.claimed_at) !== null}<dt class="mono">Claimed</dt><dd class="mono">{module.claimed_at}</dd>{/if}
-									{#if module.engine_host !== ""}<dt class="mono">Engine</dt><dd class="mono">{module.engine_host}</dd>{/if}
+									{#if module.engine_host !== ""}<dt class="mono">Engine</dt><dd class="mono"><a href={`/engines/${encodeURIComponent(module.engine_host)}/`}>{module.engine_host}</a></dd>{/if}
 									{#if recordedTime(module.engine_assigned_at) !== null}<dt class="mono">Assigned</dt><dd class="mono">{module.engine_assigned_at}</dd>{/if}
 									{#if module.last_event_kind !== ""}<dt class="mono">Last event</dt><dd class="mono">{module.last_event_kind}</dd>{/if}
 									{#if recordedTime(module.last_event_at) !== null}<dt class="mono">Event at</dt><dd class="mono">{module.last_event_at}</dd>{/if}

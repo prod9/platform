@@ -252,10 +252,10 @@ export function listCandidates() {
 	return call("/api/repos/candidates");
 }
 
-// getManifest is the wizard's review step: the server's pre-read of the repo's
-// platform.toml at the default branch's head, parsed.
-export function getManifest(owner, repo) {
-	return call(`/api/repos/${owner}/${repo}/manifest`);
+// Onboarding reads the default branch; a manual build reviews an explicit ref.
+export function getManifest(owner, repo, ref) {
+	const query = ref === undefined ? "" : `?${new URLSearchParams({ ref })}`;
+	return call(`/api/repos/${owner}/${repo}/manifest${query}`);
 }
 
 // registerRepo is the wizard's confirm: register the repo at the manifest just reviewed.
@@ -271,8 +271,8 @@ export function listRepoBuilds(owner, repo, limit) {
 
 // createBuild records a manual trigger — and a retry is just this again with the same
 // repo and ref (docs/spec/platform-server.md §Build lifecycle).
-export function createBuild(owner, repo, ref) {
-	return post("/api/builds", { owner, repo, ref });
+export function createBuild(request) {
+	return post("/api/builds", request);
 }
 
 function post(path, body) {
@@ -285,4 +285,12 @@ function post(path, body) {
 
 export function endSession() {
 	return call("/api/session", { method: "DELETE" });
+}
+
+export function listEngines() {
+	return call("/api/engines");
+}
+
+export function getEngine(address) {
+	return call(`/api/engines/${encodeURIComponent(address)}`);
 }

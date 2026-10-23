@@ -1,5 +1,13 @@
-// Repo display logic: what the landing page and the onboarding wizard derive from
-// the registration reads. Pure — no transport, no state.
+// Repository display logic: registration choices, bounded build history, and recorded
+// policy presentation. Pure — no transport, no state.
+
+export const HistoryLimit = 50;
+
+export function acceptBuild(history, accepted) {
+	return [accepted, ...history.filter((build) => build.id !== accepted.id)]
+		.sort((left, right) => right.id - left.id)
+		.slice(0, HistoryLimit);
+}
 
 export function filterCandidates(candidates, filter) {
 	const needle = filter.trim().toLowerCase();

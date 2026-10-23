@@ -1,10 +1,37 @@
 import { describe, expect, test } from "vitest";
 import {
+	acceptBuild,
 	filterCandidates,
 	latestStatus,
 	moduleLabel,
 	publishPolicyDetails,
 } from "./repos.js";
+
+describe("acceptBuild", () => {
+	test("keeps fifty newest builds when an accepted build extends full history", () => {
+		const history = Array.from({ length: 50 }, (_, index) => ({ id: 50 - index }));
+		const accepted = { id: 51, status: "queued" };
+
+		const next = acceptBuild(history, accepted);
+
+		expect(next).toHaveLength(50);
+		expect(next[0]).toBe(accepted);
+		expect(next.at(-1).id).toBe(2);
+		expect(history[0].id).toBe(50);
+	});
+
+	test("replaces the matching response without duplicating or disturbing newest-first order", () => {
+		const history = [{ id: 24 }, { id: 22 }, { id: 20 }];
+		const accepted = { id: 22, status: "running" };
+
+		expect(acceptBuild(history, accepted)).toEqual([
+			history[0], accepted, history[2],
+		]);
+		expect(acceptBuild(history, { id: 23 })).toEqual([
+			history[0], { id: 23 }, history[1], history[2],
+		]);
+	});
+});
 
 describe("filterCandidates", () => {
 	const candidates = [

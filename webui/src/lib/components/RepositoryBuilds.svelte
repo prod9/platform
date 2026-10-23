@@ -2,10 +2,13 @@
 	import { session } from "$lib/session.svelte.js";
 	import { Answered, createBuild, errorText, listRepoBuilds } from "$lib/server.js";
 	import { recordedTime } from "$lib/build.js";
+	import { acceptBuild, HistoryLimit } from "$lib/repos.js";
 	import Button from "./Button.svelte";
 	import Facts from "./Facts.svelte";
+	import FeedRow from "./FeedRow.svelte";
 	import LoadingBlock from "./LoadingBlock.svelte";
 	import OutcomeMark from "./OutcomeMark.svelte";
+	import ObservationFreshness from "./ObservationFreshness.svelte";
 	import PageHeader from "./PageHeader.svelte";
 	import Panel from "./Panel.svelte";
 
@@ -16,7 +19,6 @@
 	const Refreshing = "refreshing";
 	const Starting = "starting";
 	const Unavailable = "unavailable";
-	const recentLimit = 3;
 
 	let phase = $state(Loading);
 	let builds = $state([]);
@@ -25,6 +27,7 @@
 	let startError = $state("");
 	let acceptedID = $state(0);
 	let lastReadAt = $state("");
+	let readInFlight = false;
 
 	let canInteract = $derived(
 		phase === Ready && session.ready && session.user !== null,
@@ -35,8 +38,13 @@
 	);
 
 	async function load() {
+		if (readInFlight) {
+			return;
+		}
+		readInFlight = true;
+
 		try {
-			const result = await listRepoBuilds(owner, repo, recentLimit);
+			const result = await listRepoBuilds(owner, repo, HistoryLimit);
 			if (result.outcome !== Answered) {
 				readError = errorText(result);
 				phase = Unavailable;
@@ -54,6 +62,8 @@
 
 			readError = error.message;
 			phase = Unavailable;
+		} finally {
+			readInFlight = false;
 		}
 	}
 
@@ -76,16 +86,14 @@
 		startError = "";
 		acceptedID = 0;
 		try {
-			const result = await createBuild(owner, repo, ref.trim());
+			const result = await createBuild({ owner, repo, ref: ref.trim() });
 			if (result.outcome !== Answered) {
 				startError = errorText(result);
 				return;
 			}
 
 			acceptedID = result.body.id;
-			builds = [result.body, ...builds.filter((build) => build.id !== acceptedID)]
-				.sort((left, right) => right.id - left.id)
-				.slice(0, recentLimit);
+			builds = acceptBuild(builds, result.body);
 		} catch (error) {
 			if (!(error instanceof TypeError || error instanceof SyntaxError)) {
 				throw error;
@@ -108,6 +116,7 @@
 	<PageHeader>
 		{#snippet title()}<h2><a href="/">Repositories</a> / {owner}/{repo}</h2>{/snippet}
 		{#snippet actions()}
+			<Button href={`/repos/${owner}/${repo}/builds/new/`} disabled={!canInteract}>New build</Button>
 			<Button onclick={refresh} disabled={!canRefresh}>
 				{phase === Refreshing ? "Refreshing…" : "Refresh"}
 			</Button>
@@ -146,6 +155,7 @@
 			</p>
 		{/if}
 
+		<p class="label mono">Latest {HistoryLimit} builds · newest first</p>
 		{#if lastReadAt !== ""}
 			<p class="label mono">Last refreshed {lastReadAt}</p>
 		{/if}
@@ -164,41 +174,50 @@
 		{:else if builds.length === 0 && lastReadAt !== ""}
 			<p class="mono muted">No builds yet.</p>
 		{:else}
-			{#each builds as build (build.id)}
-				<Panel label={`Build #${build.id}`}>
-					<a class="mono" href={`/builds/${build.id}/`}>Build #{build.id}</a>
-					<div class="outcome mono"><OutcomeMark status={build.status} /> {build.status}</div>
-					<Facts measure="compact">
-						<dt class="mono">Ref</dt><dd class="mono">{build.ref}</dd>
-						<dt class="mono">SHA</dt><dd class="mono">{build.sha}</dd>
-						<dt class="mono">Trigger</dt><dd class="mono">{build.trigger}</dd>
-						<dt class="mono">Created</dt><dd class="mono">{build.created_at}</dd>
-						{#if recordedTime(build.started_at) !== null}
-							<dt class="mono">Started</dt><dd class="mono">{build.started_at}</dd>
-						{/if}
-						{#if recordedTime(build.finished_at) !== null}
-							<dt class="mono">Finished</dt><dd class="mono">{build.finished_at}</dd>
-						{/if}
-					</Facts>
-					{#if build.error}<p class="error mono">{build.error}</p>{/if}
-					<ul class="modules">
-						{#each build.modules as module (module.build_module_id)}
-							<li>
-								<div class="outcome mono">
-									<OutcomeMark status={module.status} /> {module.name} · {module.status}
-								</div>
-								{#if module.error}<p class="error mono">{module.error}</p>{/if}
-								{#if module.image || module.hash}
-									<Facts measure="compact">
-										{#if module.image}<dt class="mono">Image</dt><dd class="mono">{module.image}</dd>{/if}
-										{#if module.hash}<dt class="mono">Hash</dt><dd class="mono">{module.hash}</dd>{/if}
-									</Facts>
+			<ul class="history">
+				{#each builds as build (build.id)}
+					<li class="build">
+						<FeedRow href={`/builds/${build.id}/`}>
+							{#snippet mark()}<OutcomeMark status={build.status} />{/snippet}
+							{#snippet subject()}
+								<span>#{build.id} · {build.status}</span>
+								<span class="value">Ref {build.ref}</span>
+							{/snippet}
+							{#snippet facts()}
+								<span>SHA {build.sha}</span>
+								<span class="value">Trigger {build.trigger} · user_id {build.user_id}</span>
+							{/snippet}
+							{#snippet timing()}
+								<span>Created {build.created_at}</span>
+								{#if recordedTime(build.started_at) !== null}
+									<span class="value">Started {build.started_at}</span>
 								{/if}
-							</li>
-						{/each}
-					</ul>
-				</Panel>
-			{/each}
+								{#if recordedTime(build.finished_at) !== null}
+									<span class="value">Finished {build.finished_at}</span>
+								{/if}
+							{/snippet}
+						</FeedRow>
+						{#if build.error}<p class="error mono">{build.error}</p>{/if}
+						<ul class="modules">
+							{#each build.modules as module (module.build_module_id)}
+								<li>
+									<div class="outcome mono">
+										<OutcomeMark status={module.status} /> {module.name} · {module.status}
+									</div>
+									<ObservationFreshness observation={module.observation} />
+									{#if module.error}<p class="error mono">{module.error}</p>{/if}
+									{#if module.image || module.hash}
+										<Facts measure="compact">
+											{#if module.image}<dt class="mono">Image</dt><dd class="mono">{module.image}</dd>{/if}
+											{#if module.hash}<dt class="mono">Hash</dt><dd class="mono">{module.hash}</dd>{/if}
+										</Facts>
+									{/if}
+								</li>
+							{/each}
+						</ul>
+					</li>
+				{/each}
+			</ul>
 		{/if}
 	</div>
 </section>
@@ -235,7 +254,26 @@
 		margin: 0;
 		padding: 0;
 		display: grid;
-		gap: var(--space-6);
+		gap: var(--space-3);
+		margin-left: var(--space-3);
+		padding-left: var(--space-6);
+		box-shadow: inset 1px 0 0 var(--hairline);
+	}
+
+	.history {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		min-width: 0;
+	}
+
+	.build {
+		padding-block: var(--space-3);
+		box-shadow: inset 0 -1px 0 var(--hairline);
+	}
+
+	.value {
+		display: block;
 	}
 
 	.error {

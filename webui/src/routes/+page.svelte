@@ -8,6 +8,7 @@
 	import { latestStatus } from "$lib/repos.js";
 	import { lastActivity } from "$lib/build.js";
 	import Button from "$lib/components/Button.svelte";
+	import FeedRow from "$lib/components/FeedRow.svelte";
 	import LoadingBlock from "$lib/components/LoadingBlock.svelte";
 	import OutcomeMark from "$lib/components/OutcomeMark.svelte";
 	import PageHeader from "$lib/components/PageHeader.svelte";
@@ -96,16 +97,16 @@
 							<span class="mono name"><LoadingBlock measure="standard" /></span>
 							<SignalMark signal="navigation" />
 						</button>
-						<span class="subs">
+						<div class="subs">
 							{#each pendingBuilds as _}
-								<button class="build" disabled aria-label="Loading build">
-									<span class="pending-mark"><LoadingBlock /></span>
-									<span class="mono ref"><LoadingBlock measure="compact" /></span>
-									<span class="mono muted"><LoadingBlock measure="standard" /></span>
-									<span class="mono muted timing"><LoadingBlock measure="compact" /></span>
-								</button>
+								<FeedRow>
+									{#snippet mark()}<LoadingBlock />{/snippet}
+									{#snippet subject()}<LoadingBlock measure="compact" />{/snippet}
+									{#snippet facts()}<LoadingBlock measure="standard" />{/snippet}
+									{#snippet timing()}<LoadingBlock measure="compact" />{/snippet}
+								</FeedRow>
 							{/each}
-						</span>
+						</div>
 					</li>
 				{/each}
 			</ul>
@@ -125,24 +126,22 @@
 							<SignalMark signal="navigation" />
 						</a>
 
-						<span class="subs">
+						<div class="subs">
 							{#each repo.recent as build (build.id)}
 								{@const activity = lastActivity(build)}
-								<a class="build" href={`/builds/${build.id}/`}>
-									<OutcomeMark status={build.status} />
-									<span class="mono ref">{build.ref}</span>
-									<span class="mono muted">#{build.id} · {build.sha}</span>
-									<span class="mono muted timing">
-										{activity || "no timestamp"}
-									</span>
-								</a>
+								<FeedRow href={`/builds/${build.id}/`}>
+									{#snippet mark()}<OutcomeMark status={build.status} />{/snippet}
+									{#snippet subject()}{build.ref}{/snippet}
+									{#snippet facts()}#{build.id} · {build.sha}{/snippet}
+									{#snippet timing()}{activity || "no timestamp"}{/snippet}
+								</FeedRow>
 							{:else}
-								<span class="build none">
-									<OutcomeMark status="none" />
-									<span class="mono muted">no builds yet</span>
-								</span>
+								<FeedRow>
+									{#snippet mark()}<OutcomeMark status="none" />{/snippet}
+									{#snippet subject()}<span class="muted">no builds yet</span>{/snippet}
+								</FeedRow>
 							{/each}
-						</span>
+						</div>
 					</li>
 				{/each}
 			</ul>
@@ -210,31 +209,7 @@
 		box-shadow: inset 1px 0 0 var(--hairline);
 	}
 
-	.build {
-		display: grid;
-		grid-template-columns: var(--space-6) minmax(0, 1fr) minmax(0, 1.5fr) minmax(12ch, auto);
-		align-items: baseline;
-		gap: var(--space-2) var(--space-3);
-		padding-block: var(--space-3);
-		color: var(--ink);
-		text-decoration: none;
-	}
-
-	.build > span {
-		min-width: 0;
-		overflow-wrap: anywhere;
-	}
-
-	a.build:hover {
-		background: var(--soft);
-	}
-
-	.timing {
-		text-align: right;
-	}
-
-	button.repo-head,
-	button.build {
+	button.repo-head {
 		width: 100%;
 		padding-inline: 0;
 		border: 0;
@@ -248,17 +223,4 @@
 		width: var(--space-6);
 	}
 
-	@media (max-width: 48rem) {
-		.build {
-			grid-template-columns: var(--space-6) minmax(0, 1fr);
-		}
-
-		.build > span:nth-child(n + 3) {
-			grid-column: 2;
-		}
-
-		.timing {
-			text-align: left;
-		}
-	}
 </style>

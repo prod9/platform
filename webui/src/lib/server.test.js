@@ -6,6 +6,8 @@ import {
 	systemMigrations,
 	runSystemMigrations,
 	registerRepo,
+	getManifest,
+	createBuild,
 	classifyMigrationPlan,
 	Answered,
 	Refused,
@@ -148,6 +150,40 @@ describe("session recovery", () => {
 });
 
 describe("repository onboarding", () => {
+	test("default-branch review remains distinct from an encoded explicit ref", async () => {
+		browserAt("https://platform.example/repos/prod9/platform/builds/new/");
+		const paths = [];
+		globalThis.fetch = async (path) => {
+			paths.push(path);
+			return { ok: true, json: async () => ({}) };
+		};
+
+		await getManifest("prod9", "platform");
+		await getManifest("prod9", "platform", "refs/heads/topic&next");
+
+		expect(paths).toEqual([
+			"/api/repos/prod9/platform/manifest",
+			"/api/repos/prod9/platform/manifest?ref=refs%2Fheads%2Ftopic%26next",
+		]);
+	});
+
+	test("a reviewed build submits its source precondition and selected modules", async () => {
+		browserAt("https://platform.example/repos/prod9/platform/builds/new/");
+		let recorded;
+		globalThis.fetch = async (path, options) => {
+			recorded = { path, body: JSON.parse(options.body), method: options.method };
+			return { ok: true, json: async () => ({ id: 92 }) };
+		};
+		const request = {
+			owner: "prod9", repo: "platform", ref: "refs/heads/main",
+			reviewed_sha: "abc123", modules: ["srv"],
+		};
+
+		await createBuild(request);
+
+		expect(recorded).toEqual({ path: "/api/builds", body: request, method: "POST" });
+	});
+
 	test("confirmation identifies the exact reviewed manifest", async () => {
 		let request;
 		globalThis.fetch = async (path, options) => {
