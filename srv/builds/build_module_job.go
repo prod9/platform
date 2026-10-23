@@ -3,12 +3,14 @@ package builds
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 
 	"fx.prodigy9.co/config"
 	"fx.prodigy9.co/data"
 	"fx.prodigy9.co/worker"
+	"platform.prodigy9.co/conf"
 	"platform.prodigy9.co/engine"
 	"platform.prodigy9.co/engine/observer"
 	"platform.prodigy9.co/srv/github"
@@ -27,11 +29,29 @@ type BuildModuleJob struct {
 }
 
 type moduleRequest struct {
-	Name      string `db:"name"`
-	ImageName string `db:"image_name"`
-	CloneURL  string `db:"clone_url"`
-	SHA       string `db:"sha"`
-	Ref       string `db:"ref"`
+	Name          string             `db:"name"`
+	ImageName     string             `db:"image_name"`
+	CloneURL      string             `db:"clone_url"`
+	SHA           string             `db:"sha"`
+	Ref           string             `db:"ref"`
+	PublishPolicy conf.PublishPolicy `db:"publish_policy"`
+}
+
+func (r moduleRequest) publicationTag() (string, error) {
+	switch r.PublishPolicy {
+	case conf.PublishPolicyAlways:
+		return "latest", nil
+	case conf.PublishPolicyTags:
+		name, isTag := strings.CutPrefix(r.Ref, "refs/tags/")
+		if isTag {
+			return name, nil
+		}
+		return "", nil
+	case conf.PublishPolicyNever:
+		return "", nil
+	default:
+		return "", fmt.Errorf("builds: unknown stored publish policy %q", r.PublishPolicy)
+	}
 }
 
 func (*BuildModuleJob) Name() string { return "build-module" }
@@ -55,13 +75,13 @@ func (j *BuildModuleJob) Run(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
-	token, _, err := install.Token(ctx)
+	tag, err := request.publicationTag()
 	if err != nil {
 		return err
 	}
-	tag := ""
-	if name, isTag := strings.CutPrefix(request.Ref, "refs/tags/"); isTag {
-		tag = name
+	token, _, err := install.Token(ctx)
+	if err != nil {
+		return err
 	}
 	if tag != "" {
 		ctx, err = publicationContext(ctx, request.ImageName)
@@ -89,9 +109,11 @@ func (j *BuildModuleJob) Run(ctx context.Context) (err error) {
 
 func readModuleRequest(ctx context.Context, id int64) (moduleRequest, error) {
 	var request moduleRequest
-	err := data.Get(ctx, &request, `SELECT mm.name, mm.image_name, b.clone_url, b.sha, b.ref
+	err := data.Get(ctx, &request, `SELECT mm.name, mm.image_name, b.clone_url, b.sha, b.ref,
+		m.publish_policy
 		FROM build_modules bm
 		JOIN builds b ON b.id = bm.build_id
+		JOIN repo_manifests m ON m.id = b.manifest_id
 		JOIN repo_manifest_modules mm ON mm.id = bm.manifest_module_id
 		WHERE bm.id = $1`, id)
 	return request, err
