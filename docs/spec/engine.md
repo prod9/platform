@@ -8,7 +8,7 @@ application that invokes it ([`architecture.md`](architecture.md)).
 
 The source-input and paired-observer contracts below are **implemented in Phase 2**,
 together with module execution, lifecycle reads, and every CLI observer consumer. The
-server's deferred publication-policy rollout does not change these engine contracts.
+server's publication policy does not change these engine contracts.
 
 ## A `*dagger.Client` is a session, not a connection
 
@@ -212,8 +212,7 @@ legitimately see different engines as pods come and go, and that is the point.
 ### Read-only fleet inspection
 
 `Session.Inspect(ctx) (Inspection, error)` owns discovery and probing as one operation.
-This is the intended inspection surface; implementation follows the spec-only contract
-change. It accepts no endpoint argument. Fleet and detail adapters use the same report;
+It accepts no endpoint argument. Fleet and detail adapters use the same report;
 they cannot cause a request path or historical assignment to become an outbound target.
 
 The typed report contains:

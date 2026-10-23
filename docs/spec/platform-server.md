@@ -1055,33 +1055,22 @@ module event does not prove the job mechanism completed successfully.
 
 ## Sequencing
 
-The module-job candidate includes Phase 1 admission and queued reads together with Phase 2
-module execution, paired lifecycle events, full result folds, per-module credentials, and
-all CLI Observer consumers. These capabilities must compile and pass their verification
-gates before the candidate is complete. Stored publication-policy execution is the next
-approved increment, governed by the contract above. Cluster rollout observation,
-product-page wiring, streaming, and stalled-work cleanup remain separate increments.
+The module-job foundation includes admission and queued reads, independent module
+execution, paired lifecycle events, result folds, per-module credentials, and CLI
+observer consumers. The server executes each build's admitted publication policy without
+changing the CLI release or publication model.
 
-Each layer consumes the one below *after* it works. The CLI delivery path, the `srv`
-wrap (webhook ingest, auth, and the build pipeline), the App API client, org-owner claim,
-credentialed clone, repository registration, whole-repository manual trigger,
-repository/build reads, build detail/steps, and truthful `/builds/{id}` status have
-shipped. Repository onboarding presents and persists the resolved server publish policy.
-Manual module selection, the immutable manifest snapshot, module-based execution, and
-engine attribution on `config_done` have shipped with the Phase 2 candidate. The intended
-server surface is not complete: no read resolves a ref and its manifest modules before
-queueing, engine reads do not exist, stored publish-policy execution awaits the approved
-implementation increment, and the complete repository/engine dynamic-route surface
-remains later work. The bounded
-[repository-history slice](webui.md#bounded-repository-history-slice) extends the
-repository root page to the latest 50 real builds while retaining the whole-repository
-manual trigger and explicit Refresh. It adds no retry action or new API operation.
-The repository landing, onboarding,
-and System pages have real client reads in source; the
-[recorded build-detail slice](webui.md#recorded-build-detail-slice) reads actual module
-results and captured step output with explicit Refresh and shared page/API authorization.
-The complete repository feed and manual-trigger wizard remain the product target, and
-engine pages remain mocks. Detail polling and retry controls remain later work.
+The current product surface includes repository onboarding, bounded repository history,
+reviewed ref/module selection, linked operator retry, recorded build details and step
+output, and read-only engine fleet/endpoint observations. Observation freshness is
+separate from execution status; quiet work remains recorded work until new evidence
+arrives. These pages use explicit Refresh and preserve labeled stale snapshots on read
+failures. Dynamic repository, build, and endpoint pages share their API authorization
+boundaries.
+
+Cluster rollout observation and pod logs remain a separate capability. Live step-output
+streaming, automatic polling, worker-loss detection, cleanup, cancellation, and automatic
+retry are not part of this surface.
 
 The next planning pass maps the complete CI/CD experience over `platform srv` and its
 existing tooling into implementation slices. It starts from the live product experience,
