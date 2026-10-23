@@ -16,6 +16,8 @@ detail rather than inlining it. Update in place.
 
 ## Index
 
+- [`v0.10-alpha-work-series.md`](v0.10-alpha-work-series.md) — ordered publication,
+  build-control, and engine-visibility increments, with spec gates and live acceptance.
 - [`cutting-a-release.md`](cutting-a-release.md) — this repository's green `main` →
   published GitHub release: changelog, notes file, tag, branch push, golden re-record,
   `gh release create`. Ordered so the dirty-worktree refusal never bites.

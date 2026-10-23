@@ -116,6 +116,26 @@ there, not in a file.
 
 Keep `--prerelease` for the alpha series so GitHub marks these releases as prereleases.
 
+## Infra handoff and live verification
+
+Agree each work slice with chakrit before implementing it. When authorized for the
+current session, cut and publish `v0.10.0-alpha.N` releases as appropriate for completed,
+verified slices; keep the numeric core fixed and increment only the alpha identifier.
+
+After publication, an authorized platform agent may instruct the infra agent in
+`prod9/infra` to roll out the exact published image. Use the infra subagent when one is
+attached, or `tmux send-keys` to its confirmed agent pane when that communication is
+authorized. The infra agent follows its own repository's deployment instructions.
+Obtain chakrit's permission again in every fresh session before sending infra deployment
+instructions; this runbook records the workflow, not a standing permission grant.
+
+The platform agent may use `kubectl` in read-only mode to inspect deployment state,
+events, and error logs. Rollout mutations belong to the infra agent. Once rollout is
+confirmed, use the connected Chrome browser at `https://platform.prodigy9.co` to verify
+the released functionality and layouts against real server responses. Ask chakrit for
+help when authentication requires it. Record live results separately from local fixtures
+and report missing browser access as a blocker to live verification.
+
 ## What this does not do
 
 Cutting a release publishes no image. `release` and `publish` are orthogonal — see
