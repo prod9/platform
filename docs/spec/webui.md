@@ -331,14 +331,26 @@ one block per resolved instance — reachability leading the header, its facts a
 work as sub-rows — each linking to the instance page. A refresh button re-reads; an info
 plate states where the roster comes from (the `DAGGER_ENGINE` DNS name, resolved per
 request — [engine.md](engine.md) §Runner discovery). Per instance the server reports
-what it can honestly know: reachability (dial check), engine version, and current work
-(modules whose `engine_host` names this engine and whose events have no `run_done`).
+what it can honestly know: current-roster connection/version observations and recorded
+unfinished assignments. Fetch `GET /api/engines`; show the configured source, inspection
+time and roster state, with explicit Refresh and honest unconfigured/empty/lookup-failed,
+partial-endpoint, and stale-read states. A failed refresh retains its previous snapshot
+with a stale label. Show assignments with their source ref/SHA, recorded status and
+observation time, linking only to authorized actual build details. The page states that
+unfinished records do not prove live execution or engine idleness.
 Uptime and cache size appear in the walked design but have **no verified source** — they
 enter the wire shape only when a Dagger introspection query is verified and cribbed to
 `docs/vendor/`, and are omitted until then.
 
 **Engine instance (`/engines/{addr}`).** The instance's facts, and the builds it has
-carried — read back from `build_modules.engine_host`. The walked design also shows a live
+carried — read back from `build_modules.engine_host`. Its `GET /api/engines/{addr}` read
+shows the latest 50 authorized endpoint assignments, source values and actual build
+links. Current, unreachable, version-unavailable, historical-only absent, discovery-
+unknown, and SDK-managed `local` observations are distinct; unknown identities are 404.
+The page identifies history as endpoint attribution, not a guarantee of physical engine
+continuity across address reuse. Refresh is explicit and preserves labeled stale data.
+Replace the static instance mock with the real dynamic route; frontend links URL-encode
+the exact reported address. The walked design also shows a live
 engine-log terminal; engine logs are pod logs, which is k8s ground — that pane belongs
 to the **cluster-view slice** ([platform-server.md](platform-server.md), the cluster
 view held for its own design pass) and is out of this surface.

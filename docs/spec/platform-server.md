@@ -400,6 +400,47 @@ is composed regardless of install state; `install.IsInstalled` controls the requ
 surface, not boot. Nothing at boot touches the build queue; executing builds is the
 worker's, and the queue is the records themselves.
 
+## Engine fleet and endpoint observations
+
+The self-contained `srv/engines` fragment owns authenticated engine read views and uses
+the public `engine.Session.Inspect` operation. It duplicates neither DNS resolution nor
+SDK calls. Its product routes use the existing install/record middlewares. Both API
+operations require a session; repository-attributed assignments/history are filtered
+through that session's GitHub-readable repository snapshot before they leave the server.
+
+`GET /api/engines` returns `source`, `port`, `roster_state`, `observed_at`, `error`, and
+`engines`. The first four reflect the inspection report. `engines` is a non-null list
+of current-roster observations ordered by address. Each contains `address`, `state`,
+`version`, `observed_at`, `error`, and `assignments`. Observation states are `ready`,
+`unreachable`, or `version_unavailable`; transport diagnostics are replaced with safe
+descriptions. DNS failure is `roster_state=lookup_failed` with an explicit error, not an
+empty successful roster. Partial endpoint failures preserve the other observations.
+Cancellation and database failures remain request errors; cleanup failures are observed
+and surfaced rather than silently discarded.
+
+Assignments are recorded unfinished modules attributed to the endpoint, not proof of
+active engine execution or idleness. Each carries `build_id`, `build_module_id`, `owner`,
+`repo`, `ref`, `sha`, `name`, canonical `status`, `claimed_at`, `engine_assigned_at`,
+`last_event_kind`, and `last_event_at`. Reuse existing normalized module/event folds;
+derive no stored activity copy. Exclude completed modules from the fleet's unfinished
+assignment list. A reachable endpoint does not prove its recorded workers are alive.
+
+`GET /api/engines/{addr}` returns the same source/observation context, a single `engine`
+observation, and `history`: the latest 50 authorized module assignments to that exact
+address, newest first, including completed work. An identity is admitted only if it is
+in the current inspection roster or has caller-readable recorded attribution. Unknown
+addresses return `404`, including historical addresses known only to inaccessible repos.
+Only the current roster is inspected. A historical-only address returns `state=absent`
+and its history without probing its old IP; lookup failure cannot prove absence, so that
+case returns `state=unknown` with the discovery error. The literal `local` is recorded
+SDK-managed attribution with `state=local`, not an inspectable remote engine. Addresses
+identify endpoints, not durable physical engine identities across IP reuse.
+
+The HTML `/engines/{addr}` route shares session/identity lookup with its API and serves
+the fallback at `200` only for an admitted identity (`401` unsigned, `404` unknown).
+No URL path or history row is ever passed to an SDK dial. These views add no mutations,
+pod logs, uptime/cache claims, persistent schema, or worker-liveness mechanism.
+
 ## Triggering a build
 
 Four boundaries, each crossable in one direction only:
