@@ -319,6 +319,23 @@ Webhook builds remain whole-repository; selection is the manual trigger's alone
 ([platform-server.md](platform-server.md) §Triggering a build). This review operation
 creates no build, registration, snapshot, or job.
 
+**Linked retry.** Build detail offers Retry for a readable recorded build of any status.
+It opens `/repos/{owner}/{repo}/builds/new/?retry_of={id}` using the same reviewed
+manual form. The form first reads the authorized predecessor, verifies its repository
+matches the route, and fixes the ref to the predecessor's exact ref. Missing,
+inaccessible, malformed, or mismatched predecessors cannot become ordinary new builds.
+Show a link to the predecessor and explain that the ref is resolved again; retry is not
+a replay of its old SHA and does not cancel its work.
+
+Loading source reviews the current commit and manifest. Initially select only modules
+whose names appeared in the predecessor and still exist in the reviewed manifest;
+new modules remain unselected. Explicitly list predecessor modules that disappeared so
+the operator can review the difference and intentionally choose the new selection.
+An empty selection disables queueing. Queueing sends `retry_of` with the reviewed SHA
+and chosen modules. The existing moved-ref recovery and single-pending-request behavior
+apply. Success opens the new build, whose detail links back through `retry_of`; history
+retains both records. A different ref requires the ordinary New build flow.
+
 **Build detail (`/builds/{id}`).** Two instruments. The **navigator**: facts up top,
 then modules and steps on one shared three-column grid — mark gutter, name, time — so
 every row aligns whatever its depth. The **terminal**: the selected step's captured
@@ -375,9 +392,7 @@ shell into the server and run `./platform srv data resync-migrations --force`, t
 refresh. A failed read renders its error; no separate reachability probe is built, the
 read failing *is* the reachability signal.
 
-## Shared components
-
-### Observation freshness
+## Observation freshness
 
 Repository module rows, build-detail modules, and engine assignments consume the server's
 `observation` object. A `quiet` observation shows "No recent observations" beside its
@@ -387,6 +402,8 @@ terminal work do not receive the quiet warning. A quiet step can still be runnin
 UI never calls it dead or abandoned. Refresh updates the indication from the new server
 evaluation, with the same stale-snapshot rules as the enclosing view. No timer, polling,
 automatic retry, or new execution status is added by this indication.
+
+## Shared components
 
 Four pieces repeat across the pages. The **outcome mark** is implemented by `OutcomeMark`
 over `SignalMark`; the **kv list** is implemented by `Facts` (muted key, ink value — the

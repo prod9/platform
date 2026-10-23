@@ -810,6 +810,12 @@ the manual trigger records — `POST /api/builds` with the build's repo and ref,
 and re-snapshotted — while `retry_of` links the new aggregate to its predecessor. There is
 no cancellation machinery.
 
+The predecessor must belong to the same registered repository and exact ref; reject a
+different repository or ref before recording any snapshot or build. A readable build of
+any status may be the predecessor, including unfinished work. Retrying never cancels or
+changes it. The reviewed manual flow supplies `retry_of` and `reviewed_sha` together;
+the ordinary source-resolution and moved-ref precondition apply to the new build.
+
 **Modules are independent, including in a monorepo.** The build model carries no module
 dependency graph and the dispatcher imposes no order. A developer encodes any required
 cross-module preparation inside each module's own build definition, so every module remains
