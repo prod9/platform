@@ -298,11 +298,26 @@ durations are hints on those source values. The bounded repository-history slice
 implements the latest 50 with the whole-repository Start build form. A "new build"
 action leading to the manual-trigger wizard remains a later increment.
 
-**Manual-trigger wizard (`/repos/{owner}/{repo}/builds/new/`).** A ref in, its sha
-resolved server-side and shown, the modules read from `platform.toml` at that commit and
-selectable — all on by default; queueing posts `POST /api/builds`. Webhook builds stay
-whole-repo; selection is the manual trigger's alone
-([platform-server.md](platform-server.md) §Triggering a build).
+**Manual-trigger wizard (`/repos/{owner}/{repo}/builds/new/`).** The repository page
+offers a New build link alongside its retained whole-repository Start build form.
+The wizard resolves an entered ref through the manifest resource's `?ref=` read and
+shows the full resolved SHA, exact raw manifest, policy, and modules from that commit.
+All modules are initially selected; explicit empty selection cannot be submitted.
+Ref edits invalidate the entire review and selection until the new ref is loaded.
+
+Queueing posts owner, repo, ref, selected module names, and `reviewed_sha` to
+`POST /api/builds`. A moved ref returns `409`; the wizard discards its review, states
+that the source changed, and requires loading/reviewing it again. It never queues a
+different source silently or automatically resubmits after a failure. While loading
+or queueing, competing actions are disabled. Success opens the returned actual build
+detail. Session expiry, inaccessible repo/ref, absent/invalid manifest, transport failure,
+and empty modules have honest distinct states; stale async results after ref changes
+or navigation cannot repopulate the review. The nested HTML route shares repository
+read authorization and registration lookup with its repository root.
+
+Webhook builds remain whole-repository; selection is the manual trigger's alone
+([platform-server.md](platform-server.md) §Triggering a build). This review operation
+creates no build, registration, snapshot, or job.
 
 **Build detail (`/builds/{id}`).** Two instruments. The **navigator**: facts up top,
 then modules and steps on one shared three-column grid — mark gutter, name, time — so

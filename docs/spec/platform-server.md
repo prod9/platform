@@ -178,7 +178,7 @@ lives under `/api`; GitHub-facing and health routes stay bare.
 | `GET /api/repos`            | session + read filter     | the **registered** repos, filtered against the session user's GitHub authorization     | the repos landing page; registration is stored, permission never is (see §Repos are registered, authorization is GitHub-derived) |
 | `GET /api/repos/candidates` | session + read filter     | repos both the user and App reach that are **not yet registered**                      | the onboarding wizard's pick list, minus what is already onboarded                                                |
 | `POST /api/repos`           | session + repo write      | stores the reviewed repo, raw manifest, resolved publish policy, and modules           | onboarding records exactly what the user reviewed, not whatever the default branch points at later; unreachable repo is 404, absent manifest is 409 |
-| `GET /api/repos/{owner}/{repo}/manifest` | session + repo read | returns the default-branch sha, exact raw manifest, parsed manifest, and resolved publish policy | the onboarding load step shows the raw file; review supplies the immutable sha that confirmation sends back; unreachable repo is 404, absent manifest is 409 |
+| `GET /api/repos/{owner}/{repo}/manifest` | session + repo read | returns the default-branch manifest or `?ref=...` resolved sha, raw manifest, modules, and publish policy | read-only source review; unreachable repo/ref is 404, absent manifest is 409, invalid manifest is 422 |
 | `GET /api/repos/{owner}/{repo}/builds` | session + repo read | the repo's builds, newest first; `?limit=N` caps the page                          | builds nest under a repo in the UI; the landing page fans out `?limit=3` per visible repo                          |
 | `GET /api/builds`           | session + read filter     | last 50 authorized builds, newest first                                               | the global feed cannot disclose builds from inaccessible repos                                                     |
 | `GET /api/builds/{id}`      | session + repo read       | one build plus its selected modules and their folded states — no steps                 | the build detail view — the streams made readable, which is the reason the events are stored at all                |
@@ -427,6 +427,21 @@ and parses `platform.toml` at that exact sha, and atomically writes the build, i
 manifest snapshot, and its selected `build_modules`. The webhook gets the sha from the push
 payload; the manual trigger (`POST /api/builds`) names a ref, so its controller resolves it
 through GitHub first. Neither dispatcher nor executor re-derives what was asked for.
+
+**Manual source review is a read, and queueing checks its precondition.**
+`GET /api/repos/{owner}/{repo}/manifest?ref=...` resolves the supplied nonempty ref
+server-side and reads the manifest at that immutable SHA. Omitting `ref` preserves the
+default-branch onboarding read. Explicit empty or repeated `ref` values return `400`;
+unresolvable refs return `404`, absent manifests `409`, and invalid manifests `422`.
+Preview creates no registration, snapshot, build, or job.
+
+The reviewed wizard supplies `reviewed_sha` alongside the ordinary build request.
+`POST /api/builds` still resolves `ref` itself; a nonempty `reviewed_sha` that differs
+from the resolved commit returns `409` before manifest persistence or build creation.
+The browser must reload and review the moved source rather than silently queueing
+different modules. The client value is a precondition, never the execution SHA. Existing
+whole-repository triggers may omit this precondition. Ref edits discard browser review.
+Both review and admission retain their existing GitHub authorization boundaries.
 
 **A webhook build is whole-repo; a manual trigger may select modules.** `platform.toml`'s
 `[modules]` defines which modules exist. A webhook materializes one `build_modules` row for
