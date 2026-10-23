@@ -97,6 +97,24 @@ LB** without sticky sessions. Avoid by addressing a **specific pod**
 (`kube-pod://<pod>`), a headless Service, a shared host socket, or session pinning — never
 a round-robin Service VIP.
 
+## Read-only engine version query
+
+<!-- derived from: dagger.io/dagger v0.21.7 public Go API and generated SDK source
+     (client.go:15, dagger.gen.go:13972) @ 2026-10-24 -->
+
+The pinned Go SDK exposes `(*Query).Version(context.Context) (string, error)`, documented
+as returning the current Dagger Engine version; `Client` embeds `*Query`, so callers can
+use `client.Version(ctx)`. This is a query of the connected engine, not the SDK build
+version or a module's requested compatibility version.
+
+Verified with `go doc dagger.io/dagger.Query.Version` and the pinned generated source;
+no live engine probe was used. Upstream source:
+[`Query.Version` at v0.21.7](https://github.com/dagger/dagger/blob/v0.21.7/sdk/go/dagger.gen.go#L13972)
+and [`Client` at v0.21.7](https://github.com/dagger/dagger/blob/v0.21.7/sdk/go/client.go#L15).
+Reachability, query failure, and successful version observations belong to platform's
+[inspection contract](../spec/engine.md#read-only-fleet-inspection); this public query
+does not establish uptime, cache size, or liveness of a particular build.
+
 ## Sources
 
 - [Kubernetes deployment](https://docs.dagger.io/reference/deployment/kubernetes/)

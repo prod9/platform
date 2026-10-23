@@ -51,6 +51,7 @@ type Session struct {
 | `Build(ctx, input, mods, obs)` | build every selected module, one operation each                    |
 | `BuildAndPublish(…, tag, …)`   | build and push each image as its run finishes                      |
 | `Clean(ctx)`                   | prune every fleet engine's local cache (drives `platform clean`)   |
+| `Inspect(ctx)`                 | observe the configured remote fleet without starting local capacity |
 | `Unsafe()`                     | one raw connection for an ad-hoc caller (`ls` only)                |
 | `Close()`                      | close connections, then release operation-owned worktrees          |
 
@@ -141,11 +142,13 @@ the way out. Commands that open no session keep `Run` — the rule follows the s
 tidiness.
 
 🚨 **A session's context is the session's own — no caller's cancellation reaches it.**
-Every connection is dialed into `Session.ctx`, a process scope. `Build` gives each unit a
+Every execution connection is dialed into `Session.ctx`, a process scope. `Build` gives
+each unit a
 `context.WithTimeout(ctx, unit.Timeout)` and cancels it when the unit ends; that timeout
 bounds the unit's **steps** and must never reach a dial, because a unit finishing would
 otherwise close a session whose containers the caller still holds. Only `Close` ends a
-session.
+session. Read-only inspection has no execution handles to preserve: its bounded operation
+context may end its own inspection connections, and `Close` still owns their cleanup.
 
 🚨 **Data may ride in the context; resources may not.** `cfg` travels via
 `config.NewContext`/`FromContext` because it is inert and has no lifetime — the roster reads
@@ -180,11 +183,12 @@ Falling back to a local engine is **not** `hosts`' decision — it reports empti
 `dial` decides, reading an empty roster as "let Dagger auto-provision and reuse the local
 engine." So unset `DAGGER_ENGINE` is an explicit operator choice for local, never inferred.
 
-**The roster is unexported in full.** `hosts` and `dial` are reached only through
-`Session`. Nothing outside `engine/` needs an endpoint list, and exporting one invites a
-caller to dial around the driver that owns execution.
+**Roster mechanics remain private.** `hosts`, `dial`, and `dialHost` are reached only
+through `Session`. Execution callers receive no roster or dialing surface. Read-only
+callers use `Session.Inspect` and receive observations, never raw connections or a helper
+they can use to choose an execution target.
 
-**The one endpoint fact that does cross the boundary is the assigned one.** A run reports
+**Execution reports its assigned endpoint.** A run reports
 `ConfigDone(unit, engine, at, nil)` after its connection succeeds and before its first
 step starts. The scalar `engine` is `host:port` for a configured endpoint, or the literal
 `local` when the SDK manages the local engine. `local` names that selection mode, not a
@@ -193,7 +197,9 @@ distinct from a failed assignment, which carries an empty string. The server sto
 observation as the module's `engine_host` and `engine_assigned_at`, without duplicating
 the endpoint across events ([platform-server.md](platform-server.md), the build tables).
 Configured endpoints permit instance attribution; `local` reports only SDK-managed
-execution on the claiming worker. Neither value exposes a roster or dialing surface.
+execution on the claiming worker. Neither value exposes a dialing surface. An address is
+endpoint attribution, not a durable engine-process or pod identity: an address may be
+reused after a pod disappears, so historical assignments do not prove physical continuity.
 
 `dial(ctx)` picks **uniformly at random** among the resolved hosts. Random replaces the
 old round-robin cursor: the distribution over a run of picks is the same, and it needs
@@ -202,6 +208,57 @@ no state kept between calls — which is what lets the roster stay a roster.
 The resolver caches per the DNS record TTL, so a new pod becomes selectable as soon as DNS
 reflects it — no restart. Nothing else is remembered: two calls a second apart may
 legitimately see different engines as pods come and go, and that is the point.
+
+### Read-only fleet inspection
+
+`Session.Inspect(ctx) (Inspection, error)` owns discovery and probing as one operation.
+This is the intended inspection surface; implementation follows the spec-only contract
+change. It accepts no endpoint argument. Fleet and detail adapters use the same report;
+they cannot cause a request path or historical assignment to become an outbound target.
+
+The typed report contains:
+
+| Field        | Type                    | Meaning                                                    |
+|--------------|-------------------------|------------------------------------------------------------|
+| `Source`     | `string`                | Configured `DAGGER_ENGINE` DNS name; empty when unconfigured |
+| `Port`       | `int`                   | Configured `DAGGER_ENGINE_PORT`                             |
+| `State`      | `RosterState`           | `unconfigured`, `empty`, `resolved`, or `lookup_failed`       |
+| `ObservedAt` | `time.Time`             | Time this inspection started                               |
+| `Endpoints`  | `[]EndpointObservation` | Unique current endpoints, sorted by address                 |
+
+Each `EndpointObservation` carries `Address` (`host:port`), `ObservedAt`, `State`
+(`EndpointState`), `Version` (empty until read), and `Err` (`error`, internal to the Go
+report). Endpoint states are `unreachable` (connection failed), `version_unavailable`
+(connection succeeded but the version query failed), and `ready` (version query
+succeeded). A connected endpoint with an unavailable version remains distinguishable
+from a failed connection. A ready endpoint has no error; failed observations preserve
+their error instead of replacing it with an empty version or a successful empty list.
+Wire adapters render safe error descriptions rather than raw transport diagnostics.
+
+Unset configuration returns `unconfigured`; a successful empty lookup returns `empty`.
+Both return a non-nil empty endpoint slice without calling the SDK. Inspection never
+falls back to local provisioning. Lookup failure returns `lookup_failed` and the lookup
+error alongside the report; callers can retain its source and observation time. Endpoint
+failures remain per-endpoint observations so one failed engine cannot erase the rest of
+the fleet. Caller cancellation returns its error alongside any observations obtained.
+
+Inspection has one three-second bound covering discovery, connection, and version reads;
+the bound is subordinate to earlier caller cancellation and changes no existing build,
+step, or test limit. Endpoint probes run concurrently under that shared bound and retain
+deterministic result order. Configuration comes from `Session.ctx`; the inspection
+operation context bounds its network work. Every successful connection is registered
+with the session, so its caller must defer `Close` and surface cleanup errors even when
+inspection partially fails. Inspection does not run containers, prune cache, or execute
+builds. The version read uses the pinned SDK's public `Query.Version(ctx)` operation
+([verified API reference](../vendor/dagger-engine.md#read-only-engine-version-query)).
+
+Server detail reads may select only a current report entry or a caller-readable
+historical assignment. A historical address absent from the current roster remains
+unprobed, including when roster lookup fails; it is history with unavailable current
+observation, not proof of a dead engine. `local` is an SDK-managed assignment with no
+direct inspection target. Unknown addresses receive no inspection connection. Inspection
+reports engine reachability and version only: it does not establish worker liveness,
+module activity, or whether recorded unfinished work is still executing.
 
 ## `Run` — one unit, one step at a time
 
