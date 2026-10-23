@@ -233,6 +233,45 @@ func TestTriggerUnreachableRepo(t *testing.T) {
 	require.Equal(t, http.StatusNotFound, resp.Code)
 }
 
+func TestTriggerChecksReviewedCommitBeforeRecording(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		reviewed string
+		status   int
+	}{
+		{"matching", "e4c7a1d9", http.StatusCreated},
+		{"moved", "previoussha", http.StatusConflict},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			ctx, cfg := setupInstalled(t)
+			registerTestRepo(t, ctx, "prodigy9", "app")
+			token := startTestSession(t, ctx, auth.Repository{
+				GitHubID: 1, Owner: "prodigy9", Name: "app", Permission: auth.PermissionWrite,
+			})
+			var before int
+			require.NoError(t, data.Get(ctx, &before, `SELECT count(*) FROM repo_manifests`))
+			body := fmt.Sprintf(`{"owner":"prodigy9","repo":"app","ref":"refs/tags/v1.2.3","reviewed_sha":%q,"modules":["api"]}`, test.reviewed)
+			resp := requestBuilds(t, ctx, apiRouter(t, cfg), token, "POST", "/api/builds", body)
+			require.Equal(t, test.status, resp.Code, resp.Body.String())
+			if test.status == http.StatusCreated {
+				var created listedBuild
+				require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &created))
+				require.Equal(t, test.reviewed, created.SHA)
+				require.Len(t, created.Modules, 1)
+				require.Equal(t, "api", created.Modules[0].Name)
+				return
+			}
+			var count int
+			require.NoError(t, data.Get(ctx, &count, `SELECT count(*) FROM builds`))
+			require.Zero(t, count)
+			require.NoError(t, data.Get(ctx, &count, `SELECT count(*) FROM build_modules`))
+			require.Zero(t, count)
+			require.NoError(t, data.Get(ctx, &count, `SELECT count(*) FROM repo_manifests`))
+			require.Equal(t, before, count)
+		})
+	}
+}
+
 func TestTriggerRequiresWritePermission(t *testing.T) {
 	ctx, cfg := setupInstalled(t)
 	token := startTestSession(t, ctx, auth.Repository{
@@ -655,7 +694,7 @@ func TestTriggerRetryRecordsANewBuildWithSelectedModules(t *testing.T) {
 	prepareCreate(t, ctx, create)
 	require.NoError(t, create.Execute(ctx, parent))
 	token := startTestSession(t, ctx, auth.Repository{GitHubID: 1, Owner: "prodigy9", Name: "app", Permission: auth.PermissionWrite})
-	body := fmt.Sprintf(`{"owner":"prodigy9","repo":"app","ref":"refs/tags/v1.2.3","retry_of":%d,"modules":["api"]}`, parent.ID)
+	body := fmt.Sprintf(`{"owner":"prodigy9","repo":"app","ref":"refs/tags/v1.2.3","retry_of":%d,"reviewed_sha":"e4c7a1d9","modules":["api"]}`, parent.ID)
 	resp := requestBuilds(t, ctx, apiRouter(t, cfg), token, "POST", "/api/builds", body)
 	require.Equal(t, http.StatusCreated, resp.Code, resp.Body.String())
 	var retry listedBuild
@@ -668,4 +707,36 @@ func TestTriggerRetryRecordsANewBuildWithSelectedModules(t *testing.T) {
 	require.Equal(t, "api", retry.Modules[0].Name)
 	require.Equal(t, "queued", retry.Status)
 	require.Len(t, modulesFor(t, ctx, parent.ID), 2)
+}
+
+func TestRetryPredecessorMustMatchRepositoryAndRef(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		repo string
+		ref  string
+	}{
+		{name: "different ref", repo: "app", ref: "refs/heads/main"},
+		{name: "different repository", repo: "other", ref: "refs/tags/v1.2.3"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			ctx, _ := setupInstalled(t)
+			parent := &Build{}
+			create := &Create{Owner: "prodigy9", Repo: test.repo, Ref: test.ref,
+				SHA: "oldsha", UserID: 1, Trigger: TriggerWebUI}
+			prepareCreate(t, ctx, create)
+			require.NoError(t, create.Execute(ctx, parent))
+			retry := &Create{Owner: "prodigy9", Repo: "app", Ref: "refs/tags/v1.2.3",
+				SHA: "newsha", UserID: 1, Trigger: TriggerRetry, RetryOf: parent.ID}
+			prepareCreate(t, ctx, retry)
+
+			err := retry.Execute(ctx, &Build{})
+
+			require.ErrorIs(t, err, ErrInvalidRetry)
+			var count int
+			require.NoError(t, data.Get(ctx, &count, `SELECT count(*) FROM builds`))
+			require.Equal(t, 1, count)
+			require.NoError(t, data.Get(ctx, &count, `SELECT count(*) FROM repo_manifests WHERE sha = 'newsha'`))
+			require.Zero(t, count)
+		})
+	}
 }

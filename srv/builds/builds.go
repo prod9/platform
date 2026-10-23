@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	ErrInvalidRetry = errors.New("builds: retry predecessor does not belong to this repository")
+	ErrInvalidRetry = errors.New("builds: retry predecessor does not match this repository and ref")
 	App             = app.Build().
 			Name("builds").
 			EmbedMigrations(Migrations).

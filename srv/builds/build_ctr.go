@@ -53,7 +53,11 @@ func trigger(resp http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 
 	create := &Create{Trigger: TriggerWebUI, UserID: user.ID}
-	if err := controllers.ReadAction(req, create); err != nil {
+	input := struct {
+		*Create
+		ReviewedSHA string `json:"reviewed_sha"`
+	}{Create: create}
+	if err := controllers.ReadAction(req, &input); err != nil {
 		render.Error(resp, req, 400, err)
 		return
 	}
@@ -88,6 +92,10 @@ func trigger(resp http.ResponseWriter, req *http.Request) {
 		return
 	} else if err != nil {
 		render.Error(resp, req, 500, err)
+		return
+	}
+	if input.ReviewedSHA != "" && input.ReviewedSHA != create.SHA {
+		render.Error(resp, req, http.StatusConflict, errors.New("builds: source changed; review the ref again"))
 		return
 	}
 	observed, err := client.RepoManifestAt(ctx, token, create.Owner, create.Repo, create.SHA)

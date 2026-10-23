@@ -48,7 +48,7 @@ func (c *Create) Execute(ctx context.Context, out any) error {
 	if c.RetryOf != 0 {
 		var matches bool
 		if err := data.Get(ctx, &matches, `SELECT EXISTS (SELECT 1 FROM builds
-			WHERE id = $1 AND repo_id = $2)`, c.RetryOf, registration.ID); err != nil {
+			WHERE id = $1 AND repo_id = $2 AND ref = $3)`, c.RetryOf, registration.ID, c.Ref); err != nil {
 			return err
 		}
 		if !matches {

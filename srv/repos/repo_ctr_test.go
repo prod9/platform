@@ -68,8 +68,15 @@ func setupInstalled(t *testing.T) (context.Context, *config.Source) {
 	})
 	mux.HandleFunc("GET /repos/prodigy9/app/contents/platform.toml", func(resp http.ResponseWriter, req *http.Request) {
 		require.Equal(t, "Bearer ghs_tok", req.Header.Get("Authorization"))
+		if req.URL.Query().Get("ref") == "topicsha" {
+			fmt.Fprint(resp, testAppManifest+"\n[modules.api]\nframework = 'go/basic'\n")
+			return
+		}
 		require.Equal(t, "abc123", req.URL.Query().Get("ref"))
 		fmt.Fprint(resp, testAppManifest)
+	})
+	mux.HandleFunc("GET /repos/prodigy9/app/commits/heads/topic", func(resp http.ResponseWriter, req *http.Request) {
+		fmt.Fprint(resp, "topicsha")
 	})
 	mux.HandleFunc("GET /repos/prodigy9/app/commits/main", func(resp http.ResponseWriter, req *http.Request) {
 		require.Equal(t, "application/vnd.github.sha", req.Header.Get("Accept"))
@@ -320,6 +327,39 @@ func TestManifestAbsentIsConflict(t *testing.T) {
 
 	resp := doRequest(t, router, ctx, session, "GET", "/api/repos/prodigy9/api/manifest", "")
 	require.Equal(t, http.StatusConflict, resp.Code)
+}
+
+func TestManifestReviewReadsSelectedRefWithoutRecording(t *testing.T) {
+	ctx, cfg := setupInstalled(t)
+	_, session := startTestSession(t, ctx, testRepository("app", auth.PermissionRead))
+	resp := doRequest(t, apiRouter(t, cfg), ctx, session, "GET",
+		"/api/repos/prodigy9/app/manifest?ref=refs%2Fheads%2Ftopic", "")
+	require.Equal(t, http.StatusOK, resp.Code, resp.Body.String())
+	var reviewed manifestResponse
+	require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &reviewed))
+	require.Equal(t, "topicsha", reviewed.SHA)
+	require.Contains(t, reviewed.Raw, "[modules.api]")
+	require.Equal(t, []moduleResponse{{"api", "go/basic", "."}, {"web", "pnpm/basic", "."}}, reviewed.Modules)
+	var count int
+	require.NoError(t, data.Get(ctx, &count, `SELECT count(*) FROM repo_manifests`))
+	require.Zero(t, count)
+}
+
+func TestManifestReviewRejectsInvalidOrMissingRef(t *testing.T) {
+	ctx, cfg := setupInstalled(t)
+	_, session := startTestSession(t, ctx, testRepository("app", auth.PermissionRead))
+	for _, test := range []struct {
+		query  string
+		status int
+	}{
+		{"?ref=", http.StatusBadRequest},
+		{"?ref=main&ref=topic", http.StatusBadRequest},
+		{"?ref=refs%2Fheads%2Fmissing", http.StatusNotFound},
+	} {
+		resp := doRequest(t, apiRouter(t, cfg), ctx, session, "GET",
+			"/api/repos/prodigy9/app/manifest"+test.query, "")
+		require.Equal(t, test.status, resp.Code, test.query)
+	}
 }
 
 func TestManifestUnreachableIsNotFound(t *testing.T) {

@@ -10,6 +10,7 @@ import (
 	"fx.prodigy9.co/config"
 	"fx.prodigy9.co/fxlog"
 	"fx.prodigy9.co/httpserver/controllers"
+	"fx.prodigy9.co/httpserver/httperrors"
 	"fx.prodigy9.co/httpserver/render"
 	"github.com/go-chi/chi/v5"
 	"platform.prodigy9.co/conf"
@@ -168,14 +169,17 @@ type moduleResponse struct {
 	WorkDir   string `json:"workdir"`
 }
 
-// manifest is the wizard's review step: the repo's platform.toml read live from
-// GitHub at the default branch's head and parsed through the real parser — the user
-// confirms what the server pre-read, not what the client guessed. A manifest that
-// does not parse is the repo's data problem, answered 422.
+// manifest reads source without recording it. Onboarding uses the default branch;
+// manual source review resolves its supplied ref before reading the immutable commit.
 func manifest(resp http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 	owner, repo := chi.URLParam(req, "owner"), chi.URLParam(req, "repo")
 	if !auth.RequireRepoRead(resp, req, owner, repo) {
+		return
+	}
+	refs, specified := req.URL.Query()["ref"]
+	if specified && (len(refs) != 1 || refs[0] == "") {
+		render.Error(resp, req, http.StatusBadRequest, httperrors.ErrBadRequest)
 		return
 	}
 
@@ -184,8 +188,17 @@ func manifest(resp http.ResponseWriter, req *http.Request) {
 		render.Error(resp, req, 500, err)
 		return
 	}
-	observed, err := client.RepoManifest(ctx, token, owner, repo)
-	if errors.Is(err, github.ErrRepoUnreachable) {
+	var observed *github.Manifest
+	if specified {
+		var sha string
+		sha, err = client.ResolveRef(ctx, token, owner, repo, strings.TrimPrefix(refs[0], "refs/"))
+		if err == nil {
+			observed, err = client.RepoManifestAt(ctx, token, owner, repo, sha)
+		}
+	} else {
+		observed, err = client.RepoManifest(ctx, token, owner, repo)
+	}
+	if errors.Is(err, github.ErrRepoUnreachable) || errors.Is(err, github.ErrRefUnresolvable) {
 		render.Error(resp, req, 404, err)
 		return
 	} else if errors.Is(err, github.ErrNoManifest) {
