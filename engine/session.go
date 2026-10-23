@@ -12,9 +12,9 @@ import (
 // Session is the span during which containers are usable. Every container is a handle into
 // the connection that built it, and every connection is dialed into the session's own
 // context — so a container stays valid for exactly as long as its session and dies with
-// Close. Nothing else ends a session: no caller's cancellation reaches one, because a
-// per-unit timeout that killed a connection would invalidate containers the caller is still
-// holding.
+// Close. Build connections ignore caller cancellation because a per-unit timeout would
+// invalidate containers the caller is still holding. Read-only inspection connections
+// instead follow the inspection's bounded context; they return observations, not handles.
 //
 // A session opens as many connections as its work needs and closes them together. It is safe
 // for concurrent use, and opening one dials nothing, so a command opens exactly one and
@@ -28,9 +28,9 @@ type Session struct {
 }
 
 // NewSession opens a session on the fleet. It dials nothing: connections are made as runs
-// need them, so a session that never builds never touches an engine. ctx is the lifetime
-// every connection will be dialed into — a process scope, never a request or per-unit one —
-// and it carries the config the roster reads.
+// need them. Build connections use ctx as their lifetime — a process scope, never a
+// request or per-unit one — and inspection uses its own bounded context. The session
+// context carries the config the roster reads.
 func NewSession(ctx context.Context) *Session {
 	return &Session{ctx: ctx}
 }
