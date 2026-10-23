@@ -166,29 +166,44 @@ record exists yet.
 
 ## Pages
 
-### First-build slice
+### Bounded repository-history slice
 
-The immediate repository surface is bounded to starting one whole-repository build and
-reading its result on `/repos/{owner}/{repo}/`. This is the accepted implementation scope
-before the operator's live build trial; the complete feed and wizard below remain the
-product target. Chakrit's scope:
+The repository page at `/repos/{owner}/{repo}/` presents the latest 50 builds as a
+compact feed, newest first. This extends the initial whole-repository build trial into
+usable recent history; the manual-trigger wizard remains a separate increment. The page
+states the latest-50 bound and offers no pagination or promise of older history. The
+landing page keeps its independent three-build preview per repository.
 
-> "is that too much. can you get just enough to just start first build? and pretty sure
-> we havn't talked about retry logic that much"
-
-The repository page uses the existing `GET /api/repos/{owner}/{repo}/builds` and
-`POST /api/builds` operations. It presents an initially empty ref field with an example
+The repository page uses the existing `GET /api/repos/{owner}/{repo}/builds?limit=50`
+and `POST /api/builds` operations. It retains an initially empty ref field with an example
 such as `refs/heads/main`; the operator enters a ref and **Start build** sends `owner`,
 `repo`, and `ref`, omitting `modules` so every module at the server-resolved commit is
 selected. The page disables submission until the session and repository read have
 completed, and while a request is in flight. It never invents a default branch.
 
-A successful response appears immediately on the same page with its build id, canonical
-status, exact ref and SHA, trigger, timestamps, and module statuses and errors. Publication
-image and hash appear only when present in the response. **Refresh** reads current build
-states; the bounded slice adds no polling, step-output pane, module picker, pre-queue
-resolution, or retry action. Build ids link into the recorded build-detail page described
-below.
+A successful response appears immediately on the same page with accepted-build feedback
+and its actual detail link. Insert that build into the newest-first history, replacing a
+matching id and retaining at most 50 entries. Build rows show their id, canonical status
+with supplementary outcome mark, exact ref, full SHA, and recorded source timestamps.
+Created time is always shown; started and finished times appear only when recorded.
+Abbreviated SHAs, relative times, and durations may supplement those values, never replace
+them. The trigger and numeric `user_id` identify recorded provenance with their exact
+values and explicit labels; do not infer an actor name or translate a principal id into
+one. Each row links to the recorded build-detail page.
+
+Module sub-rows retain API order and show every selected module's name, canonical status,
+and recorded error. Build errors remain visible too. Publication image and hash appear
+only when present in the response. Long refs, SHAs, module names, errors, and image values
+wrap without clipping essential facts or making the page require horizontal scrolling.
+
+The landing preview and repository history share feed-row presentation and outcome/time
+primitives; one component owns their row spacing, responsive structure, and link/focus
+treatment. Each page retains its own source-value contract: sharing presentation does not
+add canonical status labels or full timestamps to the landing preview. Reads, mutations,
+and snapshot state remain with the page that owns them.
+
+**Refresh** reads current build states without overlapping requests; the bounded slice
+adds no polling, step-output pane, module picker, pre-queue resolution, or retry action.
 Loading, empty, refused, and offline outcomes stay distinct; a failed refresh retains
 the last successful read with an explicit stale-state message. A failed submission never
 creates a success message or an automatic second request.
@@ -279,8 +294,9 @@ authorization is GitHub-derived.
 first, each row led by its canonical status and supplementary outcome mark, carrying the
 ref, full commit sha, source timestamps, per-module statuses, and the trigger's
 provenance (who or what asked). Recognizable tags, abbreviated shas, relative times, and
-durations are hints on those source values. A "new build" action leads to the
-manual-trigger wizard.
+durations are hints on those source values. The bounded repository-history slice above
+implements the latest 50 with the whole-repository Start build form. A "new build"
+action leading to the manual-trigger wizard remains a later increment.
 
 **Manual-trigger wizard (`/repos/{owner}/{repo}/builds/new/`).** A ref in, its sha
 resolved server-side and shown, the modules read from `platform.toml` at that commit and

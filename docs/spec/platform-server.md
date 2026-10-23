@@ -996,9 +996,10 @@ server surface is not complete: no read resolves a ref and its manifest modules 
 queueing, engine reads do not exist, stored publish-policy execution awaits the approved
 implementation increment, and the complete repository/engine dynamic-route surface
 remains later work. The bounded
-[first-build UI slice](webui.md#first-build-slice) adds a repository root page with the
-existing whole-repository manual trigger and explicit status refresh before the live
-trial. It adds no retry action or new API operation. The repository landing, onboarding,
+[repository-history slice](webui.md#bounded-repository-history-slice) extends the
+repository root page to the latest 50 real builds while retaining the whole-repository
+manual trigger and explicit Refresh. It adds no retry action or new API operation.
+The repository landing, onboarding,
 and System pages have real client reads in source; the
 [recorded build-detail slice](webui.md#recorded-build-detail-slice) reads actual module
 results and captured step output with explicit Refresh and shared page/API authorization.
