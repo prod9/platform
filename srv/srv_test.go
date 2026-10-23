@@ -10,9 +10,12 @@ import (
 	"time"
 
 	"fx.prodigy9.co/app"
+	"fx.prodigy9.co/config"
+	"fx.prodigy9.co/data"
 	"fx.prodigy9.co/fxtest"
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/require"
+	"platform.prodigy9.co/engine"
 	"platform.prodigy9.co/srv/auth"
 	"platform.prodigy9.co/srv/builds"
 	"platform.prodigy9.co/srv/github"
@@ -26,7 +29,7 @@ func init() {
 
 func TestAppCollectsPermanentServerConcerns(t *testing.T) {
 	children := App.Children()
-	require.Equal(t, []string{"github", "auth", "builds", "repos", "install", "system", "webui"},
+	require.Equal(t, []string{"github", "auth", "builds", "repos", "install", "system", "engines", "webui"},
 		appNames(children))
 	require.NotNil(t, children[1].EmbeddedMigrations())
 	require.NotNil(t, children[2].EmbeddedMigrations())
@@ -103,6 +106,7 @@ func TestUIUnknownPathIsFallbackAt404(t *testing.T) {
 // See docs/spec/webui.md §Recorded build-detail slice.
 func TestUIBuildRouteStatusFollowsTheRecord(t *testing.T) {
 	ctx := srvtest.SetupDB(t)
+	config.Set(config.FromContext(ctx), engine.DaggerEngineConfig, "")
 	seedClaim(t, ctx)
 	systemUser, err := auth.SystemUserID(ctx)
 	require.NoError(t, err)
@@ -119,6 +123,11 @@ func TestUIBuildRouteStatusFollowsTheRecord(t *testing.T) {
 		Owner: "prod9", Repo: "app", CloneURL: "https://github.com/prod9/app.git",
 		Ref: "refs/tags/v1.2.3", SHA: "abc123", ManifestRaw: raw, Manifest: *manifest}
 	require.NoError(t, create.Execute(ctx, build))
+	var moduleID int64
+	require.NoError(t, data.Get(ctx, &moduleID, `SELECT id FROM build_modules WHERE build_id=$1`, build.ID))
+	require.NoError(t, (&builds.ClaimModule{ID: moduleID, Hostname: "worker"}).Execute(ctx, &builds.BuildModule{}))
+	require.NoError(t, (&builds.AppendEvent{BuildModuleID: moduleID, Kind: builds.EventConfigDone,
+		At: time.Now(), EngineHost: "old-worker:1234"}).Execute(ctx, nil))
 
 	for _, login := range []*auth.CreateLogin{
 		{Account: auth.GitHubAccount{ID: 12345, Login: "reader", Email: "reader@example.com"},
@@ -140,6 +149,11 @@ func TestUIBuildRouteStatusFollowsTheRecord(t *testing.T) {
 		{"trailing slash", fmt.Sprintf("/builds/%d/", build.ID), "reader-session", http.StatusOK},
 		{"missing", "/builds/999999", "reader-session", http.StatusNotFound},
 		{"inaccessible", fmt.Sprintf("/builds/%d", build.ID), "outsider-session", http.StatusNotFound},
+		{"engine signed out", "/engines/old-worker:1234/", "", http.StatusUnauthorized},
+		{"engine history", "/engines/old-worker:1234/", "reader-session", http.StatusOK},
+		{"engine encoded", "/engines/old-worker%3A1234/", "reader-session", http.StatusOK},
+		{"engine inaccessible", "/engines/old-worker:1234/", "outsider-session", http.StatusNotFound},
+		{"engine unknown", "/engines/unknown:1234/", "reader-session", http.StatusNotFound},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			resp := httptest.NewRecorder()
@@ -193,7 +207,11 @@ func TestUIRepoRouteStatusFollowsRegistrationAndAccess(t *testing.T) {
 		{"/repos/PROD9/APP/", http.StatusOK},
 		{"/repos/prod9/unregistered/", http.StatusNotFound},
 		{"/repos/prod9/private/", http.StatusNotFound},
-		{"/repos/prod9/app/builds/new/", http.StatusNotFound},
+		{"/repos/prod9/app/builds/new", http.StatusOK},
+		{"/repos/prod9/app/builds/new/", http.StatusOK},
+		{"/repos/prod9/private/builds/new/", http.StatusNotFound},
+		{"/repos/prod9/unregistered/builds/new/", http.StatusNotFound},
+		{"/repos/prod9/app/builds/new/extra", http.StatusNotFound},
 		{"/repos/prod9/app//", http.StatusNotFound},
 	} {
 		t.Run(test.path, func(t *testing.T) {
@@ -211,6 +229,8 @@ func TestUIRepoRouteStatusFollowsRegistrationAndAccess(t *testing.T) {
 	}
 	unsigned := serve(ctx, router, "/repos/prod9/app/")
 	require.Equal(t, http.StatusUnauthorized, unsigned.Code)
+	unsignedWizard := serve(ctx, router, "/repos/prod9/app/builds/new/")
+	require.Equal(t, http.StatusUnauthorized, unsignedWizard.Code)
 }
 
 func TestUIHidesRepositoryBeforeClaim(t *testing.T) {

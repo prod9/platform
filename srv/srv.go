@@ -26,6 +26,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"platform.prodigy9.co/srv/auth"
 	"platform.prodigy9.co/srv/builds"
+	"platform.prodigy9.co/srv/engines"
 	"platform.prodigy9.co/srv/github"
 	"platform.prodigy9.co/srv/install"
 	"platform.prodigy9.co/srv/repos"
@@ -46,6 +47,7 @@ var App app.Interface = app.Build().
 	Mount(repos.App).
 	Mount(install.App).
 	Mount(system.App).
+	Mount(engines.App).
 	Mount(app.Build().
 		Name("webui").
 		Controllers(controllers.FromFunc("/health", health), UI{})).
@@ -83,7 +85,8 @@ func (UI) Mount(_ *config.Source, router chi.Router) error {
 		installerPath := installRoute(req.URL.Path)
 		_, dynamicBuildPath := buildRoute(req.URL.Path)
 		owner, repo, dynamicRepoPath := repoRoute(req.URL.Path)
-		productPath := dynamicBuildPath || dynamicRepoPath || productPage(req.URL.Path, prerenderedPath)
+		address, dynamicEnginePath := engineRoute(req.URL.Path)
+		productPath := dynamicBuildPath || dynamicRepoPath || dynamicEnginePath || productPage(req.URL.Path, prerenderedPath)
 		if installerPath || productPath {
 			db, ok := data.LookupFromContext(req.Context())
 			if !ok {
@@ -124,6 +127,12 @@ func (UI) Mount(_ *config.Source, router chi.Router) error {
 		}
 		if id, ok := buildRoute(req.URL.Path); ok {
 			if _, readable := builds.RequireRead(resp, req, strconv.FormatInt(id, 10)); !readable {
+				return
+			}
+			status = http.StatusOK
+		}
+		if dynamicEnginePath {
+			if _, readable := engines.RequireRead(resp, req, address); !readable {
 				return
 			}
 			status = http.StatusOK
@@ -191,9 +200,20 @@ func repoRoute(path string) (string, string, bool) {
 	if !ok {
 		return "", "", false
 	}
-	owner, repo, ok := strings.Cut(strings.TrimSuffix(rest, "/"), "/")
+	rest = strings.TrimSuffix(rest, "/")
+	rest = strings.TrimSuffix(rest, "/builds/new")
+	owner, repo, ok := strings.Cut(rest, "/")
 	if !ok || github.CheckRepoPath(owner, repo) != nil {
 		return "", "", false
 	}
 	return owner, repo, true
+}
+
+func engineRoute(path string) (string, bool) {
+	address, ok := strings.CutPrefix(path, "/engines/")
+	address = strings.TrimSuffix(address, "/")
+	if !ok || address == "" || strings.Contains(address, "/") {
+		return "", false
+	}
+	return address, true
 }
