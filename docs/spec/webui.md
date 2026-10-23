@@ -377,6 +377,17 @@ read failing *is* the reachability signal.
 
 ## Shared components
 
+### Observation freshness
+
+Repository module rows, build-detail modules, and engine assignments consume the server's
+`observation` object. A `quiet` observation shows "No recent observations" beside its
+exact `last_observed_at`; retain the canonical execution status and recorded source
+timestamps. A shared presentation owns this indication. Queued/unclaimed, recent, and
+terminal work do not receive the quiet warning. A quiet step can still be running; the
+UI never calls it dead or abandoned. Refresh updates the indication from the new server
+evaluation, with the same stale-snapshot rules as the enclosing view. No timer, polling,
+automatic retry, or new execution status is added by this indication.
+
 Four pieces repeat across the pages. The **outcome mark** is implemented by `OutcomeMark`
 over `SignalMark`; the **kv list** is implemented by `Facts` (muted key, ink value — the
 settings and facts shape). The **feed row** (status-led row with its source timestamp and

@@ -658,15 +658,29 @@ when every selected module is terminal does the aggregate become `failed` if any
 failed, otherwise `succeeded`. A failed module beside queued or running siblings cannot
 finish the aggregate.
 
-Current Phase 2 reads use no age threshold to synthesize a terminal event or a fifth
-status. A claimed module without `run_done` stays visibly incomplete, exposing its claim,
-engine assignment, and latest recorded observation.
+**Observation freshness is separate from execution outcome.** Chakrit selected
+"Observation freshness only (recommended)" rather than authoritative worker-loss
+detection. Reads derive freshness from recorded observations; they create no background
+queue, cleanup flag, worker lease, terminal event, fifth execution status, or requeue.
+A claimed module without `run_done` retains its recorded incomplete outcome.
 
-The intended follow-up is a cleanup/reconcile loop that surfaces stalled or abandoned
-work truthfully after a period without observations. It never automatically requeues a
-claimed module; retry remains the operator's action and creates another build. The
-staleness window, observation mechanism, and resulting wire/status representation are
-unsettled and require design in that later slice; the loop is not implemented.
+Each module result response includes `observation` with `state`, `evaluated_at`,
+`last_observed_at`, and `quiet_after_seconds`. One server evaluation time is used for
+all modules in a response. States are `not_started` for unclaimed work, `terminal` for
+recorded success/failure, `recent` for a nonterminal claim observed less than five minutes
+ago, and `quiet` after five minutes without a recorded observation. The boundary is
+inclusive. The baseline is the latest nonzero claim, engine-assignment, or last-event
+observation time; future timestamps remain recent rather than producing negative ages.
+`quiet_after_seconds` is 300, a presentation freshness window, not an execution deadline
+or a change to any existing timeout. Completed results stay terminal regardless of age.
+
+Step output is persisted at step completion, so quiet does not prove a stopped worker
+or failed build. UI and engine assignment views show the source observation time and
+say "No recent observations"; they do not claim abandonment, death, or live activity.
+A later observation restores recent freshness on the next explicit Refresh, without
+rewriting history. Derive this view in the build domain and reuse it in build/repository
+and engine reads; do not persist or synchronize a duplicate age flag. Retry remains
+the human's explicit creation of a new linked build.
 
 ### Build tables
 
