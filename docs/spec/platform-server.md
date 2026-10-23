@@ -455,8 +455,9 @@ build of this repo at this commit* — differing only in how they are authorized
 controller validates the untrusted signal, authorizes it, and records that fact. If the
 button path and the webhook path diverge past the controller, that is two systems.
 
-**A controller never calls the engine.** An HTTP request's lifetime has nothing to do with
-a build's; the durable record is the handoff.
+**Build admission never executes an engine build.** An HTTP request's lifetime has
+nothing to do with a build's; the durable record is the handoff. The read-only engine
+inspection resource above observes its own bounded session and creates no build work.
 
 **The records are the queue.** A build is the aggregate request; its `build_modules` are the
 independently executable work. Pending is derived from those domain records and their event

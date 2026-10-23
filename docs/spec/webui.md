@@ -295,8 +295,8 @@ first, each row led by its canonical status and supplementary outcome mark, carr
 ref, full commit sha, source timestamps, per-module statuses, and the trigger's
 provenance (who or what asked). Recognizable tags, abbreviated shas, relative times, and
 durations are hints on those source values. The bounded repository-history slice above
-implements the latest 50 with the whole-repository Start build form. A "new build"
-action leading to the manual-trigger wizard remains a later increment.
+implements the latest 50 with the whole-repository Start build form. A New build
+action leads to the reviewed manual-trigger wizard.
 
 **Manual-trigger wizard (`/repos/{owner}/{repo}/builds/new/`).** The repository page
 offers a New build link alongside its retained whole-repository Start build form.
@@ -408,7 +408,7 @@ automatic retry, or new execution status is added by this indication.
 Four pieces repeat across the pages. The **outcome mark** is implemented by `OutcomeMark`
 over `SignalMark`; the **kv list** is implemented by `Facts` (muted key, ink value — the
 settings and facts shape). The **feed row** (status-led row with its source timestamp and
-optional derived hints) remains pending. `TerminalPane` owns the build detail's labeled
+optional derived hints) is owned by `FeedRow`. `TerminalPane` owns the build detail's labeled
 stdout/stderr buffers and recorded error, with escaped output in a night-ground log view.
 The cluster-view slice's live log reads remain deferred. Mock notes describe pending
 pieces rather than overriding the implemented shared primitives.
