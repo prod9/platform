@@ -169,7 +169,8 @@ together outside framework code (that is how `pnpmBase` came to sit one letter f
 **A runner either repeats `StepBase`'s prefix exactly or sheds it entirely — never
 almost.** A runner that keeps the build toolchain must re-derive `StepBase`'s calls in the
 same order, so Dagger dedupes the identical prefix instead of installing the toolchain
-twice; that is the interpreted family (`pnpm/basic`). A runner that
+twice; that is the interpreted family (`pnpm/basic`), whose runner repeats `StepDeps`
+too so it reuses the build's own `node_modules` layer. A runner that
 does not need the toolchain starts from the bare base instead and shares no prefix at all
 — `pnpm/static` and the Go runners. Both are correct; the failure is a prefix that
 *nearly* matches, which dedupes nothing and reads as if it should. Which family a runner

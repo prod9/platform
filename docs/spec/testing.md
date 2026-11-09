@@ -64,6 +64,20 @@ An isolated release fixture uses a local repository and local bare `gh` remote t
 named prereleases, annotated tag contents, collisions, validation before effects, and
 stable finalization. It never pushes to a shared repository.
 
+## Runtime coverage — intended, not started
+
+Smoke builds every testbed but never runs a built image, so a runner that lays out a
+broken runtime still passes. A `pnpm/basic` runner that left `node_modules` where Node
+could not resolve it shipped this way, and the `pnpmbasic` testbed, a SvelteKit app with
+no runtime `dependencies` whose route chunks load lazily, could not have caught it.
+
+The intended direction: a runtime testbed is a plain program, not a web app. It imports a
+runtime dependency and prints a fixed line; a smoke step runs the image's start command
+through `platform exec` and records exit code and stdout. No server is started and nothing
+waits on a sleep. The bundler-default testbeds such as `pnpmbasic` stay as they are.
+chakrit deferred this on 2026-11-10 ("Punt this. Record the direction but don't start
+yet."); until it lands, runtime behaviour of a runner has no smoke coverage.
+
 ## The 1m per-test timeout
 
 The per-test timeout in `tests.cue` is deliberately tight — it keeps builds honest. Never

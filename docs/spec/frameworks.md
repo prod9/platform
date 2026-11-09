@@ -298,6 +298,21 @@ and there is no skip-tests opt-out. Full rationale:
   bare `node`; `pnpm/static` serves the built bundle with Caddy under the HTTP surface
   above.
 
+  **The `pnpm/basic` runner is the dependency stage plus the built bundle.** It repeats
+  `StepBase` and `StepDeps` call for call, so Dagger reuses those layers and the runner's
+  `node_modules` is the one installed in `SrcDir` in that same lineage — no second
+  install, and nothing copied from another image. Runner packages come after that prefix.
+  The install is the full one, `devDependencies` included: JavaScript packages often list
+  runtime imports under the wrong key, and a production-only install would break those
+  apps at start.
+
+  The bundle is copied into `RunDir` and `RunDir/node_modules` is a symlink to
+  `SrcDir/node_modules`. Node resolves a bare import only by walking up from the importing
+  file, and `NODE_PATH` does not apply to ESM; SvelteKit's `adapter-node` leaves the app's
+  `dependencies` as bare imports, so without the link every server-side runtime import
+  fails with `ERR_MODULE_NOT_FOUND`. `node_modules` itself never crosses images: native
+  addons link against the image that ran the install.
+
   **Bare `node` is the interpreted runners' default command on purpose.** The runner's
   default args are a runtime entrypoint over an already-built bundle, and pnpm is a
   build-time tool, not a runtime supervisor — routing the entrypoint through `pnpm start`
