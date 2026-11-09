@@ -19,7 +19,6 @@ let testbeds = [...{name: string, dir: string}] &
 	{name: "Go Basic", dir: "gobasic"},
 	{name: "Go Workspace", dir: "gowork"},
 	{name: "PNPM Basic", dir: "pnpmbasic"},
-	{name: "PNPM Workspace", dir: "pnpmwork"},
 	{name: "PNPM Static", dir: "pnpmstatic"},
 	{name: "Dockerfile", dir: "dockerfile"},
 ]

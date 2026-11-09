@@ -19,7 +19,6 @@ func TestPlanSteps(t *testing.T) {
 		{GoWorkspace{}, []Step{StepBase, StepDeps, StepTest, StepBuild, StepBuildRunner}},
 		{PNPMBasic{}, []Step{StepBase, StepDeps, StepBuild, StepBuildRunner}},
 		{PNPMStatic{}, []Step{StepBase, StepDeps, StepBuild, StepBuildRunner}},
-		{PNPMWorkspace{}, []Step{StepBase, StepDeps, StepBuild, StepBuildRunner}},
 		{Dockerfile{}, []Step{StepBuild}},
 		{PlatformInfra{}, []Step{StepDeps, StepBuild}},
 	} {

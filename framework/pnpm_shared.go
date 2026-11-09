@@ -7,9 +7,9 @@ import (
 )
 
 const (
-	// sveltekitBuildDir is what SvelteKit's adapter-node defaults its `out` to, and both
-	// interpreted pnpm frameworks discover SvelteKit projects. `pnpm/static` is Astro and
-	// defaults elsewhere — see astroBuildDir.
+	// sveltekitBuildDir is what SvelteKit's adapter-node defaults its `out` to, and
+	// pnpm/basic discovers SvelteKit projects. `pnpm/static` is Astro and defaults
+	// elsewhere — see astroBuildDir.
 	sveltekitBuildDir = "build"
 	defaultNodeBin    = "/usr/local/bin/node" // run command for non-static pnpm builds
 )
@@ -58,10 +58,4 @@ func withPNPMDeps(base *dagger.Container, host *dagger.Directory) *dagger.Contai
 			},
 		}).
 		WithExec([]string{"pnpm", "i"})
-}
-
-// withPNPMModuleFix marks the runner's served directory as ESM so bare node treats the
-// pnpm/workspace output as modules. pnpm-specific — no other family needs it.
-func withPNPMModuleFix(base *dagger.Container) *dagger.Container {
-	return base.WithNewFile(RunDir+"/package.json", `{"type":"module"}`)
 }

@@ -111,8 +111,7 @@ var (
 		PlatformInfra{},
 
 		// workspace roots — their members match the single-project markers below
-		GoWorkspace{},   // go.work
-		PNPMWorkspace{}, // pnpm-workspace.yaml, pnpm-workspaces.yaml
+		GoWorkspace{}, // go.work
 
 		// single-project markers
 		GoBasic{},    // go.mod
