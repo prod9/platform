@@ -49,7 +49,9 @@ func (PNPMBasic) Execute(ctx context.Context, client *dagger.Client, unit *Build
 		return in.WithDirectory(".", host).WithExec([]string{"pnpm", "build"}), nil
 
 	case StepBuildRunner:
-		outdir := buildDir(unit, sveltekitBuildDir)
+		// SvelteKit adapter-node's default `out`, the app shape pnpm/basic serves.
+		const defaultBuildDir = "build"
+		outdir := buildDir(unit, defaultBuildDir)
 
 		// StepBase's provisioning, repeated in the same order so Dagger dedupes the identical
 		// prefix instead of installing pnpm a second time. Re-derived rather than threaded.

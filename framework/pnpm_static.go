@@ -8,10 +8,6 @@ import (
 	"platform.prodigy9.co/framework/scaffold"
 )
 
-// astroBuildDir is Astro's own default outDir, and Discover keys on astro.config.mjs — so
-// a project that names no build_dir is an Astro project taking Astro's default.
-const astroBuildDir = "dist"
-
 type PNPMStatic struct{ noScaffoldVars }
 
 var _ Framework = PNPMStatic{}
@@ -53,7 +49,9 @@ func (PNPMStatic) Execute(ctx context.Context, client *dagger.Client, unit *Buil
 		return in.WithDirectory(".", host).WithExec([]string{"pnpm", "build"}), nil
 
 	case StepBuildRunner:
-		outdir := buildDir(unit, astroBuildDir)
+		// Astro's own default outDir; Discover keys on astro.config.mjs.
+		const defaultBuildDir = "dist"
+		outdir := buildDir(unit, defaultBuildDir)
 
 		// Static family: only the built bundle and a webserver ship. Off the bare base, never
 		// the pnpm one — the runtime, corepack, the build packages and node_modules all

@@ -6,13 +6,7 @@ import (
 	"dagger.io/dagger"
 )
 
-const (
-	// sveltekitBuildDir is what SvelteKit's adapter-node defaults its `out` to, and
-	// pnpm/basic discovers SvelteKit projects. `pnpm/static` is Astro and defaults
-	// elsewhere — see astroBuildDir.
-	sveltekitBuildDir = "build"
-	defaultNodeBin    = "/usr/local/bin/node" // run command for non-static pnpm builds
-)
+const defaultNodeBin = "/usr/local/bin/node" // run command for non-static pnpm builds
 
 // nInstallScript installs the Node runtime pnpm rides on, from nodejs.org via tj/n.
 var nInstallScript = strings.TrimSpace(`
