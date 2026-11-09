@@ -38,6 +38,11 @@ tree and dies downstream at:
 exec: "corepack": executable file not found in $PATH
 ```
 
+If the same error survives `platform clean` on a cold cache, it is not this failure:
+check that the platform release in use installs corepack itself (see the corepack note in
+[`../spec/frameworks.md`](../spec/frameworks.md#stack-notes)). Node 25 and later ship no
+corepack.
+
 The symptom points at PATH or the recipe; the cause is the snapshot. A standalone
 `docker run` of the identical steps provisions Node fine — which is exactly why a fresh
 checkout (fresh cache key) passes and your machine doesn't.
@@ -59,8 +64,8 @@ the latest upstream release. Re-check upstream before making an upgrade decision
 ## Never switch pnpm → apk
 
 When Node provisioning fails, `apk add nodejs corepack` is **not** the fix and must not
-be proposed. The provisioning path (Node from nodejs.org via tj/n, pnpm via Node's own
-corepack) is deliberate; see the stack notes in
+be proposed. The provisioning path (Node from nodejs.org via tj/n, corepack from npm,
+pnpm via corepack) is deliberate; see the stack notes in
 [`../spec/frameworks.md`](../spec/frameworks.md#stack-notes). A cache or build failure is
 never a reason to change where Node comes from. **Shed the cache with `platform clean`,
 then fix the real cause.**

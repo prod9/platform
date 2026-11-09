@@ -299,8 +299,8 @@ and there is no skip-tests opt-out. Full rationale:
   go.sum (and every member's in workspace) are copied and `go mod download`-ed before the
   full source, so the dependency layer keys on manifests alone. Runner carries only the
   compiled binary.
-- **pnpm** — Node comes from nodejs.org via `tj/n` (`n install lts`), pnpm via Node's
-  corepack. `pnpm/basic` and `pnpm/workspace` serve via bare `node`; `pnpm/static` serves
+- **pnpm** — Node comes from nodejs.org via `tj/n` (`n install lts`), corepack from the
+  npm registry (`npm install -g corepack`), and pnpm via corepack. `pnpm/basic` and `pnpm/workspace` serve via bare `node`; `pnpm/static` serves
   the built bundle with Caddy under the HTTP surface above. Workspace runner marks `RunDir`
   as ESM (`withPNPMModuleFix`).
 
@@ -343,12 +343,20 @@ and there is no skip-tests opt-out. Full rationale:
   above: platform supplies no pin for this base or these two toolchains. Go toolchains
   and baseline component versions retain their separately specified pins.
 
+  **Corepack is installed on its own, never assumed to ride with Node.** Node 25 and later
+  no longer bundle corepack; its upstream, the Node.js project's `corepack` package, ships
+  on npm instead. Since Node 26 became `lts`, a Node install carries no `corepack`, so
+  provisioning installs it from npm with the npm that Node does carry, unpinned like Node
+  itself. Relying on the bundled copy fails every pnpm build with
+  `exec: "corepack": executable file not found in $PATH`.
+
   🚨 **This provisioning is deliberate — never "simplify" it to distro packages.** Never
   `apk add nodejs`/`corepack`. Node, corepack, pnpm, and the distro are four uncoordinated
   maintainer groups; sourcing Node from the distro adds a party whose repackaging borks
   the seams downstream (linux-wifi-driver style). Stay closest to the least-magic,
   most-reliable upstream. pnpm over npm because npm is slow; corepack because it is
-  Node-sanctioned and narrow-jobbed, not a version-juggler like nvm. A cache or build
+  Node-sanctioned and narrow-jobbed, not a version-juggler like nvm. Installing corepack
+  with npm still takes it from its own upstream, not the distro. A cache or build
   failure in this step is **never** a reason to switch to apk — shed the cache with
   `platform clean` (first-line diagnostics for any "worked on a fresh checkout but not
   here" failure) and fix the real cause.
