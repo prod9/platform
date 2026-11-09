@@ -53,21 +53,22 @@ func (PNPMBasic) Execute(ctx context.Context, client *dagger.Client, unit *Build
 		const defaultBuildDir = "build"
 		outdir := buildDir(unit, defaultBuildDir)
 
-		// StepBase's provisioning, repeated in the same order so Dagger dedupes the identical
-		// prefix instead of installing pnpm a second time. Re-derived rather than threaded.
+		// StepBase and StepDeps, repeated call for call so Dagger reuses their layers: the
+		// runner's node_modules is the build's own install, never a second one and never a
+		// copy from another image. Re-derived rather than threaded.
 		runner := BaseImageForUnit(client, unit)
 		runner = withBuildPkgs(runner)
 		runner = withPNPM(runner)
 		runner = withPNPMPkgCache(client, runner)
 		runner = withUnitEnv(runner, unit)
+		runner = withPNPMDeps(runner, host)
 
-		// Runner packages ahead of the dependency layer: they never change, while the
-		// dependency layer keys on the repo's manifests. This is an interpreted family, so
-		// node_modules and the runtime stay in the image rather than being left behind.
-		runner = withRunnerPkgs(runner)
-		runner = withPNPMDeps(runner, host).
+		// Node resolves the bundle's bare imports by walking up from RunDir, so the
+		// install in SrcDir is linked in beside it (docs/spec/frameworks.md).
+		runner = withRunnerPkgs(runner).
 			WithWorkdir(RunDir).
-			WithDirectory(RunDir, in.Directory(outdir))
+			WithDirectory(RunDir, in.Directory(outdir)).
+			WithSymlink(SrcDir+"/node_modules", RunDir+"/node_modules")
 		runner = withUnitAssets(runner, in, unit)
 
 		return runner.WithDefaultArgs(runArgs(unit, defaultNodeBin, ".")), nil
