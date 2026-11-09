@@ -1,11 +1,26 @@
 package releases
 
 import (
+	"slices"
 	"testing"
 
 	r "github.com/stretchr/testify/require"
 	"platform.prodigy9.co/conf"
 )
+
+// TestParseLogOutput pins that every log line is a commit. The git boundary trims its
+// output, so the last line — the oldest commit in the range — arrives with no newline,
+// and a parser that emitted on newlines dropped it from every tag changelog.
+func TestParseLogOutput(t *testing.T) {
+	raw := "b4ebcef Require pulling first\nb37a2a5 Install corepack\n2d44ae0 Specify corepack"
+
+	r.Equal(t, []CommitRef{
+		{Hash: "b4ebcef", Subject: "Require pulling first"},
+		{Hash: "b37a2a5", Subject: "Install corepack"},
+		{Hash: "2d44ae0", Subject: "Specify corepack"},
+	}, slices.Collect(parseLogOutput(raw)))
+	r.Empty(t, slices.Collect(parseLogOutput("")))
+}
 
 // TestGenerateMessage pins the annotated-tag body, and with it the link form. The stored
 // repository is scheme-less, so a bullet built by concatenation renders text no client

@@ -33,6 +33,7 @@
             - ""
             - '* [2ac4bee][https://github.com/example/release-fixture/commit/2ac4bee] fixture: SemVer strategy'
             - '* [0ed2bd4][https://github.com/example/release-fixture/commit/0ed2bd4] fixture: Date strategy'
+            - '* [4121cc5][https://github.com/example/release-fixture/commit/4121cc5] fixture: Initial project'
             - ""
             - 'Remote tags:'
             - v1.2.3 tag

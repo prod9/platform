@@ -188,24 +188,18 @@ func listCommits(g *git.Context, range_ string) (refs []CommitRef, err error) {
 	return slices.Collect(parseLogOutput(raw)), nil
 }
 
+// parseLogOutput reads `<short-hash> <subject>` lines, one commit per line. The git
+// boundary trims its output, so the last line carries no newline.
 func parseLogOutput(raw string) iter.Seq[CommitRef] {
 	return func(yield func(CommitRef) bool) {
-		hashStart, subjStart := 0, 0
-		ref := CommitRef{}
-		for idx, r := range raw {
-			// example:
-			// f3e0f9: Sample message
-			if ref.Hash == "" && r == ' ' {
-				ref.Hash = raw[hashStart:idx]
-				subjStart = idx + 1
+		for line := range strings.SplitSeq(raw, "\n") {
+			if line == "" {
+				continue
+			}
 
-			} else if ref.Subject == "" && r == '\n' {
-				ref.Subject = raw[subjStart:idx]
-				if !yield(ref) {
-					return
-				}
-				ref = CommitRef{}
-				hashStart = idx + 1
+			hash, subject, _ := strings.Cut(line, " ")
+			if !yield(CommitRef{Hash: hash, Subject: subject}) {
+				return
 			}
 		}
 	}
