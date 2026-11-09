@@ -18,10 +18,17 @@ describe. Commit any required reviewed golden changes separately.
 ## 0. Preconditions
 
 ```sh
+git pull --ff-only gh main  # before any work, not only before the tag
 git status --short          # must be empty
 go test ./...               # must pass
 ./test.sh                   # must report UNCHANGED
 ```
+
+🚨 **Pull first.** A release is cut from whatever local `main` holds. A clone behind
+`gh/main` tags a commit missing published work, its `main` push is rejected after the tag
+has already gone out, and its tests and smoke ran against the wrong tree. Pull before
+writing the change, and confirm `git status -sb` shows no `behind` before step 3. If the
+pull is not a fast-forward, stop and reconcile before releasing.
 
 A `CHANGED` golden here is unreviewed drift from earlier work — settle it before releasing,
 never in the same diff as the release. The launcher test compares the pin with its binary
@@ -32,9 +39,14 @@ golden (step 5).
 
 ```sh
 git fetch gh --tags
-git describe --tags --abbrev=0                       # the previous tag, e.g. v0.9.56
-git log --reverse --format='- `%h` %s' v0.9.56..HEAD > /tmp/v0.10.0-alpha.1-release.md
+git tag -l 'v*' --sort=-v:refname > /tmp/tags.txt     # read the top: every line counts
+git log --reverse --format='- `%h` %s' v0.10.0-alpha.1..HEAD > /tmp/v0.10.0-alpha.2-release.md
 ```
+
+Read the whole top of the tag list, prereleases included. `git describe` is not a
+substitute: it sees only tags reachable from `HEAD`, so it misses a newer line such as
+`v0.10.0-alpha.3` and reports a stale previous version. Decide the release's exact name
+here, from that list.
 
 🚨 **Capture to a file and read the file.** `git log` on a release-sized range is long
 enough that lowfat trims it, and a trimmed list read as complete under-reports the release
@@ -58,12 +70,17 @@ changelog is complete precisely because no release-prep commit exists to be miss
 ## 3. Cut the tag
 
 ```sh
-go run . release v0.10.0-alpha.1
+go run . release v0.10.0-alpha.1   # the exact name decided in step 1
 ```
 
-The command prints the changelog for a confirm; `ALWAYS_YES=1` clears that confirm in a
-TTY-less shell. `Create` writes an annotated tag **and pushes it** to the `gh` remote —
-there is no local-only mode, so this step is the point of no return.
+The command prints the name and changelog for a confirm; `ALWAYS_YES=1` clears that
+confirm in a TTY-less shell. `Create` writes an annotated tag **and pushes it** to the `gh`
+remote — there is no local-only mode, so this step is the point of no return.
+
+🚨 **Name the version; never let a bump pick it under `ALWAYS_YES`.** `--patch` finalizes
+the highest prerelease at its core, so with a `v0.10.0-alpha.*` tag present it cuts the
+final `v0.10.0`, not the next alpha. The confirm prompt is the only place the computed name
+shows before the push, and `ALWAYS_YES=1` skips it. Pass the explicit name from step 1.
 
 Subsequent releases increment the alpha identifier explicitly:
 
