@@ -22,13 +22,15 @@ curl -fsSL https://raw.githubusercontent.com/tj/n/master/bin/n | \
 `)
 
 // withPNPM provisions pnpm — the runtime beneath it via tj/n, then corepack, which is how
-// pnpm itself arrives. Neither version is ours to name: `lts` is a moving target on
-// purpose, and corepack resolves pnpm from the repo's own packageManager field — a repo
-// that declares none is not built.
+// pnpm itself arrives. No version is ours to name: `lts` is a moving target on purpose,
+// corepack follows its own latest, and corepack resolves pnpm from the repo's own
+// packageManager field — a repo that declares none is not built. Node 25 and later ship
+// no corepack, so it comes from npm rather than with Node (docs/spec/frameworks.md).
 func withPNPM(base *dagger.Container) *dagger.Container {
 	return base.
 		WithNewFile("/install-n.sh", nInstallScript).
 		WithExec([]string{"/usr/bin/bash", "/install-n.sh"}).
+		WithExec([]string{"npm", "install", "--global", "corepack"}).
 		WithExec([]string{"corepack", "enable", "pnpm"})
 }
 
