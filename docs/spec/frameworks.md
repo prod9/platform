@@ -12,17 +12,6 @@ mechanism and `scaffolding/` orchestration behind `cmd/init_cmd.go` — read
 
 ## Intended catalog changes pending implementation
 
-`pnpm/workspace` is withdrawn from the intended framework catalog. Its current runner,
-discovery, and tests still exist and await a removal slice; their descriptions below
-document implemented legacy behavior, not an accepted target. The removal must cover
-runner, discovery, catalog, fixtures, and reviewed smoke goldens together. Existing
-`pnpm/workspace` configurations have no replacement prescribed by this ruling.
-
-Any future workspace support requires a fresh design based on Node-ecosystem standards,
-including corepack-managed package managers, rather than reviving the current
-pnpm-specific runner. Whether to add that support remains unresolved until a concrete
-need establishes it.
-
 The intended default module timeout is **5m for pnpm frameworks**, while non-pnpm
 frameworks retain **1m**. This is an explicit user-approved budget change, pending
 implementation: `conf.ModuleDefaults` still applies 1m to every module today. A module's
@@ -137,17 +126,24 @@ key is a deprecated read-alias — scaffolding writes only `framework`). The lis
 **order-sensitive** — several stacks' markers coexist in one tree, so the broader/more-specific
 match must be checked before the one it would also satisfy.
 
-Implemented order and detection rules (`pnpm/workspace` awaits removal as ruled above):
+Implemented order and detection rules:
 
-| # | Framework       | Name             | Layout      | Family        | Detects on                                   |
-|---|-----------------|------------------|-------------|---------------|----------------------------------------------|
-| 1 | `Infra`         | `platform/infra` | `basic`     | `custom`      | Dir name contains `infra` (glob, not a file) |
-| 2 | `GoWorkspace`   | `go/workspace`   | `workspace` | `native`      | `go.work`                                    |
-| 3 | `PNPMWorkspace` | `pnpm/workspace` | `workspace` | `interpreted` | `packages:` key in `pnpm-workspace.yaml`     |
-| 4 | `GoBasic`       | `go/basic`       | `basic`     | `native`      | `go.mod`                                     |
-| 5 | `PNPMStatic`    | `pnpm/static`    | `basic`     | `static`      | `astro.config.mjs`                           |
-| 6 | `PNPMBasic`     | `pnpm/basic`     | `basic`     | `interpreted` | `pnpm-lock.yaml`                             |
-| 7 | `Dockerfile`    | `dockerfile`     | `basic`     | `custom`      | `Dockerfile`                                 |
+| # | Framework     | Name             | Layout      | Family        | Detects on                                   |
+|---|---------------|------------------|-------------|---------------|----------------------------------------------|
+| 1 | `Infra`       | `platform/infra` | `basic`     | `custom`      | Dir name contains `infra` (glob, not a file) |
+| 2 | `GoWorkspace` | `go/workspace`   | `workspace` | `native`      | `go.work`                                    |
+| 3 | `GoBasic`     | `go/basic`       | `basic`     | `native`      | `go.mod`                                     |
+| 4 | `PNPMStatic`  | `pnpm/static`    | `basic`     | `static`      | `astro.config.mjs`                           |
+| 5 | `PNPMBasic`   | `pnpm/basic`     | `basic`     | `interpreted` | `pnpm-lock.yaml`                             |
+| 6 | `Dockerfile`  | `dockerfile`     | `basic`     | `custom`      | `Dockerfile`                                 |
+
+**There is no Node workspace framework.** `pnpm/workspace` was removed: the Node ecosystem
+has no shared way to declare a workspace or to ship one member of it, and pnpm reads its
+own file rather than the `workspaces` field npm, Yarn and Bun share. A pnpm workspace root
+now matches `pnpm/basic` on its lockfile and is not built as a workspace; a
+`platform.toml` naming `pnpm/workspace` fails as an unknown framework. Why, and what a
+replacement would have to settle:
+[no-node-workspace-framework](../decisions/2026-11-10-no-node-workspace-framework.md).
 
 Why the order holds:
 
@@ -155,15 +151,13 @@ Why the order holds:
   glob, not a file marker; `apps/` is a poor marker (an ordinary app may also carry
   `apps/`). Checked ahead of file markers so an infra repo never mis-detects on a stray
   lockfile.
-- **Workspace before basic** (2 before 4, 3 before 6) — a Go workspace repo also holds
-  `go.mod` files; a pnpm workspace also holds a `pnpm-lock.yaml`. The workspace marker is
-  the broader truth, so it must win before the basic marker it would also trip.
-- **A pnpm workspace is the `packages:` key, never the file.** From pnpm v10 every repo
-  carries `pnpm-workspace.yaml` — it is where all non-auth settings live, including the
-  `allowBuilds` approvals a single-package repo must commit. Presence therefore says
-  nothing; `packages:` is what pnpm itself defines a workspace by, so discovery reads the
-  file and keys on that. Detecting on existence makes every modern pnpm repo a workspace.
-- **Static before basic** (5 before 6) — an Astro project carries `pnpm-lock.yaml` too;
+- **Workspace before basic** (2 before 3) — a Go workspace repo also holds `go.mod`
+  files. The workspace marker is the broader truth, so it must win before the basic marker
+  it would also trip.
+- **`pnpm-workspace.yaml` is not a workspace marker.** From pnpm v10 every repo carries
+  it — it is where all non-auth settings live, including the `allowBuilds` approvals a
+  single-package repo must commit — so no framework discovers on it.
+- **Static before basic** (4 before 5) — an Astro project carries `pnpm-lock.yaml` too;
   the `astro.config.mjs` signal is the more specific one and must be checked first, else
   every Astro repo detects as `pnpm/basic`.
 - **Dockerfile last** — the escape hatch. It bypasses the Wolfi base and package
@@ -300,9 +294,9 @@ and there is no skip-tests opt-out. Full rationale:
   full source, so the dependency layer keys on manifests alone. Runner carries only the
   compiled binary.
 - **pnpm** — Node comes from nodejs.org via `tj/n` (`n install lts`), corepack from the
-  npm registry (`npm install -g corepack`), and pnpm via corepack. `pnpm/basic` and `pnpm/workspace` serve via bare `node`; `pnpm/static` serves
-  the built bundle with Caddy under the HTTP surface above. Workspace runner marks `RunDir`
-  as ESM (`withPNPMModuleFix`).
+  npm registry (`npm install -g corepack`), and pnpm via corepack. `pnpm/basic` serves via
+  bare `node`; `pnpm/static` serves the built bundle with Caddy under the HTTP surface
+  above.
 
   **Bare `node` is the interpreted runners' default command on purpose.** The runner's
   default args are a runtime entrypoint over an already-built bundle, and pnpm is a
@@ -315,13 +309,12 @@ and there is no skip-tests opt-out. Full rationale:
   A module's `build_dir` overrides it; unset, each pnpm framework falls back to what the
   toolchain it discovers actually emits:
 
-  | Framework        | Default | Because                                                                                |
-  |------------------|---------|----------------------------------------------------------------------------------------|
-  | `pnpm/basic`     | `build` | SvelteKit `adapter-node` defaults its `out` to `build`                                 |
-  | `pnpm/workspace` | `build` | same                                                                                   |
-  | `pnpm/static`    | `dist`  | `pnpm/static` discovers on `astro.config.mjs`, and Astro defaults `outDir` to `./dist` |
+  | Framework     | Default | Because                                                                                |
+  |---------------|---------|----------------------------------------------------------------------------------------|
+  | `pnpm/basic`  | `build` | SvelteKit `adapter-node` defaults its `out` to `build`                                 |
+  | `pnpm/static` | `dist`  | `pnpm/static` discovers on `astro.config.mjs`, and Astro defaults `outDir` to `./dist` |
 
-  One shared default across the three would be wrong for at least one of them, and wrong
+  One shared default across the two would be wrong for at least one of them, and wrong
   in the way that costs the most: the runner copies a directory that was never emitted, so
   the failure lands at the copy rather than at the misconfiguration. A testbed that sets
   the bundler's output to match platform's default hides exactly this — each testbed
@@ -371,8 +364,7 @@ and there is no skip-tests opt-out. Full rationale:
   and platform's job is only to stop hiding the file — no platform config key, no
   `--dangerously-allow-all-builds`, which would diverge from what the developer gets
   locally. The basic and static frameworks select the manifests by include-filtering the
-  host directory, so an absent `pnpm-workspace.yaml` is simply not copied; `pnpm/workspace`
-  copies the whole tree and already carries it.
+  host directory, so an absent `pnpm-workspace.yaml` is simply not copied.
 - **Dockerfile** — `host.DockerBuild` on the user's `Dockerfile`; env becomes build args.
   Discouraged: bypasses Wolfi, the apk cache, and package conventions; warns at build
   time.

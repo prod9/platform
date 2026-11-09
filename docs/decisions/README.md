@@ -67,6 +67,7 @@ the part that prevents re-litigation.
 
 Newest first.
 
+- [2026-11-10 — No Node workspace framework](2026-11-10-no-node-workspace-framework.md)
 - [2026-09-27 — Explicit prereleases and verbatim launcher pins](2026-09-27-explicit-prereleases-and-verbatim-launcher-pins.md)
 - [2026-08-24 — Execution mode does not define delivery policy][execution-mode-policy]
 - [2026-07-27 — Platform never reaches into the container](2026-07-27-platform-never-reaches-into-the-container.md)

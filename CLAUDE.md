@@ -169,7 +169,7 @@ together outside framework code (that is how `pnpmBase` came to sit one letter f
 **A runner either repeats `StepBase`'s prefix exactly or sheds it entirely — never
 almost.** A runner that keeps the build toolchain must re-derive `StepBase`'s calls in the
 same order, so Dagger dedupes the identical prefix instead of installing the toolchain
-twice; that is the interpreted families (`pnpm/basic`, `pnpm/workspace`). A runner that
+twice; that is the interpreted family (`pnpm/basic`). A runner that
 does not need the toolchain starts from the bare base instead and shares no prefix at all
 — `pnpm/static` and the Go runners. Both are correct; the failure is a prefix that
 *nearly* matches, which dedupes nothing and reads as if it should. Which family a runner
@@ -178,8 +178,8 @@ is in: `docs/spec/frameworks.md`, "Which base a runner descends from".
 **Name the package manager, never the runtime underneath.** It is `withPNPM`, `pnpm build`,
 `pnpm run` — never `withNode`. pnpm is the thing platform drives; Node is an implementation
 detail of pnpm arriving. The law governs what platform *names* — helpers, the commands it
-issues during a build, docs. It stops at the runner's default command: `pnpm/basic` and
-`pnpm/workspace` ship `node .`, deliberately, because that entrypoint runs an already-built
+issues during a build, docs. It stops at the runner's default command: `pnpm/basic`
+ships `node .`, deliberately, because that entrypoint runs an already-built
 bundle and pnpm is a build-time tool rather than a runtime supervisor
 (`docs/spec/frameworks.md`, "Bare `node` is the interpreted runners' default command on
 purpose"). Settled; an audit that re-files it is wrong.
