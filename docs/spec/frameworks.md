@@ -286,6 +286,34 @@ baked-in, non-configurable precondition of a Go image** — a red suite is a fai
 and there is no skip-tests opt-out. Full rationale:
 [test-in-build-is-a-hard-gate](../decisions/2026-07-05-test-in-build-is-a-hard-gate.md).
 
+## The build step sees the repository
+
+Every build step separated from its runner — `StepBuild` in `go/basic`, `go/workspace`,
+`pnpm/basic` and `pnpm/static` — mounts the repository's `.git` directory, the one at the
+git root. It is **mounted, never copied**, so it never enters an image layer, and the runner
+never receives it. The default `.git` entry in `excludes` keeps it out of the host
+directory every step copies from; the build step mounts it regardless.
+
+The mount exists so that git works unmodified inside the build: VCS stamping, `git
+describe`, history-dependent tools and a project's own scripts all see a real repository.
+When `.git` is a file (a git worktree, as every server checkout is), the build step follows
+its `gitdir:` pointer and that directory's `commondir`, and mounts each target at the same
+absolute path it has on the host, so the pointers resolve inside the container unchanged.
+
+The same step, and no other — not `deps`, not `test`, not the runner — carries four
+environment variables. Platform sets them on the host; none is read from the mount:
+
+| Variable           | Value                                                                            |
+|--------------------|----------------------------------------------------------------------------------|
+| `BUILD_MODULE`     | The module's `[modules]` name in `platform.toml`                                 |
+| `BUILD_REPOSITORY` | The `repository` value in `platform.toml`, as written                            |
+| `BUILD_REVISION`   | `git rev-parse HEAD` of the checkout being built, on every build                 |
+| `BUILD_VERSION`    | The release tag: a server build's `refs/tags/` suffix; local `publish`'s name    |
+
+`BUILD_VERSION` is **unset** when the build has no release tag — a local `build` or
+`preview`, a server build of a branch, and a `rolling` publish, which cuts no git tag
+([releases](releases.md)). Platform adds no image labels for any of these values.
+
 ## Stack notes
 
 - **Go** — pins the exact toolchain from `go.mod`/`go.work` via native `GOTOOLCHAIN`
