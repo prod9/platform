@@ -310,6 +310,9 @@ environment variables. Platform sets them on the host; none is read from the mou
 | `BUILD_REVISION`   | `git rev-parse HEAD` of the checkout being built, on every build                 |
 | `BUILD_VERSION`    | The release tag: a server build's `refs/tags/` suffix; local `publish`'s name    |
 
+A module outside any git repository gets no mount. `BUILD_REVISION` is **unset** when the
+repository has no commit yet, such as right after `git init`.
+
 `BUILD_VERSION` is **unset** when the build has no release tag — a local `build` or
 `preview`, a server build of a branch, and a `rolling` publish, which cuts no git tag
 ([releases](releases.md)). Platform adds no image labels for any of these values.
