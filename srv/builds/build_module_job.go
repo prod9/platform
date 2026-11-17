@@ -42,16 +42,22 @@ func (r moduleRequest) publicationTag() (string, error) {
 	case conf.PublishPolicyAlways:
 		return "latest", nil
 	case conf.PublishPolicyTags:
-		name, isTag := strings.CutPrefix(r.Ref, "refs/tags/")
-		if isTag {
-			return name, nil
-		}
-		return "", nil
+		return r.version(), nil
 	case conf.PublishPolicyNever:
 		return "", nil
 	default:
 		return "", fmt.Errorf("builds: unknown stored publish policy %q", r.PublishPolicy)
 	}
+}
+
+// version is the release tag the build ref names, empty for a branch: what the build
+// step sees as BUILD_VERSION whatever the publish policy.
+func (r moduleRequest) version() string {
+	name, isTag := strings.CutPrefix(r.Ref, "refs/tags/")
+	if !isTag {
+		return ""
+	}
+	return name
 }
 
 func (*BuildModuleJob) Name() string { return "build-module" }
@@ -93,7 +99,7 @@ func (j *BuildModuleJob) Run(ctx context.Context) (err error) {
 	session := engine.NewSession(ctx)
 	defer func() { err = errors.Join(err, session.Close()) }()
 	scribe := newTranscriber(ctx, module.ID)
-	source := engine.Source{URL: request.CloneURL, Revision: request.SHA,
+	source := engine.Source{URL: request.CloneURL, Revision: request.SHA, Version: request.version(),
 		Username: "x-access-token", Password: token}
 	if tag == "" {
 		_, err = session.Build(ctx, source, []string{request.Name}, scribe)

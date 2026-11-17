@@ -35,6 +35,9 @@ type BuildUnit struct {
 	PackageName string
 	Repository  string
 
+	// Version is the release tag this unit is built as, empty when the build has none.
+	Version string
+
 	// Vars is the resolved [vars] table, carried on every unit. A framework that
 	// interpolates (CUE @tag / directive \(var)) consumes it; one that doesn't ignores
 	// it — a per-framework capability, not a per-project mode.
@@ -50,9 +53,10 @@ func (u *BuildUnit) RepositoryURL() string {
 }
 
 // Units turns config into one BuildUnit per selected module (every module when modnames is
-// empty), all built for arch. The arch arrives already decided by the engine entrypoint
-// about to build them; this layer stamps it onto each unit and never asks what it is for.
-func Units(cfg *conf.Model, modnames []string, arch string) ([]*BuildUnit, error) {
+// empty), all built for arch as version. Both arrive already decided by the engine
+// entrypoint about to build them; this layer stamps them onto each unit and never asks
+// what they are for.
+func Units(cfg *conf.Model, modnames []string, arch, version string) ([]*BuildUnit, error) {
 	if len(modnames) == 0 {
 		for modname := range cfg.Modules {
 			modnames = append(modnames, modname)
@@ -66,7 +70,7 @@ func Units(cfg *conf.Model, modnames []string, arch string) ([]*BuildUnit, error
 			return nil, fmt.Errorf("%s: %w", modname, ErrBadModule)
 		}
 
-		unit, err := unitFromModule(cfg, modname, mod, arch)
+		unit, err := unitFromModule(cfg, modname, mod, arch, version)
 		if err != nil {
 			return nil, err
 		}
@@ -76,7 +80,7 @@ func Units(cfg *conf.Model, modnames []string, arch string) ([]*BuildUnit, error
 	return units, nil
 }
 
-func unitFromModule(cfg *conf.Model, name string, mod *conf.Module, arch string) (*BuildUnit, error) {
+func unitFromModule(cfg *conf.Model, name string, mod *conf.Module, arch, version string) (*BuildUnit, error) {
 	fw, err := FindFramework(mod.Framework)
 	if err != nil {
 		return nil, err
@@ -104,6 +108,8 @@ func unitFromModule(cfg *conf.Model, name string, mod *conf.Module, arch string)
 		ImageName:   mod.ImageName,
 		PackageName: mod.PackageName,
 		Repository:  cfg.Repository,
+
+		Version: version,
 
 		Vars: cfg.Vars,
 	}, nil

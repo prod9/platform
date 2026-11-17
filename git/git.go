@@ -5,6 +5,7 @@ package git
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -26,6 +27,18 @@ func Run(ctx context.Context, dir string, args ...string) (string, error) {
 			strings.Join(args, " "), err, strings.TrimSpace(errbuf.String()))
 	}
 	return out, nil
+}
+
+// Head is the commit HEAD names in dir, empty when the repository has no commit yet.
+// `rev-parse --verify --quiet` exits 1, silently, only when HEAD resolves to no commit;
+// every other failure is git's fatal exit 128 and stays an error.
+func Head(ctx context.Context, dir string) (string, error) {
+	sha, err := Run(ctx, dir, "rev-parse", "--verify", "--quiet", "HEAD")
+	var exit *exec.ExitError
+	if errors.As(err, &exit) && exit.ExitCode() == 1 {
+		return "", nil
+	}
+	return sha, err
 }
 
 // RunWithProgress executes one git command in dir with git's stderr going straight to

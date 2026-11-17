@@ -17,6 +17,8 @@ var (
 	ErrBadFramework = errors.New("framework: invalid framework")
 	ErrNoFramework  = errors.New("framework: no compatible framework detected")
 	ErrUnknownStep  = errors.New("framework: unknown step")
+
+	ErrBadGitPointer = errors.New("framework: malformed git pointer file")
 )
 
 type (

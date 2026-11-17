@@ -83,11 +83,18 @@ func (GoWorkspace) Execute(ctx context.Context, client *dagger.Client, unit *Bui
 		return in.WithDirectory(".", host).WithExec(testargs), nil
 
 	case StepBuild:
+		var repo repository
+		if repo, err = findRepository(ctx, wsdir); err != nil {
+			return nil, err
+		}
+
 		pkg := unit.PackageName
 		if pkg == "" {
 			pkg = "./" + unit.Name
 		}
-		return in.WithExec([]string{"go", "build", "-v", "-o", BinDir + "/" + outbin, pkg}), nil
+		builder := withRepository(client, in, repo)
+		builder = withBuildEnv(builder, unit, repo.revision)
+		return builder.WithExec([]string{"go", "build", "-v", "-o", BinDir + "/" + outbin, pkg}), nil
 
 	case StepBuildRunner:
 		runner := BaseImageForUnit(client, unit)

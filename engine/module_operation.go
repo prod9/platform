@@ -102,7 +102,7 @@ func (o *moduleOperation) configure(path string, obs observer.Observer) (*Run, s
 		return nil, "", err
 	}
 
-	units, err := framework.Units(cfg, []string{o.name}, o.intent.arch(o.session, cfg))
+	units, err := framework.Units(cfg, []string{o.name}, o.intent.arch(o.session, cfg), o.input.version())
 	if err != nil {
 		return nil, "", err
 	}

@@ -24,9 +24,11 @@ var (
 
 // Source identifies one immutable revision to materialize from a Git remote.
 // Username and Password are used only for HTTP(S) fetches and are never persisted.
+// Version is the release tag the revision is built as, empty when it has none.
 type Source struct {
 	URL      string
 	Revision string
+	Version  string
 	Username string
 	Password string
 }

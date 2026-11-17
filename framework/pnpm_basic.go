@@ -46,7 +46,15 @@ func (PNPMBasic) Execute(ctx context.Context, client *dagger.Client, unit *Build
 		return withPNPMDeps(in, host), nil
 
 	case StepBuild:
-		return in.WithDirectory(".", host).WithExec([]string{"pnpm", "build"}), nil
+		var repo repository
+		if repo, err = findRepository(ctx, unit.WorkDir); err != nil {
+			return nil, err
+		}
+
+		builder := in.WithDirectory(".", host)
+		builder = withRepository(client, builder, repo)
+		builder = withBuildEnv(builder, unit, repo.revision)
+		return builder.WithExec([]string{"pnpm", "build"}), nil
 
 	case StepBuildRunner:
 		// SvelteKit adapter-node's default `out`, the app shape pnpm/basic serves.

@@ -28,7 +28,7 @@ func runList(cmd *cobra.Command, args []string) error {
 
 	// ls is a local debugging view, not a build: it wants the unit before anything runs, so
 	// it assembles one itself at the local arch rather than through an engine entrypoint.
-	units, err := framework.Units(cfg, args, cfg.LocalArch)
+	units, err := framework.Units(cfg, args, cfg.LocalArch, "")
 	if err != nil {
 		return err
 	}

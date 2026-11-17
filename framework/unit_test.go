@@ -23,7 +23,7 @@ func unitsTestModel() *conf.Model {
 // resolved and stamps it on every unit, so the engine reads a field rather than being
 // told a platform through call arguments.
 func TestUnitsWritesArch(t *testing.T) {
-	units, err := Units(unitsTestModel(), nil, "amd64")
+	units, err := Units(unitsTestModel(), nil, "amd64", "")
 	r.NoError(t, err)
 	r.Len(t, units, 2)
 
@@ -35,17 +35,17 @@ func TestUnitsWritesArch(t *testing.T) {
 func TestUnitsSelectsModules(t *testing.T) {
 	cfg := unitsTestModel()
 
-	all, err := Units(cfg, nil, "auto")
+	all, err := Units(cfg, nil, "auto", "")
 	r.NoError(t, err)
 	r.ElementsMatch(t, []string{"api", "web"}, unitNames(all))
 
-	some, err := Units(cfg, []string{"web"}, "auto")
+	some, err := Units(cfg, []string{"web"}, "auto", "")
 	r.NoError(t, err)
 	r.Equal(t, []string{"web"}, unitNames(some))
 }
 
 func TestUnitsRejectsUnknownModule(t *testing.T) {
-	units, err := Units(unitsTestModel(), []string{"nope"}, "auto")
+	units, err := Units(unitsTestModel(), []string{"nope"}, "auto", "")
 	r.ErrorIs(t, err, ErrBadModule)
 	r.Nil(t, units)
 }

@@ -34,8 +34,8 @@ func runPublish(cmd *cobra.Command, args []string) (err error) {
 
 	// Versioned strategies publish the latest git-tagged release; a non-versioned one
 	// (such as Rolling) has a single constant name and no tag to look up — publishing is
-	// the deploy.
-	name := ""
+	// the deploy, and the build sees no release version.
+	name, version := "", ""
 	if strat.IsVersioned() {
 		g := git.New(cfg)
 		collection, err := releases.Recover(cfg, g)
@@ -49,7 +49,7 @@ func runPublish(cmd *cobra.Command, args []string) (err error) {
 		if err = toml.NewEncoder(os.Stdout).Encode(rel); err != nil {
 			return err
 		}
-		name = rel.Name
+		name, version = rel.Name, rel.Name
 	} else if name, err = strat.NextName("", releases.BumpAny); err != nil {
 		return err
 	}
@@ -63,6 +63,6 @@ func runPublish(cmd *cobra.Command, args []string) (err error) {
 	sess := engine.NewSession(ctx)
 	defer func() { err = errors.Join(err, sess.Close()) }()
 
-	_, err = sess.BuildAndPublish(ctx, engine.Local{ConfigPath: cfg.ConfigPath}, p.Args(), name, newObserver())
+	_, err = sess.BuildAndPublish(ctx, engine.Local{ConfigPath: cfg.ConfigPath, Version: version}, p.Args(), name, newObserver())
 	return err
 }

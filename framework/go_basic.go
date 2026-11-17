@@ -66,7 +66,14 @@ func (GoBasic) Execute(ctx context.Context, client *dagger.Client, unit *BuildUn
 			WithExec([]string{"go", "test", "-v", "./..."}), nil
 
 	case StepBuild:
-		return in.WithExec([]string{"go", "build", "-v", "-o", BinDir + "/" + outbin, unit.PackageName}), nil
+		var repo repository
+		if repo, err = findRepository(ctx, unit.WorkDir); err != nil {
+			return nil, err
+		}
+
+		builder := withRepository(client, in, repo)
+		builder = withBuildEnv(builder, unit, repo.revision)
+		return builder.WithExec([]string{"go", "build", "-v", "-o", BinDir + "/" + outbin, unit.PackageName}), nil
 
 	case StepBuildRunner:
 		// The base is a pure function of (client, unit) and Dagger dedupes it, so the

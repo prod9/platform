@@ -47,9 +47,11 @@ var (
 	connectEngine = dagger.Connect
 )
 
-// Input is the closed choice of a selected local config file or a remote revision.
-type Input interface{ buildInput() }
-type Local struct{ ConfigPath string }
+// Input is the closed choice of a selected local config file or a remote revision. Either
+// carries the release version it builds, empty when the build has no release tag
+// (docs/spec/frameworks.md, "The build step sees the repository").
+type Input interface{ version() string }
+type Local struct{ ConfigPath, Version string }
 
 type (
 	BuildResult struct {
@@ -61,9 +63,9 @@ type (
 	}
 )
 
-func (Local) buildInput() {}
+func (l Local) version() string { return l.Version }
 
-func (Source) buildInput() {}
+func (s Source) version() string { return s.Version }
 
 func (r BuildResult) Image() string { return r.out.Image }
 
