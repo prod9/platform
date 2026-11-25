@@ -35,6 +35,14 @@ type Spec struct {
 	Strategy string
 }
 
+// Vendor is a git-subtree library a framework needs in the repo before it can scaffold:
+// Prefix is the repo-relative directory it is vendored at, URL the git repository it is
+// vendored from. Pure data; the scaffolding flow does the vendoring.
+type Vendor struct {
+	Prefix string
+	URL    string
+}
+
 // Env carries the environment facts the driver hands every framework's Scaffold: the
 // operator identity and repository from init's universal prompts. Frameworks pull what
 // they need; most need none of it.

@@ -9,7 +9,10 @@ import (
 	"platform.prodigy9.co/framework/scaffold"
 )
 
-type Dockerfile struct{ noScaffoldVars }
+type Dockerfile struct {
+	noScaffoldVars
+	noVendors
+}
 
 var _ Framework = Dockerfile{}
 

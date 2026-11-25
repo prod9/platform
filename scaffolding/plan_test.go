@@ -57,12 +57,16 @@ func TestPlan_freshRepoWritesEverything(t *testing.T) {
 func TestPlan_infraGetsItsModuleUniformly(t *testing.T) {
 	// A dir the Infra framework discovers (name glob) gets its contribution through the same
 	// driver path as every other framework — no infra branch. Like every target, it must
-	// already be a git repo root (platform never runs `git init`). Until init vendors
-	// infra-lua, that contribution is the module and the strategy seed alone
-	// (docs/spec/scaffolding.md).
+	// already be a git repo root (platform never runs `git init`). Its contribution is the
+	// module, the strategy seed and the vendored infra-lua's templates with their declared
+	// vars (docs/spec/scaffolding.md).
 	dir := filepath.Join(t.TempDir(), "test-infra")
 	r.NoError(t, os.Mkdir(dir, 0o755))
 	r.NoError(t, os.Mkdir(filepath.Join(dir, ".git"), 0o755))
+	templates := filepath.Join(dir, "vendor", "infra-lua", "templates")
+	r.NoError(t, os.MkdirAll(templates, 0o755))
+	r.NoError(t, os.WriteFile(filepath.Join(templates, "flux.lua"),
+		[]byte("local vars = platform.vars {FLUX_VERSION = \"v2.8.8\"}\nreturn {}\n"), 0o644))
 
 	stubVersions(t)
 
@@ -77,9 +81,10 @@ func TestPlan_infraGetsItsModuleUniformly(t *testing.T) {
 		paths = append(paths, f.Path)
 		byPath[f.Path] = f
 	}
-	r.ElementsMatch(t, []string{"platform.toml", "platform"}, paths)
+	r.ElementsMatch(t, []string{"platform.toml", "platform", "apps/flux.lua"}, paths)
 
 	toml := string(byPath["platform.toml"].Content)
+	r.Contains(t, toml, `FLUX_VERSION = "v2.8.8"`)
 	r.Contains(t, toml, `strategy = "rolling"`)
 	r.Contains(t, toml, `framework = "platform/infra"`)
 }

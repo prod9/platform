@@ -11,7 +11,10 @@ import (
 	"platform.prodigy9.co/framework/scaffold"
 )
 
-type GoBasic struct{ noScaffoldVars }
+type GoBasic struct {
+	noScaffoldVars
+	noVendors
+}
 
 var _ Framework = GoBasic{}
 

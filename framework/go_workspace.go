@@ -11,7 +11,10 @@ import (
 	"platform.prodigy9.co/framework/scaffold"
 )
 
-type GoWorkspace struct{ noScaffoldVars }
+type GoWorkspace struct {
+	noScaffoldVars
+	noVendors
+}
 
 var _ Framework = GoWorkspace{}
 

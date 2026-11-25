@@ -2,6 +2,9 @@ package framework
 
 import (
 	"context"
+	"fmt"
+	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -9,6 +12,14 @@ import (
 	"fx.prodigy9.co/errutil"
 	"platform.prodigy9.co/framework/gitops"
 	"platform.prodigy9.co/framework/scaffold"
+)
+
+const (
+	infraLuaPrefix = "vendor/infra-lua"
+	infraLuaURL    = "https://github.com/prod9/infra-lua"
+
+	// defaultsTemplate is the shared definitions module, which goes to the repo root.
+	defaultsTemplate = "defaults.lua"
 )
 
 // PlatformInfra builds an infra repo's delivery image: it renders the repo's apps/*.lua to
@@ -32,14 +43,86 @@ func (PlatformInfra) Discover(wd string) bool {
 	return strings.Contains(filepath.Base(wd), "infra")
 }
 
-// Scaffold contributes the infra module and the "rolling" strategy seed. The cluster
-// baseline comes from vendored infra-lua's templates, which init does not scaffold yet
+// Vendors names infra-lua, whose templates are the cluster baseline Scaffold copies
 // (docs/spec/scaffolding.md).
+func (PlatformInfra) Vendors() []scaffold.Vendor {
+	return []scaffold.Vendor{{Prefix: infraLuaPrefix, URL: infraLuaURL}}
+}
+
+// Scaffold contributes the infra module, the "rolling" strategy seed and the cluster
+// baseline: every Lua template of the vendored infra-lua, routed and copied byte for
+// byte, and the vars the templates declare (docs/spec/scaffolding.md, "The Infra
+// framework scaffolds from vendored infra-lua").
 func (i PlatformInfra) Scaffold(_ context.Context, wd string, _ scaffold.Env, _ map[string]string) (scaffold.Spec, error) {
+	templatesDir := filepath.Join(wd, filepath.FromSlash(infraLuaPrefix), "templates")
+	entries, err := os.ReadDir(templatesDir)
+	if err != nil {
+		return scaffold.Spec{}, fmt.Errorf("platform/infra: read the infra-lua templates: %w", err)
+	}
+
+	var files []scaffold.File
+	var declarations []declaration
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || filepath.Ext(name) != ".lua" {
+			continue
+		}
+		content, err := os.ReadFile(filepath.Join(templatesDir, name))
+		if err != nil {
+			return scaffold.Spec{}, fmt.Errorf("platform/infra: %w", err)
+		}
+		declared, err := gitops.DeclaredVars(wd, path.Join(infraLuaPrefix, "templates", name))
+		if err != nil {
+			return scaffold.Spec{}, fmt.Errorf("platform/infra: %w", err)
+		}
+		declarations = append(declarations, declaration{template: name, vars: declared})
+		files = append(files, scaffold.File{Path: templateDestination(name), Content: content, Mode: 0o644})
+	}
+
+	vars, err := mergeDeclarations(declarations)
+	if err != nil {
+		return scaffold.Spec{}, err
+	}
 	return scaffold.Spec{
 		Module:   defaultModule(i, wd),
+		Vars:     vars,
+		Files:    files,
 		Strategy: "rolling",
 	}, nil
+}
+
+// templateDestination routes a template: the shared definitions module to the repo root,
+// every app template to apps/ under its own name.
+func templateDestination(name string) string {
+	if name == defaultsTemplate {
+		return name
+	}
+	return path.Join("apps", name)
+}
+
+// declaration is the vars one template declares, with their defaults.
+type declaration struct {
+	template string
+	vars     map[string]any
+}
+
+// mergeDeclarations is the baseline's default [vars]: every template's declared vars, a
+// name two templates give different defaults failing.
+func mergeDeclarations(declarations []declaration) (map[string]any, error) {
+	vars := map[string]any{}
+	declaredBy := map[string]string{}
+	for _, decl := range declarations {
+		for name, value := range decl.vars {
+			existing, seen := vars[name]
+			if seen && existing != value {
+				return nil, fmt.Errorf("platform/infra: %s declares %s = %v, but %s declares %v",
+					decl.template, name, value, declaredBy[name], existing)
+			}
+			vars[name] = value
+			declaredBy[name] = decl.template
+		}
+	}
+	return vars, nil
 }
 
 // Plan is the one build step: the render runs in-process over committed files, vendored

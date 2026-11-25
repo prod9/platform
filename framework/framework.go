@@ -50,6 +50,10 @@ type (
 		// none (nil), and so does every framework today.
 		ScaffoldVars(wd string) []string
 
+		// Vendors lists the git-subtree libraries init vendors before planning, so Scaffold
+		// can read them. Most frameworks vendor nothing (nil).
+		Vendors() []scaffold.Vendor
+
 		// Scaffold returns the framework's full, ready-to-write contribution to a fresh repo:
 		// its platform.toml module, default [vars], the strategy it seeds, and the files it
 		// ships with every template hole already resolved. The framework owns resolution — it
@@ -89,6 +93,12 @@ const (
 type noScaffoldVars struct{}
 
 func (noScaffoldVars) ScaffoldVars(string) []string { return nil }
+
+// noVendors is the default for frameworks that need no vendored library. Embed it to
+// satisfy Vendors.
+type noVendors struct{}
+
+func (noVendors) Vendors() []scaffold.Vendor { return nil }
 
 // String makes Step a Stringer, so anything reporting a step — logs, an engine Observer —
 // names it without reaching for a conversion.
