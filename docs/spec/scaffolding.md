@@ -2,8 +2,10 @@
 
 Status: **design-of-record; the infra baseline is intended.** Covers `platform init` — how
 a fresh repo is seeded. The infra baseline described under "The `Infra` framework
-scaffolds from the rock" is the v1.0 design and replaces the embedded CUE and `.platform` baseline
-still in `framework/skel/`; the rest of this file is implemented. New code conforms;
+scaffolds from the rock" is the v1.0 design and replaces the embedded CUE and `.platform`
+baseline, which goes with CUE and the DSL. Until it is built, `Infra.Scaffold` contributes
+only its module and its `strategy` seed: no files, no `[vars]`, no `[rocks]` pin. The rest
+of this file is implemented. New code conforms;
 existing code migrates toward it.
 
 Scaffolding has exactly three concerns, each with one home:

@@ -97,6 +97,7 @@ under `build.modules`, and the directory it lists under `copy_directories`, whic
 
 `platform.vars` carries the `[vars]` table from `platform.toml`. Values keep their TOML
 type: a string becomes a Lua string, an integer or float a number, a boolean a boolean.
+Any other TOML value (an array, a table, a date) fails the render before any app runs.
 
 An app or template declares the vars it uses, with their defaults, by calling it:
 
@@ -149,8 +150,13 @@ emitter is used. The conversion from Lua values:
 
 - A table with string keys is a mapping. A table whose keys are exactly `1..n` is a
   sequence. An empty table is a mapping unless it carries `infra-lua`'s list metatable
-  (the one `infra.tree.list` sets), which render takes from the rock and recognizes by
-  identity; then it is an empty sequence. A table mixing both kinds of key fails.
+  (the one `infra.tree.list` sets); then it is an empty sequence. A table mixing both
+  kinds of key fails.
+- Render takes the list metatable from the app's own VM state, since each state loads
+  its own copy of the module: after the app returns, it calls
+  `getmetatable(require("infra.tree").list({}))` there and recognizes the mark by
+  identity. When no pinned rock lists `infra.tree`, there is no mark and every empty
+  table is a mapping.
 - A number with an integral value is written as an integer, so `replicas = 2` stays `2`.
 - Strings and booleans are written as themselves. Functions and other values fail.
 - Apart from the list mark, metatables are ignored: helpers and metadata live there, and
