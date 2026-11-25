@@ -20,11 +20,11 @@ checking exitcode/stdout/expected files. `./testbed.sh <dir> <args>` runs platfo
 a specific testbed. `testbeds/` holds one sample project per framework.
 
 Every case drives a CLI command; there is no server case. **Intended:** the infra
-testbeds (`infra-basic`, `infra-init`) hold Lua apps and render them through the
-`infra-lua` rock. Until `infra-lua`'s first release there is no rock to pin, so
-`infra-basic` holds plain Lua apps with no `[rocks]` table, and `infra-init` scaffolds no
-baseline; rock fetching, `require` from a rock and the list mark are covered by
-`go test` against a rock fixture.
+testbeds (`infra-basic`, `infra-init`) hold Lua apps and render them through `infra-lua`
+vendored at `vendor/infra-lua`. Until `infra-lua`'s first tag there is nothing to vendor,
+so `infra-basic` holds plain Lua apps with no `vendor/`, and `infra-init` scaffolds no
+baseline; `require` from `vendor/`, the duplicate-module failure and the list mark are
+covered by `go test` against a fixture `vendor/` tree.
 
 ## Smoke is a drift detector, not an assertion engine
 

@@ -1,22 +1,26 @@
 # Lua render
 
-Status: **implemented, except the upstream download function and the declare-only run
-`init` uses (intended).** `render` runs Lua only (`framework/gitops/`); CUE and the
-`.platform` directives are gone. The rulings behind it:
+Status: **implemented, except `require` from `vendor/`, the upstream download function
+and the declare-only run `init` uses (intended).** `render` runs Lua only
+(`framework/gitops/`); CUE and the `.platform` directives are gone. The rulings behind
+it:
 [CUE dropped for Lua render](../decisions/2026-11-25-cue-dropped-for-lua-render.md),
-[DSL removed for Lua templates](../decisions/2026-11-25-dsl-removed-for-lua-templates.md)
-and [validation left to Flux](../decisions/2026-11-25-validation-left-to-flux.md).
+[DSL removed for Lua templates](../decisions/2026-11-25-dsl-removed-for-lua-templates.md),
+[validation left to Flux](../decisions/2026-11-25-validation-left-to-flux.md) and
+[rocks dropped for subtree vendoring](../decisions/2026-11-25-rocks-dropped-for-subtree-vendoring.md).
 
 `render` turns an infra repo's `apps/*.lua` into one manifest tree. It is a pure function
-of the committed repo, its `[vars]` table and the pinned rocks; one commit renders the
-same tree. The Kubernetes definitions it builds on (kinds, mixins, packs) are not part of
-`platform`. They are the `infra-lua` library, shipped as a LuaRocks rock and fetched at
-render time.
+of the committed repo and its `[vars]` table; one commit renders the same tree. The
+Kubernetes definitions it builds on (kinds, mixins, packs) are not part of `platform`.
+They are the `infra-lua` library, which the infra repo vendors as a git subtree at
+`vendor/infra-lua` ("Vendored libraries", below), so they are committed files like the
+repo's own: render fetches no library, reads no registry and needs no credential for one.
 
 ## Pipeline
 
-1. Read `[rocks]` and `[vars]` from `platform.toml`.
-2. Make sure every pinned rock is in the cache, fetching the ones that are not.
+1. Read `[vars]` from `platform.toml`.
+2. Index the modules of every vendored library under `vendor/`, failing on a module name
+   two libraries both provide.
 3. Run each `apps/<component>.lua` in a fresh sandbox and collect what it returns.
 4. Convert every returned document to YAML.
 5. Return the tree. Nothing is written before step 5, so a failure at any step leaves no
@@ -50,48 +54,42 @@ An error raised while an app runs fails the render and names the app file and li
 ## `require`
 
 `require "name"` accepts one or more lowercase identifiers joined by dots
-(`[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*`, the LuaRocks module-name form, such as
-`infra.tree`) and resolves it in this order:
+(`[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*`, Lua's dotted module-name form, such as
+`defs.tree`). Each dot in the name is a directory separator, giving a path such as
+`defs/tree`, and the name resolves in this order:
 
-1. A module the rockspec of a pinned rock lists under `build.modules`, loaded from that
-   rock's cached directory.
-2. `<repo>/<path>.lua`, a module the infra repo owns, where each dot in the name is a
-   directory separator, such as its `defaults.lua` of shared definitions.
+1. `<repo>/vendor/<lib>/src/<path>.lua` in a vendored library, where `<lib>` is any
+   directory directly under `vendor/`: `require "defs.tree"` loads
+   `vendor/infra-lua/src/defs/tree.lua`, and `require "defs"` loads
+   `vendor/infra-lua/src/defs.lua`.
+2. `<repo>/<path>.lua`, a module the infra repo owns, such as its `defaults.lua` of
+   shared definitions.
 
-Two pinned rocks that list the same module name fail the render before any app runs;
-pin order never picks one. A name found in neither fails with both places named. A
-module runs once per VM state;
-later `require` calls in the same app return the same value.
+Two vendored libraries that provide the same module name fail the render before any app
+runs; directory order never picks one. A name found nowhere fails, naming every path
+searched. A module runs once per VM state; later `require` calls in the same app return
+the same value.
 
-## Rocks
+## Vendored libraries
 
-A rock is pinned by name and version in a `[rocks]` table in `platform.toml`:
+A vendored library is a git repository committed whole under `vendor/<lib>/` as a git
+subtree. Render reads one fixed root in it, `src/`, and nothing else; everything else the
+library carries (its tests, docs, templates) is inert to render. There is no
+configuration for it: a directory under `vendor/` is a library, and its absence means no
+library.
 
-```toml
-[rocks]
-infra-lua = "v0.1.0"
+`infra-lua` is vendored from `https://github.com/prod9/infra-lua` at one of its release
+tags, with `--squash`:
+
+```sh
+git subtree add --prefix=vendor/infra-lua https://github.com/prod9/infra-lua <tag> --squash
 ```
 
-`[rocks]` is a new top-level table in `conf/`'s model. Each entry is one rock, and its
-version is the image tag it is fetched by.
-
-**Fetching.** A rock is published as a one-layer OCI image at `ghcr.io/prod9/<name>`, the
-image base `conf.InferImageBase` derives for `github.com/prod9/<name>`. `platform` pulls
-it with a small built-in OCI fetcher on the Go standard library: token, manifest, the
-single layer, a digest check, then a tar+gzip unpack. It sends the `REGISTRY_USERNAME` and
-`REGISTRY_PASSWORD` credentials platform already reads for publishing
-(`engine/engine.go`) to the registry's token endpoint, and pulls anonymously when they
-are unset.
-
-**Cache.** An unpacked rock lives at
-`$XDG_CACHE_HOME/platform/rocks/<name>/<version>/` (`~/.cache` when `XDG_CACHE_HOME` is
-unset). A version already in the cache is used as it is and never fetched again; a rock
-version is immutable once published. The fetch is the `platform/infra` framework's
-dependency step, so it is timed apart from evaluation.
-
-**Contents.** The unpacked directory holds the rockspec at its root, the modules it lists
-under `build.modules`, and the directory it lists under `copy_directories`, which for
-`infra-lua` is `templates/` ([scaffolding](scaffolding.md)).
+`platform init` runs that command on a repo that has no `vendor/infra-lua`
+([scaffolding](scaffolding.md)). infra-lua releases are plain git tags; nothing is
+published to a registry. Upgrading is the operator's own
+`git subtree pull --prefix=vendor/infra-lua https://github.com/prod9/infra-lua <tag> --squash`,
+committed like any other change; platform never bumps a vendored library.
 
 ## `platform.vars`
 
@@ -148,13 +146,13 @@ emitter is used. The conversion from Lua values:
 
 - A table with string keys is a mapping. A table whose keys are exactly `1..n` is a
   sequence. An empty table is a mapping unless it carries `infra-lua`'s list metatable
-  (the one `infra.tree.list` sets); then it is an empty sequence. A table mixing both
+  (the one `defs.tree.list` sets); then it is an empty sequence. A table mixing both
   kinds of key fails.
 - Render takes the list metatable from the app's own VM state, since each state loads
   its own copy of the module: after the app returns, it calls
-  `getmetatable(require("infra.tree").list({}))` there and recognizes the mark by
-  identity. When no pinned rock lists `infra.tree`, there is no mark and every empty
-  table is a mapping.
+  `getmetatable(require("defs.tree").list({}))` there and recognizes the mark by
+  identity, whichever root `defs.tree` resolves from. When `defs.tree` does not resolve,
+  there is no mark and every empty table is a mapping.
 - A number with an integral value is written as an integer, so `replicas = 2` stays `2`.
 - Strings and booleans are written as themselves. Functions and other values fail.
 - Apart from the list mark, metatables are ignored: helpers and metadata live there, and
@@ -176,12 +174,14 @@ until a fixed tree is published. The reasoning is in
 
 ## Templates
 
-`infra-lua` ships copy-pastable Lua files in the rock's `templates/` directory: the
+`infra-lua` ships copy-pastable Lua files in its `templates/` directory, vendored with it
+at `vendor/infra-lua/templates/`: the
 cluster baseline (cert-manager, Flux, the NGINX Gateway with the Gateway API definitions,
 the gateway, the ACME cluster issuer and the Flux self-sync) and the shared definitions
 module. They are files, not functions the library exposes. `init` copies them into the
-repo, and from then on the repo owns them: render runs the repo's copies, not the rock's,
-and a newer rock changes nothing in a repo until its files are edited or re-copied.
+repo, and from then on the repo owns them: render runs the repo's copies, never the
+vendored originals, and a newer vendored `infra-lua` changes nothing in the copies until
+they are edited or re-copied.
 Each template declares its vars and defaults at the top with `platform.vars`.
 
 ## Evaluation is eager

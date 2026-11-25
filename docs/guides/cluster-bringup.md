@@ -1,8 +1,9 @@
 # Cluster bring-up — fresh cluster to a live platformv2 baseline
 
-> **Being rewritten for Lua templates (v1.0).** From v1.0, `platform init` copies the
-> baseline from the `infra-lua` rock's Lua templates instead of the embedded CUE and
-> `.platform` files ([scaffolding](../spec/scaffolding.md#the-infra-framework-scaffolds-from-the-rock)).
+> **Being rewritten for Lua templates (v1.0).** From v1.0, `platform init` vendors
+> `infra-lua` at `vendor/infra-lua` and copies the baseline from its Lua templates instead
+> of the embedded CUE and `.platform` files
+> ([scaffolding](../spec/scaffolding.md#the-infra-framework-scaffolds-from-vendored-infra-lua)).
 > Steps 1 and 2, and every CUE or `.platform` file and field named below (`apps/*.cue`,
 > `defaults/`, `cue.mod`, `#target_ns`), still describe that older scaffold. The render,
 > bootstrap-apply, DNS, publish, webhook and verification steps are not CUE-specific,

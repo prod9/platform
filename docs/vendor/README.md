@@ -35,8 +35,8 @@ tables and lists; keep entries skimmable.
   evidence here, how to resolve a package against the image, and the packages we've verified.
 - [`caddy.md`](caddy.md) — the static family's webserver: where `Content-Type` comes from,
   the `encode` defaults, and what `handle_errors` does to the response status.
-- [`ghcr-auth.md`](ghcr-auth.md) — what credentials ghcr.io accepts for publishing and
-  rock pulls: classic PAT only outside Actions; App installation / OAuth / user-access
+- [`ghcr-auth.md`](ghcr-auth.md) — what credentials ghcr.io accepts for publishing:
+  classic PAT only outside Actions; App installation / OAuth / user-access
   tokens all refused (staff-confirmed), and the unverified basic-auth-username question.
 - [`go-vanity-imports.md`](go-vanity-imports.md) — how `go get` resolves `go-import`
   meta for the launcher's `platform.prodigy9.co` install: the prefix re-fetch that lets

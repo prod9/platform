@@ -3,9 +3,9 @@ github.com/orgs/community/discussions/171423 + /26921 @ 2026-08-05 -->
 
 # ghcr.io authentication
 
-What credentials GitHub's container registry actually accepts, for `publish` and for
-pulling rocks with the `REGISTRY_USERNAME`/`REGISTRY_PASSWORD` credentials
-([Lua render](../spec/lua-render.md#rocks)).
+What credentials GitHub's container registry actually accepts, for `publish` with the
+`REGISTRY_USERNAME`/`REGISTRY_PASSWORD` credentials
+([engine](../spec/engine.md#registry-credentials)).
 
 ## What works
 

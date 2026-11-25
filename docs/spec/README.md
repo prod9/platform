@@ -24,11 +24,11 @@ superseded moves to `../scratch/` — `spec/` holds current design only, never h
 - [`execution-modes.md`](execution-modes.md) — the boundary between shared build/publish
   capabilities, the CLI that invokes them, the app-vs-infra delivery convention, and this
   repository's own release runbook.
-- [`lua-render.md`](lua-render.md) — `render`: `apps/*.lua` on the sandboxed Lua VM, the
-  rock fetch and cache, `platform.vars`, and the templates shipped in
-  the rock.
+- [`lua-render.md`](lua-render.md) — `render`: `apps/*.lua` on the sandboxed Lua VM,
+  `require` over the libraries vendored under `vendor/`, `platform.vars`, and the
+  templates vendored with `infra-lua`.
 - [`frameworks.md`](frameworks.md) — the framework catalog and order-sensitive discovery,
-  the seven-method `Framework` contract, `Step`/`Plan`/`Execute`, layouts, runtime-shape
+  the eight-method `Framework` contract, `Step`/`Plan`/`Execute`, layouts, runtime-shape
   families, the Wolfi base, Node/pnpm provisioning, and the Go test-in-build gate.
 - [`engine.md`](engine.md) — the reusable build driver: runner placement, `Session` +
   `Run`, the complete `Observer` lifecycle, publishing, registry credentials, and arch
@@ -36,7 +36,8 @@ superseded moves to `../scratch/` — `spec/` holds current design only, never h
 - [`releases.md`](releases.md) — release strategies (semver/datestamp/timestamp/rolling),
   `Generate` vs `Create`, tag-history recovery, and release⊥publish orthogonality.
 - [`scaffolding.md`](scaffolding.md) — `platform init`: the `framework/scaffold`
-  mechanism, the `Infra` framework's baseline from the `infra-lua` templates, the
+  mechanism, the `Infra` framework's vendoring of `infra-lua` and its baseline from the
+  `infra-lua` templates, the
   `[vars]` merge, and `scaffolding/` orchestration behind `cmd/init_cmd.go`.
 - [`testing.md`](testing.md) — the two suites (`go test` / `./test.sh`), the smoke
   drift-detector contract and its golden, the per-test timeout.

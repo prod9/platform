@@ -60,7 +60,7 @@ what consuming repositories may build, tag, or publish.
 - [`docs/guides/cluster-bringup.md`](docs/guides/cluster-bringup.md) — fresh cluster to a
   live GitOps baseline, end to end.
 - [`docs/spec/lua-render.md`](docs/spec/lua-render.md) — how an infra repo's
-  `apps/*.lua` render against the `infra-lua` rock.
+  `apps/*.lua` render against the `infra-lua` library vendored at `vendor/infra-lua`.
 - [`docs/decisions/`](docs/decisions/) — dated design rulings.
 
 ## Testing

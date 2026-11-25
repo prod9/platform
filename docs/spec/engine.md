@@ -508,7 +508,8 @@ For an operation that publishes, a nonempty `REGISTRY_USERNAME` requires a nonem
 password and a registry host matching the configured module image. Missing or mismatched
 credentials fail configuration before steps or publication, reaching `ConfigDone(error)`
 and `RunDone(error)`. A build-only operation does not read or validate publication
-credentials.
+credentials. The credentials reach only the publish bracket: no `BuildUnit` carries them,
+and `render` never reads them.
 
 When `REGISTRY_USERNAME` is empty, the bracket skips `WithRegistryAuth` entirely — Dagger
 then pushes with the **local docker credentials** (osxkeychain). That is the local-publish
@@ -542,5 +543,5 @@ exception is `ls`, a local debugging view that never builds: it assembles its ow
 `framework.Units` receives the resolved arch and writes it into each `BuildUnit`
 ([`framework/unit.go`](../../framework/unit.go)) — the engine then reads the field, never
 a call argument. Bare archs become `linux/<arch>`; `auto` tracks `runtime.GOARCH`;
-`local_arch` defaults to `auto` and `publish_arch` to `amd64`. The `FROM scratch` images
-of the infra and rock frameworks carry no executable, so arch is irrelevant to them.
+`local_arch` defaults to `auto` and `publish_arch` to `amd64`. The `FROM scratch` image
+of the infra framework carries no executable, so arch is irrelevant to it.

@@ -22,19 +22,20 @@ harness's unchanged one-minute per-test deadline ([testing.md](testing.md)).
 
 A framework is a stateless value (an empty struct) implementing `framework.Framework`. It
 carries per-stack knowledge and nothing else — no config, no engine handle, no build
-state. Seven methods:
+state. Eight methods:
 
 | Method                                                    | Returns   | Role                                                                 |
 | --------------------------------------------------------- | --------- | -------------------------------------------------------------------- |
 | `Name() string`                                           | id        | Stable id (`go/basic`, `pnpm/static`, …); module's `framework` value |
 | `Layout() Layout`                                         | shape     | `basic` \| `workspace` — module topology                             |
 | `Discover(wd string) bool`                                | detect    | True if this stack owns `wd` (scaffold-time only)                    |
+| `Vendors() []scaffold.Vendor`                             | libraries | Git-subtree libraries init vendors before planning (usually nil)     |
 | `ScaffoldVars(wd) []string`                               | inputs    | Operator inputs to prompt at init, by name (usually nil)             |
 | `Scaffold(ctx, wd, env, inputs) Spec`                     | seed      | The framework's full, **resolved** contribution (below)              |
 | `Plan(*BuildUnit) []Step`                                 | steps     | The ordered steps this unit's build is made of                       |
 | `Execute(ctx, client, *BuildUnit, Step, in) (out, error)` | container | Run **one** step: container in → container out                       |
 
-`Discover` and `Scaffold` are scaffold-time: the build path reads `[modules]` (which pins
+`Discover`, `Vendors` and `Scaffold` are scaffold-time: the build path reads `[modules]` (which pins
 `Name`), it never re-discovers.
 
 `Plan` and `Execute` are handed the raw `*dagger.Client` (on `Execute`) and a
@@ -58,9 +59,8 @@ first step receives a nil container (it establishes the base); each subsequent s
 receives its predecessor's output.
 
 **The container is the chaining medium, not the contract.** A step is not obliged to
-transform what it is handed: `Infra`'s `deps` step fetches the pinned `infra-lua` rock on
-the *host* and passes its input straight through, which is a legitimate step, not a
-degenerate one.
+transform what it is handed: a step that does its work on the *host* and passes its input
+straight through is a legitimate step, not a degenerate one.
 What every step owes is a container for its successor — nothing about where its work
 happens. Nothing is stored between calls — the framework holds
 no build state, so a plan can be recomputed at any time and the engine always drives the
@@ -82,8 +82,8 @@ come back **resolved** and `scaffolding.Target` carries the framework resolved b
 `Discover`; `cmd/init_cmd.go` prompts for the `ScaffoldVars` it exposes, then asks the
 target to plan `platform.toml` and the finished bytes.
 There is **no `IsInfra` / app-vs-infra predicate**: `Infra.Scaffold` simply *does more*
-(it contributes the cluster baseline from the `infra-lua` rock's templates, the rock pin,
-and a `strategy="rolling"` seed), so the
+(its `Vendors` names `infra-lua`, and its `Scaffold` contributes the cluster baseline from
+the vendored templates and a `strategy="rolling"` seed), so the
 app/infra distinction is pure `Scaffold` polymorphism. The `scaffold.Spec`/`scaffold.File`
 shapes and the resolve mechanism live in [scaffolding](scaffolding.md).
 
@@ -117,8 +117,7 @@ describes what a framework's runner stage lays down.
 `native` copies just the compiled binary into a lean runner. `interpreted` carries build
 output plus `node_modules`. `static` drops in Caddy and the built bundle with no language
 runtime. `custom` owns its own base and runtime entirely (Dockerfile uses
-the user's `FROM`; `Infra` packs a `FROM scratch` manifest image, and the intended
-`LuaRock` a `FROM scratch` rock image).
+the user's `FROM`; `Infra` packs a `FROM scratch` manifest image).
 
 ## Discovery — first match wins
 
@@ -140,11 +139,6 @@ Implemented order and detection rules:
 | 5 | `PNPMBasic`   | `pnpm/basic`     | `basic`     | `interpreted` | `pnpm-lock.yaml`                             |
 | 6 | `Dockerfile`  | `dockerfile`     | `basic`     | `custom`      | `Dockerfile`                                 |
 
-**Intended:** `LuaRock` (`lua/rock`, `basic`, `custom`) detects on a `*.rockspec` file at
-the directory root and goes **first**, ahead of `Infra`. The repo it exists for,
-`infra-lua`, has `infra` in its name, so `Infra`'s name glob would otherwise claim it; a
-rockspec is a file marker no infra repo carries.
-
 **There is no Node workspace framework.** `pnpm/workspace` was removed: the Node ecosystem
 has no shared way to declare a workspace or to ship one member of it, and pnpm reads its
 own file rather than the `workspaces` field npm, Yarn and Bun share. A pnpm workspace root
@@ -158,7 +152,7 @@ Why the order holds:
 - **Infra first** — the `Infra` framework's `Discover` heuristic is a directory *name*
   glob, not a file marker; `apps/` is a poor marker (an ordinary app may also carry
   `apps/`). Checked ahead of file markers so an infra repo never mis-detects on a stray
-  lockfile. The intended `LuaRock` is the one exception that precedes it (above).
+  lockfile.
 - **Workspace before basic** (2 before 3) — a Go workspace repo also holds `go.mod`
   files. The workspace marker is the broader truth, so it must win before the basic marker
   it would also trip.
@@ -174,7 +168,7 @@ Why the order holds:
 
 ## The shared base
 
-Every framework except `Dockerfile` (own `FROM`), `Infra` and `LuaRock` (`FROM scratch`)
+Every framework except `Dockerfile` (own `FROM`) and `Infra` (`FROM scratch`)
 starts from
 `BaseImageForUnit` — Chainguard's Wolfi base (`cgr.dev/chainguard/wolfi-base`), small,
 regularly patched, shared across all language stacks.
@@ -294,8 +288,7 @@ ahead of the compile step: `GoBasic` execs `go test -v ./...`, `GoWorkspace` exe
 `go test -v` across every workspace module. Because Dagger fails the build on a non-zero
 exec, that step fails the run — **green tests are a
 baked-in, non-configurable precondition of a Go image** — a red suite is a failed build,
-and there is no skip-tests opt-out. The intended `LuaRock` holds the same gate: its `test`
-step runs the rock's Lua tests and fails the run on a red suite. Full rationale:
+and there is no skip-tests opt-out. Full rationale:
 [test-in-build-is-a-hard-gate](../decisions/2026-07-05-test-in-build-is-a-hard-gate.md).
 
 ## The build step sees the repository
@@ -426,33 +419,24 @@ repository has no commit yet, such as right after `git init`.
 - **Dockerfile** — `host.DockerBuild` on the user's `Dockerfile`; env becomes build args.
   Discouraged: bypasses Wolfi, the apk cache, and package conventions; warns at build
   time.
-- **Infra** — two steps, both in-process and exec-free. `deps` fetches the `infra-lua`
-  rock version pinned under `[rocks]` into platform's XDG cache; a version already cached
-  is not fetched again. `build` calls `gitops.Render` (each `apps/*.lua` run on the
-  sandboxed Lua 5.1 VM → manifest tree), then
+- **Infra** — one step, `build`, in-process and exec-free. It calls `gitops.Render` (each
+  `apps/*.lua` run on the sandboxed Lua 5.1 VM against the libraries vendored under
+  `vendor/` → manifest tree), then
   writes the whole tree into a `client.Container()` with no `From` (scratch) in **one**
   `WithDirectory` — a per-file `WithNewFile` walk yields a multi-layer image and Flux's
   source-controller extracts only one layer, so `prune` then wipes the cluster. A render
   error fails the step before any tree is written. The published layer is
   a tar+gzip of exactly those files, which Flux's `OCIRepository` `layerSelector`
   extracts; kustomize-controller applies the YAML. Render has one route, Lua: there is no
-  CUE evaluation and no `.platform` directive route. Render internals — the sandbox, rock
-  fetch and cache, `platform.vars`, templates — are
+  CUE evaluation and no `.platform` directive route. Render internals — the sandbox,
+  `require` over `vendor/`, `platform.vars`, templates — are
   [lua-render.md](lua-render.md); the rulings are
   [cue-dropped-for-lua-render](../decisions/2026-11-25-cue-dropped-for-lua-render.md),
-  [dsl-removed-for-lua-templates](../decisions/2026-11-25-dsl-removed-for-lua-templates.md)
-  and
-  [validation-left-to-flux](../decisions/2026-11-25-validation-left-to-flux.md).
+  [dsl-removed-for-lua-templates](../decisions/2026-11-25-dsl-removed-for-lua-templates.md),
+  [validation-left-to-flux](../decisions/2026-11-25-validation-left-to-flux.md) and
+  [rocks-dropped-for-subtree-vendoring](../decisions/2026-11-25-rocks-dropped-for-subtree-vendoring.md).
   Infra delivery is the ordinary `publish` verb — see
   [infra-publishes-as-plain-image-retire-oras](../decisions/2026-07-05-infra-publishes-as-plain-image-retire-oras.md).
-- **LuaRock (intended)** — builds a repo whose root holds a rockspec, such as
-  `infra-lua`, so `platform publish` pushes the rock to ghcr. Two steps, `test` then
-  `build`. `test` runs the rock's Lua tests on the same Lua 5.1 VM render uses,
-  in-process; a failing test fails the run. `build` packs the rock into a `FROM scratch` image as
-  **one** layer, the layout render's rock fetch reads ([lua-render.md](lua-render.md)),
-  and the ordinary publish bracket pushes it under the release name. Its `Scaffold`
-  contributes the module entry only. Which files are the rock's tests, and whether the
-  rockspec's own version must agree with the release name, are **open**.
 
 ## Frameworks and the build model
 

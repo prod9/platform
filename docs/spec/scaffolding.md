@@ -2,10 +2,10 @@
 
 Status: **design-of-record; the infra baseline is intended.** Covers `platform init` — how
 a fresh repo is seeded. The infra baseline described under "The `Infra` framework
-scaffolds from the rock" is the v1.0 design and replaces the embedded CUE and `.platform`
-baseline, which goes with CUE and the DSL. Until it is built, `Infra.Scaffold` contributes
-only its module and its `strategy` seed: no files, no `[vars]`, no `[rocks]` pin. The rest
-of this file is implemented. New code conforms;
+scaffolds from vendored `infra-lua`" is the v1.0 design and replaces the embedded CUE and
+`.platform` baseline, which goes with CUE and the DSL. Until it is built, `Infra.Scaffold`
+contributes only its module and its `strategy` seed: no vendoring, no files, no `[vars]`.
+The rest of this file is implemented. New code conforms;
 existing code migrates toward it.
 
 Scaffolding has exactly three concerns, each with one home:
@@ -14,8 +14,9 @@ Scaffolding has exactly three concerns, each with one home:
   with data. Generic; no discover, no orchestration, no per-type data, no writes — the
   driver writes finished bytes.
 - **The `Infra` framework** — owns the cluster baseline it scaffolds. The baseline's files
-  are the templates of the pinned `infra-lua` rock ([Lua render](lua-render.md)); the
-  framework fetches the rock, routes the templates and collects their declared vars.
+  are the templates of `infra-lua`, vendored at `vendor/infra-lua`
+  ([Lua render](lua-render.md)); the framework names `infra-lua` as the library it needs
+  (`Vendors`), routes the templates and collects their declared vars.
   `framework/skel` keeps only the universal launcher.
 - **`scaffolding/`** — the initialization domain: target validation, framework discovery,
   operator input data, plan construction, and file application. The thin Cobra adapter is
@@ -25,9 +26,9 @@ Scaffolding has exactly three concerns, each with one home:
 A `Framework` is the sole owner of a project type, so what a repo scaffolds is
 `fw.Scaffold`'s output — nothing branches on app-vs-infra. An **app repo** gets a
 `platform.toml` + executable `platform` launcher; an **infra repo** gets that base plus
-the cluster baseline (`apps/*.lua` and the shared `defaults.lua`), its declared `[vars]` and
-the `[rocks]` pin. The difference is only how much `Infra.Scaffold` contributes — pure
-polymorphism, **no `IsInfra` predicate**.
+the vendored `infra-lua`, the cluster baseline (`apps/*.lua` and the shared
+`defaults.lua`) and its declared `[vars]`. The difference is only how much
+`Infra.Scaffold` contributes — pure polymorphism, **no `IsInfra` predicate**.
 
 The launcher is the driver's own contribution, so the driver resolves its one hole the
 same way frameworks resolve theirs: `PLATFORM_VERSION` is stamped with
@@ -65,45 +66,48 @@ and scaffold-time stack discovery live in [frameworks](frameworks.md) (the build
 shapes a framework returns and nothing stack-specific:
 
 - **`scaffold.Spec`** — a framework's full contribution to a fresh repo: the
-  `platform.toml` module it adds, the default `[vars]` it seeds, the rocks it pins, the
-  files it ships (`[]scaffold.File`, already **resolved** — the framework fills its own
-  holes), and the default `strategy` value it seeds.
+  `platform.toml` module it adds, the default `[vars]` it seeds, the files it ships
+  (`[]scaffold.File`, already **resolved** — the framework fills its own holes), and the
+  default `strategy` value it seeds.
 - **`scaffold.File`** — one file beyond the universal `platform.toml` + launcher: `Path`
   (repo-relative, routing already applied), `Content`, `Mode`. A `.tmpl` suffix marks
   `Content` as a `text/template` the mechanism resolves (and strips) with the
   scaffold data.
+- **`scaffold.Vendor`** — a git-subtree library a framework needs in the repo before it
+  can scaffold: `Prefix` (repo-relative, such as `vendor/infra-lua`) and `URL` (the git
+  repository it is vendored from). Pure data; the `scaffolding/` flow does the vendoring.
 
 **Templating rules.** `.tmpl` files resolve through `text/template` with `missingkey=error`;
 non-template files pass through **verbatim**. The launcher is the one `.tmpl` file left.
-The rock's Lua templates are never `.tmpl` files and never meet the template engine: their
-values come from `[vars]` at render time, not from holes filled at init. Output order is
-deterministic.
+`infra-lua`'s Lua templates are never `.tmpl` files and never meet the template engine:
+their values come from `[vars]` at render time, not from holes filled at init. Output
+order is deterministic.
 
 The mechanism is generic: it does not discover, does not orchestrate, and holds no per-type
 data. Everything type-specific comes in through the `scaffold.Spec` a framework hands it.
 
-## The `Infra` framework scaffolds from the rock
+## The `Infra` framework scaffolds from vendored `infra-lua`
 
-The cluster baseline is no longer embedded in `platform`. It ships as the `templates/`
-directory of the `infra-lua` rock: copy-pastable Lua files a repo copies and then owns
+The cluster baseline is not embedded in `platform`. It ships as the `templates/` directory
+of `infra-lua`, which the infra repo vendors whole as a git subtree at `vendor/infra-lua`
+([Lua render](lua-render.md), "Vendored libraries"): copy-pastable Lua files a repo copies
+and then owns
 ([DSL removed for Lua templates](../decisions/2026-11-25-dsl-removed-for-lua-templates.md)).
-`init` is the copy.
+`init` vendors the library when the repo lacks it, then makes the copy.
 
-`Infra.Scaffold` on an infra repo:
+`Infra.Vendors` returns one `scaffold.Vendor`: prefix `vendor/infra-lua`, URL
+`https://github.com/prod9/infra-lua`. By the time `Infra.Scaffold` runs, the
+`scaffolding/` flow has vendored it (`scaffolding/`, step 3), so `Infra.Scaffold` only
+reads:
 
-1. **Resolves the rock version.** On a repo with no `[rocks]` pin for `infra-lua`, it
-   reads the tag list of `ghcr.io/prod9/infra-lua` and takes the newest published version. An
-   existing pin is the operator's value and is kept.
-2. **Fetches the rock** into the cache with the same fetcher and credentials render uses,
-   and reads the files under its `templates/` ([Lua render](lua-render.md), "Rocks").
-3. **Routes every template.** The shared definitions module goes to the repo root
+1. **Reads the templates** from `vendor/infra-lua/templates/`.
+2. **Routes every template.** The shared definitions module goes to the repo root
    (`defaults.lua`, which apps load with `require "defaults"`); every other template goes
    to `apps/`. Contents are copied byte for byte.
-4. **Collects the declared vars.** It runs each template in declare-only mode: the
+3. **Collects the declared vars.** It runs each template in declare-only mode: the
    template stops at its first `platform.vars {…}` call, and the names and defaults it
    declares become the default `[vars]` the framework seeds. Two templates that declare
    one name with different defaults fail init.
-5. **Pins the version** under `[rocks]`.
 
 `Infra.Scaffold` asks for no scaffold input; `ScaffoldVars` reports none. Every value the
 baseline needs is a declared var with a default, so `init` prompts for nothing beyond the
@@ -115,13 +119,13 @@ grammar, no render-time gating
 An operator who wants a smaller baseline deletes files after init. There is no checklist
 step.
 
-The default working set is the set of templates in the rock: cert-manager (Gateway API and
-ListenerSet reconciliation enabled — the cross-cloud convention), Flux, the Flux self-sync
-(the GitHub→Flux `Receiver` with its own `ListenerSet` and route), the NGINX Gateway with
-the Gateway API definitions, the host-agnostic operator `Gateway` app, and the ACME
-cluster issuer. Components own their hostnames via `ListenerSet`s; the gateway app carries
-none. The baseline deploys no platform server and no Dagger engine pool
-([server removed](../decisions/2026-11-25-server-removed-platform-is-a-cli.md)).
+The default working set is the set of templates in the vendored `infra-lua`: cert-manager
+(Gateway API and ListenerSet reconciliation enabled — the cross-cloud convention), Flux,
+the Flux self-sync (the GitHub→Flux `Receiver` with its own `ListenerSet` and route), the
+NGINX Gateway with the Gateway API definitions, the host-agnostic operator `Gateway` app,
+and the ACME cluster issuer. Components own their hostnames via `ListenerSet`s; the
+gateway app carries none. The baseline deploys no platform server and no Dagger engine
+pool ([server removed](../decisions/2026-11-25-server-removed-platform-is-a-cli.md)).
 
 The baseline stays provider-neutral
 ([baseline-is-provider-neutral](../decisions/2026-07-16-baseline-is-provider-neutral.md)):
@@ -155,9 +159,10 @@ receiver host. They are inputs to the templates, read through `platform.vars`.
 ## `scaffolding/` — initialization domain
 
 `cmd/init_cmd.go` (aliases `init` and `scaffold`) drives the flow through `scaffolding/`,
-which owns every mutation. It is **discover-then-plan-then-apply**: discovery validates the
-target and resolves its framework once; planning reads only; the command prints and confirms
-the plan before touching the tree.
+which owns every mutation. It is **discover-then-vendor-then-plan-then-apply**: discovery
+validates the target and resolves its framework once; vendoring commits the libraries the
+framework needs; planning reads only; the command confirms each mutation before it
+happens.
 
 1. `scaffolding.Discover(wd)` validates the target: it exists, is a directory, and is its
    own git repo root
@@ -165,10 +170,36 @@ the plan before touching the tree.
    inside another checkout counts only with its own `.git`).
 2. The same call resolves the owning framework and returns a `Target` that retains it. The
    command prompts for the additional inputs `Target.ScaffoldVars()` reports.
-3. `Target.Plan(info, vars)` calls the retained framework's `Scaffold` once. Its
-   `scaffold.Spec` carries the module, vars, rocks, resolved files, and seeded `strategy`;
+3. **Vendoring.** For each `scaffold.Vendor` the framework's `Vendors` returns whose
+   `Prefix` does not exist in the repo (an existing one is skipped and never bumped):
+   1. The target checks the precondition `git subtree add` holds the repo to: the current
+      branch has at least one commit, and no tracked file has staged or unstaged changes.
+      Untracked files do not count. A repo that fails it fails init with an error that
+      names the missing commit or the changed files, before anything is asked or written;
+      the operator commits and re-runs `init`.
+   2. It resolves the newest tag with `git ls-remote --tags <URL>`. Newest is the highest
+      SemVer precedence among the tags that are valid SemVer
+      (`vMAJOR.MINOR.PATCH[-PRE]`), prereleases included, the ordering
+      [releases](releases.md) ("Collection") applies: `v0.2.0` sorts above
+      `v0.2.0-alpha.1`, and `v0.3.0-alpha.1` above both. There is no separate stable
+      channel. No such tag fails init.
+   3. The command asks one yes/no confirmation (fx `prompts.Confirm`, which
+      `ALWAYS_YES=1` answers) naming the tag and the command. Declining stops init with
+      nothing written.
+   4. The target runs `git subtree add --prefix=<Prefix> <URL> <tag> --squash`. `git
+      subtree` missing from the operator's git fails init with an error naming
+      `git subtree`. Any other failure of the command fails init.
+
+   Each subtree add is a commit `init` makes, and the only kind: git subtree records it as
+   a merge commit on the current branch whose second parent is the squashed content of
+   the tag. Everything else `init` writes is left uncommitted. Vendoring runs before
+   planning because `Scaffold` reads the vendored files. Upgrading a vendored library is
+   the operator's own `git subtree pull` ([Lua render](lua-render.md), "Vendored
+   libraries").
+4. `Target.Plan(info, vars)` calls the retained framework's `Scaffold` once. Its
+   `scaffold.Spec` carries the module, vars, resolved files, and seeded `strategy`;
    the target computes the `platform.toml` disposition and returns a read-only plan.
-4. The command prints and confirms the plan, then calls `Plan.Apply()` or, for `--force`,
+5. The command prints and confirms the plan, then calls `Plan.Apply()` or, for `--force`,
    `Plan.ForceApply()`.
 
 **The git precondition is uniform, not framework-set.** Platform never runs `git init` —
@@ -198,9 +229,9 @@ orthogonal:
 - **Absent** → a fresh file is generated from `conf.ModelDefaults`, the operator `Info`
   (maintainer, repository), the framework's `scaffold.Spec` module (its `[modules]` entry and
   the `strategy` value it seeds — `Infra` seeds `strategy = "rolling"` since infra has no
-  versions to cut), the seeded default `[vars]`, and the `[rocks]` pin.
-- **Present** → the surgical merge (below) folds the default `[vars]` and the `[rocks]`
-  pin in **textually**; every other table, comment, and byte is preserved.
+  versions to cut), and the seeded default `[vars]`.
+- **Present** → the surgical merge (below) folds the default `[vars]` in **textually**;
+  every other table, comment, and byte is preserved.
 
 ### Re-init: surgical merge
 
@@ -209,14 +240,13 @@ existing files leaves `platform.toml` untouched, so the planned additions are wr
 when replacement is accepted (`--force` or the overwrite confirmation). Replacement uses
 the merged bytes, preserving the operator's existing config.
 
-The merge (owned by `conf/`, alongside `Generate`) folds the defaults into `[vars]` and
-`[rocks]` **line-by-line, not by decode/re-encode** — a round-trip through the TOML
-encoder would lose the operator's comments, ordering, and formatting. For each table, the merge:
+The merge (owned by `conf/`, alongside `Generate`) folds the defaults into `[vars]`
+**line-by-line, not by decode/re-encode** — a round-trip through the TOML encoder would
+lose the operator's comments, ordering, and formatting. The merge:
 
 - **Appends** default keys the file lacks, inserted after the last non-blank line of the
   existing table body (or a fresh table appended to EOF when absent).
-- **Preserves** keys already present — the operator's value stands untouched, so an
-  existing `[rocks]` pin is never bumped by re-init.
+- **Preserves** keys already present — the operator's value stands untouched.
 - Leaves comments, key order, and all other tables byte-for-byte.
 
 Each default var's disposition is recorded as a `VarChange` (`Appended` true = newly
@@ -232,7 +262,7 @@ or in files the operator added.
   Shared definitions do not live here — they live in repo-root modules such as
   `defaults.lua`, loaded with `require`.
 - **The templates are the repo's files after init.** Render runs the repo's copies, never
-  the rock's; a newer rock changes nothing in a repo until its files are edited or
-  re-copied.
-- **No baseline is embedded in `platform`.** The baseline's source of truth is the rock's
-  `templates/`; `framework/skel` holds only the launcher.
+  the vendored originals; a newer vendored `infra-lua` changes nothing in the copies until
+  they are edited or re-copied.
+- **No baseline is embedded in `platform`.** The baseline's source of truth is
+  `infra-lua`'s `templates/`; `framework/skel` holds only the launcher.

@@ -21,11 +21,12 @@ documentation. Historical renames and their rationale remain in the
 - **scaffold** / **scaffolding** — create the source files a project starts from.
 - **render** — run the infra repo's `apps/*.lua` and collect the result into a manifest
   tree ([lua-render.md](lua-render.md)).
-- **rock** — a LuaRocks package, fetched from ghcr and pinned under `[rocks]` in
-  `platform.toml`. **`infra-lua`** is the rock holding PRODIGY9's Kubernetes library and
-  templates.
-- **template** — a Lua app file shipped in a rock's `templates/` directory. `init` copies
-  it into `apps/`, and the repo owns the copy from then on.
+- **vendored library** — a git repository committed whole under `vendor/<lib>/` of an
+  infra repo as a git subtree; `render`'s `require` loads modules from its `src/`.
+  **`infra-lua`** is the vendored library holding PRODIGY9's Kubernetes library and
+  templates, at `vendor/infra-lua`.
+- **template** — a Lua app file in `infra-lua`'s `templates/` directory. `init` copies it
+  into `apps/`, and the repo owns the copy from then on.
 - **export** — write a built image tarball.
 - **release** — cut a version marker. **publish** — build and push an image. Neither verb
   implies the other.

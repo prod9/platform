@@ -5,7 +5,8 @@
 in [`../decisions/`](../decisions/). Distilled from the 2026-06 design walk and the
 2026-11-25 rescope of `platform` to a CLI that renders Lua
 ([server-removed-platform-is-a-cli](../decisions/2026-11-25-server-removed-platform-is-a-cli.md),
-[cue-dropped-for-lua-render](../decisions/2026-11-25-cue-dropped-for-lua-render.md)).
+[cue-dropped-for-lua-render](../decisions/2026-11-25-cue-dropped-for-lua-render.md),
+[rocks-dropped-for-subtree-vendoring](../decisions/2026-11-25-rocks-dropped-for-subtree-vendoring.md)).
 
 The job of this document: **exactly one owner per config kind.** Nothing settable in two
 places, no gaps. The Flux pivot left us with several surfaces — this map is the discipline
@@ -24,24 +25,24 @@ Every allocation below is chosen to preserve this.
 Top (closest to the human) to bottom (closest to the metal). One owner each.
 
 - **`platform.toml`** (in each source repo, git) — per-repo build metadata: modules,
-  release strategy, arch targets, and for an infra repo its `[vars]` and `[rocks]` pins.
-  Changes with the code.
+  release strategy, arch targets, and for an infra repo its `[vars]`. Changes with the
+  code.
 - **`infra/` repo|path** (Lua, git) — the cluster's desired state, written as `apps/*.lua`
-  against the `infra-lua` library: app image refs (committed literals the operator
-  hand-edits — platform never rewrites these files), components, replicas, and per-env
-  instances separated by k8s namespace. The thing `platform` renders, on its built-in Lua
-  VM. No committed rendered YAML.
+  against the `infra-lua` library it vendors as a git subtree at `vendor/infra-lua`: app
+  image refs (committed literals the operator hand-edits — platform never rewrites these
+  files), components, replicas, and per-env instances separated by k8s namespace. The
+  thing `platform` renders, on its built-in Lua VM. No committed rendered YAML.
 - **`tf/` repo|path** (OpenTofu, git) — cloud/DNS provisioning; not a platform env list.
   Applied **manually, locally**.
 - **OCI registry** — app images (digest-pinned to dodge stale cache), the rendered config
-  artifact (moving tag; the infra repo's git history is the record), and published rocks.
-  The source Flux and `render` pull from.
+  artifact (moving tag; the infra repo's git history is the record). The source Flux
+  pulls from.
 - **Flux** (in-cluster: source-controller + kustomize-controller) — reconciles the config
   artifact onto the cluster; applies/prunes; drift correction. No Argo. No Helm.
 - **cluster baseline** — Flux, cert-manager, NGINX Gateway with the Gateway API
-  definitions, and the gateway, issuer and Flux-sync apps. Shipped as Lua templates in the
-  `infra-lua` rock and written into `apps/` by `platform init` through the `Infra`
-  framework; from then on the repo owns the files. Seeded once (manual), then
+  definitions, and the gateway, issuer and Flux-sync apps. Shipped as Lua templates in
+  `infra-lua`'s `templates/` and written into `apps/` by `platform init` through the
+  `Infra` framework; from then on the repo owns the files. Seeded once (manual), then
   Flux-reconciled — except Flux's own lifecycle, never self-managed. See
   [`scaffolding.md`](scaffolding.md) and
   [dsl-removed-for-lua-templates](../decisions/2026-11-25-dsl-removed-for-lua-templates.md).
@@ -52,12 +53,11 @@ Top (closest to the human) to bottom (closest to the metal). One owner each.
 | ------------------------------------- | ----------------- | ---------------------------------- |
 | How to build a module                 | `platform.toml`   | TOML in source repo                |
 | Render inputs (`[vars]`)              | `platform.toml`   | TOML → `platform.vars` in Lua      |
-| `infra-lua` version (`[rocks]`)       | `platform.toml`   | TOML pin → rock fetched from ghcr  |
+| `infra-lua` version                   | `infra/`          | git subtree at `vendor/infra-lua`  |
 | Authorization (who may deploy)        | GitHub            | infra-repo push permission         |
 | Desired state (image, replicas, env)  | `infra/`          | Lua (`apps/*.lua`) → OCI           |
 | App image (the container)             | OCI registry      | digest-pinned tag                  |
 | Config artifact (Flux source)         | OCI registry      | moving tag (git = record)          |
-| `infra-lua` rock                      | OCI registry      | one-layer image per version        |
 | What's deployed where, drift          | Flux              | reconciles from OCI                |
 | Cluster baseline (Flux/CM/NGF)        | `infra/`          | template copies in `apps/`         |
 | Cloud / DNS                           | `tf/`             | OpenTofu                           |
@@ -66,21 +66,6 @@ Where secret values live is **open**: the platform server owned them, with pods 
 them through init-containers, and nothing in this map owns them now.
 
 ## `platform.toml` keys for render
-
-### `[rocks]`
-
-A new top-level table that maps a rock name to the version `render` uses:
-
-```toml
-[rocks]
-infra-lua = "<version>"
-```
-
-The `Infra` framework's dependency step fetches each pinned rock from ghcr into
-`$XDG_CACHE_HOME/platform/rocks/<name>/<version>/`, and a version already there is not
-fetched again. `platform init` writes the pin, choosing the newest published version on a
-fresh repo (intended). The pin is the only place a rock version is chosen; `infra-lua` is not built
-into `platform`. Fetch, cache and credentials: [`lua-render.md`](lua-render.md).
 
 ### `[vars]` — how they reach Lua
 
@@ -103,9 +88,11 @@ Var names reach Lua as written in `platform.toml`.
   manifest tree → pushed as the OCI config artifact under a **moving** tag (git history is
   the record). App image refs *inside* are committed literals, digest-pinned to dodge
   stale cache.
-- **`infra-lua`** — the Lua library and the baseline templates, packaged as a LuaRock and
-  published to ghcr as a one-layer image by `platform publish`
-  ([frameworks.md](frameworks.md), LuaRock).
+- **`infra-lua`** — the Lua library and the baseline templates. A release is a plain git
+  tag; nothing is published to a registry. An infra repo vendors it whole as a git subtree
+  at `vendor/infra-lua` (`platform init` adds it; the operator's `git subtree pull`
+  upgrades it), so the version an infra repo renders with is part of its committed tree
+  ([lua-render.md](lua-render.md), "Vendored libraries").
 - **`tf/`** — OpenTofu cloud/DNS provisioning; manual local apply. Not a platform env
   list.
 

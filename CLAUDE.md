@@ -18,10 +18,10 @@ repository.
 `platform.prodigy9.co`) with no server. It auto-detects project type, builds and publishes
 containers via Dagger, manages releases via git tags, and scaffolds new repos with a
 `platform.toml` + version-pinned `./platform` launcher. For an infra repo, `render` runs
-the repo's `apps/*.lua` on an embedded, sandboxed Lua 5.1 VM against the `infra-lua` rock
-pinned under `[rocks]`, and `publish` ships the manifest tree as a one-layer image Flux
-pulls. Goal: zero per-project build config; fast onboarding; no
-tech-stack lock-in.
+the repo's `apps/*.lua` on an embedded, sandboxed Lua 5.1 VM against the `infra-lua`
+library the repo vendors as a git subtree at `vendor/infra-lua`, and `publish` ships the
+manifest tree as a one-layer image Flux pulls. Goal: zero per-project build config; fast
+onboarding; no tech-stack lock-in.
 
 **[`docs/spec/`](docs/spec/) is the source of truth for how the system works** — packages,
 command surface, frameworks, engine, Lua render, releases, testing. It is not restated

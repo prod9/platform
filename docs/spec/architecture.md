@@ -90,9 +90,9 @@ graph `conf ← framework/scaffold ← framework ← scaffolding ← cmd`:
 
 - `conf/` — the `platform.toml` model, both directions: `Generate` and the surgical
   `[vars]` merge. The publish target is not a stored section: a module's image is inferred
-  per-module (`InferImageBase`) and the tag derives from the release strategy. Two
-  top-level tables feed `render`: `[vars]`, and `[rocks]`, which pins the version of each
-  Lua rock the infra repo renders with ([lua-render.md](lua-render.md)).
+  per-module (`InferImageBase`) and the tag derives from the release strategy. One
+  top-level table feeds `render`: `[vars]` ([lua-render.md](lua-render.md)). The Lua
+  library an infra repo renders with is vendored in the repo, not configured.
 
   **`repository` is stored scheme-less** — `github.com/prod9/platform`, the form the ghcr
   mirror and the image-source label are both derived from. Every other form is derived, and
@@ -103,13 +103,13 @@ graph `conf ← framework/scaffold ← framework ← scaffolding ← cmd`:
 - `framework/scaffold/` — **the one** files/templating mechanism: render templates with
   data. Generic — no discover, no orchestration, no per-type data; the driver writes
   finished bytes.
-- `framework/` — the `Framework` contract (seven methods — [`frameworks.md`](frameworks.md)
+- `framework/` — the `Framework` contract (eight methods — [`frameworks.md`](frameworks.md)
   is canonical), the concrete frameworks, the package-level `Discover(wd)` resolver, the
   interpret stage (config → `BuildUnit`s), and the per-stack build strategies. **Stack
   discovery is a scaffold-time concern** — the build path reads `[modules]`, never
   re-discovers. The `Infra` framework owns its destination routing and the universal
   launcher (bytes in the `framework/skel` collection); the cluster baseline it scaffolds
-  comes from the templates shipped in the `infra-lua` rock
+  comes from the templates of `infra-lua`, vendored at `vendor/infra-lua`
   ([scaffolding.md](scaffolding.md)). Its render step turns `apps/*.lua` into a
   `FROM scratch` image (see
   [infra-publishes-as-plain-image-retire-oras](../decisions/2026-07-05-infra-publishes-as-plain-image-retire-oras.md)).
@@ -117,13 +117,8 @@ graph `conf ← framework/scaffold ← framework ← scaffolding ← cmd`:
   manifest `Tree`), consumed by the Infra framework's render step and the
   `render` command. It is nested under `framework/` like `gowork`, its stack-specific
   companion. Publishing is the ordinary `publish` path now that infra is a framework; the
-  oras packer is retired. [lua-render.md](lua-render.md) specifies the sandbox, the rock
-  fetch and cache, and `platform.vars`.
-- `rocks/` — fetches a pinned Lua rock from ghcr and keeps it unpacked in the XDG cache
-  ([lua-render.md](lua-render.md), "Rocks"). It knows nothing of render or
-  `platform.toml`: its caller passes the rock's name and version and the registry
-  credentials. It imports no other platform package, so `framework/gitops` can consume it
-  without a cycle.
+  oras packer is retired. [lua-render.md](lua-render.md) specifies the sandbox,
+  `require` over the libraries vendored under `vendor/`, and `platform.vars`.
 - `cmd/` — `main.go` defers to `cmd.Execute()`. `cmd` holds the root Cobra command
   (persistent `-q`/`-v`, and `-f` for an alt `platform.toml`) plus one file per command.
   The `init` command's adapter lives at `cmd/init_cmd.go`; it presents prompts and the
@@ -189,9 +184,10 @@ compatibility and seeds `local_arch` when unset.
 
 Rendering and shipping the infra repo uses **the same build pipeline**, not a parallel
 one. Infra is a framework: its render step runs the repo's `apps/*.lua` on the embedded,
-sandboxed Lua VM against the pinned `infra-lua` rock and packs the resulting manifest
-tree into a `FROM scratch` image. Documents are not checked against Kubernetes schemas;
-the cluster rejects a bad one when Flux applies it ([validation decision]).
+sandboxed Lua VM against the `infra-lua` library vendored in the repo and packs the
+resulting manifest tree into a `FROM scratch` image. Documents are not checked against
+Kubernetes schemas; the cluster rejects a bad one when Flux applies it
+([validation decision]).
 `./platform publish` pushes the image through the same
 publish capability as any other module. There is no bespoke OCI pusher and no separate
 `ops publish`. [lua-render.md](lua-render.md) is canonical for render.
