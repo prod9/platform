@@ -67,7 +67,7 @@ them through init-containers, and nothing in this map owns them now.
 
 ## `platform.toml` keys for render
 
-### `[rocks]` — intended
+### `[rocks]`
 
 A new top-level table that maps a rock name to the version `render` uses:
 
@@ -79,7 +79,7 @@ infra-lua = "<version>"
 The `Infra` framework's dependency step fetches each pinned rock from ghcr into
 `$XDG_CACHE_HOME/platform/rocks/<name>/<version>/`, and a version already there is not
 fetched again. `platform init` writes the pin, choosing the newest published version on a
-fresh repo. The pin is the only place a rock version is chosen; `infra-lua` is not built
+fresh repo (intended). The pin is the only place a rock version is chosen; `infra-lua` is not built
 into `platform`. Fetch, cache and credentials: [`lua-render.md`](lua-render.md).
 
 ### `[vars]` — how they reach Lua
@@ -90,12 +90,10 @@ every app as `platform.vars`; it is the only path a value takes from `platform.t
 Lua. A template declares the vars it reads and their defaults at the top of the file —
 `local vars = platform.vars {CERT_MANAGER_VERSION = "v1.20.2"}` — and `platform init`
 writes each declared var with its default into `[vars]`, keeping values already set. The
-declaring call and how values meet defaults are [`lua-render.md`](lua-render.md). This is
-**intended**; today `[vars]` feeds CUE `@tag` holes and `.platform` interpolation.
+declaring call and how values meet defaults are [`lua-render.md`](lua-render.md). Seeding
+`[vars]` from the templates at init is **intended**.
 
-Var names reach Lua as written in `platform.toml`. Today render lowercases every key
-before use, for CUE's `@tag` names ([`conf/conf.go`](../../conf/conf.go),
-`NormalizeVars`); that lowercasing goes with CUE.
+Var names reach Lua as written in `platform.toml`.
 
 ## Repos & artifacts
 

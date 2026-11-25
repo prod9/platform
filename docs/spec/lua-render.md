@@ -1,8 +1,8 @@
 # Lua render
 
-Status: **intended; not implemented.** `render` today evaluates CUE through the linked
-CUE engine and runs `.platform` directives (`framework/gitops/render.go`). This spec is
-the design that replaces both, for the v1.0 line. The rulings behind it:
+Status: **implemented, except the upstream download function and the declare-only run
+`init` uses (intended).** `render` runs Lua only (`framework/gitops/`); CUE and the
+`.platform` directives are gone. The rulings behind it:
 [CUE dropped for Lua render](../decisions/2026-11-25-cue-dropped-for-lua-render.md),
 [DSL removed for Lua templates](../decisions/2026-11-25-dsl-removed-for-lua-templates.md)
 and [validation left to Flux](../decisions/2026-11-25-validation-left-to-flux.md).
@@ -112,9 +112,7 @@ at its first `platform.vars` call and reports the names and defaults.
 
 **Names are kept as written in `platform.toml`.** `CERT_MANAGER_VERSION` in `[vars]` is
 `CERT_MANAGER_VERSION` in Lua, and a declaration matches a `[vars]` key only when the two
-are spelled the same. Today render lowercases every key (`conf.NormalizeVars`,
-`conf/conf.go`) because CUE `@tag` holes and directive interpolation consume the lowercase
-form; that lowercasing goes with CUE.
+are spelled the same.
 
 ## Upstream manifests
 

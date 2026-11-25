@@ -1,10 +1,9 @@
 # Architecture — the build pipeline and how to organize it
 
-Status: **design-of-record; v1.0 rescope intended.** Drives package layout and the object
-model. New code conforms; existing code migrates toward it. `platform` is a command-line
-tool with no server ([server-removed decision]), and infra repos render Lua rather than
-CUE ([cue-dropped decision]); sections that describe those two facts are intended until
-the code catches up.
+Status: **design-of-record.** Drives package layout and the object model. New code
+conforms; existing code migrates toward it. `platform` is a command-line tool with no
+server ([server-removed decision]), and infra repos render Lua rather than CUE
+([cue-dropped decision]).
 
 [server-removed decision]: ../decisions/2026-11-25-server-removed-platform-is-a-cli.md
 [cue-dropped decision]: ../decisions/2026-11-25-cue-dropped-for-lua-render.md

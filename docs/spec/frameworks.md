@@ -443,8 +443,7 @@ repository has no commit yet, such as right after `git init`.
   [dsl-removed-for-lua-templates](../decisions/2026-11-25-dsl-removed-for-lua-templates.md)
   and
   [validation-left-to-flux](../decisions/2026-11-25-validation-left-to-flux.md).
-  This is **intended**; the code still renders CUE and `.platform` files. Infra delivery
-  is the ordinary `publish` verb — see
+  Infra delivery is the ordinary `publish` verb — see
   [infra-publishes-as-plain-image-retire-oras](../decisions/2026-07-05-infra-publishes-as-plain-image-retire-oras.md).
 - **LuaRock (intended)** — builds a repo whose root holds a rockspec, such as
   `infra-lua`, so `platform publish` pushes the rock to ghcr. Two steps, `test` then
