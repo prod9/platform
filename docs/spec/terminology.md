@@ -19,7 +19,7 @@ documentation. Historical renames and their rationale remain in the
 ## Verbs and artifacts
 
 - **scaffold** / **scaffolding** — create the source files a project starts from.
-- **render** — run the infra repo's `apps/*.lua` and validate the result into a manifest
+- **render** — run the infra repo's `apps/*.lua` and collect the result into a manifest
   tree ([lua-render.md](lua-render.md)).
 - **rock** — a LuaRocks package, fetched from ghcr and pinned under `[rocks]` in
   `platform.toml`. **`infra-lua`** is the rock holding PRODIGY9's Kubernetes library and

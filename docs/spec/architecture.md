@@ -115,11 +115,11 @@ graph `conf ← framework/scaffold ← framework ← scaffolding ← cmd`:
   `FROM scratch` image (see
   [infra-publishes-as-plain-image-retire-oras](../decisions/2026-07-05-infra-publishes-as-plain-image-retire-oras.md)).
 - `framework/gitops/` — the Infra framework's **render** machinery (`apps/*.lua` →
-  validated manifest `Tree`), consumed by the Infra framework's render step and the
+  manifest `Tree`), consumed by the Infra framework's render step and the
   `render` command. It is nested under `framework/` like `gowork`, its stack-specific
   companion. Publishing is the ordinary `publish` path now that infra is a framework; the
   oras packer is retired. [lua-render.md](lua-render.md) specifies the sandbox, the rock
-  fetch and cache, `platform.vars`, and validation.
+  fetch and cache, and `platform.vars`.
 - `rocks/` — fetches a pinned Lua rock from ghcr and keeps it unpacked in the XDG cache
   ([lua-render.md](lua-render.md), "Rocks"). It knows nothing of render or
   `platform.toml`: its caller passes the rock's name and version and the registry
@@ -190,14 +190,14 @@ compatibility and seeds `local_arch` when unset.
 
 Rendering and shipping the infra repo uses **the same build pipeline**, not a parallel
 one. Infra is a framework: its render step runs the repo's `apps/*.lua` on the embedded,
-sandboxed Lua VM against the pinned `infra-lua` rock, validates every document against
-its Kubernetes schema ([schema-validation decision]), and packs the resulting manifest
-tree into a `FROM scratch` image. A document that fails validation stops the render
-before anything is written. `./platform publish` pushes the image through the same
+sandboxed Lua VM against the pinned `infra-lua` rock and packs the resulting manifest
+tree into a `FROM scratch` image. Documents are not checked against Kubernetes schemas;
+the cluster rejects a bad one when Flux applies it ([validation decision]).
+`./platform publish` pushes the image through the same
 publish capability as any other module. There is no bespoke OCI pusher and no separate
 `ops publish`. [lua-render.md](lua-render.md) is canonical for render.
 
-[schema-validation decision]: ../decisions/2026-11-25-schema-validation-in-render.md
+[validation decision]: ../decisions/2026-11-25-validation-left-to-flux.md
 
 The output contract is component, then file name, then a list of documents: each
 `<component>/<filename>` entry of the `Tree` is one file holding one or more YAML

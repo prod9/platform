@@ -199,11 +199,11 @@ in the same place: `SrcDir` (`/platform/src`, build workspace), `BinDir` (`/plat
 on `PATH`), `RunDir` (`/platform/run`, runtime workdir). Package sets are applied via
 `withBuildPkgs` (`build-base git curl bash` + extras) for the build stage and
 `withRunnerPkgs` (`ca-certificates curl mailcap netcat-openbsd tzdata` + extras) for the
-runner; `withCaddyServer` adds Caddy for the static family. The `go/basic` runner
-adds `git` — a special case for platform's own server image, whose worker shelled out to
-`git` at runtime. Platform has no server, and what platform itself publishes in v1.0 is
-**open**: its own `platform.toml` still builds that image (`args = ["srv"]`), so whether
-the module, its image and this `git` package stay is settled with that question.
+runner; `withCaddyServer` adds Caddy for the static family. The `go/basic` runner adds
+no extra packages. It used to add `git` for platform's own server image, whose worker
+shelled out to `git` at runtime; platform has no server and publishes no image of itself
+([go-import page served by Cloudflare](../decisions/2026-11-25-go-import-page-served-by-cloudflare.md)),
+so the special case goes. This is **intended**; `framework/go_basic.go` still adds `git`.
 `mailcap` is carried only to
 lay down `/etc/mime.types` — the Wolfi base ships neither that file nor `/etc/mailcap`, and
 a server without the table falls back to a built-in list that misses modern types (`.woff2`
@@ -429,20 +429,20 @@ repository has no commit yet, such as right after `git init`.
 - **Infra** — two steps, both in-process and exec-free. `deps` fetches the `infra-lua`
   rock version pinned under `[rocks]` into platform's XDG cache; a version already cached
   is not fetched again. `build` calls `gitops.Render` (each `apps/*.lua` run on the
-  sandboxed Lua 5.1 VM, every document validated against its schema → manifest tree), then
+  sandboxed Lua 5.1 VM → manifest tree), then
   writes the whole tree into a `client.Container()` with no `From` (scratch) in **one**
   `WithDirectory` — a per-file `WithNewFile` walk yields a multi-layer image and Flux's
-  source-controller extracts only one layer, so `prune` then wipes the cluster. A document
-  that fails validation fails the step before any tree is written. The published layer is
+  source-controller extracts only one layer, so `prune` then wipes the cluster. A render
+  error fails the step before any tree is written. The published layer is
   a tar+gzip of exactly those files, which Flux's `OCIRepository` `layerSelector`
   extracts; kustomize-controller applies the YAML. Render has one route, Lua: there is no
   CUE evaluation and no `.platform` directive route. Render internals — the sandbox, rock
-  fetch and cache, `platform.vars`, validation, templates — are
+  fetch and cache, `platform.vars`, templates — are
   [lua-render.md](lua-render.md); the rulings are
   [cue-dropped-for-lua-render](../decisions/2026-11-25-cue-dropped-for-lua-render.md),
   [dsl-removed-for-lua-templates](../decisions/2026-11-25-dsl-removed-for-lua-templates.md)
   and
-  [schema-validation-in-render](../decisions/2026-11-25-schema-validation-in-render.md).
+  [validation-left-to-flux](../decisions/2026-11-25-validation-left-to-flux.md).
   This is **intended**; the code still renders CUE and `.platform` files. Infra delivery
   is the ordinary `publish` verb — see
   [infra-publishes-as-plain-image-retire-oras](../decisions/2026-07-05-infra-publishes-as-plain-image-retire-oras.md).

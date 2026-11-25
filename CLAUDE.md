@@ -19,8 +19,8 @@ repository.
 containers via Dagger, manages releases via git tags, and scaffolds new repos with a
 `platform.toml` + version-pinned `./platform` launcher. For an infra repo, `render` runs
 the repo's `apps/*.lua` on an embedded, sandboxed Lua 5.1 VM against the `infra-lua` rock
-pinned under `[rocks]`, validates every document, and `publish` ships the manifest tree
-as a one-layer image Flux pulls. Goal: zero per-project build config; fast onboarding; no
+pinned under `[rocks]`, and `publish` ships the manifest tree as a one-layer image Flux
+pulls. Goal: zero per-project build config; fast onboarding; no
 tech-stack lock-in.
 
 **[`docs/spec/`](docs/spec/) is the source of truth for how the system works** — packages,
@@ -205,6 +205,9 @@ So "no flux webhook" says nothing until the axis is named — disambiguate first
 The `platform.prodigy9.co` deployment on the prod9-main cluster is delivered from the
 **`prod9/infra` GitOps repo** (working copy `~/Documents/prod9/infra`; module
 `prodigy9.co`) — `./infra` in this repo and the old stage9 deployment are dead legacy.
+That deployment runs the v0.x server only to answer `go install`'s go-import lookup; v1.0
+publishes no image, and a Cloudflare Worker managed in `infra-tf` takes over the lookup
+([`scaffolding.md`](docs/spec/scaffolding.md), "Installing").
 
 Arch targets (`local_arch`/`publish_arch`), registry credentials, and the committed-image
 rule are spec'd: [`architecture.md`](docs/spec/architecture.md),

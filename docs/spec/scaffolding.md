@@ -40,6 +40,19 @@ fallback or launcher development mode is provided. Development testing uses an i
 binary directly, for example `go install platform.prodigy9.co@<commit>`, rather than a
 pinned launcher.
 
+### Installing
+
+The launcher installs platform with `go install platform.prodigy9.co@<version>`.
+`platform.prodigy9.co` is a vanity module path: Go asks
+`https://platform.prodigy9.co/<path>?go-get=1` for a page whose
+`<meta name="go-import" content="platform.prodigy9.co git https://github.com/prod9/platform">`
+names the repository. platform does not serve that page and publishes no image of
+itself. A Cloudflare Worker on the `platform.prodigy9.co` hostname, managed by OpenTofu
+in `infra-tf`, answers every path with it
+([go-import page served by Cloudflare](../decisions/2026-11-25-go-import-page-served-by-cloudflare.md)).
+This is **intended**; until the Worker is live, the v0.x platform server still running on
+`prod9-main` answers the lookup.
+
 For the pipeline this feeds, see [architecture](architecture.md); the `Framework` contract
 and scaffold-time stack discovery live in [frameworks](frameworks.md) (the build path reads
 `[modules]`, never re-discovers).

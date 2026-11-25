@@ -5,7 +5,7 @@ CUE engine and runs `.platform` directives (`framework/gitops/render.go`). This 
 the design that replaces both, for the v1.0 line. The rulings behind it:
 [CUE dropped for Lua render](../decisions/2026-11-25-cue-dropped-for-lua-render.md),
 [DSL removed for Lua templates](../decisions/2026-11-25-dsl-removed-for-lua-templates.md)
-and [schema validation in render](../decisions/2026-11-25-schema-validation-in-render.md).
+and [validation left to Flux](../decisions/2026-11-25-validation-left-to-flux.md).
 
 `render` turns an infra repo's `apps/*.lua` into one manifest tree. It is a pure function
 of the committed repo, its `[vars]` table and the pinned rocks; one commit renders the
@@ -19,8 +19,7 @@ render time.
 2. Make sure every pinned rock is in the cache, fetching the ones that are not.
 3. Run each `apps/<component>.lua` in a fresh sandbox and collect what it returns.
 4. Convert every returned document to YAML.
-5. Validate every document against the schema for its `apiVersion` and `kind`.
-6. Return the tree. Nothing is written before step 6, so a failure at any step leaves no
+5. Return the tree. Nothing is written before step 5, so a failure at any step leaves no
    output behind.
 
 The `Tree` type (`framework/gitops/tree.go`) and the `platform/infra` framework's
@@ -110,12 +109,11 @@ when one is set and the default otherwise. The declaration is what `init` reads 
 `[vars]` ([scaffolding](scaffolding.md)): running a template in declare-only mode stops it
 at its first `platform.vars` call and reports the names and defaults.
 
-**Open: the case of names.** Today render lowercases every `[vars]` key
-(`conf.NormalizeVars`, `conf/conf.go`) because CUE `@tag` holes and directive
-interpolation consume the lowercase form, while `platform.toml` and the current defaults
-(`infraVars` in `framework/platform_infra.go`) write them in SCREAMING_SNAKE. Whether
-`platform.vars` keeps names as written in `platform.toml` or keeps lowercasing them is not
-decided.
+**Names are kept as written in `platform.toml`.** `CERT_MANAGER_VERSION` in `[vars]` is
+`CERT_MANAGER_VERSION` in Lua, and a declaration matches a `[vars]` key only when the two
+are spelled the same. Today render lowercases every key (`conf.NormalizeVars`,
+`conf/conf.go`) because CUE `@tag` holes and directive interpolation consume the lowercase
+form; that lowercasing goes with CUE.
 
 ## Upstream manifests
 
@@ -162,33 +160,15 @@ Lua tables keep no key order, so the order is set by rule: in each document `api
 `kind` and `metadata` come first, and every other mapping key, at every depth, is sorted.
 Sequences keep their order.
 
-## Validation
+## No schema validation
 
-Before render returns, each document is checked against the schema for its own
-`apiVersion` and `kind`:
-
-- **Built-in kinds:** schemas come from Kubernetes' published OpenAPI v3 files.
-- **Custom resources:** the schema is the `openAPIV3Schema` embedded in the
-  `CustomResourceDefinition` for that group, version and kind.
-- Schemas are fetched once into the XDG cache (`$XDG_CACHE_HOME/platform/`) and read from
-  there afterwards.
-- The check uses [`google/jsonschema-go`](https://github.com/google/jsonschema-go), a
-  generic JSON Schema library. `platform` links no Kubernetes library and has no setting
-  for a Kubernetes version.
-
-A document that fails its schema fails the render, naming the component, the file, the
-document's kind and name, and the failing field. Since validation runs before the tree is
-returned, nothing is written and no image is built.
-
-**Open, pending the validation spike:**
-
-- What render does with a document whose kind has no schema available, which happens to a
-  tenant repo that uses Gateway API kinds but does not render their CRDs.
-- Where the Kubernetes OpenAPI files are fetched from, which Kubernetes release they
-  describe without a version setting, and how the cache is laid out.
-- How much translation the OpenAPI 3.0 dialect needs before a draft 2020-12 validator
-  accepts it (`$ref` paths, `nullable`, `x-kubernetes-int-or-string`,
-  `x-kubernetes-preserve-unknown-fields`).
+Render does not check documents against Kubernetes schemas. What it checks is what
+`infra-lua` checks: input names, required inputs and Lua types, raised as errors that fail
+the render. A document that is wrong for the cluster, such as a misspelled field in a raw
+resource or an edited upstream manifest, is rejected by the cluster's API server when
+Flux applies it: the `Kustomization` reports `Ready=False` with the error and retries
+until a fixed tree is published. The reasoning is in
+[validation left to Flux](../decisions/2026-11-25-validation-left-to-flux.md).
 
 ## Templates
 

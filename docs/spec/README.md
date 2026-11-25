@@ -25,7 +25,7 @@ superseded moves to `../scratch/` — `spec/` holds current design only, never h
   capabilities, the CLI that invokes them, the app-vs-infra delivery convention, and this
   repository's own release runbook.
 - [`lua-render.md`](lua-render.md) — `render`: `apps/*.lua` on the sandboxed Lua VM, the
-  rock fetch and cache, `platform.vars`, schema validation, and the templates shipped in
+  rock fetch and cache, `platform.vars`, and the templates shipped in
   the rock.
 - [`frameworks.md`](frameworks.md) — the framework catalog and order-sensitive discovery,
   the seven-method `Framework` contract, `Step`/`Plan`/`Execute`, layouts, runtime-shape

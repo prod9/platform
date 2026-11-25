@@ -67,10 +67,13 @@ the part that prevents re-litigation.
 
 Newest first.
 
+- [2026-11-25 — The go-import page is served by Cloudflare; platform publishes no image of itself](2026-11-25-go-import-page-served-by-cloudflare.md)
+- [2026-11-25 — `render` does not validate against Kubernetes schemas; Flux's apply does](2026-11-25-validation-left-to-flux.md)
 - [2026-11-25 — CUE is dropped; render runs Lua with infra-lua fetched as a rock](2026-11-25-cue-dropped-for-lua-render.md)
 - [2026-11-25 — The server is removed; platform is a command-line tool](2026-11-25-server-removed-platform-is-a-cli.md)
 - [2026-11-25 — The `.platform` DSL is removed; the baseline is Lua templates](2026-11-25-dsl-removed-for-lua-templates.md)
 - [2026-11-25 — Render validates every document against its Kubernetes schema](2026-11-25-schema-validation-in-render.md)
+  *(superseded by the 2026-11-25 validation-left-to-Flux decision)*
 - [2026-11-10 — No Node workspace framework](2026-11-10-no-node-workspace-framework.md)
 - [2026-09-27 — Explicit prereleases and verbatim launcher pins](2026-09-27-explicit-prereleases-and-verbatim-launcher-pins.md)
 - [2026-08-24 — Execution mode does not define delivery policy][execution-mode-policy]

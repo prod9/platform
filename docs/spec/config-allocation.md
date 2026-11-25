@@ -93,10 +93,9 @@ writes each declared var with its default into `[vars]`, keeping values already 
 declaring call and how values meet defaults are [`lua-render.md`](lua-render.md). This is
 **intended**; today `[vars]` feeds CUE `@tag` holes and `.platform` interpolation.
 
-**Open: whether var names keep the case written in `platform.toml`.** Today render
-lowercases every key before use, for CUE's `@tag` names
-([`conf/conf.go`](../../conf/conf.go), `NormalizeVars`); whether `platform.vars` keeps
-that lowercasing or the names as written is not decided.
+Var names reach Lua as written in `platform.toml`. Today render lowercases every key
+before use, for CUE's `@tag` names ([`conf/conf.go`](../../conf/conf.go),
+`NormalizeVars`); that lowercasing goes with CUE.
 
 ## Repos & artifacts
 
@@ -118,7 +117,7 @@ that lowercasing or the names as written is not decided.
 2. The operator **hand-edits** the app-image ref in the `infra/` Lua and commits —
    platform never rewrites those files. The gate is GitHub push permissions on the infra
    repo.
-3. `publish` (infra is a framework) renders the Lua, validates every document, builds the
+3. `publish` (infra is a framework) renders the Lua, builds the
    manifest tree into a `FROM scratch` image and pushes it to the moving tag — the
    ordinary publish path, no bespoke OCI pusher. See
    [infra-publishes-as-plain-image-retire-oras](../decisions/2026-07-05-infra-publishes-as-plain-image-retire-oras.md).

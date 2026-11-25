@@ -131,6 +131,6 @@ Keep `--prerelease` for the alpha series so GitHub marks these releases as prere
 
 ## What this does not do
 
-Cutting a release publishes no image. `release` and `publish` are orthogonal — see
-[`../spec/releases.md`](../spec/releases.md). A released-but-unpublished version is a fine
-state, and shipping the image is a separate `go run . publish` run in this repository.
+Cutting a release publishes no image, and this repository has no image to publish: its
+`platform.toml` declares no module. A release reaches users through `go install`
+([`../spec/scaffolding.md`](../spec/scaffolding.md), "Installing").
