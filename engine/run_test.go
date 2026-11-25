@@ -31,6 +31,7 @@ func (*stubFramework) Name() string                 { return "stub" }
 func (*stubFramework) Layout() framework.Layout     { return framework.LayoutBasic }
 func (*stubFramework) Discover(string) bool         { return false }
 func (*stubFramework) ScaffoldVars(string) []string { return nil }
+func (*stubFramework) Vendors() []scaffold.Vendor   { return nil }
 
 func (f *stubFramework) Plan(*framework.BuildUnit) []framework.Step { return f.steps }
 
