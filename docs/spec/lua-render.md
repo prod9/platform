@@ -150,11 +150,13 @@ Go writes the YAML with `gopkg.in/yaml.v3`, already a dependency (`go.mod`); no 
 emitter is used. The conversion from Lua values:
 
 - A table with string keys is a mapping. A table whose keys are exactly `1..n` is a
-  sequence. An empty table is a mapping unless `infra-lua` marks it as a list. A table
-  mixing both kinds of key fails.
+  sequence. An empty table is a mapping unless it carries `infra-lua`'s list metatable
+  (the one `infra.tree.list` sets), which render takes from the rock and recognizes by
+  identity; then it is an empty sequence. A table mixing both kinds of key fails.
 - A number with an integral value is written as an integer, so `replicas = 2` stays `2`.
 - Strings and booleans are written as themselves. Functions and other values fail.
-- Metatables are ignored: helpers and metadata live there, and none of it is output.
+- Apart from the list mark, metatables are ignored: helpers and metadata live there, and
+  none of it is output.
 
 Lua tables keep no key order, so the order is set by rule: in each document `apiVersion`,
 `kind` and `metadata` come first, and every other mapping key, at every depth, is sorted.
