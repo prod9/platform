@@ -262,7 +262,21 @@
             - "0"
 - name: Platform \ Infra Init
   commands:
-    - command: rm -rf testbeds/infra-init/apps testbeds/infra-init/defaults.lua testbeds/infra-init/platform.toml testbeds/infra-init/platform testbeds/infra-init/k8s
+    - command: rm -rf testbeds/infra-init/.git testbeds/infra-init/vendor testbeds/infra-init/apps testbeds/infra-init/defaults.lua testbeds/infra-init/platform.toml testbeds/infra-init/platform testbeds/infra-init/k8s
+      checks:
+        - name: exitcode
+          data:
+            - "0"
+        - name: ./testbeds/infra-init/platform.toml
+          data: []
+    - command: git -C testbeds/infra-init init -q .
+      checks:
+        - name: exitcode
+          data:
+            - "0"
+        - name: ./testbeds/infra-init/platform.toml
+          data: []
+    - command: git -C testbeds/infra-init -c user.name=smoke -c user.email=smoke@example.com commit -q --allow-empty -m base
       checks:
         - name: exitcode
           data:
@@ -290,6 +304,15 @@
             - '    timeout = "1m0s"'
             - '    framework = "platform/infra"'
             - '    port = 0'
+            - ""
+            - '[vars]'
+            - '  ACME_EMAIL = "admin@example.com"'
+            - '  CERT_MANAGER_VERSION = "v1.20.2"'
+            - '  FLUX_HOSTNAME = "flux.prodigy9.co"'
+            - '  FLUX_VERSION = "v2.8.8"'
+            - '  GATEWAY_API_VERSION = "v1.5.1"'
+            - '  INFRA_IMAGE = "ghcr.io/prod9/infra"'
+            - '  NGINX_GATEWAY_VERSION = "v2.6.7"'
             - '-----END platform.toml-----'
             - ""
 - name: Platform \ Infra Init Launcher
