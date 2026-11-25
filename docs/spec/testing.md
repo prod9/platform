@@ -19,12 +19,12 @@ infra repos render Lua. Tests build the binary, then for each testbed run `init`
 checking exitcode/stdout/expected files. `./testbed.sh <dir> <args>` runs platform inside
 a specific testbed. `testbeds/` holds one sample project per framework.
 
-Every case drives a CLI command; there is no server case. **Intended:** the infra
-testbeds (`infra-basic`, `infra-init`) hold Lua apps and render them through `infra-lua`
-vendored at `vendor/infra-lua`. Until `infra-lua`'s first tag there is nothing to vendor,
-so `infra-basic` holds plain Lua apps with no `vendor/`, and `infra-init` scaffolds no
-baseline; `require` from `vendor/`, the duplicate-module failure and the list mark are
-covered by `go test` against a fixture `vendor/` tree.
+Every case drives a CLI command; there is no server case. `infra-init` runs `init` on a
+fresh nested repo, so it vendors `infra-lua`'s newest tag from GitHub, copies the
+templates and renders them, downloads included; smoke needs the network for it.
+`infra-basic` holds plain Lua apps with no `vendor/`. `require` from `vendor/`, the
+duplicate-module failure, the list mark, `platform.download` and vendoring are covered by
+`go test` against fixtures (a `vendor/` tree, a TLS test server, local git repos).
 
 ## Smoke is a drift detector, not an assertion engine
 

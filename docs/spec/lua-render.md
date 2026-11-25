@@ -1,7 +1,6 @@
 # Lua render
 
-Status: **implemented, except `platform.download` and the declare-only run `init` uses
-(intended).** `render` runs Lua only
+Status: **implemented.** `render` runs Lua only
 (`framework/gitops/`); CUE and the `.platform` directives are gone. The rulings behind
 it:
 [CUE dropped for Lua render](../decisions/2026-11-25-cue-dropped-for-lua-render.md),

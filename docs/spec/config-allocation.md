@@ -76,7 +76,7 @@ Lua. A template declares the vars it reads and their defaults at the top of the 
 `local vars = platform.vars {CERT_MANAGER_VERSION = "v1.20.2"}` — and `platform init`
 writes each declared var with its default into `[vars]`, keeping values already set. The
 declaring call and how values meet defaults are [`lua-render.md`](lua-render.md). Seeding
-`[vars]` from the templates at init is **intended**.
+`[vars]` from the templates at init is implemented.
 
 Var names reach Lua as written in `platform.toml`.
 

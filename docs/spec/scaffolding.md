@@ -1,12 +1,9 @@
 # Scaffolding
 
-Status: **design-of-record; the infra baseline is intended.** Covers `platform init` — how
-a fresh repo is seeded. The infra baseline described under "The `Infra` framework
-scaffolds from vendored `infra-lua`" is the v1.0 design and replaces the embedded CUE and
-`.platform` baseline, which goes with CUE and the DSL. Until it is built, `Infra.Scaffold`
-contributes only its module and its `strategy` seed: no vendoring, no files, no `[vars]`.
-The rest of this file is implemented. New code conforms;
-existing code migrates toward it.
+Status: **implemented.** Covers `platform init` — how a fresh repo is seeded. The infra
+baseline described under "The `Infra` framework scaffolds from vendored `infra-lua`" is
+the v1.0 design and replaces the embedded CUE and `.platform` baseline, which went with
+CUE and the DSL.
 
 Scaffolding has exactly three concerns, each with one home:
 
@@ -53,8 +50,7 @@ names the repository. platform does not serve that page and publishes no image o
 itself. A Cloudflare Worker on the `platform.prodigy9.co` hostname, managed by OpenTofu
 in `infra-tf`, answers every path with it
 ([go-import page served by Cloudflare](../decisions/2026-11-25-go-import-page-served-by-cloudflare.md)).
-This is **intended**; until the Worker is live, the v0.x platform server still running on
-`prod9-main` answers the lookup.
+The Worker is live; the v0.x server is retired.
 
 For the pipeline this feeds, see [architecture](architecture.md); the `Framework` contract
 and scaffold-time stack discovery live in [frameworks](frameworks.md) (the build path reads
