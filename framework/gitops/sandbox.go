@@ -23,6 +23,17 @@ var (
 // platform table over vars, and platform's require, resolving against modules.
 // The caller closes the state.
 func NewSandbox(modules Modules, vars Vars) (*lua.LState, error) {
+	state, err := newBareSandbox(modules)
+	if err != nil {
+		return nil, err
+	}
+	state.SetGlobal("platform", platformTable(state, modules, vars))
+	return state, nil
+}
+
+// newBareSandbox is the sandbox without its platform table, which the caller sets: render
+// sets the full one, a declare-only run its own.
+func newBareSandbox(modules Modules) (*lua.LState, error) {
 	state := lua.NewState(lua.Options{SkipOpenLibs: true})
 	err := openLibraries(state)
 	if err != nil {
@@ -30,7 +41,6 @@ func NewSandbox(modules Modules, vars Vars) (*lua.LState, error) {
 		return nil, err
 	}
 	removeGlobals(state)
-	state.SetGlobal("platform", platformTable(state, modules, vars))
 	state.SetGlobal("require", state.NewFunction(requireFrom(modules)))
 	return state, nil
 }
