@@ -32,9 +32,10 @@ func NewVars(vars map[string]any) (Vars, error) {
 }
 
 // platformTable is the `platform` global an app sees.
-func platformTable(state *lua.LState, vars Vars) *lua.LTable {
+func platformTable(state *lua.LState, modules Modules, vars Vars) *lua.LTable {
 	table := state.NewTable()
 	table.RawSetString("vars", state.NewFunction(declareVars(vars)))
+	table.RawSetString("download", state.NewFunction(download(modules)))
 	return table
 }
 

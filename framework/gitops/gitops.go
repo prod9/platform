@@ -4,7 +4,10 @@
 // publish path.
 package gitops
 
-import "errors"
+import (
+	"errors"
+	"net/http"
+)
 
 const (
 	luaExt = ".lua"
@@ -12,4 +15,7 @@ const (
 
 var (
 	errNoModule = errors.New("module not found")
+
+	// downloadClient fetches for platform.download; tests swap it to trust a TLS fixture.
+	downloadClient = http.DefaultClient
 )

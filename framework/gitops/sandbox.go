@@ -30,7 +30,7 @@ func NewSandbox(modules Modules, vars Vars) (*lua.LState, error) {
 		return nil, err
 	}
 	removeGlobals(state)
-	state.SetGlobal("platform", platformTable(state, vars))
+	state.SetGlobal("platform", platformTable(state, modules, vars))
 	state.SetGlobal("require", state.NewFunction(requireFrom(modules)))
 	return state, nil
 }
