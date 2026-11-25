@@ -67,11 +67,16 @@ the part that prevents re-litigation.
 
 Newest first.
 
+- [2026-11-25 — Rocks are dropped; infra repos vendor `infra-lua` as a git subtree](2026-11-25-rocks-dropped-for-subtree-vendoring.md)
 - [2026-11-25 — The go-import page is served by Cloudflare; platform publishes no image of itself](2026-11-25-go-import-page-served-by-cloudflare.md)
 - [2026-11-25 — `render` does not validate against Kubernetes schemas; Flux's apply does](2026-11-25-validation-left-to-flux.md)
 - [2026-11-25 — CUE is dropped; render runs Lua with infra-lua fetched as a rock](2026-11-25-cue-dropped-for-lua-render.md)
+  *(rock fetch, `[rocks]` pin and XDG cache superseded by the 2026-11-25 rocks-dropped
+  decision; Lua render stands)*
 - [2026-11-25 — The server is removed; platform is a command-line tool](2026-11-25-server-removed-platform-is-a-cli.md)
 - [2026-11-25 — The `.platform` DSL is removed; the baseline is Lua templates](2026-11-25-dsl-removed-for-lua-templates.md)
+  *(templates' placement in the rock superseded by the 2026-11-25 rocks-dropped decision;
+  copied, repo-owned templates stand)*
 - [2026-11-25 — Render validates every document against its Kubernetes schema](2026-11-25-schema-validation-in-render.md)
   *(superseded by the 2026-11-25 validation-left-to-Flux decision)*
 - [2026-11-10 — No Node workspace framework](2026-11-10-no-node-workspace-framework.md)
