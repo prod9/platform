@@ -1,14 +1,5 @@
 # Cluster bring-up — fresh cluster to a live platformv2 baseline
 
-> **Being rewritten for Lua templates (v1.0).** From v1.0, `platform init` vendors
-> `infra-lua` at `vendor/infra-lua` and copies the baseline from its Lua templates instead
-> of the embedded CUE and `.platform` files
-> ([scaffolding](../spec/scaffolding.md#the-infra-framework-scaffolds-from-vendored-infra-lua)).
-> Steps 1 and 2, and every CUE or `.platform` file and field named below (`apps/*.cue`,
-> `defaults/`, `cue.mod`, `#target_ns`), still describe that older scaffold. The render,
-> bootstrap-apply, DNS, publish, webhook and verification steps are not CUE-specific,
-> though their `k8s/` paths follow today's component names.
-
 Runbook for standing up a **brand-new cluster** on the platformv2 delivery path
 (Flux GitOps + committed-literal images). Written for the infra-executing agent; the
 platform session is the design authority. Scope is the baseline only — app onboarding and
@@ -19,7 +10,7 @@ components. A tenant joining an existing cluster commits only its own
 `OCIRepository` + `Kustomization`; follow the
 [baseline-owner/tenant convention](../spec/scaffolding.md#multi-tenant-clusters-baseline-owner-vs-tenant-convention-not-code)
 instead of applying a second baseline. The owner adds tenant namespaces to the shared
-Receiver's `#target_ns` list.
+Receiver's `target_ns` list in `apps/flux-sync.lua`.
 
 > Authority: platformv2 supersedes the legacy ArgoCD/Keel path fleet-wide. Legacy-grounded
 > objections do not bind this runbook; when it conflicts with old-cluster practice, this
@@ -40,22 +31,26 @@ Receiver's `#target_ns` list.
 
 ## 1. Scaffold the repo
 
-In the fresh clone (already a git root — init validates this, it never runs `git init`):
+In the fresh clone (already a git root — init validates this, it never runs `git init`),
+with at least one commit and no uncommitted change to a tracked file:
 
 ```sh
-ALWAYS_YES=1 platform init <maintainer> <email> <github.com/ORG/REPO-infra> <CUE_MOD_PREFIX>
+ALWAYS_YES=1 platform init <maintainer> <email> <github.com/ORG/REPO-infra>
 ```
 
 Positional args feed the value prompts in order; `ALWAYS_YES=1` only auto-answers the
-final yes/no confirm. `CUE_MOD_PREFIX` is the CUE module path (first segment must contain
-a dot, e.g. `prodigy9.co`) — asked greenfield only; an existing `cue.mod` is read instead.
+yes/no confirms. Init first vendors `infra-lua`'s newest release tag at `vendor/infra-lua`
+with `git subtree add --squash`, the one commit it makes, then copies the baseline from
+`vendor/infra-lua/templates/` ([scaffolding](../spec/scaffolding.md#the-infra-framework-scaffolds-from-vendored-infra-lua)).
 
-This writes the full baseline: `platform.toml` (strategy `rolling`, default `[vars]`
-version pins), `apps/` (cert-manager, flux, flux-sync, nginx-gateway), the shared
-Gateway and cluster-issuer, `defaults/`, `cue.mod`, and the `platform` launcher.
+This writes the full baseline: `platform.toml` (strategy `rolling`, and every var the
+templates declare with its default), `apps/` (cert-manager, flux, flux-sync,
+nginx-gateway, gateway, cluster-issuer), the shared `defaults.lua`, and the `platform`
+launcher. The templates and their vars are listed in infra-lua's
+`docs/spec/templates.md`.
 
-Re-running init later with `--force` replaces framework-owned files **including any
-secrets you wired into them** (the flux-sync HMAC token, the basics registry creds) —
+Re-running init later with `--force` replaces the copied files **including any secrets
+you wired into them** (the flux-sync HMAC token, the registry creds in `defaults.lua`) —
 that's what "replace existing files" means. Commit before a `--force` re-scaffold and
 restore the wired values from git after. Only `platform.toml` merges surgically.
 Use git-crypt for committed credential-bearing files and verify that the staged Git
@@ -63,12 +58,28 @@ blobs are encrypted before committing credentials or the webhook token.
 
 ## 2. Wire values (edit before first render)
 
-| File                          | What to set                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `platform.toml` `[vars]`      | `FLUX_HOSTNAME` — this cluster's Flux receiver host. Leave version pins alone.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `apps/nginx-gateway.platform` | **Provider LB wiring — your repo's edit; the scaffold ships none** ([ADR](../decisions/2026-07-16-baseline-is-provider-neutral.md)). On Linode, add the reserved-IP annotation to the NginxProxy service patch **before anything from `k8s/nginx-gateway/` first applies**: `set .spec.kubernetes.service.patches[0].type "StrategicMerge"` + `set …patches[0].value.metadata.annotations."service.beta.kubernetes.io/linode-loadbalancer-reserved-ipv4" "<ip>"`. The CCM honors it only at Service creation (retrofit = delete/recreate the Gateway) and rejects an empty value. Firewalls attach NB-side via terraform. |
-| `defaults/basics.cue`         | `#registry_username` / `#registry_password` — the ghcr **pull** creds (committed placeholders are empty).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| `apps/flux-sync.cue`          | `webhookToken` `#data: token:` — a fresh random HMAC secret (plaintext; `#Secret` base64-encodes). Generate with `openssl rand -hex 32`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| File                     | What to set                                                                                                                                                                |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `platform.toml` `[vars]` | `FLUX_HOSTNAME` (this cluster's Flux receiver host), `ACME_EMAIL` (the ACME contact; the default is refused), `INFRA_IMAGE` (this repo's image). Leave version pins alone. |
+| `apps/nginx-gateway.lua` | **Provider LB wiring — your repo's edit; the scaffold ships none** (see below).                                                                                            |
+| `defaults.lua`           | `REGISTRY.registry_username` / `registry_password` — the ghcr **pull** creds (committed placeholders are empty).                                                           |
+| `apps/flux-sync.lua`     | `webhook_token`'s `data.token` — a fresh random HMAC secret, plaintext (`defs.Secret` encodes it). Generate with `openssl rand -hex 32`.                                   |
+
+Provider LB wiring ([ADR](../decisions/2026-07-16-baseline-is-provider-neutral.md)): on
+Linode, add the reserved-IP annotation to the NginxProxy's service **before anything
+from `k8s/nginx-gateway/` first applies**, after the template sets `serverTokens`:
+
+```lua
+proxy.spec.kubernetes.service.patches = {{
+  type = "StrategicMerge",
+  value = {metadata = {annotations = {
+    ["service.beta.kubernetes.io/linode-loadbalancer-reserved-ipv4"] = "<ip>",
+  }}},
+}}
+```
+
+The CCM honors it only at Service creation (retrofit = delete/recreate the Gateway) and
+rejects an empty value. Firewalls attach NB-side via terraform.
 
 Commit the lot. This repo is the delivery record — the cluster runs what this git says.
 
@@ -104,9 +115,9 @@ convergence check; anything still failing is a real error, not ordering.
 ## 4. DNS
 
 The gateway and TLS are baseline components since the prod9-main bring-up: the scaffold
-ships a **host-agnostic** `Gateway` app (`apps/gateway.cue` — components attach their own
+ships a **host-agnostic** `Gateway` app (`apps/gateway.lua` — components attach their own
 hostnames via `ListenerSet`s, never edit the gateway for a host) and the ACME
-cluster-issuer (`apps/cluster-issuer.cue`, contact = the maintainer email given at init).
+cluster-issuer (`apps/cluster-issuer.lua`, contact = `ACME_EMAIL`).
 The GatewayClass `nginx` is owned by `nginx-gateway` — the gateway app references it
 by name, never re-declares it.
 

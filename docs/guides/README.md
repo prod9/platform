@@ -28,6 +28,5 @@ detail rather than inlining it. Update in place.
   newest first: v1.0 (Lua render, no server), then the legacy → pull-based v2 rework.
 - [`cluster-bringup.md`](cluster-bringup.md) — fresh cluster → live platformv2 baseline:
   scaffold, wire values, bootstrap apply, gateway/DNS, first publish, webhook, verify.
-  Scaffold steps still describe the CUE baseline, pending the v1.0 Lua templates.
 - [`go-coding-laws.md`](go-coding-laws.md) — running list of the Go laws this repo enforces,
   each with the code that broke it; read before a refactor and scan against after.
