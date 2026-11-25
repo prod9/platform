@@ -8,10 +8,8 @@ commands that invoke it ([`architecture.md`](architecture.md)).
 `platform` is a CLI with no server
 ([server-removed-platform-is-a-cli](../decisions/2026-11-25-server-removed-platform-is-a-cli.md)),
 so the engine has one adapter. The remote-source input, standalone checkout, read-only
-fleet inspection, and the clone phases served only the server; their removal is
-**intended**, and until it lands the code still carries `Source`, `Checkout`,
-`Session.Inspect`, and the `CloneStart`/`CloneDone` callbacks. The remote engine roster
-stays.
+fleet inspection, and the clone phases served only the server and are not part of the
+engine. The remote engine roster stays.
 
 ## A `*dagger.Client` is a session, not a connection
 
@@ -67,10 +65,10 @@ open a second session for a later phase of the same module.
 
 ### Build inputs and lifecycle ownership
 
-The `Build` and `BuildAndPublish` verbs accept an `Input` in place of an already-loaded
-model. Its one variant is a value:
+The `Build` and `BuildAndPublish` verbs take a `Local` value in place of an
+already-loaded model. With one input there is no input interface:
 
-| Input   | Carries                                                   | Configuration source                 |
+| Type    | Carries                                                   | Configuration source                 |
 | ------- | --------------------------------------------------------- | ------------------------------------ |
 | `Local` | `ConfigPath`, the selected config-file path; `Version`    | that file, resolved by CLI preflight |
 

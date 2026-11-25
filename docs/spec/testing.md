@@ -21,8 +21,7 @@ a specific testbed. `testbeds/` holds one sample project per framework.
 
 Every case drives a CLI command; there is no server case. **Intended:** the infra
 testbeds (`infra-basic`, `infra-init`) hold Lua apps and render them through the
-`infra-lua` rock, and the `Server Missing Secret` case and its golden lines are removed.
-Until then `tests.cue` still runs `platform srv` and the infra testbeds still render CUE.
+`infra-lua` rock. Until then the infra testbeds still render CUE.
 
 ## Smoke is a drift detector, not an assertion engine
 
