@@ -38,7 +38,8 @@ state has no access to files, processes, the clock or randomness:
   `math.random` and `math.randomseed` removed. `io`, `os`, `debug`, `coroutine`,
   `channel` and `package` are not.
 - Of the base globals, only these stay: `assert`, `error`, `getmetatable`, `ipairs`,
-  `next`, `pairs`, `pcall`, `select`, `setmetatable`, `tonumber`, `tostring`, `type`,
+  `next`, `pairs`, `pcall`, `rawget`, `select`, `setmetatable`, `tonumber`, `tostring`,
+  `type`,
   plus the `string`, `table` and `math` tables. Every other global, including `load`,
   `loadstring`, `loadfile`, `dofile` and `print`, is removed.
 - `require` is replaced by platform's own (below) and is the only way to load code.
@@ -58,7 +59,9 @@ An error raised while an app runs fails the render and names the app file and li
 2. `<repo>/<path>.lua`, a module the infra repo owns, where each dot in the name is a
    directory separator, such as its `defaults.lua` of shared definitions.
 
-A name found in neither fails with both places named. A module runs once per VM state;
+Two pinned rocks that list the same module name fail the render before any app runs;
+pin order never picks one. A name found in neither fails with both places named. A
+module runs once per VM state;
 later `require` calls in the same app return the same value.
 
 ## Rocks
