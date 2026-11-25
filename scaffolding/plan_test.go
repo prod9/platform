@@ -57,8 +57,8 @@ func TestPlan_freshRepoWritesEverything(t *testing.T) {
 func TestPlan_infraGetsItsModuleUniformly(t *testing.T) {
 	// A dir the Infra framework discovers (name glob) gets its contribution through the same
 	// driver path as every other framework — no infra branch. Like every target, it must
-	// already be a git repo root (platform never runs `git init`). Until init fetches the
-	// infra-lua rock, that contribution is the module and the strategy seed alone
+	// already be a git repo root (platform never runs `git init`). Until init vendors
+	// infra-lua, that contribution is the module and the strategy seed alone
 	// (docs/spec/scaffolding.md).
 	dir := filepath.Join(t.TempDir(), "test-infra")
 	r.NoError(t, os.Mkdir(dir, 0o755))

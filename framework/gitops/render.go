@@ -1,7 +1,3 @@
-// Package gitops renders an infra repo's apps/*.lua to one manifest tree, a pure function
-// of the committed repo, its [vars] table and the pinned rocks (docs/spec/lua-render.md).
-// The Infra framework packs the result into a plain image published by the ordinary
-// publish path.
 package gitops
 
 import (
@@ -17,22 +13,20 @@ import (
 
 const (
 	appsDir = "apps"
-	appExt  = ".lua"
 
 	// treeModule is the infra-lua module whose list function sets the list mark.
-	treeModule = "infra.tree"
+	treeModule = "defs.tree"
 )
 
 // Render runs every apps/<component>.lua under repoDir in a sandbox of its own and turns
 // what each returns into that component's files (docs/spec/lua-render.md, "Pipeline").
-// rockDirs are the cache directories of the pinned rocks. Nothing is written: a failure
-// at any app leaves no partial tree.
-func Render(repoDir string, vars map[string]any, rockDirs []string) (Tree, error) {
+// Nothing is written: a failure at any step leaves no partial tree.
+func Render(repoDir string, vars map[string]any) (Tree, error) {
 	luaVars, err := NewVars(vars)
 	if err != nil {
 		return nil, fmt.Errorf("render: %w", err)
 	}
-	rocks, err := loadRocks(rockDirs)
+	modules, err := LoadModules(repoDir)
 	if err != nil {
 		return nil, fmt.Errorf("render: %w", err)
 	}
@@ -43,28 +37,16 @@ func Render(repoDir string, vars map[string]any, rockDirs []string) (Tree, error
 
 	tree := Tree{}
 	for _, app := range apps {
-		files, appErr := renderApp(repoDir, app, rocks, luaVars)
+		files, appErr := renderApp(repoDir, app, modules, luaVars)
 		if appErr != nil {
 			return nil, fmt.Errorf("render: %w", appErr)
 		}
-		component := strings.TrimSuffix(app, appExt)
+		component := strings.TrimSuffix(app, luaExt)
 		for name, content := range files {
 			tree[component+"/"+name] = content
 		}
 	}
 	return tree, nil
-}
-
-func loadRocks(rockDirs []string) ([]Rock, error) {
-	rocks := make([]Rock, 0, len(rockDirs))
-	for _, dir := range rockDirs {
-		rock, err := LoadRock(dir)
-		if err != nil {
-			return nil, err
-		}
-		rocks = append(rocks, rock)
-	}
-	return rocks, nil
 }
 
 // appFiles lists the app files directly under dir in name order. A repo with no apps/
@@ -80,7 +62,7 @@ func appFiles(dir string) ([]string, error) {
 
 	var names []string
 	for _, entry := range entries {
-		if !entry.IsDir() && strings.HasSuffix(entry.Name(), appExt) {
+		if !entry.IsDir() && strings.HasSuffix(entry.Name(), luaExt) {
 			names = append(names, entry.Name())
 		}
 	}
@@ -88,9 +70,9 @@ func appFiles(dir string) ([]string, error) {
 }
 
 // renderApp runs one app in a fresh sandbox and encodes the files it returns.
-func renderApp(repoDir, app string, rocks []Rock, vars Vars) (map[string][]byte, error) {
+func renderApp(repoDir, app string, modules Modules, vars Vars) (map[string][]byte, error) {
 	appPath := filepath.Join(appsDir, app)
-	state, err := NewSandbox(repoDir, rocks, vars)
+	state, err := NewSandbox(modules, vars)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", appPath, err)
 	}
@@ -108,7 +90,7 @@ func renderApp(repoDir, app string, rocks []Rock, vars Vars) (map[string][]byte,
 	returned := state.Get(-1)
 	state.Pop(1)
 
-	mark, err := listMark(state, rocks)
+	mark, err := listMark(state, modules)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", appPath, err)
 	}
@@ -120,14 +102,18 @@ func renderApp(repoDir, app string, rocks []Rock, vars Vars) (map[string][]byte,
 }
 
 // listMark is infra-lua's list metatable as the app's own state loaded it
-// (docs/spec/lua-render.md, "YAML"). With no pinned rock listing infra.tree there is no
-// mark, and nil leaves every empty table a mapping.
-func listMark(state *lua.LState, rocks []Rock) (*lua.LTable, error) {
-	if !anyLists(rocks, treeModule) {
+// (docs/spec/lua-render.md, "YAML"), whichever root defs.tree resolves from. When it
+// resolves nowhere there is no mark, and nil leaves every empty table a mapping.
+func listMark(state *lua.LState, modules Modules) (*lua.LTable, error) {
+	_, err := modules.find(treeModule)
+	if errors.Is(err, errNoModule) {
 		return nil, nil
 	}
+	if err != nil {
+		return nil, err
+	}
 
-	err := state.DoString(`return getmetatable(require("` + treeModule + `").list({}))`)
+	err = state.DoString(`return getmetatable(require("` + treeModule + `").list({}))`)
 	if err != nil {
 		return nil, fmt.Errorf("take the list mark from %s: %w", treeModule, err)
 	}

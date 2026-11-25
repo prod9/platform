@@ -9,7 +9,6 @@ import (
 	"fx.prodigy9.co/errutil"
 	"platform.prodigy9.co/framework/gitops"
 	"platform.prodigy9.co/framework/scaffold"
-	"platform.prodigy9.co/rocks"
 )
 
 // PlatformInfra builds an infra repo's delivery image: it renders the repo's apps/*.lua to
@@ -34,7 +33,7 @@ func (PlatformInfra) Discover(wd string) bool {
 }
 
 // Scaffold contributes the infra module and the "rolling" strategy seed. The cluster
-// baseline comes from the infra-lua rock's templates, which init does not fetch yet
+// baseline comes from vendored infra-lua's templates, which init does not scaffold yet
 // (docs/spec/scaffolding.md).
 func (i PlatformInfra) Scaffold(_ context.Context, wd string, _ scaffold.Env, _ map[string]string) (scaffold.Spec, error) {
 	return scaffold.Spec{
@@ -43,32 +42,18 @@ func (i PlatformInfra) Scaffold(_ context.Context, wd string, _ scaffold.Env, _ 
 	}, nil
 }
 
-// Plan splits the render's one network-bound stage off from its evaluation. Neither step
-// runs an exec — the render happens in-process and the image is a pure tree write — so both
-// are silent, but they are timed apart, which is the whole point: fetching the rocks is the
-// part that reaches the network and can stall.
+// Plan is the one build step: the render runs in-process over committed files, vendored
+// libraries included, and the image is a pure tree write.
 func (PlatformInfra) Plan(*BuildUnit) []Step {
-	return []Step{StepDeps, StepBuild}
+	return []Step{StepBuild}
 }
 
-func (PlatformInfra) Execute(ctx context.Context, client *dagger.Client, unit *BuildUnit, step Step, in *dagger.Container) (container *dagger.Container, err error) {
+func (PlatformInfra) Execute(_ context.Context, client *dagger.Client, unit *BuildUnit, step Step, _ *dagger.Container) (container *dagger.Container, err error) {
 	defer errutil.Wrap("platform/infra", &err)
 
 	switch step {
-	case StepDeps:
-		// Host-side work: it fills the rock cache the render then reads. A step is under no
-		// obligation to touch the container, so this one passes its input straight along —
-		// here that is the nil the first step always receives.
-		_, err = fetchRocks(ctx, unit)
-		return in, err
-
 	case StepBuild:
-		// The deps step filled the cache, so this fetch only finds the cached directories.
-		rockDirs, fetchErr := fetchRocks(ctx, unit)
-		if fetchErr != nil {
-			return nil, fetchErr
-		}
-		tree, renderErr := gitops.Render(unit.WorkDir, unit.Vars, rockDirs)
+		tree, renderErr := gitops.Render(unit.WorkDir, unit.Vars)
 		if renderErr != nil {
 			return nil, renderErr
 		}
@@ -89,13 +74,4 @@ func (PlatformInfra) Execute(ctx context.Context, client *dagger.Client, unit *B
 	default:
 		return nil, unknownStep(step)
 	}
-}
-
-func fetchRocks(ctx context.Context, unit *BuildUnit) ([]string, error) {
-	fetch := rocks.FetchPins{
-		Pins:     unit.Rocks,
-		Username: unit.RegistryUsername,
-		Password: unit.RegistryPassword,
-	}
-	return fetch.Run(ctx)
 }

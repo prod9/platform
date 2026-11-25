@@ -8,7 +8,7 @@ import (
 	"platform.prodigy9.co/framework/gitops"
 )
 
-// listMarkLua stands in for infra-lua's infra.tree: a private metatable marks a list.
+// listMarkLua stands in for infra-lua's defs.tree: a private metatable marks a list.
 const listMarkLua = `
 local List = {}
 local function list(items) return setmetatable(items, List) end

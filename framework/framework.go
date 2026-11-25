@@ -66,8 +66,7 @@ type (
 		// Execute runs exactly one step: it receives the previous step's container and
 		// returns the next one. The first step receives nil and establishes the base. The
 		// container is the chaining medium between steps, not an obligation — a step that
-		// does host-side work only (PlatformInfra's dep fetch) passes its input straight
-		// through. How a step does its work is entirely the framework's business; the
+		// does host-side work only passes its input straight through. How a step does its work is entirely the framework's business; the
 		// engine imposes the sequence and nothing else.
 		Execute(ctx context.Context, client *dagger.Client, unit *BuildUnit, step Step, in *dagger.Container) (*dagger.Container, error)
 	}

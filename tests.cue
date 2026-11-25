@@ -90,8 +90,8 @@ let testbeds = [...{name: string, dir: string}] &
 			]
 		},
 		{
-			// infra init into a fresh (git-ignored) dir. Until init fetches the infra-lua
-			// rock, the Infra framework scaffolds its module alone (docs/spec/scaffolding.md),
+			// infra init into a fresh (git-ignored) dir. Until init vendors infra-lua, the
+			// Infra framework scaffolds its module alone (docs/spec/scaffolding.md),
 			// so the snapshot is the generated platform.toml; the follow-on render is the guard.
 			name: "Infra Init"
 			checks: [

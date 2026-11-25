@@ -20,7 +20,7 @@ func TestPlanSteps(t *testing.T) {
 		{PNPMBasic{}, []Step{StepBase, StepDeps, StepBuild, StepBuildRunner}},
 		{PNPMStatic{}, []Step{StepBase, StepDeps, StepBuild, StepBuildRunner}},
 		{Dockerfile{}, []Step{StepBuild}},
-		{PlatformInfra{}, []Step{StepDeps, StepBuild}},
+		{PlatformInfra{}, []Step{StepBuild}},
 	} {
 		t.Run(c.fw.Name(), func(t *testing.T) {
 			require.Equal(t, c.steps, c.fw.Plan(&BuildUnit{Framework: c.fw}))

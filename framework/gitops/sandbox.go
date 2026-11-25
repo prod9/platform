@@ -3,11 +3,6 @@ package gitops
 import (
 	"errors"
 	"fmt"
-	"io/fs"
-	"os"
-	"path/filepath"
-	"regexp"
-	"strings"
 
 	lua "github.com/yuin/gopher-lua"
 )
@@ -21,47 +16,23 @@ var (
 		"pairs": true, "pcall": true, "rawget": true, "select": true, "setmetatable": true, "tonumber": true,
 		"tostring": true, "type": true, "string": true, "table": true, "math": true,
 	}
-	// The LuaRocks module-name form: lowercase identifiers joined by dots. It admits no
-	// "/" and no "..", so a name maps to a path inside the repo.
-	modulePattern = regexp.MustCompile(`^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*$`)
 )
 
 // NewSandbox builds the VM state one app runs in: the base, table, string and math
 // libraries, math without random and randomseed, only the allowed base globals, the
-// platform table over vars, and platform's require, resolving against the rocks' modules
-// first and repoDir second.
+// platform table over vars, and platform's require, resolving against modules.
 // The caller closes the state.
-func NewSandbox(repoDir string, rocks []Rock, vars Vars) (*lua.LState, error) {
-	modules, err := rockModules(rocks)
-	if err != nil {
-		return nil, err
-	}
-
+func NewSandbox(modules Modules, vars Vars) (*lua.LState, error) {
 	state := lua.NewState(lua.Options{SkipOpenLibs: true})
-	err = openLibraries(state)
+	err := openLibraries(state)
 	if err != nil {
 		state.Close()
 		return nil, err
 	}
 	removeGlobals(state)
 	state.SetGlobal("platform", platformTable(state, vars))
-	state.SetGlobal("require", state.NewFunction(requireFrom(modules, repoDir)))
+	state.SetGlobal("require", state.NewFunction(requireFrom(modules)))
 	return state, nil
-}
-
-// rockModules merges the rocks' module lists. A name two rocks both list would make
-// require depend on pin order, so it fails instead.
-func rockModules(rocks []Rock) (map[string]string, error) {
-	modules := map[string]string{}
-	for _, rock := range rocks {
-		for name, path := range rock.modules {
-			if _, taken := modules[name]; taken {
-				return nil, fmt.Errorf("module %q is listed by more than one pinned rock", name)
-			}
-			modules[name] = path
-		}
-	}
-	return modules, nil
 }
 
 func openLibraries(state *lua.LState) error {
@@ -106,7 +77,7 @@ func removeGlobals(state *lua.LState) {
 
 // requireFrom is platform's require. Each module runs once per state: loaded keeps what
 // it returned, nil included, so later calls return the same value.
-func requireFrom(modules map[string]string, repoDir string) lua.LGFunction {
+func requireFrom(modules Modules) lua.LGFunction {
 	loaded := map[string]lua.LValue{}
 	return func(state *lua.LState) int {
 		name := state.CheckString(1)
@@ -115,7 +86,7 @@ func requireFrom(modules map[string]string, repoDir string) lua.LGFunction {
 			return 1
 		}
 
-		path, err := modulePath(modules, repoDir, name)
+		path, err := modules.find(name)
 		if err != nil {
 			state.RaiseError("%s", err.Error())
 		}
@@ -132,24 +103,4 @@ func requireFrom(modules map[string]string, repoDir string) lua.LGFunction {
 		state.Push(module)
 		return 1
 	}
-}
-
-func modulePath(modules map[string]string, repoDir, name string) (string, error) {
-	if !modulePattern.MatchString(name) {
-		return "", fmt.Errorf("require %q: not a module name (lowercase identifiers joined by dots)", name)
-	}
-
-	rockPath, inRock := modules[name]
-	if inRock {
-		return rockPath, nil
-	}
-	repoPath := filepath.Join(repoDir, filepath.FromSlash(strings.ReplaceAll(name, ".", "/"))+".lua")
-	_, err := os.Stat(repoPath)
-	if errors.Is(err, fs.ErrNotExist) {
-		return "", fmt.Errorf("require %q: no pinned rock lists it under build.modules, and %s does not exist", name, repoPath)
-	}
-	if err != nil {
-		return "", err
-	}
-	return repoPath, nil
 }

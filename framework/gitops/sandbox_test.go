@@ -10,15 +10,24 @@ import (
 	"platform.prodigy9.co/framework/gitops"
 )
 
-// newTestSandbox is a sandbox over repoDir with the fixture rock in testdata/rock pinned.
+// newTestSandbox is a sandbox over repoDir's modules.
 func newTestSandbox(t *testing.T, repoDir string) *lua.LState {
 	t.Helper()
-	rock, err := gitops.LoadRock(filepath.Join("testdata", "rock"))
+	modules, err := gitops.LoadModules(repoDir)
 	require.NoError(t, err)
-	state, err := gitops.NewSandbox(repoDir, []gitops.Rock{rock}, gitops.Vars{})
+	state, err := gitops.NewSandbox(modules, gitops.Vars{})
 	require.NoError(t, err)
 	t.Cleanup(state.Close)
 	return state
+}
+
+// newFixtureRepo is a fresh repo holding testdata/repo: infra-lua vendored at
+// vendor/infra-lua with a defs.tree whose list sets a metatable.
+func newFixtureRepo(t *testing.T) string {
+	t.Helper()
+	repoDir := t.TempDir()
+	require.NoError(t, os.CopyFS(repoDir, os.DirFS(filepath.Join("testdata", "repo"))))
+	return repoDir
 }
 
 func writeRepoFile(t *testing.T, repoDir, name, content string) {
@@ -51,13 +60,15 @@ func TestSandboxRemovesForbiddenGlobals(t *testing.T) {
 	require.Equal(t, lua.LString("function"), evalLua(t, state, "return type(math.floor)"))
 }
 
-func TestRequireFindsRockModuleByDottedName(t *testing.T) {
-	repoDir := t.TempDir()
-	writeRepoFile(t, repoDir, "infra/tree.lua", `return { from = "repo" }`)
+// docs/spec/lua-render.md, "`require`": vendor/<lib>/src/<path>.lua first, the repo's
+// <path>.lua second.
+func TestRequireFindsVendoredModuleBeforeRepo(t *testing.T) {
+	repoDir := newFixtureRepo(t)
+	writeRepoFile(t, repoDir, "defs/tree.lua", `return { from = "repo" }`)
 	state := newTestSandbox(t, repoDir)
 
-	from := evalLua(t, state, `return require("infra.tree").from`)
-	require.Equal(t, lua.LString("rock"), from, "a rock's module comes before the repo's")
+	from := evalLua(t, state, `return require("defs.tree").from`)
+	require.Equal(t, lua.LString("vendor"), from, "a vendored module comes before the repo's")
 }
 
 func TestRequireFindsRepoModule(t *testing.T) {
@@ -69,13 +80,15 @@ func TestRequireFindsRepoModule(t *testing.T) {
 	require.Equal(t, lua.LString("repo"), from)
 }
 
-func TestRequireMissingNamesBothPlaces(t *testing.T) {
-	repoDir := t.TempDir()
+func TestRequireMissingNamesEveryPathSearched(t *testing.T) {
+	repoDir := newFixtureRepo(t)
+	writeRepoFile(t, repoDir, "vendor/other/src/other.lua", `return {}`)
 	state := newTestSandbox(t, repoDir)
 
-	err := state.DoString(`require "infra.absent"`)
-	require.ErrorContains(t, err, "no pinned rock lists it under build.modules")
-	require.ErrorContains(t, err, filepath.Join(repoDir, "infra", "absent.lua"))
+	err := state.DoString(`require "defs.absent"`)
+	for _, root := range []string{"vendor/infra-lua/src", "vendor/other/src", ""} {
+		require.ErrorContains(t, err, filepath.Join(repoDir, filepath.FromSlash(root), "defs", "absent.lua"))
+	}
 }
 
 func TestRequireRunsModuleOnce(t *testing.T) {

@@ -42,10 +42,6 @@ type (
 		// Vars is the top-level [vars] table, names as written and values in their TOML
 		// type; render hands it to every app as platform.vars. No defaults or inference.
 		Vars map[string]any `toml:"vars,omitempty"`
-
-		// Rocks is the top-level [rocks] table: each Lua rock render loads, name to
-		// version, the version being the image tag it is fetched by.
-		Rocks map[string]string `toml:"rocks,omitempty"`
 	}
 
 	Module struct {

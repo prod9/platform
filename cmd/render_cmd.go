@@ -1,18 +1,14 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 
-	fxconfig "fx.prodigy9.co/config"
 	"github.com/spf13/cobra"
 	"platform.prodigy9.co/conf"
-	"platform.prodigy9.co/engine"
 	"platform.prodigy9.co/framework/gitops"
 	"platform.prodigy9.co/internal/termlog"
-	"platform.prodigy9.co/rocks"
 )
 
 var renderOut string
@@ -38,18 +34,7 @@ func runRender(cmd *cobra.Command, args []string) {
 	if err != nil {
 		termlog.Fatalln(err)
 	}
-	env := fxconfig.Configure()
-	fetch := rocks.FetchPins{
-		Pins:     cfg.Rocks,
-		Username: fxconfig.Get(env, engine.RegistryUsernameConfig),
-		Password: fxconfig.Get(env, engine.RegistryPasswordConfig),
-	}
-
-	rockDirs, err := fetch.Run(context.Background())
-	if err != nil {
-		termlog.Fatalln(err)
-	}
-	tree, err := gitops.Render(dir, cfg.Vars, rockDirs)
+	tree, err := gitops.Render(dir, cfg.Vars)
 	if err != nil {
 		termlog.Fatalln(err)
 	}

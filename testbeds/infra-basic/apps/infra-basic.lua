@@ -1,6 +1,6 @@
--- Plain Lua resources with no rock pinned (docs/spec/testing.md): a repo module through
--- require, a var set in platform.toml, a var left at its default, and a file holding one
--- resource beside a file holding a list of them.
+-- Plain Lua resources with no vendored library (docs/spec/testing.md): a repo module
+-- through require, a var set in platform.toml, a var left at its default, and a file
+-- holding one resource beside a file holding a list of them.
 local defaults = require "defaults"
 local vars = platform.vars {
   INFRA_BASIC_HOST = "infra-basic.example.com",

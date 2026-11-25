@@ -224,7 +224,7 @@ func TestRunRejectsFinalStepWithoutContainer(t *testing.T) {
 	require.Equal(t, []framework.Step{"one", "two"}, fw.seen)
 }
 
-// Host-only preparation (framework.PlatformInfra's deps step) has no container yet.
+// Host-only preparation has no container yet.
 func TestRunAllowsHostOnlyIntermediateStep(t *testing.T) {
 	fw := &stubFramework{steps: []framework.Step{"deps", "build"}, emptyAt: "deps"}
 	run := newStubRun(t, fw, nil)

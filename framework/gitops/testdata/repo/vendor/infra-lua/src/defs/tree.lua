@@ -1,5 +1,5 @@
 local List = {}
 return {
-  from = "rock",
+  from = "vendor",
   list = function(items) return setmetatable(items, List) end,
 }
