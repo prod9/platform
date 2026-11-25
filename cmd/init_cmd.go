@@ -1,8 +1,10 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"strings"
 
 	"fx.prodigy9.co/cmd/prompts"
 	"github.com/BurntSushi/toml"
@@ -37,6 +39,11 @@ func runInitCmd(_ *cobra.Command, args []string) {
 	if err != nil {
 		termlog.Fatalln(err)
 	}
+	ctx := context.Background()
+	vendorings, err := target.Vendorings(ctx)
+	if err != nil {
+		termlog.Fatalln(err)
+	}
 	sess := prompts.New(nil, args)
 
 	info := scaffolding.Info{
@@ -49,6 +56,16 @@ func runInitCmd(_ *cobra.Command, args []string) {
 	vars := make(map[string]string, len(scaffoldVars))
 	for _, name := range scaffoldVars {
 		vars[name] = sess.Str(name)
+	}
+
+	for _, vendoring := range vendorings {
+		command := strings.Join(vendoring.Command(), " ")
+		if !sess.YesNo(fmt.Sprintf("vendor %s at %s with `%s`?", vendoring.Tag, vendoring.Vendor.Prefix, command)) {
+			return
+		}
+		if err := vendoring.Run(ctx); err != nil {
+			termlog.Fatalln(err)
+		}
 	}
 
 	plan, err := target.Plan(info, vars)
