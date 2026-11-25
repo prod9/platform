@@ -1,7 +1,7 @@
 # Lua render
 
-Status: **implemented, except the upstream download function and the declare-only run
-`init` uses (intended).** `render` runs Lua only
+Status: **implemented, except `platform.download` and the declare-only run `init` uses
+(intended).** `render` runs Lua only
 (`framework/gitops/`); CUE and the `.platform` directives are gone. The rulings behind
 it:
 [CUE dropped for Lua render](../decisions/2026-11-25-cue-dropped-for-lua-render.md),
@@ -46,8 +46,9 @@ state has no access to files, processes, the clock or randomness:
   plus the `string`, `table` and `math` tables. Every other global, including `load`,
   `loadstring`, `loadfile`, `dofile` and `print`, is removed.
 - `require` is replaced by platform's own (below) and is the only way to load code.
-- `platform` is a global table holding what platform provides: `platform.vars` and the
-  upstream download function.
+- `platform` is a global table holding what platform provides: `platform.vars` and
+  `platform.download` ("Upstream manifests", below), the only call that reaches the
+  network.
 
 An error raised while an app runs fails the render and names the app file and line.
 
@@ -116,11 +117,28 @@ are spelled the same.
 ## Upstream manifests
 
 Third-party installs (cert-manager, Flux, NGINX Gateway Fabric, the Gateway API
-definitions) are downloaded at render time by a function platform provides on the
-`platform` table. The documents arrive as Lua tables and are edited with ordinary Lua and
-`infra-lua`'s helpers, then returned like any other document. The function's name, its
-handling of archives (today's DSL `extract`), and whether downloads are cached are not yet
-specified.
+definitions) are downloaded at render time with `platform.download`:
+
+```lua
+local docs = platform.download(
+  "https://github.com/cert-manager/cert-manager/releases/download/v1.20.2/cert-manager.yaml")
+```
+
+- It takes one `https://` URL and returns the multi-document YAML stream found there as a
+  Lua list of documents. Any other scheme, a response other than `200`, or a body that is
+  not YAML fails the render, naming the URL.
+- The documents are plain Lua tables, edited with ordinary Lua and `infra-lua`'s helpers
+  and returned like any other document. A YAML mapping becomes a table with string keys, a
+  sequence a table keyed `1..n`, and an empty sequence an empty table carrying the list
+  mark when `defs.tree` resolves ("YAML", below), so it renders back as `[]`. Strings,
+  numbers and booleans keep their type; a timestamp is its string. Empty documents in the
+  stream are skipped.
+- A `null` mapping value is dropped, since Lua cannot hold `nil` in a table; Kubernetes
+  reads a missing field and a `null` one alike. A `null` sequence item fails the render.
+- The body is used whole. There is no archive handling: no baseline install ships its
+  manifests only inside an archive, so the DSL's `extract` has no counterpart.
+- Nothing is cached; every render downloads again. A render stays a function of the
+  committed repo as long as each URL pins a release, as the templates' version vars do.
 
 ## Output contract
 

@@ -101,13 +101,16 @@ and then owns
 reads:
 
 1. **Reads the templates** from `vendor/infra-lua/templates/`.
-2. **Routes every template.** The shared definitions module goes to the repo root
-   (`defaults.lua`, which apps load with `require "defaults"`); every other template goes
-   to `apps/`. Contents are copied byte for byte.
+2. **Routes every template.** The template `defaults.lua`, the shared definitions module,
+   goes to the repo root (apps load it with `require "defaults"`); every other `.lua`
+   template goes to `apps/` under its own name. Files that are not `.lua` (the
+   directory's `README.md`) are not templates and are not copied. Contents are copied byte
+   for byte.
 3. **Collects the declared vars.** It runs each template in declare-only mode: the
    template stops at its first `platform.vars {…}` call, and the names and defaults it
-   declares become the default `[vars]` the framework seeds. Two templates that declare
-   one name with different defaults fail init.
+   declares become the default `[vars]` the framework seeds. A template that returns
+   without calling it declares none. Two templates that declare one name with different
+   defaults fail init.
 
 `Infra.Scaffold` asks for no scaffold input; `ScaffoldVars` reports none. Every value the
 baseline needs is a declared var with a default, so `init` prompts for nothing beyond the
