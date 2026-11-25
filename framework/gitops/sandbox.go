@@ -18,7 +18,7 @@ var (
 	// randomness.
 	sandboxGlobals = map[string]bool{
 		"assert": true, "error": true, "getmetatable": true, "ipairs": true, "next": true,
-		"pairs": true, "pcall": true, "select": true, "setmetatable": true, "tonumber": true,
+		"pairs": true, "pcall": true, "rawget": true, "select": true, "setmetatable": true, "tonumber": true,
 		"tostring": true, "type": true, "string": true, "table": true, "math": true,
 	}
 	// The LuaRocks module-name form: lowercase identifiers joined by dots. It admits no
