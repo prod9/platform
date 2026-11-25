@@ -67,14 +67,21 @@ the part that prevents re-litigation.
 
 Newest first.
 
+- [2026-11-25 — CUE is dropped; render runs Lua with infra-lua fetched as a rock](2026-11-25-cue-dropped-for-lua-render.md)
+- [2026-11-25 — The server is removed; platform is a command-line tool](2026-11-25-server-removed-platform-is-a-cli.md)
+- [2026-11-25 — The `.platform` DSL is removed; the baseline is Lua templates](2026-11-25-dsl-removed-for-lua-templates.md)
+- [2026-11-25 — Render validates every document against its Kubernetes schema](2026-11-25-schema-validation-in-render.md)
 - [2026-11-10 — No Node workspace framework](2026-11-10-no-node-workspace-framework.md)
 - [2026-09-27 — Explicit prereleases and verbatim launcher pins](2026-09-27-explicit-prereleases-and-verbatim-launcher-pins.md)
 - [2026-08-24 — Execution mode does not define delivery policy][execution-mode-policy]
+  *(server mode superseded by the 2026-11-25 server-removed decision; release/publish
+  orthogonality and no `deploy` verb stand)*
 - [2026-07-27 — Platform never reaches into the container](2026-07-27-platform-never-reaches-into-the-container.md)
 - [2026-07-27 — A `*dagger.Client` is a session, not a poolable connection](2026-07-27-a-dagger-client-is-a-session.md)
 - [2026-07-16 — The scaffolded baseline is provider-neutral; cloud wiring is the infra repo's edit](2026-07-16-baseline-is-provider-neutral.md)
 - [2026-07-16 — The v0.9 line is platformv2; v2 cuts are patch releases](2026-07-16-v0.9-line-is-platformv2.md)
 - [2026-07-12 — CUE module path is a scaffold input read from cue.mod, not the repository](2026-07-12-cue-module-path-is-a-scaffold-input.md)
+  *(superseded by the 2026-11-25 CUE-dropped decision)*
 - [2026-07-11 — Terminology lexicon: one word, one concept](2026-07-11-terminology-lexicon.md)
 - [2026-07-11 — Baseline installs unconditionally; dissolves into the Infra framework](2026-07-11-baseline-dissolves-into-infra-framework.md)
 - [2026-07-05 — Infra publishes as a plain Dagger image; retire oras-go](2026-07-05-infra-publishes-as-plain-image-retire-oras.md)
@@ -82,28 +89,37 @@ Newest first.
   *(superseded in full by the 2026-08-24 execution-mode decision)*
 - [2026-07-05 — Test-in-build is a hard gate; blackbox-first testing](2026-07-05-test-in-build-is-a-hard-gate.md)
 - [2026-07-05 — Platform FHS container layout; cmd is the runtime command](2026-07-05-platform-fhs-container-layout.md)
-- [2026-06-29 — Platform server: GitHub App, zero platform RBAC](2026-06-29-platform-server-github-app-zero-rbac.md) *(revised 2026-07-18: stress-tested against observability, holds)*
+- [2026-06-29 — Platform server: GitHub App, zero platform RBAC](2026-06-29-platform-server-github-app-zero-rbac.md)
+  *(superseded by the 2026-11-25 server-removed decision)*
 - [2026-06-26 — Render is a pure function of committed git](2026-06-26-render-is-pure-function-of-committed-git.md)
 - [2026-06-26 — Repo stays private for now](2026-06-26-repo-stays-private.md)
 - [2026-06-24 — Split build and server log channels](2026-06-24-split-build-and-server-log-channels.md)
+  *(server channel superseded by the 2026-11-25 server-removed decision)*
 - [2026-06-23 — Render via the linked CUE engine](2026-06-23-render-via-linked-cue-engine.md)
-  *(linked-engine ruling stands; `ops` naming and tag injection are historical — see
-  [current architecture](../spec/architecture.md))*
+  *(superseded by the 2026-11-25 CUE-dropped decision)*
 - [2026-06-22 — Flat baseline, install-time selection](2026-06-22-flat-baseline-install-time-selection.md) *(picker half superseded by 2026-07-11)*
 - [2026-06-21 — Dagger engine: StatefulSet + TCP](2026-06-21-dagger-engine-statefulset-tcp.md)
+  *(superseded by the 2026-11-25 server-removed decision)*
 - [2026-06-20 — DSL: focus scope, strict values](2026-06-20-dsl-focus-scope-strict-values.md)
-- [2026-06-18 — Render routes .cue and .platform by extension](2026-06-18-render-routes-cue-and-platform-by-extension.md) *(rulings stand; `baseline.Select`/marker-grammar mechanics superseded)*
+  *(superseded by the 2026-11-25 DSL-removed decision)*
+- [2026-06-18 — Render routes .cue and .platform by extension](2026-06-18-render-routes-cue-and-platform-by-extension.md)
+  *(CUE and `.platform` routes superseded by the 2026-11-25 CUE-dropped and DSL-removed
+  decisions; one render, model I and the output contract stand)*
 - [2026-06-17 — Opinionated appliance, embedded init](2026-06-17-opinionated-appliance-embedded-init.md) *(rulings stand; `bootstrap`/`bootstrapper` mechanics superseded)*
 - [2026-06-17 — Generic ops vars, single config](2026-06-17-generic-ops-vars-single-config.md)
 - [2026-06-16 — Renderer: cue export, not timoni](2026-06-16-renderer-cue-export-not-timoni.md)
-  *(external `cue` invocation superseded by the 2026-06-23 linked-engine decision)*
+  *(superseded by the 2026-11-25 CUE-dropped decision)*
 - [2026-06-14 — Secrets: platform-pull](2026-06-14-secrets-platform-pull.md)
+  *(superseded by the 2026-11-25 server-removed decision)*
 - [2026-06-14 — Pull-based GitOps: timoni + Flux](2026-06-14-pull-based-gitops-timoni-flux.md)
   *(pull-based Flux delivery stands; timoni, `ops`, and oras mechanics superseded by
   the 2026-06-16, 2026-06-23, and 2026-07-05 renderer/image decisions)*
 - [2026-06-14 — Platform in-cluster control plane](2026-06-14-platform-in-cluster-control-plane.md)
+  *(superseded by the 2026-11-25 server-removed decision)*
 - [2026-06-14 — Monorepo and Svelte UI](2026-06-14-monorepo-and-svelte-ui.md)
+  *(superseded by the 2026-11-25 server-removed decision)*
 - [2026-06-14 — Identity and linked accounts](2026-06-14-identity-and-linked-accounts.md)
+  *(superseded by the 2026-11-25 server-removed decision)*
 
 Keep this list in sync when adding a decision.
 
