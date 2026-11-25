@@ -30,26 +30,18 @@ tables and lists; keep entries skimmable.
 
 - [`dagger-engine.md`](dagger-engine.md) — Dagger engine capabilities & deployment: SDK pin,
   the connect call, the single-engine/many-sessions model, runtime requirements, deployment
-  topologies, and the load-balancer pitfall.
+  topologies for an operator-run remote pool, and the load-balancer pitfall.
 - [`wolfi.md`](wolfi.md) — our base image's distro: why an Alpine package lookup is not
   evidence here, how to resolve a package against the image, and the packages we've verified.
 - [`caddy.md`](caddy.md) — the static family's webserver: where `Content-Type` comes from,
   the `encode` defaults, and what `handle_errors` does to the response status.
-- [`fx-worker.md`](fx-worker.md) — the job machinery our jobs run on: the struct-is-the-payload
-  contract, what `Name()` keys, which schedule call deduplicates, and why a process runs one
-  job at a time.
-- [`ghcr-auth.md`](ghcr-auth.md) — what credentials ghcr.io accepts: classic PAT only
-  outside Actions; App installation / OAuth / user-access tokens all refused (staff-
-  confirmed), and the unverified basic-auth-username question.
+- [`ghcr-auth.md`](ghcr-auth.md) — what credentials ghcr.io accepts for publishing and
+  rock pulls: classic PAT only outside Actions; App installation / OAuth / user-access
+  tokens all refused (staff-confirmed), and the unverified basic-auth-username question.
 - [`go-vanity-imports.md`](go-vanity-imports.md) — how `go get` resolves `go-import`
-  meta: the prefix re-fetch that lets one static tag cover every path, and the
-  non-200-bodies-are-parsed rule that makes a 404 fallback page resolve.
-- [`github-app-api.md`](github-app-api.md) — the GitHub endpoints `srv/github` drives: App
-  JWT claims and header form, token minting, installation/org/repo/ref lookups, and what
-  "org owner" means on the wire.
+  meta for the launcher's `platform.prodigy9.co` install: the prefix re-fetch that lets
+  one static tag cover every path, and the non-200-bodies-are-parsed rule that makes a
+  404 fallback page resolve.
 - [`nginx-gateway-fabric-install.md`](nginx-gateway-fabric-install.md) — the NGF / Gateway API
   install recipe: upstream URLs, the firewall-annotation patch, the serverTokens workaround,
   and the string-forcing constraint.
-- [`neon-pooling.md`](neon-pooling.md) — the production database's pooler: pooled-by-default,
-  PgBouncer transaction mode, prepared statements *are* supported — so an `08P01` there is
-  an interaction bug, never a "use simple_protocol" incompatibility.

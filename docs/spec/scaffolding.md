@@ -1,16 +1,20 @@
 # Scaffolding
 
-Status: **design-of-record.** Covers `platform init` — how a fresh repo is seeded. New
-code conforms; existing code migrates toward it.
+Status: **design-of-record; the infra baseline is intended.** Covers `platform init` — how
+a fresh repo is seeded. The infra baseline described under "The `Infra` framework
+scaffolds from the rock" is the v1.0 design and replaces the embedded CUE and `.platform` baseline
+still in `framework/skel/`; the rest of this file is implemented. New code conforms;
+existing code migrates toward it.
 
 Scaffolding has exactly three concerns, each with one home:
 
 - **`framework/scaffold/`** — the one files/templating mechanism: resolve templates
   with data. Generic; no discover, no orchestration, no per-type data, no writes — the
   driver writes finished bytes.
-- **The `Infra` framework** — owns the cluster baseline it scaffolds: its component set,
-  version pins, and destination routing (the bytes ship in the `framework/skel`
-  collection, alongside the universal launcher). There is no standalone `baseline/` package.
+- **The `Infra` framework** — owns the cluster baseline it scaffolds. The baseline's files
+  are the templates of the pinned `infra-lua` rock ([Lua render](lua-render.md)); the
+  framework fetches the rock, routes the templates and collects their declared vars.
+  `framework/skel` keeps only the universal launcher.
 - **`scaffolding/`** — the initialization domain: target validation, framework discovery,
   operator input data, plan construction, and file application. The thin Cobra adapter is
   `cmd/init_cmd.go` and owns prompt/session wiring; the domain package owns no command
@@ -18,9 +22,10 @@ Scaffolding has exactly three concerns, each with one home:
 
 A `Framework` is the sole owner of a project type, so what a repo scaffolds is
 `fw.Scaffold`'s output — nothing branches on app-vs-infra. An **app repo** gets a
-`platform.toml` + executable `platform` launcher; an **infra repo** gets that base plus the
-whole GitOps baseline (`apps/`, the `defaults/` package, `cue.mod`). The difference is only
-how much `Infra.Scaffold` contributes — pure polymorphism, **no `IsInfra` predicate**.
+`platform.toml` + executable `platform` launcher; an **infra repo** gets that base plus
+the cluster baseline (`apps/*.lua` and the shared `defaults.lua`), its declared `[vars]` and
+the `[rocks]` pin. The difference is only how much `Infra.Scaffold` contributes — pure
+polymorphism, **no `IsInfra` predicate**.
 
 The launcher is the driver's own contribution, so the driver resolves its one hole the
 same way frameworks resolve theirs: `PLATFORM_VERSION` is stamped with
@@ -45,123 +50,92 @@ and scaffold-time stack discovery live in [frameworks](frameworks.md) (the build
 shapes a framework returns and nothing stack-specific:
 
 - **`scaffold.Spec`** — a framework's full contribution to a fresh repo: the
-  `platform.toml` module it adds, the default `[vars]` it seeds, the files it ships
-  (`[]scaffold.File`, already **resolved** — the framework fills its own holes), and the
-  default `strategy` value it seeds.
+  `platform.toml` module it adds, the default `[vars]` it seeds, the rocks it pins, the
+  files it ships (`[]scaffold.File`, already **resolved** — the framework fills its own
+  holes), and the default `strategy` value it seeds.
 - **`scaffold.File`** — one file beyond the universal `platform.toml` + launcher: `Path`
   (repo-relative, routing already applied), `Content`, `Mode`. A `.tmpl` suffix marks
   `Content` as a `text/template` the mechanism resolves (and strips) with the
   scaffold data.
 
 **Templating rules.** `.tmpl` files resolve through `text/template` with `missingkey=error`;
-non-template files pass through **verbatim** — their CUE braces must never meet the template
-engine. Placeholders are filled at init time: `DaggerVersion` (from the linked SDK, below),
-`MaintainerEmail` (init's universal prompt; the cluster-issuer's ACME contact),
-`ModulePath` (the operator's CUE module path — from the `CUE_MOD_PREFIX` scaffold input or an
-existing `cue.mod`, separate from `repository`), and `ImageBase` (the flux self-sync OCI base). Registry creds are **not**
-templated — they ship as empty placeholders in committed CUE (below). Output order is
+non-template files pass through **verbatim**. The launcher is the one `.tmpl` file left.
+The rock's Lua templates are never `.tmpl` files and never meet the template engine: their
+values come from `[vars]` at render time, not from holes filled at init. Output order is
 deterministic.
 
 The mechanism is generic: it does not discover, does not orchestrate, and holds no per-type
 data. Everything type-specific comes in through the `scaffold.Spec` a framework hands it.
 
-## The `Infra` framework owns its baseline
+## The `Infra` framework scaffolds from the rock
 
-The cluster baseline — the thing an infra repo scaffolds — is **platform's opinion**,
-version-locked to the tool, not the operator's configuration (see
-[opinionated-appliance-embedded-init](../decisions/2026-06-17-opinionated-appliance-embedded-init.md)).
-Under the framework model it belongs to the framework that scaffolds it: the `Infra`
-framework owns the baseline component set, version pins, and destination routing — the
-file bytes ship in the `framework/skel` collection (see
-[baseline-dissolves-into-infra-framework](../decisions/2026-07-11-baseline-dissolves-into-infra-framework.md)).
+The cluster baseline is no longer embedded in `platform`. It ships as the `templates/`
+directory of the `infra-lua` rock: copy-pastable Lua files a repo copies and then owns
+([DSL removed for Lua templates](../decisions/2026-11-25-dsl-removed-for-lua-templates.md)).
+`init` is the copy.
 
-`Infra.Scaffold` returns the **full default baseline unconditionally** — one flat list, no
-marker grammar and no render-time gating (see
-[flat-baseline-install-time-selection](../decisions/2026-06-22-flat-baseline-install-time-selection.md)).
-There is **no install-time picker**: an operator who wants a smaller baseline prunes the
-committed files after init, the same hand-edit model that governs the image ref and the CUE
-literals.
+`Infra.Scaffold` on an infra repo:
 
-### Destination-encoded files
+1. **Resolves the rock version.** On a repo with no `[rocks]` pin for `infra-lua`, it
+   reads the tag list of `ghcr.io/prod9/infra-lua` and takes the newest published version. An
+   existing pin is the operator's value and is kept.
+2. **Fetches the rock** into the cache with the same fetcher and credentials render uses,
+   and reads the files under its `templates/` ([Lua render](lua-render.md), "Rocks").
+3. **Routes every template.** The shared definitions module goes to the repo root
+   (`defaults.lua`, which apps load with `require "defaults"`); every other template goes
+   to `apps/`. Contents are copied byte for byte.
+4. **Collects the declared vars.** It runs each template in declare-only mode: the
+   template stops at its first `platform.vars {…}` call, and the names and defaults it
+   declares become the default `[vars]` the framework seeds. Two templates that declare
+   one name with different defaults fail init.
+5. **Pins the version** under `[rocks]`.
 
-Baseline filenames are **destination-encoded by prefix** — routing keys, not selection
-markers. Each maps to its repo-relative destination (dropping any `.tmpl` suffix):
+`Infra.Scaffold` asks for no scaffold input; `ScaffoldVars` reports none. Every value the
+baseline needs is a declared var with a default, so `init` prompts for nothing beyond the
+universal maintainer, email and repository.
 
-| Name prefix   | Destination   | Role                                                     |
-| ------------- | ------------- | -------------------------------------------------------- |
-| `apps-*`      | `apps/`       | render-able components (each → a `render` output)        |
-| `defaults-*`  | `defaults/`   | shared CUE definitions imported by `apps/` (`#Basics`)   |
-| _(other)_     | repo root     | root files (e.g. `platform.toml`)                        |
+The baseline installs **whole and unconditionally** — one flat list, no picker, no marker
+grammar, no render-time gating
+([baseline-dissolves-into-infra-framework](../decisions/2026-07-11-baseline-dissolves-into-infra-framework.md)).
+An operator who wants a smaller baseline deletes files after init. There is no checklist
+step.
 
-The default working set is what a functioning cluster needs out of the box: cert-manager
-(Gateway API + ListenerSet reconciliation enabled — the cross-cloud convention), flux,
-flux-sync (the GitHub→Flux `Receiver`
-+ its own `ListenerSet` and route), the platform app, the NGF gateway stack, the
-host-agnostic operator `Gateway` app, and the ACME cluster-issuer. Components own their
-hostnames via `ListenerSet`s (distributed-hosts shape) — the gateway app carries none. It
-installs whole — selection is not an operator choice at init time.
+The default working set is the set of templates in the rock: cert-manager (Gateway API and
+ListenerSet reconciliation enabled — the cross-cloud convention), Flux, the Flux self-sync
+(the GitHub→Flux `Receiver` with its own `ListenerSet` and route), the NGINX Gateway with
+the Gateway API definitions, the host-agnostic operator `Gateway` app, and the ACME
+cluster issuer. Components own their hostnames via `ListenerSet`s; the gateway app carries
+none. The baseline deploys no platform server and no Dagger engine pool
+([server removed](../decisions/2026-11-25-server-removed-platform-is-a-cli.md)).
 
-The generated platform deployment is a seed, not a configured server installation.
-`framework/skel/apps-platform.cue.tmpl` emits the server with an empty environment and
-does not emit a worker workload. The operator supplies the server's required runtime
-configuration and a separate `platform worker` process with its checkout-cache storage
-before queued builds can execute ([installation.md](installation.md)). The scaffolded
-Dagger StatefulSet mounts `/var/lib/dagger` with `emptyDir`; its disposable cache does
-not survive pod replacement.
+The baseline stays provider-neutral
+([baseline-is-provider-neutral](../decisions/2026-07-16-baseline-is-provider-neutral.md)):
+cloud wiring is the infra repo's own edit to its copies.
 
 ### Multi-tenant clusters: baseline owner vs tenant (convention, not code)
 
 A shared Flux cluster has **one baseline owner** (the repo that scaffolds this full baseline)
 and **N tenants** (other repos delivering apps onto the same cluster). The distinction is a
 **convention operators follow when committing a tenant repo**, never scaffolding machinery —
-`Infra.Scaffold` stays fixed and unconditional (per the flat-baseline ruling above):
+`Infra.Scaffold` stays fixed and unconditional:
 
-- **Baseline owner** emits the whole set above — including the `Receiver`, whose `#target_ns`
-  enumerates every reconciled namespace (owner + each tenant); it emits one wildcard
-  `OCIRepository` entry per namespace, all poked off the one shared org webhook. Onboarding a
-  tenant **appends that tenant's namespace** to the owner's `#target_ns` (defs v0.4.3 dropped
-  the older cluster-wide `name: "*"` entry — the def cannot express a namespace-omitted match).
-  No per-tenant Receiver, webhook, or HMAC secret exists.
+- **Baseline owner** emits the whole set above — including the `Receiver`, whose target
+  namespaces enumerate every reconciled namespace (owner + each tenant). Onboarding a
+  tenant appends that tenant's namespace to the owner's list. No per-tenant Receiver,
+  webhook, or HMAC secret exists.
 - **Tenant** commits **only** its own `OCIRepository` + `Kustomization` in its own namespace
-  (`packs.#FluxTenant`).
-  It **must not** emit any baseline component (gateway / cert-manager / flux-system /
-  platform) — a double-emit gives the shared cluster two gateways / cert-managers / flux
-  installs that prune each other. An operator scaffolding a tenant prunes the baseline down
-  to those two resources; the pruning is the operator's, not a scaffold mode.
+  (the `FluxTenant` pack). It **must not** emit any baseline component (gateway /
+  cert-manager / flux-system) — a double-emit gives the shared cluster two gateways /
+  cert-managers / flux installs that prune each other. An operator scaffolding a tenant
+  prunes the baseline down to those two resources; the pruning is the operator's, not a
+  scaffold mode.
 
-### `DefaultVars`: interpolation inputs, not selection
+### Declared vars: interpolation inputs, not selection
 
-The baseline's default `[vars]` are **pure interpolation inputs**: version pins
-(`CERT_MANAGER_VERSION`, `FLUX_VERSION`, …) and the per-deployment ingress hosts the CUE apps
-route on (`PLATFORM_HOSTNAME` for the platform app, `FLUX_HOSTNAME` for the GitHub→Flux
-Receiver route). Keys are SCREAMING_SNAKE (the preferred `platform.toml` form; render lowercases for
-both consumption routes) — `\(var)` in directive `download` URLs and `@tag(var)` in CUE apps.
+The baseline's default `[vars]` are what its templates declare: version pins
+(`CERT_MANAGER_VERSION`, `FLUX_VERSION`, …) and per-deployment values such as the Flux
+receiver host. They are inputs to the templates, read through `platform.vars`.
 **Selection is not a var** — the full baseline installs unconditionally.
-
-### Registry creds are defaulted, not prompted
-
-The baseline ships `#registry_username` / `#registry_password` as **empty placeholders in
-committed CUE** that the operator hand-edits — consistent with the committed-literal model.
-`init` prompts for neither, and they are not `@tag`-injected (see invariants). A security
-edit lives in the committed repo, like every other literal.
-
-### Dagger version pin
-
-`DaggerVersion()` reports the `dagger.io/dagger` SDK version this binary is linked against
-(read from `debug.ReadBuildInfo`, honoring a `replace`). A freshly-init'd infra repo pins
-`registry.dagger.io/engine:<version>` to it, so the in-cluster engine and the SDK driving
-it never drift. `init` treats empty as a hard error rather than emitting a tagless engine
-ref.
-
-### `cue.mod` scaffold
-
-The `Infra` framework contributes `cue.mod/module.cue` on a **greenfield** infra repo (no
-existing module, `ModulePath` from the `CUE_MOD_PREFIX` scaffold input). It pins the operator's
-module path (their CUE namespace, deliberately distinct from the GitHub `repository`), the linked CUE
-evaluator's language version (so render never demands a newer language than it links), and the
-`DefsModule`/`DefsVersion` infra-defs dependency the baseline apps import. An existing
-module is the operator's truth — read its path (`ModulePath`, `@vN` suffix stripped), never
-rewritten.
 
 ## `scaffolding/` — initialization domain
 
@@ -177,8 +151,8 @@ the plan before touching the tree.
 2. The same call resolves the owning framework and returns a `Target` that retains it. The
    command prompts for the additional inputs `Target.ScaffoldVars()` reports.
 3. `Target.Plan(info, vars)` calls the retained framework's `Scaffold` once. Its
-   `scaffold.Spec` carries the module, vars, resolved files, and seeded `strategy`; the target
-   computes the `platform.toml` disposition and returns a read-only plan.
+   `scaffold.Spec` carries the module, vars, rocks, resolved files, and seeded `strategy`;
+   the target computes the `platform.toml` disposition and returns a read-only plan.
 4. The command prints and confirms the plan, then calls `Plan.Apply()` or, for `--force`,
    `Plan.ForceApply()`.
 
@@ -209,45 +183,41 @@ orthogonal:
 - **Absent** → a fresh file is generated from `conf.ModelDefaults`, the operator `Info`
   (maintainer, repository), the framework's `scaffold.Spec` module (its `[modules]` entry and
   the `strategy` value it seeds — `Infra` seeds `strategy = "rolling"` since infra has no
-  versions to cut; the CUE module path is a scaffold input (`CUE_MOD_PREFIX`), never a
-  `platform.toml` key), and the seeded default `[vars]`.
-- **Present** → the surgical `[vars]` merge (below) folds the baseline defaults in
-  **textually**; every other table, comment, and byte is preserved.
+  versions to cut), the seeded default `[vars]`, and the `[rocks]` pin.
+- **Present** → the surgical merge (below) folds the default `[vars]` and the `[rocks]`
+  pin in **textually**; every other table, comment, and byte is preserved.
 
-### Re-init: surgical `[vars]` merge
+### Re-init: surgical merge
 
-Planning a re-init computes the surgical `[vars]` merge below. Applying the plan while
-keeping existing files leaves `platform.toml` untouched, so the planned additions are
-written only when replacement is accepted (`--force` or the overwrite confirmation).
-Replacement uses the merged bytes, preserving the operator's existing config.
+Planning a re-init computes the surgical merge below. Applying the plan while keeping
+existing files leaves `platform.toml` untouched, so the planned additions are written only
+when replacement is accepted (`--force` or the overwrite confirmation). Replacement uses
+the merged bytes, preserving the operator's existing config.
 
-The merge (owned by
-`conf/`, alongside `Generate`) folds the baseline default `[vars]` in **line-by-line,
-not by decode/re-encode** — a round-trip through the TOML encoder would lose the operator's
-comments, ordering, and formatting. The merge:
+The merge (owned by `conf/`, alongside `Generate`) folds the defaults into `[vars]` and
+`[rocks]` **line-by-line, not by decode/re-encode** — a round-trip through the TOML
+encoder would lose the operator's comments, ordering, and formatting. For each table, the merge:
 
 - **Appends** default keys the file lacks, inserted after the last non-blank line of the
-  existing `[vars]` body (or a fresh section appended to EOF when absent).
-- **Preserves** keys already present — the operator's value stands untouched.
+  existing table body (or a fresh table appended to EOF when absent).
+- **Preserves** keys already present — the operator's value stands untouched, so an
+  existing `[rocks]` pin is never bumped by re-init.
 - Leaves comments, key order, and all other tables byte-for-byte.
 
-Each default's disposition is recorded as a `VarChange` (`Appended` true = newly added,
-false = operator value kept), surfaced in the plan. Values keep their TOML type on the
+Each default var's disposition is recorded as a `VarChange` (`Appended` true = newly
+added, false = operator value kept), surfaced in the plan. Values keep their TOML type on the
 append (strings quoted/escaped, bools and numbers bare). Keeping existing files also
-preserves directive edits. When replacement is accepted, directive files are re-shipped
-whole and their edits are overwritten; durable customization belongs in vars or in
-operator-maintained CUE.
+preserves edits to the copied templates. When replacement is accepted, the templates are
+re-copied whole and edits to them are overwritten; durable customization belongs in vars
+or in files the operator added.
 
 ## Invariants — do NOT re-litigate
 
-- **`defaults/` is mandatory** on every infra repo. It is the home for shared definitions
-  (`#Basics`: namespace + registry pull secret), imported by `apps/`. Always installed as
-  part of the unconditional baseline.
-- **`apps/` is render-only.** Every top-level key under `apps/` becomes a `render` output.
-  Shared definitions do not live here — they live in `defaults/`.
-- **CUE `@tag` injection does not cross the module/package import barrier.** `@tag`/`-t`
-  injection is root-package only; an imported package errors `no tag for "X"`. So registry
-  creds **cannot** be `@tag`-injected into an imported `defaults/basics.cue`, and relocating
-  the shared def into `apps/` to dodge this is **banned** — it breaks apps-is-render-only.
-  Creds therefore ship as empty placeholders the operator hand-edits, never injected. Only
-  names a `@tag` actually declares get injected; the rest are directive-only.
+- **`apps/` is render-only.** Every `apps/<component>.lua` is one `render` component.
+  Shared definitions do not live here — they live in repo-root modules such as
+  `defaults.lua`, loaded with `require`.
+- **The templates are the repo's files after init.** Render runs the repo's copies, never
+  the rock's; a newer rock changes nothing in a repo until its files are edited or
+  re-copied.
+- **No baseline is embedded in `platform`.** The baseline's source of truth is the rock's
+  `templates/`; `framework/skel` holds only the launcher.

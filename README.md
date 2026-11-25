@@ -48,11 +48,8 @@ there is no `deploy` verb: deployment is committing an image ref into the infra 
 whose own `publish` ships the rendered manifests as an OCI artifact that Flux pulls and
 applies. The infra repo's git history is the deployment record.
 
-These are local CLI commands. The `srv` + worker CI/CD mode is a peer driver of the shared
-build/publish engine: every push builds, while repository policy separately decides which
-successful builds publish. See
-[`docs/spec/execution-modes.md`](docs/spec/execution-modes.md); this repository's own
-release procedure does not restrict what consuming repositories may build, tag, or publish.
+These are local CLI commands. This repository's own release procedure does not restrict
+what consuming repositories may build, tag, or publish.
 
 ## Documentation
 
@@ -62,10 +59,8 @@ release procedure does not restrict what consuming repositories may build, tag, 
   entrypoint to the specs.
 - [`docs/guides/cluster-bringup.md`](docs/guides/cluster-bringup.md) — fresh cluster to a
   live GitOps baseline, end to end.
-- [`docs/guides/authoring-platform-dsl.md`](docs/guides/authoring-platform-dsl.md) —
-  writing `.platform` manifest-patch files, including
-  [editor setup](docs/guides/authoring-platform-dsl.md#editor-setup) (Vim/Neovim files
-  ship in [`docs/guides/nvim/`](docs/guides/nvim/)).
+- [`docs/spec/lua-render.md`](docs/spec/lua-render.md) — how an infra repo's
+  `apps/*.lua` render against the `infra-lua` rock.
 - [`docs/decisions/`](docs/decisions/) — dated design rulings.
 
 ## Testing

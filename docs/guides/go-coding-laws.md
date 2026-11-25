@@ -89,11 +89,11 @@ named so a later scan can recognize the same shape. Append; don't prune.
 
 ## Verification
 
-18. **A skipped test is not a passing test.** The `srv` suites call
-    `srvtest.SkipWithoutPostgres`, so `go test ./...` prints `ok` for packages where not
-    one test ran. Before claiming a change to `srv/` is verified, run it with
-    `DATABASE_URL` set and confirm the tests you care about actually executed
-    (`-v`, look for PASS not SKIP). This cost a session's worth of false green.
+18. **A skipped test is not a passing test.** `go test ./...` prints `ok` for a package
+    where every test skipped. Before claiming a change is verified, confirm the tests you
+    care about actually executed (`-v`, look for PASS not SKIP). *Broke it:* the removed
+    `srv` suites called `srvtest.SkipWithoutPostgres`, and a run without `DATABASE_URL`
+    cost a session's worth of false green.
 
 ## Conduct
 

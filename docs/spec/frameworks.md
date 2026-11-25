@@ -58,8 +58,9 @@ first step receives a nil container (it establishes the base); each subsequent s
 receives its predecessor's output.
 
 **The container is the chaining medium, not the contract.** A step is not obliged to
-transform what it is handed: `Infra`'s `deps` step fetches CUE dependencies on the *host*
-and passes its input straight through, which is a legitimate step, not a degenerate one.
+transform what it is handed: `Infra`'s `deps` step fetches the pinned `infra-lua` rock on
+the *host* and passes its input straight through, which is a legitimate step, not a
+degenerate one.
 What every step owes is a container for its successor — nothing about where its work
 happens. Nothing is stored between calls — the framework holds
 no build state, so a plan can be recomputed at any time and the engine always drives the
@@ -76,12 +77,13 @@ they are simply silent.
 `Scaffold` is **rich, per-framework** — not an empty seam. It returns the framework's full
 contribution to a fresh repo (`scaffold.Spec`): its `platform.toml` module, the default
 `[vars]` it seeds, the files it ships, and the default `strategy` value it seeds. The
-framework owns resolution — which operator input fills which template hole, reading an
-existing `cue.mod` — so the files come back **resolved** and `scaffolding.Target` carries the
-framework resolved by `Discover`; `cmd/init_cmd.go` prompts for the `ScaffoldVars` it exposes,
-then asks the target to plan `platform.toml` and the finished bytes.
+framework owns resolution — which operator input fills which template hole — so the files
+come back **resolved** and `scaffolding.Target` carries the framework resolved by
+`Discover`; `cmd/init_cmd.go` prompts for the `ScaffoldVars` it exposes, then asks the
+target to plan `platform.toml` and the finished bytes.
 There is **no `IsInfra` / app-vs-infra predicate**: `Infra.Scaffold` simply *does more*
-(it contributes the whole cluster baseline and a `strategy="rolling"` seed), so the
+(it contributes the cluster baseline from the `infra-lua` rock's templates, the rock pin,
+and a `strategy="rolling"` seed), so the
 app/infra distinction is pure `Scaffold` polymorphism. The `scaffold.Spec`/`scaffold.File`
 shapes and the resolve mechanism live in [scaffolding](scaffolding.md).
 
@@ -115,7 +117,8 @@ describes what a framework's runner stage lays down.
 `native` copies just the compiled binary into a lean runner. `interpreted` carries build
 output plus `node_modules`. `static` drops in Caddy and the built bundle with no language
 runtime. `custom` owns its own base and runtime entirely (Dockerfile uses
-the user's `FROM`; `Infra` packs a `FROM scratch` manifest image).
+the user's `FROM`; `Infra` packs a `FROM scratch` manifest image, and the intended
+`LuaRock` a `FROM scratch` rock image).
 
 ## Discovery — first match wins
 
@@ -137,6 +140,11 @@ Implemented order and detection rules:
 | 5 | `PNPMBasic`   | `pnpm/basic`     | `basic`     | `interpreted` | `pnpm-lock.yaml`                             |
 | 6 | `Dockerfile`  | `dockerfile`     | `basic`     | `custom`      | `Dockerfile`                                 |
 
+**Intended:** `LuaRock` (`lua/rock`, `basic`, `custom`) detects on a `*.rockspec` file at
+the directory root and goes **first**, ahead of `Infra`. The repo it exists for,
+`infra-lua`, has `infra` in its name, so `Infra`'s name glob would otherwise claim it; a
+rockspec is a file marker no infra repo carries.
+
 **There is no Node workspace framework.** `pnpm/workspace` was removed: the Node ecosystem
 has no shared way to declare a workspace or to ship one member of it, and pnpm reads its
 own file rather than the `workspaces` field npm, Yarn and Bun share. A pnpm workspace root
@@ -150,7 +158,7 @@ Why the order holds:
 - **Infra first** — the `Infra` framework's `Discover` heuristic is a directory *name*
   glob, not a file marker; `apps/` is a poor marker (an ordinary app may also carry
   `apps/`). Checked ahead of file markers so an infra repo never mis-detects on a stray
-  lockfile.
+  lockfile. The intended `LuaRock` is the one exception that precedes it (above).
 - **Workspace before basic** (2 before 3) — a Go workspace repo also holds `go.mod`
   files. The workspace marker is the broader truth, so it must win before the basic marker
   it would also trip.
@@ -166,7 +174,8 @@ Why the order holds:
 
 ## The shared base
 
-Every framework except `Dockerfile` (own `FROM`) and `Infra` (`FROM scratch`) starts from
+Every framework except `Dockerfile` (own `FROM`), `Infra` and `LuaRock` (`FROM scratch`)
+starts from
 `BaseImageForUnit` — Chainguard's Wolfi base (`cgr.dev/chainguard/wolfi-base`), small,
 regularly patched, shared across all language stacks.
 
@@ -191,9 +200,11 @@ on `PATH`), `RunDir` (`/platform/run`, runtime workdir). Package sets are applie
 `withBuildPkgs` (`build-base git curl bash` + extras) for the build stage and
 `withRunnerPkgs` (`ca-certificates curl mailcap netcat-openbsd tzdata` + extras) for the
 runner; `withCaddyServer` adds Caddy for the static family. The `go/basic` runner
-adds `git` — a temporary special-case for platform's own image, whose worker
-shells out to `git` at runtime; the long-term shape is a dedicated build
-framework for platform's own agent/image. `mailcap` is carried only to
+adds `git` — a special case for platform's own server image, whose worker shelled out to
+`git` at runtime. Platform has no server, and what platform itself publishes in v1.0 is
+**open**: its own `platform.toml` still builds that image (`args = ["srv"]`), so whether
+the module, its image and this `git` package stay is settled with that question.
+`mailcap` is carried only to
 lay down `/etc/mime.types` — the Wolfi base ships neither that file nor `/etc/mailcap`, and
 a server without the table falls back to a built-in list that misses modern types (`.woff2`
 among them), so assets go out with the wrong `Content-Type`. It belongs to every runner,
@@ -283,7 +294,8 @@ ahead of the compile step: `GoBasic` execs `go test -v ./...`, `GoWorkspace` exe
 `go test -v` across every workspace module. Because Dagger fails the build on a non-zero
 exec, that step fails the run — **green tests are a
 baked-in, non-configurable precondition of a Go image** — a red suite is a failed build,
-and there is no skip-tests opt-out. Full rationale:
+and there is no skip-tests opt-out. The intended `LuaRock` holds the same gate: its `test`
+step runs the rock's Lua tests and fails the run on a red suite. Full rationale:
 [test-in-build-is-a-hard-gate](../decisions/2026-07-05-test-in-build-is-a-hard-gate.md).
 
 ## The build step sees the repository
@@ -296,7 +308,7 @@ directory every step copies from; the build step mounts it regardless.
 
 The mount exists so that git works unmodified inside the build: VCS stamping, `git
 describe`, history-dependent tools and a project's own scripts all see a real repository.
-When `.git` is a file (a git worktree, as every server checkout is), the build step follows
+When `.git` is a file (a git worktree), the build step follows
 its `gitdir:` pointer and that directory's `commondir`, and mounts each target at the same
 absolute path it has on the host, so the pointers resolve inside the container unchanged.
 
@@ -308,13 +320,13 @@ environment variables. Platform sets them on the host; none is read from the mou
 | `BUILD_MODULE`     | The module's `[modules]` name in `platform.toml`                                 |
 | `BUILD_REPOSITORY` | The `repository` value in `platform.toml`, as written                            |
 | `BUILD_REVISION`   | `git rev-parse HEAD` of the checkout being built, on every build                 |
-| `BUILD_VERSION`    | The release tag: a server build's `refs/tags/` suffix; local `publish`'s name    |
+| `BUILD_VERSION`    | The release tag: the newest release name `publish` resolves and pushes under     |
 
 A module outside any git repository gets no mount. `BUILD_REVISION` is **unset** when the
 repository has no commit yet, such as right after `git init`.
 
-`BUILD_VERSION` is **unset** when the build has no release tag — a local `build` or
-`preview`, a server build of a branch, and a `rolling` publish, which cuts no git tag
+`BUILD_VERSION` is **unset** when the build has no release tag — a `build` or
+`preview`, and a `rolling` publish, which cuts no git tag
 ([releases](releases.md)). Platform adds no image labels for any of these values.
 
 ## Stack notes
@@ -414,14 +426,34 @@ repository has no commit yet, such as right after `git init`.
 - **Dockerfile** — `host.DockerBuild` on the user's `Dockerfile`; env becomes build args.
   Discouraged: bypasses Wolfi, the apk cache, and package conventions; warns at build
   time.
-- **Infra** — its render step calls `gitops.Render` in-process (CUE + `.platform` →
-  manifest tree), then writes the whole tree into a `client.Container()` with no `From`
-  (scratch) in **one** `WithDirectory` — a per-file `WithNewFile` walk yields a
-  multi-layer image and Flux's source-controller extracts only one layer, so `prune` then
-  wipes the cluster. The published layer is a tar+gzip of exactly those files, which
-  Flux's `OCIRepository` `layerSelector` extracts; kustomize-controller applies the YAML.
-  Infra delivery is the ordinary `publish` verb — see
+- **Infra** — two steps, both in-process and exec-free. `deps` fetches the `infra-lua`
+  rock version pinned under `[rocks]` into platform's XDG cache; a version already cached
+  is not fetched again. `build` calls `gitops.Render` (each `apps/*.lua` run on the
+  sandboxed Lua 5.1 VM, every document validated against its schema → manifest tree), then
+  writes the whole tree into a `client.Container()` with no `From` (scratch) in **one**
+  `WithDirectory` — a per-file `WithNewFile` walk yields a multi-layer image and Flux's
+  source-controller extracts only one layer, so `prune` then wipes the cluster. A document
+  that fails validation fails the step before any tree is written. The published layer is
+  a tar+gzip of exactly those files, which Flux's `OCIRepository` `layerSelector`
+  extracts; kustomize-controller applies the YAML. Render has one route, Lua: there is no
+  CUE evaluation and no `.platform` directive route. Render internals — the sandbox, rock
+  fetch and cache, `platform.vars`, validation, templates — are
+  [lua-render.md](lua-render.md); the rulings are
+  [cue-dropped-for-lua-render](../decisions/2026-11-25-cue-dropped-for-lua-render.md),
+  [dsl-removed-for-lua-templates](../decisions/2026-11-25-dsl-removed-for-lua-templates.md)
+  and
+  [schema-validation-in-render](../decisions/2026-11-25-schema-validation-in-render.md).
+  This is **intended**; the code still renders CUE and `.platform` files. Infra delivery
+  is the ordinary `publish` verb — see
   [infra-publishes-as-plain-image-retire-oras](../decisions/2026-07-05-infra-publishes-as-plain-image-retire-oras.md).
+- **LuaRock (intended)** — builds a repo whose root holds a rockspec, such as
+  `infra-lua`, so `platform publish` pushes the rock to ghcr. Two steps, `test` then
+  `build`. `test` runs the rock's Lua tests on the same Lua 5.1 VM render uses,
+  in-process; a failing test fails the run. `build` packs the rock into a `FROM scratch` image as
+  **one** layer, the layout render's rock fetch reads ([lua-render.md](lua-render.md)),
+  and the ordinary publish bracket pushes it under the release name. Its `Scaffold`
+  contributes the module entry only. Which files are the rock's tests, and whether the
+  rockspec's own version must agree with the release name, are **open**.
 
 ## Frameworks and the build model
 
@@ -436,9 +468,7 @@ needs something no entrypoint exposes, and treat that need as a missing engine v
 selected module, all built for the given arch. The arch arrives already resolved by the
 engine entrypoint that is about to build ([engine.md](engine.md) §Arch targets); this
 layer writes it into each unit and never asks what it is for. It returns the slice
-directly: there is no attempt wrapper in the build path. The server's module and aggregate
-results are output folds (see [platform-server.md](platform-server.md)), not inputs the
-engine consumes; the persisted `Build` itself identifies an attempt.
+directly: there is no attempt wrapper in the build path.
 
 Each `BuildUnit` is resolved by `unitFromModule`, which calls `FindFramework` on the
 module's `framework` name and stores the resolved `Framework` in `BuildUnit.Framework`

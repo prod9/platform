@@ -1,17 +1,21 @@
 # Architecture — the build pipeline and how to organize it
 
-Status: **design-of-record.** Drives package layout and the object model. New code
-conforms; existing code migrates toward it.
+Status: **design-of-record; v1.0 rescope intended.** Drives package layout and the object
+model. New code conforms; existing code migrates toward it. `platform` is a command-line
+tool with no server ([server-removed decision]), and infra repos render Lua rather than
+CUE ([cue-dropped decision]); sections that describe those two facts are intended until
+the code catches up.
+
+[server-removed decision]: ../decisions/2026-11-25-server-removed-platform-is-a-cli.md
+[cue-dropped decision]: ../decisions/2026-11-25-cue-dropped-for-lua-render.md
 
 ## The pipeline
 
-`platform` is a thin pipeline driven by `engine`. Callers use its source and build verbs
-from either the CLI or `srv`; engine owns their mechanics without learning which adapter
-invoked them. There is no shared mutable state.
+`platform` is a thin pipeline driven by `engine`. The CLI's commands call its build verbs;
+engine owns their mechanics. There is no shared mutable state.
 
 ```
-engine.Input (Local | Source) ─▶ engine.Build / BuildAndPublish
-  Source ─▶ engine.Checkout ─▶ local tree
+engine.Local ─▶ engine.Build / BuildAndPublish
   local config file ─▶ conf.Model ─▶ BuildUnit ─▶ framework steps ─▶ image
 ```
 
@@ -22,13 +26,12 @@ engine.Input (Local | Source) ─▶ engine.Build / BuildAndPublish
 | interpret    | `framework/` | config → **`[]*BuildUnit`** (one per selected module)       |
 | build model  | `framework/` | `BuildUnit` — the resolved, self-contained build def        |
 | strategies   | `framework/` | the `Framework` implementations — per-stack build knowledge |
-| engine       | `engine/`    | source checkout and build driver                           |
+| engine       | `engine/`    | build driver                                                |
 
-This is a shared capability pipeline, not an invocation model. The local CLI and the
-CI/CD server are peer drivers of it, and delivery policy separately decides which
-successful server builds publish. [`execution-modes.md`](execution-modes.md) is canonical
-for those boundaries; neither CLI release strategy nor this repository's release
-procedure constrains server builds.
+This is a shared capability pipeline, not an invocation model. The CLI is its one driver,
+and which builds publish is the operator's choice, not the pipeline's.
+[`execution-modes.md`](execution-modes.md) is canonical for that boundary; this
+repository's own release procedure does not constrain other repositories.
 
 ## How to think about it (the durable principle)
 
@@ -36,10 +39,9 @@ procedure constrains server builds.
 time work reaches engine's execution core, every fact the build needs already lives in
 the `BuildUnit`: workdir, image name, build dir, env, command, the resolved framework, and
 the **arch target**. The execution core reads fields; it does not get told things through
-call arguments. Engine materializes a remote source through `Checkout`, loads its
-configuration through `conf`, and interprets it before entering the step-execution core.
-The source-input and paired-lifecycle contract is implemented with the Phase 2
-module-job model; [engine.md](engine.md) owns that boundary.
+call arguments. Engine loads the workdir's configuration through `conf` and interprets it
+before entering the step-execution core. [engine.md](engine.md) owns the input and
+paired-lifecycle contract.
 
 This yields three standing rules:
 
@@ -77,16 +79,10 @@ needs (`Excludes`, `Repository`), so the build stage stays self-contained.
 
 Every package is named for a responsibility. `core/`, `util/`, `common/`, `helpers/`,
 `misc/` are banned (general-coding) — they absorb anything vaguely shareable and rot.
-Domain packages live at the top level by their own name: `framework/`, `dsl/`,
-`engine/` — never nested under a `core/` catch-all.
+Domain packages live at the top level by their own name: `framework/`, `engine/`,
+`releases/` — never nested under a `core/` catch-all.
 
 ## Package layout (target)
-
-🚨 **This section governs the shared packages and the CLI — not `srv/`.** `srv` is a web app
-built on [prod9/fx](https://fx.prodigy9.co), and how it splits packages is decided by fx
-web-app convention: self-contained fragments, one folder per concern, each holding its own
-models, controllers, jobs and migration SQL. The rules below — and §No grab-bag packages
-above — say nothing about it. See [platform-server.md](platform-server.md).
 
 A **`Framework` is the sole owner of a project type** — it recognizes itself, scaffolds
 itself, and builds itself. Only two things sit outside a framework: the `platform.toml`
@@ -95,8 +91,9 @@ graph `conf ← framework/scaffold ← framework ← scaffolding ← cmd`:
 
 - `conf/` — the `platform.toml` model, both directions: `Generate` and the surgical
   `[vars]` merge. The publish target is not a stored section: a module's image is inferred
-  per-module (`InferImageBase`) and the tag derives from the release strategy; only the
-  top-level `[vars]` table is carried, fed to `render`.
+  per-module (`InferImageBase`) and the tag derives from the release strategy. Two
+  top-level tables feed `render`: `[vars]`, and `[rocks]`, which pins the version of each
+  Lua rock the infra repo renders with ([lua-render.md](lua-render.md)).
 
   **`repository` is stored scheme-less** — `github.com/prod9/platform`, the form the ghcr
   mirror and the image-source label are both derived from. Every other form is derived, and
@@ -111,16 +108,18 @@ graph `conf ← framework/scaffold ← framework ← scaffolding ← cmd`:
   is canonical), the concrete frameworks, the package-level `Discover(wd)` resolver, the
   interpret stage (config → `BuildUnit`s), and the per-stack build strategies. **Stack
   discovery is a scaffold-time concern** — the build path reads `[modules]`, never
-  re-discovers. The `Infra` framework owns its baseline component set, version pins, and
-  destination routing here (bytes in the `framework/skel` collection, alongside the
-  universal launcher), and its render step turns `apps/` (CUE + `.platform`) into a
+  re-discovers. The `Infra` framework owns its destination routing and the universal
+  launcher (bytes in the `framework/skel` collection); the cluster baseline it scaffolds
+  comes from the templates shipped in the `infra-lua` rock
+  ([scaffolding.md](scaffolding.md)). Its render step turns `apps/*.lua` into a
   `FROM scratch` image (see
   [infra-publishes-as-plain-image-retire-oras](../decisions/2026-07-05-infra-publishes-as-plain-image-retire-oras.md)).
-- `framework/gitops/` — the Infra framework's **render** machinery (CUE/`.platform` →
-  manifest `Tree`), consumed by the Infra framework's render step and the `render` command.
-  It is nested under `framework/` like `gowork`, its stack-specific companion. Publishing is
-  the ordinary
-  `publish` path now that infra is a framework; the oras packer is retired.
+- `framework/gitops/` — the Infra framework's **render** machinery (`apps/*.lua` →
+  validated manifest `Tree`), consumed by the Infra framework's render step and the
+  `render` command. It is nested under `framework/` like `gowork`, its stack-specific
+  companion. Publishing is the ordinary `publish` path now that infra is a framework; the
+  oras packer is retired. [lua-render.md](lua-render.md) specifies the sandbox, the rock
+  fetch and cache, `platform.vars`, and validation.
 - `cmd/` — `main.go` defers to `cmd.Execute()`. `cmd` holds the root Cobra command
   (persistent `-q`/`-v`, and `-f` for an alt `platform.toml`) plus one file per command.
   The `init` command's adapter lives at `cmd/init_cmd.go`; it presents prompts and the
@@ -131,24 +130,13 @@ graph `conf ← framework/scaffold ← framework ← scaffolding ← cmd`:
   resolves its framework once; the resulting `Target` exposes its `ScaffoldVars` and builds
   a read-only `Plan`; `Apply` preserves existing files and `ForceApply` overwrites them. Its
   Cobra adapter remains in `cmd/init_cmd.go`; the package owns no command registration.
-- `engine/` — the reusable source and build driver behind both CLI and server adapters.
-  `Checkout` materializes a URL and revision as a managed worktree; `Session` + `Run` own
+- `engine/` — the reusable build driver behind the CLI's commands. `Session` + `Run` own
   Dagger execution; the roster owns endpoint discovery and selection. The package knows no
-  web resources, build records, users, installations, jobs, or delivery policy. Multi-unit
-  fan-out stays behind engine build verbs. See [`engine.md`](engine.md).
-- `dsl/` — the manifest-patch DSL (lexer, directive parser, in-buffer verbs), a
-  self-contained language at the top level, peer of `cuemod/`. Consumed by
-  `framework/gitops` render; extracted from it so the language stands on its own.
+  delivery policy. Multi-unit fan-out stays behind engine build verbs. See
+  [`engine.md`](engine.md).
 - `releases/`, `git/` (formerly `gitctx/`+`gitcmd/`), `internal/` — unchanged in role.
   `internal/termlog` is platform's terminal narration sink (formerly `buildlog`; see
   [engine.md](engine.md)).
-- `srv/` — the platform server, a layer **above** the shared packages and outside this
-  layout's jurisdiction, shaped by fx convention instead
-  ([platform-server.md](platform-server.md)). It ships in the same binary and the same
-  module; the one rule this layout imposes on it is directional — the shared packages are
-  leaves and never import server concerns, guarded by `srv/boundary_test.go`. Background
-  jobs are files inside the fragment that owns their domain, run by a separate
-  `platform worker` process.
 
 The former `baseline/` and top-level `scaffold/` packages are **absorbed**, not surviving
 packages: `baseline/`'s templating folds into `framework/scaffold/` and its embedded infra
@@ -157,16 +145,13 @@ folds into `framework/scaffold/`, its discovery into `framework/`, and its orche
 into `scaffolding/`, behind the `cmd/init_cmd.go` adapter.
 
 Command surface: `init  build  configure  exec  export  ls  preview  publish  release
-render  clean  srv  worker  versions  print-config`.
+render  clean  versions  print-config`.
 `clean` prunes the local Dagger build cache
 (first-line cache diagnostics — see
 [`../guides/troubleshooting-build-cache.md`](../guides/troubleshooting-build-cache.md));
-`versions` lists the release history. The local `publish` command is uniform (infra is
-just a framework module); `render` emits the `k8s/` tree for the serverless
-`kubectl apply` path. `srv`
-(alias `serve`) starts the platform server — **its surface is under active rework and is
-not settled here**; [`platform-server.md`](platform-server.md) is its only spec. No `ops` group; no
-`discover` or `bootstrap` — re-run `init` to see detected modules.
+`versions` lists the release history. The `publish` command is uniform (infra is just a
+framework module); `render` emits the `k8s/` tree for the `kubectl apply` path. No `ops`
+group; no `discover` or `bootstrap` — re-run `init` to see detected modules.
 
 **A multi-module verb finishes every module, then fails once.** `build`, `export` and
 `publish` fan out. Engine returns the available unit results and joins failures only after
@@ -199,13 +184,19 @@ compatibility and seeds `local_arch` when unset.
 ## Infra delivery is a framework, not a separate pipeline
 
 Rendering and shipping the infra repo uses **the same build pipeline**, not a parallel
-one.
-Infra is a framework: its render step transforms the `apps/` CUE + `.platform` directives
-(via the linked CUE evaluator + `dsl`) into a manifest tree and packs it into a `FROM scratch`
-image. The same publish capability pushes it, whether explicitly invoked by local
-`./platform publish` or selected by server delivery policy. There is no bespoke OCI
-pusher and no separate `ops publish`; the two drivers' invocation context and cadence
-remain distinct as specified in [`execution-modes.md`](execution-modes.md).
+one. Infra is a framework: its render step runs the repo's `apps/*.lua` on the embedded,
+sandboxed Lua VM against the pinned `infra-lua` rock, validates every document against
+its Kubernetes schema ([schema-validation decision]), and packs the resulting manifest
+tree into a `FROM scratch` image. A document that fails validation stops the render
+before anything is written. `./platform publish` pushes the image through the same
+publish capability as any other module. There is no bespoke OCI pusher and no separate
+`ops publish`. [lua-render.md](lua-render.md) is canonical for render.
+
+[schema-validation decision]: ../decisions/2026-11-25-schema-validation-in-render.md
+
+The output contract is component, then file name, then a list of documents: each
+`<component>/<filename>` entry of the `Tree` is one file holding one or more YAML
+documents, and the infra image carries the whole tree in exactly one layer.
 
 Flux consumes the plain image via `OCIRepository` + a `layerSelector` that extracts the
 `application/vnd.oci.image.layer.v1.tar+gzip` layer; kustomize-controller applies the docs.
@@ -213,5 +204,9 @@ Compatibility lives on the **consumer** side (a stock, in-production Flux path),
 Dagger's native image output suffices and `oras-go` + the Flux-media-type packer are retired.
 Full rationale:
 [infra-publishes-as-plain-image-retire-oras](../decisions/2026-07-05-infra-publishes-as-plain-image-retire-oras.md).
-The `gitops` package keeps only the **render** half (manifest `Tree`); the serverless
-`render` → `kubectl apply` path is unaffected.
+The `gitops` package keeps only the **render** half (manifest `Tree`); the `render` →
+`kubectl apply` path is unaffected.
+
+Delivery is **pull-based**. Platform feeds Flux through the registry and never reconciles
+in-cluster state itself, and no platform credential reaches into the cluster: the cluster
+pulls everything.

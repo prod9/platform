@@ -1,15 +1,17 @@
 # Cluster bring-up — fresh cluster to a live platformv2 baseline
 
+> **Being rewritten for Lua templates (v1.0).** From v1.0, `platform init` copies the
+> baseline from the `infra-lua` rock's Lua templates instead of the embedded CUE and
+> `.platform` files ([scaffolding](../spec/scaffolding.md#the-infra-framework-scaffolds-from-the-rock)).
+> Steps 1 and 2, and every CUE or `.platform` file and field named below (`apps/*.cue`,
+> `defaults/`, `cue.mod`, `#target_ns`), still describe that older scaffold. The render,
+> bootstrap-apply, DNS, publish, webhook and verification steps are not CUE-specific,
+> though their `k8s/` paths follow today's component names.
+
 Runbook for standing up a **brand-new cluster** on the platformv2 delivery path
 (Flux GitOps + committed-literal images). Written for the infra-executing agent; the
 platform session is the design authority. Scope is the baseline only — app onboarding and
 legacy teardown are later phases, out of scope here.
-
-The rendered platform Deployment is a scaffold seed: review its command, database and
-public URL configuration, release-qualified image, and separate worker process against
-[the current server specification](../spec/platform-server.md) before treating it as a
-working server installation. Applying the seed alone does not establish those runtime
-requirements.
 
 This runbook is for the **baseline owner**, which creates a new cluster's shared
 components. A tenant joining an existing cluster commits only its own
@@ -32,7 +34,7 @@ Receiver's `#target_ns` list.
   Clone it; rename the remote to `gh`.
 - ghcr.io credentials able to **pull** the infra image (read-only PAT is enough for the
   cluster; the operator's local docker creds handle the push side).
-- DNS control for the two ingress hosts (`PLATFORM_HOSTNAME`, `FLUX_HOSTNAME`).
+- DNS control for the Flux receiver host (`FLUX_HOSTNAME`).
 - A `platform` binary (>= the current `main`) on the operator machine driving init/publish.
 
 ## 1. Scaffold the repo
@@ -48,9 +50,8 @@ final yes/no confirm. `CUE_MOD_PREFIX` is the CUE module path (first segment mus
 a dot, e.g. `prodigy9.co`) — asked greenfield only; an existing `cue.mod` is read instead.
 
 This writes the full baseline: `platform.toml` (strategy `rolling`, default `[vars]`
-version pins), `apps/` (cert-manager, flux, flux-sync, nginx-gateway, platform),
-the shared Gateway and cluster-issuer, `defaults/`, `cue.mod`, and the `platform`
-launcher. The platform component includes the Dagger engine and its NetworkPolicy.
+version pins), `apps/` (cert-manager, flux, flux-sync, nginx-gateway), the shared
+Gateway and cluster-issuer, `defaults/`, `cue.mod`, and the `platform` launcher.
 
 Re-running init later with `--force` replaces framework-owned files **including any
 secrets you wired into them** (the flux-sync HMAC token, the basics registry creds) —
@@ -63,14 +64,14 @@ blobs are encrypted before committing credentials or the webhook token.
 
 | File                          | What to set                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `platform.toml` `[vars]`      | `PLATFORM_HOSTNAME` / `FLUX_HOSTNAME` — this cluster's ingress hosts. Leave version pins alone.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `platform.toml` `[vars]`      | `FLUX_HOSTNAME` — this cluster's Flux receiver host. Leave version pins alone.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `apps/nginx-gateway.platform` | **Provider LB wiring — your repo's edit; the scaffold ships none** ([ADR](../decisions/2026-07-16-baseline-is-provider-neutral.md)). On Linode, add the reserved-IP annotation to the NginxProxy service patch **before anything from `k8s/nginx-gateway/` first applies**: `set .spec.kubernetes.service.patches[0].type "StrategicMerge"` + `set …patches[0].value.metadata.annotations."service.beta.kubernetes.io/linode-loadbalancer-reserved-ipv4" "<ip>"`. The CCM honors it only at Service creation (retrofit = delete/recreate the Gateway) and rejects an empty value. Firewalls attach NB-side via terraform. |
 | `defaults/basics.cue`         | `#registry_username` / `#registry_password` — the ghcr **pull** creds (committed placeholders are empty).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `apps/flux-sync.cue`          | `webhookToken` `#data: token:` — a fresh random HMAC secret (plaintext; `#Secret` base64-encodes). Generate with `openssl rand -hex 32`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 
 Commit the lot. This repo is the delivery record — the cluster runs what this git says.
 
-## 3. Bootstrap apply (no server, pull loop not yet live)
+## 3. Bootstrap apply (pull loop not yet live)
 
 ```sh
 platform render
@@ -95,7 +96,6 @@ steps:
    will silently overwrite live config (observed: a pre-reserved-IP NginxProxy clobbered
    the gateway). Publish the current committed tree before applying if the package already
    exists; do not let a stale artifact become the initial desired state.
-7. `k8s/platform/` — includes the platform app and Dagger engine resources.
 
 A second idempotent `kubectl apply` pass over the whole tree is an acceptable
 convergence check; anything still failing is a real error, not ordering.
@@ -109,8 +109,8 @@ cluster-issuer (`apps/cluster-issuer.cue`, contact = the maintainer email given 
 The GatewayClass `nginx` is owned by `nginx-gateway` — the gateway app references it
 by name, never re-declares it.
 
-What remains manual: point DNS for `PLATFORM_HOSTNAME` and `FLUX_HOSTNAME` at the
-gateway's LoadBalancer IP (the reserved IPv4 from step 2).
+What remains manual: point DNS for `FLUX_HOSTNAME` at the gateway's LoadBalancer IP (the
+reserved IPv4 from step 2).
 
 ## 5. First publish — light the pull loop
 
@@ -125,9 +125,9 @@ This renders the manifest tree, packs it into a scratch image, and pushes
 applies it — from this point the cluster follows the published image; `kubectl apply` is
 bootstrap-only.
 
-## 6. Hand-wire the GitHub webhook (deferred-to-`srv` gap)
+## 6. Hand-wire the GitHub webhook
 
-Platform does not yet configure the GitHub side. On the GitHub **organization** that owns
+Platform does not configure the GitHub side. On the GitHub **organization** that owns
 the ghcr packages, create one org-wide delivery webhook for the cluster:
 
 - URL: `https://<FLUX_HOSTNAME>` + the Receiver's path — read it from the cluster:
@@ -149,10 +149,6 @@ hook's deliveries list. **A green webhook with zero deliveries is the signature 
 missing link** — for a pre-existing unlinked package, connect it manually (package page →
 Connect repository; UI-only, no API).
 
-This GitHub→Flux Receiver hook is separate from the GitHub App webhook that sends
-repository events into platform srv; see
-[the installation contract](../spec/installation.md#the-org-wide-githubflux-delivery-webhook).
-
 ## 7. Verify end-to-end
 
 1. Commit a trivial visible change (e.g. a manifest label) to the infra repo; `platform publish`.
@@ -161,12 +157,5 @@ repository events into platform srv; see
    the change lands on-cluster shortly after the event arrives (GitHub-side delivery runs
    minutes behind the publish; receiver-to-cluster is seconds):
    `kubectl -n flux-system get ocirepository,kustomization` timestamps move.
-3. `https://<PLATFORM_HOSTNAME>` serves the webui (every page carries the
-   go-import meta for `go get`); certs valid.
 
-Baseline is live when all three hold.
-
-## Known gaps / decision points
-
-- **GitHub webhook auto-config** — deferred to the platform server (`srv`); hand-wired
-  until then.
+Baseline is live when both hold.

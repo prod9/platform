@@ -2,8 +2,9 @@
 
 # Go vanity imports — how the toolchain resolves `go-import` meta tags
 
-The facts the SPA-baked meta tag relies on, verified against the toolchain's own
-resolver (`cmd/go/internal/vcs/vcs.go`):
+The facts the `platform.prodigy9.co` module path relies on — the launcher installs with
+`go install platform.prodigy9.co@VERSION` (`framework/skel/platform.tmpl`) — verified
+against the toolchain's own resolver (`cmd/go/internal/vcs/vcs.go`):
 
 - **A longer path may declare a shorter prefix.** When a page at
   `https://host/some/pkg?go-get=1` serves a `go-import` whose prefix is a parent

@@ -3,8 +3,9 @@ github.com/orgs/community/discussions/171423 + /26921 @ 2026-08-05 -->
 
 # ghcr.io authentication
 
-What credentials GitHub's container registry actually accepts — the facts that ruled
-out every App-derived credential for the server's publish path.
+What credentials GitHub's container registry actually accepts, for `publish` and for
+pulling rocks with the `REGISTRY_USERNAME`/`REGISTRY_PASSWORD` credentials
+([Lua render](../spec/lua-render.md#rocks)).
 
 ## What works
 
@@ -23,16 +24,14 @@ tokens (discussion 26921): "GHCR can't accept App tokens, only PATs for now."
 
 Consequences for platform:
 
-- The server's publish path cannot mint its registry credential from the installed
-  App the way the clone path does (`install.Token`) — an operator-supplied classic
-  PAT is the only shape that works, hence the wizard's registry-token step.
+- Registry credentials are an operator-supplied classic PAT; no GitHub App credential
+  can stand in for one.
 - Reading (`docker pull`) needs `read:packages`; `write:packages` implies it.
 
 ## Basic-auth username — unverified
 
 `docker login ghcr.io -u USER` with a PAT: GitHub's docs show the PAT owner's login as
 `USER`; whether ghcr actually validates the username against the PAT is **unverified**
-(commonly reported as ignored, no authoritative source found). The publish path sends
-`install.installed_by_login`. If a push is denied with a token that is known good, the
-username/PAT-owner mismatch is the first suspect — verify by logging in with the PAT
-owner's real login.
+(commonly reported as ignored, no authoritative source found). If a push is denied with a
+token that is known good, the username/PAT-owner mismatch is the first suspect — verify
+by logging in with the PAT owner's real login.

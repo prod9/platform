@@ -6,28 +6,29 @@
 
 Lookup facts for the NGINX Gateway Fabric (NGF) + Gateway API baseline install: upstream
 URLs, the firewall-annotation patch, the `serverTokens` workaround, and the
-string-forcing constraint. Live baseline directive:
-[`apps-nginx-gateway.platform`](../../framework/skel/apps-nginx-gateway.platform)
-(standard channel — the experimental variant was dropped 2026-07-17: its extras,
+string-forcing constraint. The baseline component was
+[`apps-nginx-gateway.platform`](../../framework/skel/apps-nginx-gateway.platform); from
+v1.0 it is an `infra-lua` template ([Lua render](../spec/lua-render.md#templates)).
+Standard channel only — the experimental variant was dropped 2026-07-17: its extras,
 TCPRoute/UDPRoute, had no working consumer; a repo needing them edits its committed
-component).
+component.
 
 **Provenance.** Recipe captured 2026-06-19 from `prod9/infra-cli`
 (`cmd/nginx_gateway_cmd.go`, the CLI platform replaces). Upstream ships plain
 pre-baked YAML — no Helm at render time. Versions below are the pinned defaults; they may
-have moved upstream. Version pins live in `framework/platform_infra.go` `infraVars`
-(interpolated as `\(var)` into the `download` URLs); they are not selection knobs.
+have moved upstream. Version pins are `[vars]` (defaults in `framework/platform_infra.go`
+`infraVars`) substituted into the download URLs; they are not selection knobs.
 
 ## Upstream sources
 
-Three `download`→`emit` steps land in `k8s/nginx-gateway/`. `\(gateway_api_version)` and
-`\(nginx_gateway_version)` interpolate from `[vars]`.
+Three downloads land in `k8s/nginx-gateway/`. `GATEWAY_API_VERSION` and
+`NGINX_GATEWAY_VERSION` come from `[vars]`.
 
-| Step               | URL                                                                                                                    | emit                        |
+| Step               | URL                                                                                                                    | Output file                 |
 | ------------------ | ---------------------------------------------------------------------------------------------------------------------- | --------------------------- |
-| Gateway API CRDs   | `github.com/kubernetes-sigs/gateway-api/releases/download/\(gateway_api_version)/standard-install.yaml`                | `gateway-api-crds.yaml`     |
-| NGF CRDs           | `raw.githubusercontent.com/nginx/nginx-gateway-fabric/\(nginx_gateway_version)/deploy/crds.yaml`                       | `nginx-gateway-crds.yaml`   |
-| NGF controller     | `raw.githubusercontent.com/nginx/nginx-gateway-fabric/\(nginx_gateway_version)/deploy/default/deploy.yaml`             | `nginx-gateway.yaml`        |
+| Gateway API CRDs   | `github.com/kubernetes-sigs/gateway-api/releases/download/<GATEWAY_API_VERSION>/standard-install.yaml`                 | `gateway-api-crds.yaml`     |
+| NGF CRDs           | `raw.githubusercontent.com/nginx/nginx-gateway-fabric/<NGINX_GATEWAY_VERSION>/deploy/crds.yaml`                        | `nginx-gateway-crds.yaml`   |
+| NGF controller     | `raw.githubusercontent.com/nginx/nginx-gateway-fabric/<NGINX_GATEWAY_VERSION>/deploy/default/deploy.yaml`              | `nginx-gateway.yaml`        |
 
 - **Gateway API channel**: the baseline installs `standard-install.yaml` only. Using
   TCPRoute/UDPRoute needs **two** edits in your repo's committed component: the
@@ -46,39 +47,30 @@ Three `download`→`emit` steps land in `k8s/nginx-gateway/`. `\(gateway_api_ver
 
 ## Controller manifest patches
 
-The scaffold applies only the provider-neutral `serverTokens` patch to the `NginxProxy`
-document in `deploy.yaml`:
-
-```
-focus .[].kind "NginxProxy"
-set .spec.serverTokens "off"
-```
+The scaffold applies only the provider-neutral `serverTokens` patch: on the `NginxProxy`
+document in `deploy.yaml`, `spec.serverTokens` is set to the string `"off"`.
 
 - **`serverTokens=off`** — NGF 2.5.1 bug workaround.
 - **Cloud LB annotations** — appended as a StrategicMerge patch under
   `NginxProxy.spec.kubernetes.service.patches`. NGF v2's CRD exposes no
   `service.annotations` field; the `patches` list is the only hatch to set provider
   Service annotations (e.g. Linode's `…/linode-loadbalancer-firewall-id` or
-  `…-reserved-ipv4`). `set` auto-vivifies `patches[0]…` from nothing. These lines are
-  the **infra repo's own edit**, never scaffolded — see the
+  `…-reserved-ipv4`). The list is absent upstream, so the patch creates `patches[0]`.
+  These lines are the **infra repo's own edit**, never scaffolded — see the
   [provider-neutral ADR](../decisions/2026-07-16-baseline-is-provider-neutral.md).
 
 ## String-forcing constraint
 
 A Kubernetes annotation value must be a **string** (`annotations` is `map[string]string`).
-For operator-authored provider patches, use the existing DSL's quoted string form and
-follow its [value grammar](../spec/manifest-patch-dsl.md); this reference defines no DSL
-syntax of its own. The baseline's `serverTokens "off"` is a quoted string.
+An operator-authored provider patch writes every annotation value as a string, including
+one that looks like a number or an IP. The baseline's `serverTokens` value `"off"` is a
+string too.
 
 ## Divergence from the 2026-06-19 source note
 
 The original capture describes historical provider wiring. The current local baseline:
 
-- Syntax modernized (already flagged stale in the note): `select` → `focus`;
-  `[field=value]` selectors gone.
 - **One standard-channel component.** The experimental variant is not scaffolded; an
   operator needing experimental routes edits the committed component as described above.
-- **String-forcing blocker resolved** via the quoted-literal rule above (no new verb).
-- `[vars]` keys are uppercase env-style (`NGINX_GATEWAY_VERSION`),
-  normalized to lowercase for both `\(var)` directives and CUE `@tag` holes.
-- `flux_version` is pinned (`v2.8.8`); unrelated to NGF but was `?` in the note.
+- `[vars]` keys are uppercase env-style (`NGINX_GATEWAY_VERSION`).
+- `FLUX_VERSION` is pinned (`v2.8.8`); unrelated to NGF but was `?` in the note.

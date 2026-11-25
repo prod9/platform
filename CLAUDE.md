@@ -14,14 +14,18 @@ repository.
 
 ## Start here
 
-`platform` is PRODIGY9's self-contained build/CI tool — a Go CLI (module
-`platform.prodigy9.co`) that auto-detects project type, builds containers via Dagger,
-manages releases via git tags, and scaffolds new repos with a `platform.toml` + build
-script. Goal: zero per-project build config; fast onboarding; no tech-stack lock-in.
+`platform` (v1.0) is PRODIGY9's command-line build and delivery tool — a Go CLI (module
+`platform.prodigy9.co`) with no server. It auto-detects project type, builds and publishes
+containers via Dagger, manages releases via git tags, and scaffolds new repos with a
+`platform.toml` + version-pinned `./platform` launcher. For an infra repo, `render` runs
+the repo's `apps/*.lua` on an embedded, sandboxed Lua 5.1 VM against the `infra-lua` rock
+pinned under `[rocks]`, validates every document, and `publish` ships the manifest tree
+as a one-layer image Flux pulls. Goal: zero per-project build config; fast onboarding; no
+tech-stack lock-in.
 
 **[`docs/spec/`](docs/spec/) is the source of truth for how the system works** — packages,
-command surface, frameworks, engine, releases, testing. It is not restated here; this file
-carries only Laws, conventions, and how we work. Read
+command surface, frameworks, engine, Lua render, releases, testing. It is not restated
+here; this file carries only Laws, conventions, and how we work. Read
 [`docs/spec/architecture.md`](docs/spec/architecture.md) first.
 
 File new docs by the routing gate in [`docs/README.md`](docs/README.md): a ruling →
@@ -111,52 +115,7 @@ them here. Repo-specific deltas only:
 - **Peer emissions** (ace-connect): a "settled/ruled" claim cites its ADR/spec path or is
   labeled `[proposal — not ruled]`.
 
-## 🚨 DSL changes are hard-gated (per-repo Law)
-
-Any change to the manifest-patch DSL (`dsl/` — verbs, grammar, semantics, its
-spec) requires chakrit's explicit approval, in every session, autonomous ones included —
-no standing grant ever covers it, no exceptions. The DSL is deliberately small and
-branch-free; we should never need to change it. A proposed change needs a really good
-reason, presented and approved before any edit.
-
 ## Conventions
-
-**`srv/` is a web app and answers to fx, not to the CLI's laws.** It is built on
-[prod9/fx](https://fx.prodigy9.co), so its shape — self-contained fragments, controllers,
-actions, background jobs, embedded migration SQL, how finely packages split — comes from fx
-web-app convention. `docs/spec/architecture.md` §Package layout and §No grab-bag packages
-govern the shared-package graph and hold **no jurisdiction** inside `srv/`; citing them to
-settle an `srv` question is a category error. Load the `prod9-fx` skill before shaping
-anything there. The one rule that does cross the line is directional and guarded by
-`srv/boundary_test.go`: shared packages are leaves and never import server concerns.
-
-🚨 **fx is consumed on its sanctioned surface only (per-repo Law).** Platform uses fx the
-way a documented fx application does — the app builder, the public cmd builders, the
-public packages — and nothing else. Never reach into fx internals, never re-implement a
-private fx mechanism on this side (a hand-rolled composition walk, a shadow registry, a
-copied-out routine), and never hack around a missing affordance — not with keyhole
-exports of fx internals, not with shims, not with "as little as possible" bridging code.
-A capability fx lacks is a **stop-and-surface**: name the gap as a proper fx-shaped
-feature, get chakrit's ruling, and the fix lands in fx — designed by fx's own
-conventions — before srv builds on it. Architectural purity outranks slice progress;
-hackish bridging code is a Violation anywhere in this repo, and "it unblocks the slice"
-is never grounds.
-
-**Background jobs live in the fragment that owns their domain; the worker is a process.**
-Platform writes no worker — `fx.prodigy9.co/worker` supplies the loop, the `jobs` table,
-claim and status. `platform worker` runs them as its own process beside `platform srv`.
-There is no central jobs package. A job's success means *the job did its work*, which is not
-the same as the work succeeding: a build that failed and was correctly recorded is a
-successful job (`docs/spec/platform-server.md`).
-
-🚨 **Published migrations have run on real live installations (per-repo Law).** Treat every
-migration included in any published platform release as already applied to production data.
-Never modify, delete, rename, reorder, or replace a published migration — its up SQL, down
-SQL, filename, and sequence are immutable. Schema changes go in a new forward migration.
-Removing a migration from the registered source is deleting it, even when its schema is now
-owned or created by a dependency.
-The only exception is chakrit's explicit approval for the specific published-migration edit
-in the current session; no standing grant or general refactor authorization covers it.
 
 **Container build steps read top-to-bottom, one call per line.** Our helpers take the
 container in the argument position, so nesting them (`withRunnerPkgs(withDeps(withBase(x)))`)
@@ -218,8 +177,8 @@ and **adding code for the remainder** the design discards. Counter both:
 Delivery verbs are the canonical instance: `release` (cut a tag) and `publish` (build + push
 an image) are **orthogonal — neither implies the other**. There is **no `deploy` verb** and
 no platform-managed `environments`: in the pull model "deploy" is the operator committing
-the infra repo, then `publish` (with a platform server + Flux) or `render` + `kubectl apply`
-(no server); multi-env lives in the infra CUE (a template instantiated per env) + k8s
+the infra repo, then `publish` (Flux pulls the image) or `render` + `kubectl apply`;
+multi-env lives in the infra repo's Lua apps (an app instantiated per env) + k8s
 namespacing, gated by GitHub push permissions. The canonical boundary and current ruling
 are indexed from [`execution-modes.md`](docs/spec/execution-modes.md).
 
@@ -238,14 +197,14 @@ other:
 - **GitHub→Flux** — does a GHCR publish trigger the cluster's Flux? (delivery mechanism:
   `registry_package` webhook → in-cluster Flux `Receiver` → `OCIRepository` reconcile).
   Write "GitHub→Flux Receiver", never bare "flux webhook".
-- **Flux→srv** — does Flux push *into* platform srv? (srv-observability; srv's design is
-  pull — it reads Flux CR state).
+- **Flux→anything** — does Flux push *out* to some receiver? A separate question with its
+  own answer.
 
 So "no flux webhook" says nothing until the axis is named — disambiguate first.
 
-platform self-delivers from the **`prod9/infra` GitOps repo** (working copy
-`~/Documents/prod9/infra`; module `prodigy9.co`) onto the prod9-main cluster —
-`./infra` in this repo and the old stage9 deployment are dead legacy.
+The `platform.prodigy9.co` deployment on the prod9-main cluster is delivered from the
+**`prod9/infra` GitOps repo** (working copy `~/Documents/prod9/infra`; module
+`prodigy9.co`) — `./infra` in this repo and the old stage9 deployment are dead legacy.
 
 Arch targets (`local_arch`/`publish_arch`), registry credentials, and the committed-image
 rule are spec'd: [`architecture.md`](docs/spec/architecture.md),

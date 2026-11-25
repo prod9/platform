@@ -19,45 +19,39 @@ superseded moves to `../scratch/` — `spec/` holds current design only, never h
 
 ## Index
 
-- [`architecture.md`](architecture.md) — the source and build pipeline driven by engine and
-  the object model: `BuildUnit`, package layout, data-vs-behavior rules.
-- [`execution-modes.md`](execution-modes.md) — the boundary between local CLI and server
-  CI/CD execution, shared build/publish capabilities, app-vs-infra publish cadence, and
-  this repository's own release runbook.
+- [`architecture.md`](architecture.md) — the build pipeline driven by engine and the
+  object model: `BuildUnit`, package layout, data-vs-behavior rules, the command surface.
+- [`execution-modes.md`](execution-modes.md) — the boundary between shared build/publish
+  capabilities, the CLI that invokes them, the app-vs-infra delivery convention, and this
+  repository's own release runbook.
+- [`lua-render.md`](lua-render.md) — `render`: `apps/*.lua` on the sandboxed Lua VM, the
+  rock fetch and cache, `platform.vars`, schema validation, and the templates shipped in
+  the rock.
 - [`frameworks.md`](frameworks.md) — the framework catalog and order-sensitive discovery,
   the seven-method `Framework` contract, `Step`/`Plan`/`Execute`, layouts, runtime-shape
   families, the Wolfi base, Node/pnpm provisioning, and the Go test-in-build gate.
-- [`engine.md`](engine.md) — the reusable source and build driver: checkout, runner
-  placement, `Session` + `Run`, the complete `Observer` lifecycle, publishing, registry
-  credentials, and arch targets.
+- [`engine.md`](engine.md) — the reusable build driver: runner placement, `Session` +
+  `Run`, the complete `Observer` lifecycle, publishing, registry credentials, and arch
+  targets.
 - [`releases.md`](releases.md) — release strategies (semver/datestamp/timestamp/rolling),
   `Generate` vs `Create`, tag-history recovery, and release⊥publish orthogonality.
 - [`scaffolding.md`](scaffolding.md) — `platform init`: the `framework/scaffold`
-  mechanism, the `Infra` framework's unconditional baseline (destination-encoded files,
-  `[vars]` merge), and `scaffolding/` orchestration behind `cmd/init_cmd.go`.
-- [`manifest-patch-dsl.md`](manifest-patch-dsl.md) — the line-oriented DSL for adapting
-  foreign Kubernetes manifests: verbs, path grammar, `\(var)` interpolation.
+  mechanism, the `Infra` framework's baseline from the `infra-lua` templates, the
+  `[vars]` merge, and `scaffolding/` orchestration behind `cmd/init_cmd.go`.
 - [`testing.md`](testing.md) — the two suites (`go test` / `./test.sh`), the smoke
   drift-detector contract and its golden, the per-test timeout.
 - [`config-allocation.md`](config-allocation.md) — one owner per config kind across
   `platform.toml` / `infra/` / `tf/` / OCI / Flux; the no-overlap map.
-- [`platform.md`](platform.md) — the platformv2 vision: an in-cluster build + delivery
-  control plane (components, identity, phases, anchors).
-- [`platform-server.md`](platform-server.md) — the `srv` + worker CI/CD server: GitHub-App
-  auth, push/manual build triggers, engine request orchestration, and the settled
-  operations table. Route surface +
-  install/boot flow settled, as is the event-sourced build lifecycle; the cluster view
-  (k8s + Flux state) is held for a design pass.
-- [`webui.md`](webui.md) — the product front end: navigation, the route map, the repos /
-  builds / engines / settings pages, and the shared components; the install wizard's UI
-  stays in `installation.md`.
-- [`interfaces.md`](interfaces.md) — shared web UI and CLI presentation rules: minimal
-  translation, system-aligned terms and values, derived-value hints, and actionable errors.
+- [`interfaces.md`](interfaces.md) — CLI presentation rules: minimal translation,
+  system-aligned terms and values, derived-value hints, and actionable errors.
 - [`terminology.md`](terminology.md) — canonical product, execution, verb, artifact,
   value, and control vocabulary shared across every surface.
-- [`installation.md`](installation.md) — the server install model: the installer fragment,
-  the `GET /api/installation` state surface, boot composition, the org-owner first-install
-  gate, the install settings, by-hand App creation, and the org-wide GitHub→Flux delivery
-  webhook.
+
+Removed with the v1.0 rescope, when `platform` became a CLI that renders Lua: the server
+specs `platform-server.md`, `installation.md` and `webui.md`, the control-plane vision
+`platform.md`, and `manifest-patch-dsl.md`. Their last versions are in git history at tag
+`v0.10.0`; the rulings are the
+[server-removed](../decisions/2026-11-25-server-removed-platform-is-a-cli.md) and
+[DSL-removed](../decisions/2026-11-25-dsl-removed-for-lua-templates.md) decisions.
 
 Keep this list in sync when adding or removing a spec.

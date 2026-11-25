@@ -10,9 +10,9 @@ builds nothing and pushes no image — that is local `./platform publish`'s job 
 [Orthogonality](#orthogonality-release-is-not-publish)). A release is a git tag plus the
 changelog of commits since the previous one.
 
-This subsystem belongs to the local CLI driver. Its `v*` collection and configured naming
-strategies do not define which GitHub pushes the CI/CD server builds or publishes; server
-cadence is specified in [`execution-modes.md`](execution-modes.md).
+This subsystem belongs to the CLI. Its `v*` collection and configured naming strategies
+decide tag names only; when an image is built and pushed is `publish`'s concern
+([`execution-modes.md`](execution-modes.md)).
 
 ## The two-step flow
 
@@ -164,9 +164,7 @@ the moving reference is a registry concern, not a force-pushed tag.
 The local `./platform release` command (cut a tag) and local `./platform publish` command
 (build + push an image) are **orthogonal — neither implies the other**, and there is **no
 `deploy` verb**. Cutting a tag produces a marker in git and nothing in the registry; only an
-explicit local publish invocation pushes an image. This local command contract says
-nothing about the server driver, which applies its own build triggers and publish cadence.
-A release that is never locally published is a fine state, allowed by convention with no
-guard. Full rationale: [execution-mode decision].
+explicit publish invocation pushes an image. A release that is never published is a fine
+state, allowed by convention with no guard. Full rationale: [execution-mode decision].
 
 [execution-mode decision]: ../decisions/2026-08-24-execution-mode-does-not-define-delivery-policy.md

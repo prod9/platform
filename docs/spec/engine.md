@@ -1,14 +1,17 @@
 # Engine
 
-Status: **design-of-record.** The `engine/` package is the reusable source and build driver
-behind both CLI and server adapters. Its source verb materializes a remote revision as a
-managed local worktree; its session verbs load configuration, interpret modules, place work
-on Dagger runners, execute steps, and optionally publish. It knows nothing about the web
-application that invokes it ([`architecture.md`](architecture.md)).
+Status: **design-of-record.** The `engine/` package is the reusable build driver behind
+the CLI's build commands. Its session verbs load configuration, interpret modules, place
+work on Dagger runners, execute steps, and optionally publish. It knows nothing about the
+commands that invoke it ([`architecture.md`](architecture.md)).
 
-The source-input and paired-observer contracts below are **implemented in Phase 2**,
-together with module execution, lifecycle reads, and every CLI observer consumer. The
-server's publication policy does not change these engine contracts.
+`platform` is a CLI with no server
+([server-removed-platform-is-a-cli](../decisions/2026-11-25-server-removed-platform-is-a-cli.md)),
+so the engine has one adapter. The remote-source input, standalone checkout, read-only
+fleet inspection, and the clone phases served only the server; their removal is
+**intended**, and until it lands the code still carries `Source`, `Checkout`,
+`Session.Inspect`, and the `CloneStart`/`CloneDone` callbacks. The remote engine roster
+stays.
 
 ## A `*dagger.Client` is a session, not a connection
 
@@ -38,22 +41,20 @@ away does not take `engine.go` with it.
 
 ```go
 type Session struct {
-	ctx       context.Context // carries both the lifetime and the config
-	mu        sync.Mutex
-	conns     []*dagger.Client
-	worktrees []*Worktree
+	ctx   context.Context // carries both the lifetime and the config
+	mu    sync.Mutex
+	conns []*dagger.Client
 }
 ```
 
-| Call                           | Role                                                               |
-| ------------------------------ | ------------------------------------------------------------------ |
-| `NewSession(ctx)`              | open a session; dials nothing                                      |
-| `Build(ctx, input, mods, obs)` | build every selected module, one operation each                    |
-| `BuildAndPublish(…, tag, …)`   | build and push each image as its run finishes                      |
-| `Clean(ctx)`                   | prune every fleet engine's local cache (drives `platform clean`)   |
-| `Inspect(ctx)`                 | observe the configured remote fleet without starting local capacity |
-| `Unsafe()`                     | one raw connection for an ad-hoc caller (`ls` only)                |
-| `Close()`                      | close connections, then release operation-owned worktrees          |
+| Call                           | Role                                                             |
+| ------------------------------ | ---------------------------------------------------------------- |
+| `NewSession(ctx)`              | open a session; dials nothing                                    |
+| `Build(ctx, input, mods, obs)` | build every selected module, one operation each                  |
+| `BuildAndPublish(…, tag, …)`   | build and push each image as its run finishes                    |
+| `Clean(ctx)`                   | prune every fleet engine's local cache (drives `platform clean`) |
+| `Unsafe()`                     | one raw connection for an ad-hoc caller (`ls` only)              |
+| `Close()`                      | close every connection the session opened                        |
 
 A session opens **as many connections as its work needs** — `connect()` dials one more and
 remembers it — and closes them together. One run uses one connection for all its steps,
@@ -64,73 +65,41 @@ Commands open **one** session and defer `Close`. It is safe for concurrent use, 
 module preparation dials inside its configuration phase, so there is never a reason to
 open a second session for a later phase of the same module.
 
-Repository checkout is independent of a Dagger session:
-
-```go
-Checkout(ctx, source Source) (*Worktree, error)
-```
-
-`Source` carries only driver-level facts: URL, credential, and revision. `Worktree` exposes
-its directory and resolved commit SHA, and `Close(ctx)` removes it. Cache identity,
-credential injection, mirror synchronization, revision resolution, unique worktree paths,
-and pruning stay private. A hypothetical checkout CLI could call this surface directly;
-that is the boundary test, not a command this design adds.
-
 ### Build inputs and lifecycle ownership
 
-The existing `Build` and `BuildAndPublish` verbs accept an `Input` in place of an
-already-loaded model. `Input` is a closed choice of two value variants:
+The `Build` and `BuildAndPublish` verbs accept an `Input` in place of an already-loaded
+model. Its one variant is a value:
 
-| Input      | Carries                                      | Configuration source                   |
-| ---------- | -------------------------------------------- | -------------------------------------- |
-| `Local`    | `ConfigPath`, the selected config-file path  | that file, resolved by CLI preflight   |
-| `Source`   | remote URL, revision, fetch credentials      | `platform.toml` at the checkout root   |
+| Input   | Carries                                                   | Configuration source                 |
+| ------- | --------------------------------------------------------- | ------------------------------------ |
+| `Local` | `ConfigPath`, the selected config-file path; `Version`    | that file, resolved by CLI preflight |
 
-There is no local/remote boolean or set of nullable companion fields. `Source` remains
-the same generic input accepted by standalone `Checkout`; it carries no build record,
-manifest id, publication policy, job, or server identity. `conf` owns loading an explicit
-file, its defaults, environment overrides, and relative-path binding. Engine composes that
-existing owner with checkout and execution; neither it nor the worker copies the parser.
+`Version` is the release name the build carries, empty when it has no release tag
+([frameworks.md](frameworks.md), "The build step sees the repository"). `conf` owns
+loading an explicit file, its defaults, environment overrides, and relative-path binding;
+engine composes that existing owner with execution and never copies the parser.
 
-Module selection precedes the per-module lifecycle. For `Local`, an empty name list
-retains the CLI's all-modules convention: engine reads the selected file in a selection
-preflight to discover names. A CLI may already have read that file to resolve its release
-tag or confirmation prompt; it still passes the file path, not a pre-interpreted unit or
-a model for execution. A failed selection preflight returns an invocation error and starts
-no module callbacks, because no selected module identity exists yet. An empty manifest
+Module selection precedes the per-module lifecycle. An empty name list retains the CLI's
+all-modules convention: engine reads the selected file in a selection preflight to
+discover names. A CLI may already have read that file to resolve its release tag or
+confirmation prompt; it still passes the file path, not a pre-interpreted unit or a model
+for execution. A failed selection preflight returns an invocation error and starts no
+module callbacks, because no selected module identity exists yet. An empty manifest
 returns `ErrNoJobs`. Explicit names need no discovery pass.
 
-For `Source`, the name list must be explicit and nonempty. The server supplies exactly
-its one persisted selected module name. Engine does not discover more work from the remote
-checkout or silently interpret an empty server selection as all modules.
-
 For each selected name, engine creates the accumulator and starts the outer operation
-before doing any source work. A remote input runs `Checkout` inside the clone pair; a
-local input starts configuration directly. The remote loader names the exact
-`worktree.Dir/platform.toml` file; it never searches parent directories for a substitute.
-Inside the config pair, engine loads the selected file, interprets exactly that module,
-validates its plan and any supplied publication credentials, and dials its connection.
-A missing selected name is a configuration failure for that name. Local configuration is
-loaded in this observed phase even when discovery preflight already read it; the preflight
-chooses names and is not an unreported substitute for the configuration phase.
+before doing any work. Inside the config pair, engine loads the selected file, interprets
+exactly that module, validates its plan and any supplied publication credentials, and
+dials its connection. A missing selected name is a configuration failure for that name.
+Configuration is loaded in this observed phase even when discovery preflight already read
+it; the preflight chooses names and is not an unreported substitute for the configuration
+phase.
 
 The outer operation then drives the step cursor and optional publication and reports
 `RunDone` once. The cursor cannot report an early whole-operation completion. All returned
 phase failures pass through this owner, including failures before a `BuildUnit` or a
 container exists. A preparation failure has an observer outcome and a returned error;
 it does not fabricate an interpreted unit or a usable container.
-
-The worker supplies source credentials, selected name, and its build-versus-publish
-decision. It never calls observer methods to manufacture missing engine events. A failure
-to obtain the request's prerequisites, such as a GitHub installation token or a database
-read, is a job error before engine invocation; the claim remains observable, and the job
-mechanism is not authority to execute that claimed module again.
-
-Standalone `Checkout` still transfers worktree ownership to its caller. When a session
-build verb performs checkout, the session retains that worktree until `Close`, which
-closes connections before releasing worktrees and returns cleanup errors. This keeps
-source files available to the live containers used by `preview`, `exec`, and `export`.
-Checkout itself still requires no Dagger session, and no adapter manages its cache paths.
 
 🚨 **A command that holds a session returns its errors; it never exits from inside.**
 `os.Exit` runs no deferred function, so a command that reaches `termlog.Fatalln` on a
@@ -147,8 +116,7 @@ each unit a
 `context.WithTimeout(ctx, unit.Timeout)` and cancels it when the unit ends; that timeout
 bounds the unit's **steps** and must never reach a dial, because a unit finishing would
 otherwise close a session whose containers the caller still holds. Only `Close` ends a
-session. Read-only inspection has no execution handles to preserve: its bounded operation
-context may end its own inspection connections, and `Close` still owns their cleanup.
+session.
 
 🚨 **Data may ride in the context; resources may not.** `cfg` travels via
 `config.NewContext`/`FromContext` because it is inert and has no lifetime — the roster reads
@@ -162,18 +130,17 @@ its lifetime impossible to see.
 
 The roster resolves the configured Dagger endpoints via DNS — no k8s API, no RBAC:
 
-| Config               | Default | Meaning                                            |
-|----------------------|---------|----------------------------------------------------|
-| `DAGGER_ENGINE`      | unset   | headless-Service DNS of the engine pool            |
-| `DAGGER_ENGINE_PORT` | `1234`  | engine pod port (mirrors `apps/dagger-engine.cue`) |
+| Config               | Default | Meaning                                        |
+|----------------------|---------|------------------------------------------------|
+| `DAGGER_ENGINE`      | unset   | DNS name that resolves to the remote engines   |
+| `DAGGER_ENGINE_PORT` | `1234`  | the port every resolved engine listens on      |
 
-`DAGGER_ENGINE` is the one source everywhere — CLI, srv, and worker read the
-env directly, and k8s DNS itself spreads connections across the pool's pods.
-No engine binding is stored server-side ([installation.md](installation.md),
-the env contract).
+`DAGGER_ENGINE` is read from the environment by the CLI. It is typically a k8s
+headless-Service name, so DNS itself spreads connections across the engines behind it.
+Running those engines is the operator's business: `platform` scaffolds no engine pool.
 
-`hosts(ctx)` looks up the DNS name and returns one `tcp://<addr>:<port>` per resolved pod.
-It reports **only what it finds**:
+`hosts(ctx)` looks up the DNS name and returns one `tcp://<addr>:<port>` per resolved
+address. It reports **only what it finds**:
 
 - `DAGGER_ENGINE` unset → empty slice, no lookup.
 - DNS resolves to nothing → empty slice.
@@ -184,22 +151,16 @@ Falling back to a local engine is **not** `hosts`' decision — it reports empti
 engine." So unset `DAGGER_ENGINE` is an explicit operator choice for local, never inferred.
 
 **Roster mechanics remain private.** `hosts`, `dial`, and `dialHost` are reached only
-through `Session`. Execution callers receive no roster or dialing surface. Read-only
-callers use `Session.Inspect` and receive observations, never raw connections or a helper
-they can use to choose an execution target.
+through `Session`. Callers receive no roster or dialing surface.
 
 **Execution reports its assigned endpoint.** A run reports
 `ConfigDone(unit, engine, at, nil)` after its connection succeeds and before its first
 step starts. The scalar `engine` is `host:port` for a configured endpoint, or the literal
 `local` when the SDK manages the local engine. `local` names that selection mode, not a
 discovered pod or container identity; no SDK internals are inspected to invent one. It is
-distinct from a failed assignment, which carries an empty string. The server stores this
-observation as the module's `engine_host` and `engine_assigned_at`, without duplicating
-the endpoint across events ([platform-server.md](platform-server.md), the build tables).
-Configured endpoints permit instance attribution; `local` reports only SDK-managed
-execution on the claiming worker. Neither value exposes a dialing surface. An address is
-endpoint attribution, not a durable engine-process or pod identity: an address may be
-reused after a pod disappears, so historical assignments do not prove physical continuity.
+distinct from a failed assignment, which carries an empty string. The value is endpoint
+attribution, not a dialing surface and not a durable engine identity: an address may be
+reused after a pod disappears.
 
 `dial(ctx)` picks **uniformly at random** among the resolved hosts. Random replaces the
 old round-robin cursor: the distribution over a run of picks is the same, and it needs
@@ -209,62 +170,12 @@ The resolver caches per the DNS record TTL, so a new pod becomes selectable as s
 reflects it — no restart. Nothing else is remembered: two calls a second apart may
 legitimately see different engines as pods come and go, and that is the point.
 
-### Read-only fleet inspection
-
-`Session.Inspect(ctx) (Inspection, error)` owns discovery and probing as one operation.
-It accepts no endpoint argument. Fleet and detail adapters use the same report;
-they cannot cause a request path or historical assignment to become an outbound target.
-
-The typed report contains:
-
-| Field        | Type                    | Meaning                                                    |
-|--------------|-------------------------|------------------------------------------------------------|
-| `Source`     | `string`                | Configured `DAGGER_ENGINE` DNS name; empty when unconfigured |
-| `Port`       | `int`                   | Configured `DAGGER_ENGINE_PORT`                             |
-| `State`      | `RosterState`           | `unconfigured`, `empty`, `resolved`, or `lookup_failed`       |
-| `ObservedAt` | `time.Time`             | Time this inspection started                               |
-| `Endpoints`  | `[]EndpointObservation` | Unique current endpoints, sorted by address                 |
-
-Each `EndpointObservation` carries `Address` (`host:port`), `ObservedAt`, `State`
-(`EndpointState`), `Version` (empty until read), and `Err` (`error`, internal to the Go
-report). Endpoint states are `unreachable` (connection failed), `version_unavailable`
-(connection succeeded but the version query failed), and `ready` (version query
-succeeded). A connected endpoint with an unavailable version remains distinguishable
-from a failed connection. A ready endpoint has no error; failed observations preserve
-their error instead of replacing it with an empty version or a successful empty list.
-Wire adapters render safe error descriptions rather than raw transport diagnostics.
-
-Unset configuration returns `unconfigured`; a successful empty lookup returns `empty`.
-Both return a non-nil empty endpoint slice without calling the SDK. Inspection never
-falls back to local provisioning. Lookup failure returns `lookup_failed` and the lookup
-error alongside the report; callers can retain its source and observation time. Endpoint
-failures remain per-endpoint observations so one failed engine cannot erase the rest of
-the fleet. Caller cancellation returns its error alongside any observations obtained.
-
-Inspection has one three-second bound covering discovery, connection, and version reads;
-the bound is subordinate to earlier caller cancellation and changes no existing build,
-step, or test limit. Endpoint probes run concurrently under that shared bound and retain
-deterministic result order. Configuration comes from `Session.ctx`; the inspection
-operation context bounds its network work. Every successful connection is registered
-with the session, so its caller must defer `Close` and surface cleanup errors even when
-inspection partially fails. Inspection does not run containers, prune cache, or execute
-builds. The version read uses the pinned SDK's public `Query.Version(ctx)` operation
-([verified API reference](../vendor/dagger-engine.md#read-only-engine-version-query)).
-
-Server detail reads may select only a current report entry or a caller-readable
-historical assignment. A historical address absent from the current roster remains
-unprobed, including when roster lookup fails; it is history with unavailable current
-observation, not proof of a dead engine. `local` is an SDK-managed assignment with no
-direct inspection target. Unknown addresses receive no inspection connection. Inspection
-reports engine reachability and version only: it does not establish worker liveness,
-module activity, or whether recorded unfinished work is still executing.
-
 ## `Run` — one unit, one step at a time
 
 `Run` is the **engine-internal** step cursor for one interpreted unit. The domain verbs
-own the surrounding module operation: source preparation, configuration, the step cursor,
-and optional publication. Callers construct neither the operation nor the cursor.
-Configuration obtains the framework's `Plan` and the connection before the cursor starts:
+own the surrounding module operation: configuration, the step cursor, and optional
+publication. Callers construct neither the operation nor the cursor. Configuration
+obtains the framework's `Plan` and the connection before the cursor starts:
 
 ```go
 for run.Next(ctx) { } // drives exactly one framework Step per call
@@ -293,39 +204,9 @@ that claim is only true if the empty plan is rejected. The run fails at open wit
 while `Plan` and `Execute` agree, this one while `Plan` returns anything at all, and both
 stay loud precisely because a silent version of either is a build stage that vanished.
 
-Repository checkout and publishing are engine capabilities; neither is a framework step.
-They remain independent because a worktree and a Dagger session have unrelated lifetimes.
-Publish being an engine bracket is load-bearing: it runs while the run's connection is
-still a local variable, so the registry secret belongs to the same session as the container
-it authenticates.
-
-### Repository preparation
-
-`Checkout` materializes a `Source` into a local `Worktree`. It keeps one full bare mirror
-per credential-free URL, fetches it under a per-mirror lock, resolves the requested commit,
-and creates a uniquely named, independently removable worktree. It uses plain `git`,
-because config loading, in-process CUE rendering, and Dagger `host.Directory` all need the
-same local filesystem tree.
-
-The clone token is injected into the fetch URL for that invocation only. The stored remote
-remains credential-free. Clones are never shallow because repositories may use history-
-dependent operations such as `git subtree`; the mirror makes later full fetches cheap.
-
-```
-<cache>/git/<opaque-url-key>.git  <- bare mirror
-<cache>/work/<unique-id>/         <- independent worktree
-```
-
-`Worktree.Close` owns removal and mirror pruning. Its owner must observe and report cleanup
-errors after the operation; cleanup does not manufacture another `RunDone`.
-URL keys and mirror/worktree manipulation stay inside `engine`; callers receive no cache
-path or worktree identifier knob.
-
-`CHECKOUT_CACHE` sets the checkout cache root. Unset, `Checkout` uses the operating
-system's per-user cache directory plus `platform`; the server deployment convention
-requires `/var/cache/platform` for the worker ([installation.md](installation.md)).
-This is engine configuration, not a `Source` field, so adapters do
-not choose storage per operation.
+Publishing is an engine capability, not a framework step. Publish being an engine bracket
+is load-bearing: it runs while the run's connection is still a local variable, so the
+registry secret belongs to the same session as the container it authenticates.
 
 ### One observer, paired phases
 
@@ -338,8 +219,6 @@ snapshot-plus-delta:
 ```go
 type Observer interface {
     RunStart(unit string, at time.Time)
-    CloneStart(unit string, at time.Time)
-    CloneDone(unit string, at time.Time, err error)
     ConfigStart(unit string, at time.Time)
     ConfigDone(unit, engine string, at time.Time, err error)
     StepStart(unit, step string, at time.Time)
@@ -351,30 +230,27 @@ type Observer interface {
 }
 ```
 
-The eleven callbacks describe one module operation, with the same nonempty module name
+The nine callbacks describe one module operation, with the same nonempty module name
 throughout:
 
 ```text
 RunStart
-  CloneStart -> CloneDone                         # remote source only
   ConfigStart -> ConfigDone                       # includes engine assignment
   StepStart -> optional StepOutput -> StepDone    # for each framework step
   PublishStart -> PublishDone                     # requested publication, after steps succeed
 RunDone
 ```
 
-Engine owns every callback. `RunStart` precedes checkout; `ConfigStart` precedes loading
-the selected configuration. Config covers parsing, module interpretation, plan validation,
-and connection. Successful `ConfigDone` carries the endpoint actually connected to;
-failed `ConfigDone` carries an empty endpoint. No step starts before configuration succeeds.
+Engine owns every callback. `ConfigStart` precedes loading the selected configuration.
+Config covers parsing, module interpretation, plan validation, and connection. Successful
+`ConfigDone` carries the endpoint actually connected to; failed `ConfigDone` carries an
+empty endpoint. No step starts before configuration succeeds.
 
 Every started phase closes once on ordinary success or returned failure. Failure closes
 that phase with its error, then closes the outer operation with `RunDone(error)` without
-starting later phases. Clone failure therefore produces `CloneDone(error)` followed by
-`RunDone(error)`. Publish failure produces `PublishDone(error)` before `RunDone(error)`.
-Process termination can interrupt reporting; pairing does not promise a callback after a
-process has died. A local operation emits no clone callbacks; a build-only operation
-emits no publish callbacks.
+starting later phases. Publish failure produces `PublishDone(error)` before
+`RunDone(error)`. Process termination can interrupt reporting; pairing does not promise a
+callback after a process has died. A build-only operation emits no publish callbacks.
 
 `RunDone` carries the scalar result, so no separate image-output callback remains. Its
 `image` is empty until all framework steps succeed. A build-only success carries the
@@ -386,17 +262,16 @@ operation's error; a later completion never erases it.
 
 Signatures carry **scalars only, never engine or framework types**. Go interfaces are
 structural, so an implementation then needs no platform import at all — that is what lets
-the leaf `internal/termlog` and, later, `srv` satisfy the same methods without importing
-the engine or each other.
+`cmd`'s progress observer, writing through the leaf `internal/termlog`, satisfy the
+methods without the engine and the terminal importing each other.
 
 Everything else is a **fold** of these callbacks: a step's elapsed time is
 `StepDone.at − StepStart.at`; a run's current state, and its scalar outcome, are the
 reduction of what it has reported so far. Failure is the `err` on the callback that ends
-the clone, config, step, publish, or run — there is deliberately no separate failure
-callback, and no `Event`/`EventKind` type. `StepResult`, `Update`, and `Result` are
-collapsed into the fold;
-`Snapshot`/`Done` are dropped outright — execution moves to a worker that writes to the
-database and the webui reads it back, so there is no late-joining live observer to catch up.
+the config, step, publish, or run — there is deliberately no separate failure callback,
+and no `Event`/`EventKind` type. `StepResult`, `Update`, and `Result` are collapsed into
+the fold; `Snapshot`/`Done` are dropped outright — the caller's observer is attached
+before `RunStart`, so there is no late-joining live observer to catch up.
 
 #### The accumulator and the tee
 
@@ -438,15 +313,14 @@ at all. A caller that wants nothing simply passes nothing — the fold still hap
 the result depends on it.
 
 The accumulator is named for accumulating, never `Recorder`: "record" is already taken by
-the DB vocabulary (`BuildEvent` records) and by test helpers. `Outcome` names the data;
-"fold" stays the verb for what the accumulator does to the stream.
+the test helpers that capture callbacks. `Outcome` names the data; "fold" stays the verb
+for what the accumulator does to the stream.
 
 Callbacks fire on the **multiplexer's per-unit goroutine**, so an implementation serializes
 itself; the engine adds no lock on a caller's behalf.
 
-**Channels arrive with srv's websocket, not before.** A channel-pushing `Observer` is the
-adapter that introduces them, and the wire format lives in `srv` — so the engine never owns
-a serialization format.
+**The engine owns no serialization format.** An observer is an in-process Go value; a
+consumer that wants a wire format or a channel writes the observer that introduces it.
 
 **Log capture rides `Container.Stdout`/`Stderr`, never `WithLogOutput`.** Per-unit
 retrieval is incremental and per-step: each step's output is read as that step finishes,
@@ -456,24 +330,22 @@ sharing a session, so the session layer is untouched by log capture. `WithLogOut
 Dagger CLI *subprocess's* stderr pipe — rendered TUI text, never demuxable — and is not a
 capture path.
 
-Capture is no longer deferred: `srv` persists a step's output in `build_events`
-([platform-server.md](platform-server.md)), so a build whose logs only ever reached a
-terminal would be unreadable in the webui — which is the whole point of the server.
-
 ```go
 StepOutput(unit, step string, at time.Time, stdout, stderr string)
 ```
 
 It fires on the same `.Sync()` boundary as `StepDone`, before it, so a consumer that only
-stores the terminal row still has the output in hand.
+stores the terminal row still has the output in hand. The CLI's observer drops it: its
+report is the named-step progress, and a failed step's output already reaches the operator
+on the error `StepDone` carries ([`cmd/cmd.go`](../../cmd/cmd.go)). No consumer reads
+`StepOutput` today; **whether the callback stays is open.**
 
 **`termlog` is not build-progress.** `internal/termlog` is platform's own narration of what
 *platform* is doing, rendered for the operator's terminal; what an observer reports is what
-the *build* is doing. They coincide only on a machine-local CLI run, and must not be merged:
-`cmd` owns the progress-rendering observer and calls `termlog` as its sink, while the
-server's build job implements the same interface and writes `build_events` instead. The
-package is named for the terminal it writes to precisely because the older name, `buildlog`,
-kept inviting the merge.
+the *build* is doing. They coincide on a CLI run, and must not be merged: `cmd` owns the
+progress-rendering observer and calls `termlog` as its sink. The package is named for the
+terminal it writes to precisely because the older name, `buildlog`, kept inviting the
+merge.
 
 **Every line platform emits goes through a typed constructor.** `termlog` exposes one
 function per kind of output — `Event(obj, action)`, `Config`, `Error`, `Git`, `File`,
@@ -551,34 +423,18 @@ the same completed outcome. Only the publication path can fill the hash. Results
 continue publishing or emit more callbacks after being returned.
 
 That split is also why the container cannot ride the observer: a `*dagger.Container` is
-bound to a client and cannot cross a process boundary, while the scalar half is identical
-in-process (a `BuildResult` handed back to `cmd`) and in-database (the same fold, persisted
-as `build_events` by the worker — see [platform-server.md](platform-server.md)).
+bound to a client, while the scalar half is plain data any observer can hold.
 
 ## The driver and runner boundary
 
 The `engine` package is a reusable driver; a Dagger **runner** is execution capacity.
-Checkout knows remote source mechanics. Build verbs know selected modules and optional
-publish intent. Neither knows repositories as web resources, queues, jobs, users,
-installations, or why an adapter requested the operation. A runner receives a resolved
-`BuildUnit` and knows even less: only how to execute it.
+Build verbs know selected modules and optional publish intent. They do not know why a
+command requested the operation. A runner receives a resolved `BuildUnit` and knows even
+less: only how to execute it.
 
-The driver owns finding runner capacity and executing against it. srv owns deciding which
-record runs next, supplying authorized request facts, and recording the report.
-
-### Two scheduling decisions, two layers
-
-Scheduling splits in two and the halves must not meet:
-
-| Decision                 | Owner  | Inputs                              |
-|--------------------------|--------|-------------------------------------|
-| which build runs next    | worker | pending records, concurrency policy |
-| which runner executes it | engine | the roster, uniform choice at dial  |
-
-**The worker observes the assigned host; it never chooses one.** Successful `ConfigDone` reports
-the engine's completed choice so the worker can store attribution. The worker receives no
-roster, makes no selection, and has no dialing surface; otherwise two schedulers would
-fight over the same capacity.
+The driver owns finding runner capacity and executing against it. The caller names the
+modules and whether to publish; it never chooses a runner. Successful `ConfigDone` reports
+the engine's completed choice, and that report is the caller's only view of it.
 
 ### No dagger verbs outside `engine/`
 
@@ -624,12 +480,9 @@ There is nothing to merge on the reporting side: every unit reports to the same 
 and names itself in each callback, so the fan-in *is* the observer. A per-unit failure
 surfaces as the `err` on that unit's `RunDone` and never aborts its siblings.
 
-`cmd` and the srv worker consume the same driver through different adapters. CLI build
-commands resolve a local config path and call session verbs with a progress-rendering
-observer. The worker translates its persisted source facts into `Source` and calls
-`Build` or `BuildAndPublish` with one selected name and a `build_events` observer. Engine
-owns the checkout/config/step/publish composition for both inputs. Neither adapter drives
-a `Run`, emits engine callbacks, or sees the runner roster.
+CLI build commands resolve a local config path and call session verbs with a
+progress-rendering observer. Engine owns the config/step/publish composition. No command
+drives a `Run`, emits engine callbacks, or sees the runner roster.
 
 ## Publishing
 
@@ -637,12 +490,11 @@ The publish bracket pushes a successfully-built container on the connection that
 so the registry secret is minted by the same session that owns the container, and logs the
 image via `termlog.Image`. `BuildAndPublish` composes the ordinary path — build the units
 at the publish arch, suffix each `ImageName` with the caller-supplied image tag, run, then
-push — and the per-module result folds of what shipped are assembled by `srv`
-([platform-server.md](platform-server.md)), not by the engine.
+push.
 
-The engine owns neither invocation nor cadence. Local `./platform publish` and the server
-worker call this shared capability from different contexts under different policies; see
-[`execution-modes.md`](execution-modes.md). Release naming remains outside the engine.
+The engine owns neither invocation nor cadence: `./platform publish` decides when to
+publish and under which tag ([`execution-modes.md`](execution-modes.md)). Release naming
+remains outside the engine.
 
 ## Registry credentials
 
@@ -656,18 +508,15 @@ The publish bracket reads three fx env-config values off the session's config so
 
 For an operation that publishes, a nonempty `REGISTRY_USERNAME` requires a nonempty
 password and a registry host matching the configured module image. Missing or mismatched
-credentials fail configuration before steps or publication. An absent saved server token
-therefore reaches `ConfigDone(error)` and `RunDone(error)` through this same validation;
-the server still supplies its registry and installation username. A build-only operation
-does not read or validate publication credentials.
+credentials fail configuration before steps or publication, reaching `ConfigDone(error)`
+and `RunDone(error)`. A build-only operation does not read or validate publication
+credentials.
 
 When `REGISTRY_USERNAME` is empty, the bracket skips `WithRegistryAuth` entirely — Dagger
 then pushes with the **local docker credentials** (osxkeychain). That is the local-publish
 path: a `platform publish` on a laptop needs no `REGISTRY_USERNAME`/`PASSWORD`, only a
-docker login to ghcr. The env creds are for a server driver with no local docker config —
-the server's worker feeds all three per build from the wizard-saved registry token and
-the installation record ([installation.md](installation.md), "The registry token"); the
-bracket itself is unchanged and never reads settings.
+docker login to ghcr. The env creds are for a machine with no local docker config, such as
+CI; the bracket reads them the same way wherever it runs.
 
 ## Arch targets
 
@@ -695,5 +544,5 @@ exception is `ls`, a local debugging view that never builds: it assembles its ow
 `framework.Units` receives the resolved arch and writes it into each `BuildUnit`
 ([`framework/unit.go`](../../framework/unit.go)) — the engine then reads the field, never
 a call argument. Bare archs become `linux/<arch>`; `auto` tracks `runtime.GOARCH`;
-`local_arch` defaults to `auto` and `publish_arch` to `amd64`. The infra `FROM scratch`
-manifest image carries no executable, so arch is irrelevant to it.
+`local_arch` defaults to `auto` and `publish_arch` to `amd64`. The `FROM scratch` images
+of the infra and rock frameworks carry no executable, so arch is irrelevant to them.

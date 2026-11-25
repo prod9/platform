@@ -16,8 +16,6 @@ detail rather than inlining it. Update in place.
 
 ## Index
 
-- [`v0.10-alpha-work-series.md`](v0.10-alpha-work-series.md) — ordered publication,
-  build-control, and engine-visibility increments, with spec gates and live acceptance.
 - [`cutting-a-release.md`](cutting-a-release.md) — this repository's green `main` →
   published GitHub release: changelog, notes file, tag, branch push, golden re-record,
   `gh release create`. Ordered so the dirty-worktree refusal never bites.
@@ -30,8 +28,6 @@ detail rather than inlining it. Update in place.
   the legacy → pull-based v2 rework.
 - [`cluster-bringup.md`](cluster-bringup.md) — fresh cluster → live platformv2 baseline:
   scaffold, wire values, bootstrap apply, gateway/DNS, first publish, webhook, verify.
+  Scaffold steps still describe the CUE baseline, pending the v1.0 Lua templates.
 - [`go-coding-laws.md`](go-coding-laws.md) — running list of the Go laws this repo enforces,
   each with the code that broke it; read before a refactor and scan against after.
-- [`authoring-platform-dsl.md`](authoring-platform-dsl.md) — writing `.platform` files:
-  execution model, the `set` family, and the no-conditionals patterns (provider wiring is
-  the consuming repo's edit; required values via undefined-var hard errors).

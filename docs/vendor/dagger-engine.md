@@ -1,6 +1,4 @@
-<!-- derived from: upstream links in Sources @ 2026-06-21;
-     local topology checked against framework/skel/apps-platform.cue.tmpl @ 2026-10-04;
-     upstream not re-verified -->
+<!-- derived from: upstream links in Sources @ 2026-06-21; upstream not re-verified -->
 
 # Dagger Engine — Capabilities & Deployment Reference
 
@@ -8,7 +6,9 @@ Lookup facts for deploying and connecting to the Dagger Engine, gathered to info
 in-cluster engine topology (decision #3 in the
 [D3b-4 design-prep note](../scratch/prior-art.md#d3b-4-baseline-design-prep-2026-06-19)). Verified
 against live docs on 2026-06-21. The `_EXPERIMENTAL_*` env vars are explicitly marked
-unstable by upstream — re-verify on engine upgrades.
+unstable by upstream — re-verify on engine upgrades. `platform` scaffolds no engine pool;
+a remote pool reached through `DAGGER_ENGINE` is the operator's to run
+([engine spec](../spec/engine.md#runner-discovery)).
 
 ## At a glance
 
@@ -79,7 +79,7 @@ the [engine-topology ADR](../decisions/2026-06-21-dagger-engine-statefulset-tcp.
 | Topology                                                   | Concurrency                                                                                  | Cache reuse                                                                | Routing                                                                                       | Caveat                                                                                                                    |
 | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
 | **DaemonSet** (upstream default)                           | per-node engine                                                                              | best on persistent nodes; dies with autoscaled nodes                       | client → **local** node pod via `kube-pod://`                                                 | one engine per node whether used or not                                                                                   |
-| **StatefulSet r=2 + headless Svc** ← *platform's choice*   | each engine multiplexes sessions; platform spreads runs across both by uniform random pick   | current scaffold uses disposable `emptyDir` cache; pod loss loses it       | `tcp://<pod-ip>:1234` resolved from headless A-records, via `dagger.WithRunnerHost` per run   | scale by editing `replicas` (auto-detected from DNS); cache fragmentation is the dumb-dispatch tradeoff                   |
+| **StatefulSet r=2 + headless Svc** ← *platform's choice*   | each engine multiplexes sessions; platform spreads runs across both by uniform random pick   | an `emptyDir` cache is disposable; pod loss loses it                       | `tcp://<pod-ip>:1234` resolved from headless A-records, via `dagger.WithRunnerHost` per run   | scale by editing `replicas` (auto-detected from DNS); cache fragmentation is the dumb-dispatch tradeoff                   |
 | **Deployment, N replicas + Service**                       | per-replica                                                                                  | fragmented                                                                 | round-robin Service                                                                           | **BROKEN** without session affinity — see pitfall; sticky-by-ClientIP pins all to one engine when the client is one pod   |
 | **On-demand / ephemeral** (Karpenter + Argo CD)            | per-job engine                                                                               | poor cross-run (cold)                                                      | shared `/var/run/buildkit` volume per node                                                    | scales to zero (~80% cost cut reported); cold cache                                                                       |
 
@@ -96,24 +96,6 @@ fail with `session for X not found`. Dagger is **unusable behind plain DNS/nginx
 LB** without sticky sessions. Avoid by addressing a **specific pod**
 (`kube-pod://<pod>`), a headless Service, a shared host socket, or session pinning — never
 a round-robin Service VIP.
-
-## Read-only engine version query
-
-<!-- derived from: dagger.io/dagger v0.21.7 public Go API and generated SDK source
-     (client.go:15, dagger.gen.go:13972) @ 2026-10-24 -->
-
-The pinned Go SDK exposes `(*Query).Version(context.Context) (string, error)`, documented
-as returning the current Dagger Engine version; `Client` embeds `*Query`, so callers can
-use `client.Version(ctx)`. This is a query of the connected engine, not the SDK build
-version or a module's requested compatibility version.
-
-Verified with `go doc dagger.io/dagger.Query.Version` and the pinned generated source;
-no live engine probe was used. Upstream source:
-[`Query.Version` at v0.21.7](https://github.com/dagger/dagger/blob/v0.21.7/sdk/go/dagger.gen.go#L13972)
-and [`Client` at v0.21.7](https://github.com/dagger/dagger/blob/v0.21.7/sdk/go/client.go#L15).
-Reachability, query failure, and successful version observations belong to platform's
-[inspection contract](../spec/engine.md#read-only-fleet-inspection); this public query
-does not establish uptime, cache size, or liveness of a particular build.
 
 ## Sources
 

@@ -9,19 +9,20 @@ spec owns the mechanism.
 - **`go test ./...`** — hermetic unit tests (no docker/network, fresh-clone runnable). Runs
   inside **every image build** (the `Go*` framework gate — see
   [`frameworks.md`](frameworks.md)) and locally on demand. The light complement, not the
-  primary strategy. Hermeticity is repo-side, fx's own convention: the committed `.env`
-  sets `FXTEST_SKIP_DBTESTS=1`, so DB-backed fxtest tests skip wherever no Postgres
-  exists — the in-build gate included; the generic Go runner stays fx-unaware. Running
-  them takes `FXTEST_SKIP_DBTESTS=0` in `.env.local` or the shell env. DB-backed tests
-  run only against a real, already-running Postgres (a dev machine's); the build never
-  provisions one — no Postgres service containers in the test step, ruled 2026-08-04.
+  primary strategy.
 - **`./test.sh`** — blackbox smoke (`chakrit/smoke`): drives the built binary through Dagger
   against the testbeds; **needs docker**. Runs on the host, manually / pre-publish.
 
-`./test.sh` runs `cue eval tests.cue → tests.yml` → the `chakrit/smoke` runner. Tests build
-the binary, then for each testbed run `init`/`build` checking exitcode/stdout/expected
-files. `./testbed.sh <dir> <args>` runs platform inside a specific testbed. `testbeds/`
-holds one sample project per framework.
+`./test.sh` runs `cue eval tests.cue → tests.yml` → the `chakrit/smoke` runner.
+`tests.cue` is the smoke tool's input format, not part of `render`, so it stays CUE while
+infra repos render Lua. Tests build the binary, then for each testbed run `init`/`build`
+checking exitcode/stdout/expected files. `./testbed.sh <dir> <args>` runs platform inside
+a specific testbed. `testbeds/` holds one sample project per framework.
+
+Every case drives a CLI command; there is no server case. **Intended:** the infra
+testbeds (`infra-basic`, `infra-init`) hold Lua apps and render them through the
+`infra-lua` rock, and the `Server Missing Secret` case and its golden lines are removed.
+Until then `tests.cue` still runs `platform srv` and the infra testbeds still render CUE.
 
 ## Smoke is a drift detector, not an assertion engine
 
