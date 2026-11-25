@@ -49,13 +49,14 @@ An error raised while an app runs fails the render and names the app file and li
 
 ## `require`
 
-`require "name"` accepts a lowercase identifier (`[a-z][a-z0-9_]*`) and resolves it in
-this order:
+`require "name"` accepts one or more lowercase identifiers joined by dots
+(`[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*`, the LuaRocks module-name form, such as
+`infra.tree`) and resolves it in this order:
 
 1. A module the rockspec of a pinned rock lists under `build.modules`, loaded from that
    rock's cached directory.
-2. `<repo>/<name>.lua`, a module the infra repo owns, such as its `defaults.lua` of shared
-   definitions.
+2. `<repo>/<path>.lua`, a module the infra repo owns, where each dot in the name is a
+   directory separator, such as its `defaults.lua` of shared definitions.
 
 A name found in neither fails with both places named. A module runs once per VM state;
 later `require` calls in the same app return the same value.
