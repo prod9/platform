@@ -90,21 +90,24 @@ let testbeds = [...{name: string, dir: string}] &
 			]
 		},
 		{
-			// infra init into a fresh (git-ignored) dir. Until init vendors infra-lua, the
-			// Infra framework scaffolds its module alone (docs/spec/scaffolding.md),
-			// so the snapshot is the generated platform.toml; the follow-on render is the guard.
+			// infra init into a fresh (git-ignored) dir: it vendors infra-lua's newest tag from
+			// GitHub as a git subtree, copies its templates and seeds the vars they declare
+			// (docs/spec/scaffolding.md). The snapshot is the generated platform.toml; the
+			// follow-on render is the guard.
 			name: "Infra Init"
 			checks: [
 				"exitcode",
 				"./testbeds/infra-init/platform.toml",
 			]
 			commands: [
-				// Wipe any generated leftovers from a prior local run so init GENERATES fresh
-				// rather than surgically merging a stale platform.toml. The testbed commits only
-				// .gitignore.
-				"rm -rf testbeds/infra-init/apps testbeds/infra-init/defaults.lua testbeds/infra-init/platform.toml testbeds/infra-init/platform testbeds/infra-init/k8s",
-				// ALWAYS_YES=1 auto-confirms the apply prompt — this testbed carries no
-				// committed files to fall back on, so init must actually run to generate them.
+				// Wipe the leftovers of a prior local run, the nested repo and its vendored
+				// infra-lua included, so init vendors and GENERATES fresh. The outer repo tracks
+				// only .gitignore here.
+				"rm -rf testbeds/infra-init/.git testbeds/infra-init/vendor testbeds/infra-init/apps testbeds/infra-init/defaults.lua testbeds/infra-init/platform.toml testbeds/infra-init/platform testbeds/infra-init/k8s",
+				// git subtree add needs a commit on the branch to merge into.
+				"git -C testbeds/infra-init init -q .",
+				"git -C testbeds/infra-init -c user.name=smoke -c user.email=smoke@example.com commit -q --allow-empty -m base",
+				// ALWAYS_YES=1 confirms the vendoring and the apply prompt.
 				"ALWAYS_YES=1 ./testbed.sh infra-init init \"Johnny Appleseed\" \"john@apple.com\" \"prod9/infra-new\"",
 			]
 		},
