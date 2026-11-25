@@ -11,6 +11,7 @@ require (
 	github.com/mattn/go-isatty v0.0.22
 	github.com/spf13/cobra v1.10.1
 	github.com/stretchr/testify v1.11.1
+	github.com/yuin/gopher-lua v1.1.2
 	golang.org/x/mod v0.33.0
 	gopkg.in/yaml.v3 v3.0.1
 )
