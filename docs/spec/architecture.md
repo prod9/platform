@@ -120,6 +120,11 @@ graph `conf ← framework/scaffold ← framework ← scaffolding ← cmd`:
   companion. Publishing is the ordinary `publish` path now that infra is a framework; the
   oras packer is retired. [lua-render.md](lua-render.md) specifies the sandbox, the rock
   fetch and cache, `platform.vars`, and validation.
+- `rocks/` — fetches a pinned Lua rock from ghcr and keeps it unpacked in the XDG cache
+  ([lua-render.md](lua-render.md), "Rocks"). It knows nothing of render or
+  `platform.toml`: its caller passes the rock's name and version and the registry
+  credentials. It imports no other platform package, so `framework/gitops` can consume it
+  without a cycle.
 - `cmd/` — `main.go` defers to `cmd.Execute()`. `cmd` holds the root Cobra command
   (persistent `-q`/`-v`, and `-f` for an alt `platform.toml`) plus one file per command.
   The `init` command's adapter lives at `cmd/init_cmd.go`; it presents prompts and the
