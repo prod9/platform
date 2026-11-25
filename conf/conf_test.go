@@ -56,62 +56,6 @@ nginx_experimental   = "true"
 	r.Nil(t, proj.Vars)
 }
 
-// TestParse pins the byte-level entry the server's manifest read uses: full defaults
-// and inference, no filesystem paths and no env overrides — a server env var must
-// never leak into a manifest parsed on a repo's behalf.
-func TestParse(t *testing.T) {
-	proj, err := Parse([]byte(`
-repository = "github.com/prod9/app"
-
-[modules.web]
-framework = "pnpm/basic"
-`))
-	r.NoError(t, err)
-	r.Equal(t, "github.com/prod9/app", proj.Repository)
-	r.Equal(t, "pnpm/basic", proj.Modules["web"].Framework)
-	r.Equal(t, ".", proj.Modules["web"].WorkDir)
-	r.Equal(t, "ghcr.io/prod9/app", proj.Modules["web"].ImageName)
-	r.Equal(t, timeouts.From(1*time.Minute), proj.Modules["web"].Timeout)
-
-	_, err = Parse([]byte(`modules = `))
-	r.Error(t, err)
-}
-
-func TestResolvePublishPolicy(t *testing.T) {
-	t.Run("explicit policy wins", func(t *testing.T) {
-		proj, err := Parse([]byte("[server]\npublish = \"never\"\n"))
-		r.NoError(t, err)
-
-		policy, err := proj.ResolvePublishPolicy("prod9-infra")
-		r.NoError(t, err)
-		r.Equal(t, PublishPolicyNever, policy)
-	})
-
-	t.Run("infra names publish every successful build", func(t *testing.T) {
-		for _, name := range []string{"infra", "prod9-infra"} {
-			policy, err := (&Model{}).ResolvePublishPolicy(name)
-			r.NoError(t, err)
-			r.Equal(t, PublishPolicyAlways, policy)
-		}
-	})
-
-	t.Run("only a case-sensitive infra suffix matches", func(t *testing.T) {
-		for _, name := range []string{"app", "infrastructure", "infra-app", "PROD9-INFRA"} {
-			policy, err := (&Model{}).ResolvePublishPolicy(name)
-			r.NoError(t, err)
-			r.Equal(t, PublishPolicyTags, policy)
-		}
-	})
-
-	t.Run("unknown policy is rejected", func(t *testing.T) {
-		proj, err := Parse([]byte("[server]\npublish = \"sometimes\"\n"))
-		r.NoError(t, err)
-
-		_, err = proj.ResolvePublishPolicy("app")
-		r.Error(t, err)
-	})
-}
-
 func testProject(modCount int) *Model {
 	proj := &Model{
 		Repository: "github.com/prod9/platform",

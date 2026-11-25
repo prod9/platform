@@ -38,10 +38,6 @@ type accObserver struct{ out *Outcome }
 
 func (a *accObserver) RunStart(unit string, at time.Time) {}
 
-func (a *accObserver) CloneStart(unit string, at time.Time) {}
-
-func (a *accObserver) CloneDone(unit string, at time.Time, err error) { a.out.fail(err) }
-
 func (a *accObserver) ConfigStart(unit string, at time.Time) {}
 
 func (a *accObserver) ConfigDone(unit, engine string, at time.Time, err error) { a.out.fail(err) }

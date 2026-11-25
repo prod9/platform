@@ -27,14 +27,6 @@ func (observer) RunStart(unit string, _ time.Time) {
 	termlog.Event(unit, "started")
 }
 
-func (observer) CloneStart(unit string, _ time.Time) {
-	termlog.Event(unit+"/clone", "started")
-}
-
-func (observer) CloneDone(unit string, _ time.Time, err error) {
-	reportPhaseDone(unit+"/clone", err)
-}
-
 func (observer) ConfigStart(unit string, _ time.Time) {
 	termlog.Event(unit+"/config", "started")
 }

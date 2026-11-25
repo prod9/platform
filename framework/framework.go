@@ -55,8 +55,8 @@ type (
 		// ships with every template hole already resolved. The framework owns resolution — it
 		// knows which operator input fills which hole (e.g. CUE_MOD_PREFIX -> the CUE module
 		// path) and how to read existing state (an existing cue.mod wins over the input).
-		// repository and daggerVersion are environment facts the driver supplies; inputs are
-		// the operator's answers to ScaffoldVars. The driver just writes what it gets.
+		// env carries the environment facts the driver supplies; inputs are the operator's
+		// answers to ScaffoldVars. The driver just writes what it gets.
 		Scaffold(ctx context.Context, wd string, env scaffold.Env, inputs map[string]string) (scaffold.Spec, error)
 
 		// Plan returns the ordered steps this unit's build is made of. It is pure — the

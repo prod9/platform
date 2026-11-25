@@ -2,7 +2,6 @@ package framework
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -125,22 +124,16 @@ func (PlatformInfra) Execute(ctx context.Context, client *dagger.Client, unit *B
 }
 
 // scaffoldData builds the baseline's template data: the CUE module path (from an existing
-// cue.mod or the greenfield CUE_MOD_PREFIX input), the linked dagger SDK version, the
-// maintainer email (the cluster-issuer's ACME contact), and the flux self-sync image base
-// derived from the repository. PlatformInfra needs the SDK version for the engine image ref, so an
-// empty one is a hard error here rather than a tagless ref downstream.
+// cue.mod or the greenfield CUE_MOD_PREFIX input), the maintainer email (the
+// cluster-issuer's ACME contact), and the flux self-sync image base derived from the
+// repository.
 func (i PlatformInfra) scaffoldData(wd string, env scaffold.Env, inputs map[string]string) (scaffold.Data, error) {
-	if env.DaggerVersion == "" {
-		return scaffold.Data{}, errors.New("infra scaffold: the linked dagger SDK version is unknown")
-	}
-
 	modulePath, err := i.modulePath(wd, inputs)
 	if err != nil {
 		return scaffold.Data{}, err
 	}
 
 	return scaffold.Data{
-		"DaggerVersion":      env.DaggerVersion,
 		"MaintainerEmail":    env.MaintainerEmail,
 		"ModulePath":         modulePath,
 		"ImageBase":          conf.InferImageBase(env.Repository),
@@ -166,11 +159,8 @@ func (PlatformInfra) modulePath(wd string, inputs map[string]string) (string, er
 }
 
 // infraDefsModule is the infra-defs CUE dependency the baseline apps import;
-// infraDefsVersion is the version a freshly-init'd infra repo pins into its cue.mod.
-// v0.4.4 adds parts.#PodMounts #mount_emptydir, which the dagger-engine baseline needs for
-// its disposable cache; additive over v0.4.3's Flux defs
-// (#FluxOCIRepo/#FluxKustomization/#FluxReceiver) and v0.4.0's #NetworkPolicy access-grant +
-// #pod_labels that platform.cue still needs to lock the engine's TCP port to the dispatcher.
+// infraDefsVersion is the version a freshly-init'd infra repo pins into its cue.mod; the
+// flux-sync baseline needs v0.4.3's Flux defs (#FluxOCIRepo/#FluxKustomization/#FluxReceiver).
 const (
 	infraDefsModule  = "prodigy9.co/defs@v0"
 	infraDefsVersion = "v0.4.4"
@@ -188,8 +178,7 @@ var infraVars = map[string]any{
 	"NGINX_GATEWAY_VERSION": "v2.6.7",
 	"GATEWAY_API_VERSION":   "v1.5.1",
 
-	// Per-deployment ingress hosts (render-time @tag holes): the platform server's own vanity
-	// host and the Flux webhook-receiver route. prod9 self-host defaults; operators edit.
-	"PLATFORM_HOSTNAME": "platform.prodigy9.co",
-	"FLUX_HOSTNAME":     "flux.prodigy9.co",
+	// Per-deployment ingress host (render-time @tag hole): the Flux webhook-receiver route.
+	// prod9 self-host default; operators edit.
+	"FLUX_HOSTNAME": "flux.prodigy9.co",
 }

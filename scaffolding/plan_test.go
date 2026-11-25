@@ -16,14 +16,13 @@ func testInfo() Info {
 	}
 }
 
-// stubVersions pins the build-info seams: test binaries carry no versions in their build
-// info, so every Plan test stubs the linked-SDK and platform-release lookups.
+// stubVersions pins the build-info seam: test binaries carry no versions in their build
+// info, so every Plan test stubs the platform-release lookup.
 func stubVersions(t *testing.T) {
 	t.Helper()
-	origDagger, origPlatform := daggerVersion, platformVersion
-	daggerVersion = func() string { return "v0.21.7" }
+	origPlatform := platformVersion
 	platformVersion = func() string { return "v0.9.1" }
-	t.Cleanup(func() { daggerVersion, platformVersion = origDagger, origPlatform })
+	t.Cleanup(func() { platformVersion = origPlatform })
 }
 
 func TestPlan_freshRepoWritesEverything(t *testing.T) {

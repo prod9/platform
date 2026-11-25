@@ -1,5 +1,4 @@
-// Package engine drives source checkout and Dagger execution. Checkout returns a Worktree
-// whose lifetime ends at Close; Session owns the separate span during which a build's
+// Package engine drives Dagger execution. Session owns the span during which a build's
 // containers remain usable. The roster in this file knows which Dagger endpoints exist and
 // how to dial one. There is deliberately no client pool: a *dagger.Client is a session
 // rather than a fungible connection, so pooling one is the abstraction this package rejects.
@@ -47,10 +46,9 @@ var (
 	connectEngine = dagger.Connect
 )
 
-// Input is the closed choice of a selected local config file or a remote revision. Either
-// carries the release version it builds, empty when the build has no release tag
-// (docs/spec/frameworks.md, "The build step sees the repository").
-type Input interface{ version() string }
+// Local is a build's input: the selected platform.toml and the release version it builds,
+// empty when the build has no release tag (docs/spec/frameworks.md, "The build step sees
+// the repository").
 type Local struct{ ConfigPath, Version string }
 
 type (
@@ -62,10 +60,6 @@ type (
 		out       *observer.Outcome
 	}
 )
-
-func (l Local) version() string { return l.Version }
-
-func (s Source) version() string { return s.Version }
 
 func (r BuildResult) Image() string { return r.out.Image }
 

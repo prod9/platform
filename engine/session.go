@@ -13,8 +13,7 @@ import (
 // the connection that built it, and every connection is dialed into the session's own
 // context — so a container stays valid for exactly as long as its session and dies with
 // Close. Build connections ignore caller cancellation because a per-unit timeout would
-// invalidate containers the caller is still holding. Read-only inspection connections
-// instead follow the inspection's bounded context; they return observations, not handles.
+// invalidate containers the caller is still holding.
 //
 // A session opens as many connections as its work needs and closes them together. It is safe
 // for concurrent use, and opening one dials nothing, so a command opens exactly one and
@@ -22,15 +21,13 @@ import (
 type Session struct {
 	ctx context.Context // carries both the lifetime and the config
 
-	mu        sync.Mutex
-	conns     []*dagger.Client
-	worktrees []*Worktree
+	mu    sync.Mutex
+	conns []*dagger.Client
 }
 
 // NewSession opens a session on the fleet. It dials nothing: connections are made as runs
 // need them. Build connections use ctx as their lifetime — a process scope, never a
-// request or per-unit one — and inspection uses its own bounded context. The session
-// context carries the config the roster reads.
+// request or per-unit one. The session context carries the config the roster reads.
 func NewSession(ctx context.Context) *Session {
 	return &Session{ctx: ctx}
 }
@@ -46,10 +43,6 @@ func (s *Session) Close() error {
 		errs = append(errs, conn.Close())
 	}
 
-	for _, worktree := range s.worktrees {
-		errs = append(errs, worktree.Close(context.WithoutCancel(s.ctx)))
-	}
-	s.worktrees = nil
 	s.conns = nil
 	return errors.Join(errs...)
 }
@@ -63,16 +56,16 @@ func (s *Session) Unsafe() (*dagger.Client, error) {
 }
 
 // Build executes selected modules; an empty local selection discovers all names.
-func (s *Session) Build(ctx context.Context, input Input, modnames []string, obs observer.Observer) ([]BuildResult, error) {
+func (s *Session) Build(ctx context.Context, input Local, modnames []string, obs observer.Observer) ([]BuildResult, error) {
 	return s.build(ctx, input, modnames, buildOnly{}, obs)
 }
 
 // BuildAndPublish publishes each module before closing its operation.
-func (s *Session) BuildAndPublish(ctx context.Context, input Input, modnames []string, tag string, obs observer.Observer) ([]BuildResult, error) {
+func (s *Session) BuildAndPublish(ctx context.Context, input Local, modnames []string, tag string, obs observer.Observer) ([]BuildResult, error) {
 	return s.build(ctx, input, modnames, publication{tag: tag, creds: registryCredsFrom(cfgFrom(s.ctx))}, obs)
 }
 
-func (s *Session) build(ctx context.Context, input Input, modnames []string, intent buildIntent, obs observer.Observer) ([]BuildResult, error) {
+func (s *Session) build(ctx context.Context, input Local, modnames []string, intent buildIntent, obs observer.Observer) ([]BuildResult, error) {
 	names, err := selectedNames(input, modnames)
 	if err != nil {
 		return nil, err

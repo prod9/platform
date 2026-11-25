@@ -71,15 +71,6 @@ func (r *recorder) StepDone(unit, step string, _ time.Time, err error) {
 
 func (r *recorder) RunStart(unit string, _ time.Time) { r.lines = append(r.lines, "runstart "+unit) }
 
-func (r *recorder) CloneStart(unit string, _ time.Time) {
-	r.lines = append(r.lines, "clonestart "+unit)
-}
-
-func (r *recorder) CloneDone(unit string, _ time.Time, err error) {
-	r.lines = append(r.lines, "clonedone "+unit)
-	r.errs = append(r.errs, err)
-}
-
 func (r *recorder) ConfigStart(unit string, _ time.Time) {
 	r.lines = append(r.lines, "configstart "+unit)
 }

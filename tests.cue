@@ -42,11 +42,6 @@ let testbeds = [...{name: string, dir: string}] &
 			commands: ["sh ./testbeds/release/test.sh"]
 		},
 		{
-			name: "Server Missing Secret"
-			checks: ["exitcode", "stderr"]
-			commands: ["env SECRET= DATABASE_URL=://invalid ./bin/platform srv"]
-		},
-		{
 			// A selected module that cannot be interpreted fails in the observed config
 			// phase, before any framework step or engine connection starts.
 			name: "Build Missing Module"

@@ -15,10 +15,7 @@ import (
 	"platform.prodigy9.co/framework/skel"
 )
 
-var (
-	daggerVersion   = framework.DaggerVersion
-	platformVersion = framework.PlatformVersion
-)
+var platformVersion = framework.PlatformVersion
 
 const (
 	FileWrite FileAction = iota
@@ -63,7 +60,6 @@ func (t *Target) Plan(info Info, inputs map[string]string) (*Plan, error) {
 		env := fwscaffold.Env{
 			Repository:      info.Repository,
 			MaintainerEmail: info.MaintainerEmail,
-			DaggerVersion:   daggerVersion(),
 		}
 		var err error
 		spec, err = t.framework.Scaffold(context.Background(), t.dir, env, inputs)

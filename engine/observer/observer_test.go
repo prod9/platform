@@ -32,15 +32,6 @@ func (r *recorder) StepDone(unit, step string, _ time.Time, err error) {
 
 func (r *recorder) RunStart(unit string, _ time.Time) { r.lines = append(r.lines, "runstart "+unit) }
 
-func (r *recorder) CloneStart(unit string, _ time.Time) {
-	r.lines = append(r.lines, "clonestart "+unit)
-}
-
-func (r *recorder) CloneDone(unit string, _ time.Time, err error) {
-	r.lines = append(r.lines, "clonedone "+unit)
-	r.errs = append(r.errs, err)
-}
-
 func (r *recorder) ConfigStart(unit string, _ time.Time) {
 	r.lines = append(r.lines, "configstart "+unit)
 }
@@ -129,8 +120,6 @@ func TestTeeForwardsEveryCallbackToEveryChild(t *testing.T) {
 
 	obs := Tee(first, second)
 	obs.RunStart("web", at)
-	obs.CloneStart("web", at)
-	obs.CloneDone("web", at, nil)
 	obs.ConfigStart("web", at)
 	obs.ConfigDone("web", "local", at, nil)
 	obs.StepStart("web", "build", at)
@@ -140,7 +129,7 @@ func TestTeeForwardsEveryCallbackToEveryChild(t *testing.T) {
 	obs.PublishDone("web", at, nil)
 	obs.RunDone("web", "ghcr.io/p9/web", "sha256:abc", at, nil)
 	want := []string{
-		"runstart web", "clonestart web", "clonedone web", "configstart web", "configdone web/local",
+		"runstart web", "configstart web", "configdone web/local",
 		"started web/build", "output web/build/compiled/warning", "done web/build",
 		"publishstart web", "publishdone web", "rundone web/ghcr.io/p9/web/sha256:abc",
 	}

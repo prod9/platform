@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"platform.prodigy9.co/conf"
 )
 
 func TestLocalPreparationFailureClosesItsOperation(t *testing.T) {
@@ -25,45 +24,14 @@ func TestLocalPreparationFailureClosesItsOperation(t *testing.T) {
 }
 
 func TestSelectionPreflightDoesNotInventModuleOperations(t *testing.T) {
-	for _, input := range []Input{Source{URL: "file:///not-read"}, Local{ConfigPath: filepath.Join(t.TempDir(), "missing.toml")}} {
-		obs := &recorder{}
-		results, err := NewSession(t.Context()).Build(t.Context(), input, nil, obs)
-		require.Error(t, err)
-		require.Empty(t, results)
-		require.Empty(t, obs.lines)
-	}
-}
-
-func TestRemoteCloneFailureClosesBeforeConfiguration(t *testing.T) {
 	obs := &recorder{}
-	sess := NewSession(t.Context())
-	results, err := sess.Build(t.Context(), Source{}, []string{"web"}, obs)
-	require.ErrorContains(t, err, "checkout URL")
-	require.Empty(t, results)
-	require.Equal(t, []string{"runstart web", "clonestart web", "clonedone web", "rundone web//"}, obs.lines)
-	require.NoError(t, sess.Close())
-}
+	input := Local{ConfigPath: filepath.Join(t.TempDir(), "missing.toml")}
 
-func TestRemoteConfigIsExactAndWorktreeLivesUntilSessionClose(t *testing.T) {
-	previousFilename := conf.PlatformFilename
-	conf.PlatformFilename = "alternate.toml"
-	t.Cleanup(func() { conf.PlatformFilename = previousFilename })
-	remote, sha := initCheckoutRemote(t)
-	cache := t.TempDir()
-	t.Setenv("CHECKOUT_CACHE", cache)
-	require.NoError(t, os.WriteFile(filepath.Join(cache, "platform.toml"), []byte("[modules.web]\nframework='go/basic'\n"), 0o644))
-	sess := NewSession(t.Context())
-	obs := &recorder{}
-	results, err := sess.Build(t.Context(), Source{URL: "file://" + remote, Revision: sha}, []string{"web"}, obs)
-	require.ErrorIs(t, err, os.ErrNotExist)
-	require.ErrorContains(t, err, "platform.toml")
+	results, err := NewSession(t.Context()).Build(t.Context(), input, nil, obs)
+
+	require.Error(t, err)
 	require.Empty(t, results)
-	require.Equal(t, []string{"runstart web", "clonestart web", "clonedone web", "configstart web", "configdone web/", "rundone web//"}, obs.lines)
-	require.Len(t, sess.worktrees, 1)
-	path := sess.worktrees[0].Dir
-	require.DirExists(t, path)
-	require.NoError(t, sess.Close())
-	require.NoDirExists(t, path)
+	require.Empty(t, obs.lines)
 }
 
 func TestPublishCredentialsFailConfigurationBeforeDial(t *testing.T) {

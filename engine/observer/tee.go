@@ -13,18 +13,6 @@ func (t teeObserver) RunStart(unit string, at time.Time) {
 	}
 }
 
-func (t teeObserver) CloneStart(unit string, at time.Time) {
-	for _, obs := range t {
-		obs.CloneStart(unit, at)
-	}
-}
-
-func (t teeObserver) CloneDone(unit string, at time.Time, err error) {
-	for _, obs := range t {
-		obs.CloneDone(unit, at, err)
-	}
-}
-
 func (t teeObserver) ConfigStart(unit string, at time.Time) {
 	for _, obs := range t {
 		obs.ConfigStart(unit, at)

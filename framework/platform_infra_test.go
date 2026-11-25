@@ -22,7 +22,7 @@ func infraSpec(t *testing.T, wd string) (scaffold.Spec, map[string]scaffold.File
 	t.Helper()
 
 	spec, err := PlatformInfra{}.Scaffold(context.Background(), wd,
-		scaffold.Env{Repository: "github.com/prod9/infra", MaintainerEmail: "john@apple.com", DaggerVersion: "v0.21.7"},
+		scaffold.Env{Repository: "github.com/prod9/infra", MaintainerEmail: "john@apple.com"},
 		map[string]string{"CUE_MOD_PREFIX": "example.com"})
 	r.NoError(t, err)
 
@@ -46,7 +46,6 @@ func TestInfraScaffoldContributesBaseline(t *testing.T) {
 
 	// Destination-encoded routing applied; .tmpl holes resolved by Scaffold (suffix stripped).
 	r.Contains(t, byPath, filepath.Join("apps", "cert-manager.platform"))
-	r.Contains(t, byPath, filepath.Join("apps", "platform.cue"))
 	r.Contains(t, byPath, filepath.Join("defaults", "basics.cue"))
 	r.Contains(t, byPath, filepath.Join("cue.mod", "module.cue"))
 
@@ -70,10 +69,6 @@ func TestInfraScaffoldContributesBaseline(t *testing.T) {
 	r.Contains(t, webapp, "#gateway:")
 	r.Contains(t, webapp, "#WebApp: packs.#WebApp & parts.#UseCertManager")
 	r.Contains(t, webapp, "#ListenerSet: defs.#ListenerSet & parts.#UseCertManager")
-
-	platformApp := string(byPath[filepath.Join("apps", "platform.cue")].Content)
-	r.Contains(t, platformApp, "defaults.#WebApp")
-	r.NotContains(t, platformApp, "packs.#WebApp", "apps consume the repo-defaulted wrapper")
 
 	r.Contains(t, gw, "defaults.#gateway", "the gateway app derives its coords from defaults")
 }
@@ -119,28 +114,22 @@ func TestInfraScaffoldData(t *testing.T) {
 	// Greenfield: module path comes from the CUE_MOD_PREFIX input; env facts pass through.
 	green := t.TempDir()
 	data, err := PlatformInfra{}.scaffoldData(green,
-		scaffold.Env{Repository: "github.com/prod9/infra", MaintainerEmail: "a@b.co", DaggerVersion: "v0.21.7"},
+		scaffold.Env{Repository: "github.com/prod9/infra", MaintainerEmail: "a@b.co"},
 		map[string]string{"CUE_MOD_PREFIX": "prodigy9.co"})
 	r.NoError(t, err)
 	r.Equal(t, "prodigy9.co", data["ModulePath"])
-	r.Equal(t, "v0.21.7", data["DaggerVersion"])
 	r.Equal(t, "a@b.co", data["MaintainerEmail"])
-
-	// PlatformInfra needs the linked SDK version for the engine image ref — an empty one is a hard
-	// error here, not a tagless ref downstream.
-	_, err = PlatformInfra{}.scaffoldData(green, scaffold.Env{Repository: "r"}, map[string]string{"CUE_MOD_PREFIX": "x.co"})
-	r.Error(t, err)
 
 	// An input CUE would reject as a module path (no dot in the first segment) fails fast —
 	// this is the exact case a bare GitHub org/repo produces.
-	_, err = PlatformInfra{}.scaffoldData(green, scaffold.Env{Repository: "r", DaggerVersion: "v"},
+	_, err = PlatformInfra{}.scaffoldData(green, scaffold.Env{Repository: "r"},
 		map[string]string{"CUE_MOD_PREFIX": "prod9/infra-new"})
 	r.Error(t, err)
 
 	// An existing cue.mod wins over any input — operator truth.
 	existing := t.TempDir()
 	writeModuleFile(t, existing, "kept.example/infra")
-	data, err = PlatformInfra{}.scaffoldData(existing, scaffold.Env{Repository: "r", DaggerVersion: "v"},
+	data, err = PlatformInfra{}.scaffoldData(existing, scaffold.Env{Repository: "r"},
 		map[string]string{"CUE_MOD_PREFIX": "ignored.co"})
 	r.NoError(t, err)
 	r.Equal(t, "kept.example/infra", data["ModulePath"])

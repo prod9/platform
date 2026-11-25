@@ -15,9 +15,8 @@ import (
 )
 
 // Run executes one git command in dir, returning trimmed stdout; git's stderr is
-// captured into the error instead of streamed. For callers with no project config —
-// server-side mirrors and worktrees — where errors surface through logs, not a
-// terminal.
+// captured into the error instead of streamed. For callers with no project config whose
+// failures surface through the returned error, not a terminal.
 func Run(ctx context.Context, dir string, args ...string) (string, error) {
 	errbuf := &strings.Builder{}
 

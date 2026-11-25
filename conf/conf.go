@@ -5,7 +5,6 @@
 package conf
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -36,7 +35,6 @@ type (
 		PublishArch string `toml:"publish_arch,omitempty"`
 
 		Strategy string `toml:"strategy"`
-		Server   Server `toml:"server,omitempty"`
 
 		Excludes []string           `toml:"excludes"`
 		Modules  map[string]*Module `toml:"modules,omitempty"`
@@ -47,12 +45,6 @@ type (
 		// \(var) interpolation); no defaults or inference beyond the baseline seed.
 		Vars map[string]any `toml:"vars,omitempty"`
 	}
-
-	Server struct {
-		Publish PublishPolicy `toml:"publish,omitempty"`
-	}
-
-	PublishPolicy string
 
 	Module struct {
 		WorkDir   string           `toml:"workdir,omitempty"` // relative to platform.toml; "." when unset
@@ -76,12 +68,6 @@ type (
 		ImageName   string   `toml:"image,omitempty"`
 		PackageName string   `toml:"package,omitempty"`
 	}
-)
-
-const (
-	PublishPolicyAlways PublishPolicy = "always"
-	PublishPolicyTags   PublishPolicy = "tags"
-	PublishPolicyNever  PublishPolicy = "never"
 )
 
 var (
@@ -112,38 +98,6 @@ var (
 		Timeout: timeouts.From(1 * time.Minute),
 	}
 )
-
-// Parse decodes a platform.toml already in memory — the server's manifest read,
-// where the bytes come off the GitHub API rather than a working directory. Defaults
-// and value inference apply exactly as Load's; env overrides and filesystem paths do
-// not, because the process's own environment must never leak into a manifest parsed
-// on a repo's behalf.
-func Parse(data []byte) (*Model, error) {
-	proj := &Model{}
-	if err := toml.Unmarshal(data, proj); err != nil {
-		return nil, err
-	}
-
-	proj.assignDefaults()
-	proj.inferValues()
-	return proj, nil
-}
-
-func (p *Model) ResolvePublishPolicy(repo string) (PublishPolicy, error) {
-	if p.Server.Publish != "" {
-		switch p.Server.Publish {
-		case PublishPolicyAlways, PublishPolicyTags, PublishPolicyNever:
-			return p.Server.Publish, nil
-		default:
-			return "", fmt.Errorf("unknown server publish policy %q", p.Server.Publish)
-		}
-	}
-
-	if repo == "infra" || strings.HasSuffix(repo, "-infra") {
-		return PublishPolicyAlways, nil
-	}
-	return PublishPolicyTags, nil
-}
 
 func Load(wd string) (*Model, error) {
 	if wd == "" || wd == "." {

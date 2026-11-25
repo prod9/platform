@@ -6,12 +6,10 @@ import (
 	"errors"
 	"runtime/debug"
 
-	"fx.prodigy9.co/app"
 	fxcmd "fx.prodigy9.co/cmd"
 	"github.com/spf13/cobra"
 	"platform.prodigy9.co/conf"
 	"platform.prodigy9.co/internal/termlog"
-	"platform.prodigy9.co/srv"
 )
 
 var rootCmd = &cobra.Command{
@@ -31,8 +29,6 @@ var (
 )
 
 func init() {
-	app.RegisterMigrations(srv.App)
-
 	rootCmd.PersistentFlags().CountVarP(&quietness, "quiet", "q", "less verbose logging")
 	rootCmd.PersistentFlags().CountVarP(&verbosity, "verbose", "v", "more verbose logging")
 	rootCmd.SetVersionTemplate("{{.Version}}\n")
@@ -56,9 +52,7 @@ func init() {
 		RenderCmd,
 		PublishCmd,
 		ReleaseCmd,
-		SrvCmd,
 		VersionsCmd,
-		WorkerCmd,
 
 		fxcmd.PrintConfigCmd,
 	)

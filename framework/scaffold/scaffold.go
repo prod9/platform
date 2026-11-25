@@ -36,12 +36,11 @@ type Spec struct {
 }
 
 // Env carries the environment facts the driver hands every framework's Scaffold: the
-// operator identity and repository from init's universal prompts, and the dagger SDK
-// version the binary links. Frameworks pull what they need; most need none of it.
+// operator identity and repository from init's universal prompts. Frameworks pull what
+// they need; most need none of it.
 type Env struct {
 	Repository      string
 	MaintainerEmail string
-	DaggerVersion   string
 }
 
 // Data fills the placeholders in ".tmpl" files at init time, keyed by the hole name the

@@ -3,11 +3,9 @@ package engine
 import (
 	"context"
 	"errors"
-	"path/filepath"
 	"sort"
 	"time"
 
-	fxconfig "fx.prodigy9.co/config"
 	"platform.prodigy9.co/conf"
 	"platform.prodigy9.co/engine/observer"
 	"platform.prodigy9.co/framework"
@@ -22,7 +20,7 @@ type buildOnly struct{}
 
 type moduleOperation struct {
 	session *Session
-	input   Input
+	input   Local
 	name    string
 	intent  buildIntent
 	caller  observer.Observer
@@ -36,7 +34,7 @@ func (o *moduleOperation) run(ctx context.Context) operationResult {
 	obs, out := observer.Accumulate(o.caller)
 	obs.RunStart(o.name, time.Now())
 
-	cursor, err := o.prepare(ctx, obs)
+	cursor, err := o.prepare(obs)
 	image, hash := "", ""
 	if err == nil {
 		stepCtx, cancel := context.WithTimeout(ctx, cursor.unit.Timeout)
@@ -63,46 +61,20 @@ func (o *moduleOperation) run(ctx context.Context) operationResult {
 	return operationResult{results: []BuildResult{result}, err: out.Err}
 }
 
-func (o *moduleOperation) prepare(ctx context.Context, obs observer.Observer) (*Run, error) {
-	path, err := o.configPath(ctx, obs)
-	if err != nil {
-		return nil, err
-	}
-
+func (o *moduleOperation) prepare(obs observer.Observer) (*Run, error) {
 	obs.ConfigStart(o.name, time.Now())
-	cursor, host, err := o.configure(path, obs)
+	cursor, host, err := o.configure(obs)
 	obs.ConfigDone(o.name, host, time.Now(), err)
 	return cursor, err
 }
 
-func (o *moduleOperation) configPath(ctx context.Context, obs observer.Observer) (string, error) {
-	switch input := o.input.(type) {
-	case Local:
-		return input.ConfigPath, nil
-	case Source:
-		obs.CloneStart(o.name, time.Now())
-		checkoutCtx := fxconfig.NewContext(ctx, cfgFrom(o.session.ctx))
-		worktree, err := Checkout(checkoutCtx, input)
-		obs.CloneDone(o.name, time.Now(), err)
-		if err != nil {
-			return "", err
-		}
-		o.session.mu.Lock()
-		o.session.worktrees = append(o.session.worktrees, worktree)
-		o.session.mu.Unlock()
-		return filepath.Join(worktree.Dir, "platform.toml"), nil
-	default:
-		return "", errors.New("engine: invalid build input")
-	}
-}
-
-func (o *moduleOperation) configure(path string, obs observer.Observer) (*Run, string, error) {
-	cfg, err := conf.LoadFile(path)
+func (o *moduleOperation) configure(obs observer.Observer) (*Run, string, error) {
+	cfg, err := conf.LoadFile(o.input.ConfigPath)
 	if err != nil {
 		return nil, "", err
 	}
 
-	units, err := framework.Units(cfg, []string{o.name}, o.intent.arch(o.session, cfg), o.input.version())
+	units, err := framework.Units(cfg, []string{o.name}, o.intent.arch(o.session, cfg), o.input.Version)
 	if err != nil {
 		return nil, "", err
 	}
@@ -128,23 +100,18 @@ func (buildOnly) prepare(*framework.BuildUnit) error { return nil }
 
 func (buildOnly) finish(context.Context, *Run) (string, error) { return "", nil }
 
-func selectedNames(input Input, names []string) ([]string, error) {
-	switch source := input.(type) {
-	case Local:
-		if len(names) == 0 {
-			cfg, err := conf.LoadFile(source.ConfigPath)
-			if err != nil {
-				return nil, err
-			}
-			for name := range cfg.Modules {
-				names = append(names, name)
-			}
-			sort.Strings(names)
+func selectedNames(input Local, names []string) ([]string, error) {
+	if len(names) == 0 {
+		cfg, err := conf.LoadFile(input.ConfigPath)
+		if err != nil {
+			return nil, err
 		}
-	case Source:
-	default:
-		return nil, errors.New("engine: invalid build input")
+		for name := range cfg.Modules {
+			names = append(names, name)
+		}
+		sort.Strings(names)
 	}
+
 	if len(names) == 0 {
 		return nil, ErrNoJobs
 	}
