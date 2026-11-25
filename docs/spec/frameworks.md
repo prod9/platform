@@ -194,10 +194,10 @@ on `PATH`), `RunDir` (`/platform/run`, runtime workdir). Package sets are applie
 `withBuildPkgs` (`build-base git curl bash` + extras) for the build stage and
 `withRunnerPkgs` (`ca-certificates curl mailcap netcat-openbsd tzdata` + extras) for the
 runner; `withCaddyServer` adds Caddy for the static family. The `go/basic` runner adds
-no extra packages. It used to add `git` for platform's own server image, whose worker
-shelled out to `git` at runtime; platform has no server and publishes no image of itself
-([go-import page served by Cloudflare](../decisions/2026-11-25-go-import-page-served-by-cloudflare.md)),
-so the special case goes. This is **intended**; `framework/go_basic.go` still adds `git`.
+no extra packages: `git` was carried only for platform's own server image, whose worker
+shelled out to `git` at runtime, and platform has no server and publishes no image of
+itself
+([go-import page served by Cloudflare](../decisions/2026-11-25-go-import-page-served-by-cloudflare.md)).
 `mailcap` is carried only to
 lay down `/etc/mime.types` — the Wolfi base ships neither that file nor `/etc/mailcap`, and
 a server without the table falls back to a built-in list that misses modern types (`.woff2`

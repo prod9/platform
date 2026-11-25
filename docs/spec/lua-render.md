@@ -1,7 +1,7 @@
 # Lua render
 
-Status: **implemented, except `require` from `vendor/`, the upstream download function
-and the declare-only run `init` uses (intended).** `render` runs Lua only
+Status: **implemented, except the upstream download function and the declare-only run
+`init` uses (intended).** `render` runs Lua only
 (`framework/gitops/`); CUE and the `.platform` directives are gone. The rulings behind
 it:
 [CUE dropped for Lua render](../decisions/2026-11-25-cue-dropped-for-lua-render.md),
@@ -66,8 +66,9 @@ An error raised while an app runs fails the render and names the app file and li
    shared definitions.
 
 Two vendored libraries that provide the same module name fail the render before any app
-runs; directory order never picks one. A name found nowhere fails, naming every path
-searched. A module runs once per VM state; later `require` calls in the same app return
+runs; directory order never picks one. A library directory with no `src/` provides no
+module, and a file under `src/` whose path no dotted name maps to (such as `a.b.lua`) is
+not a module. A name found nowhere fails, naming every path searched. A module runs once per VM state; later `require` calls in the same app return
 the same value.
 
 ## Vendored libraries
