@@ -24,8 +24,8 @@ detail rather than inlining it. Update in place.
   Dagger cache-poisoning mode; why pnpm→apk is never the fix.
 - [`before-going-public.md`](before-going-public.md) — the scrub checklist for when the repo
   goes public: LICENSE, firewall-id placeholder, exclude `docs/scratch/`.
-- [`migration.md`](migration.md) — how a consuming repo moves across each breaking change of
-  the legacy → pull-based v2 rework.
+- [`migration.md`](migration.md) — how a consuming repo moves across each breaking change,
+  newest first: v1.0 (Lua render, no server), then the legacy → pull-based v2 rework.
 - [`cluster-bringup.md`](cluster-bringup.md) — fresh cluster → live platformv2 baseline:
   scaffold, wire values, bootstrap apply, gateway/DNS, first publish, webhook, verify.
   Scaffold steps still describe the CUE baseline, pending the v1.0 Lua templates.
