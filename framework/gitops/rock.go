@@ -65,3 +65,13 @@ func moduleFile(rockDir string, file lua.LValue) (string, error) {
 	}
 	return filepath.Join(rockDir, localPath), nil
 }
+
+// anyLists reports whether one of rocks lists module under build.modules.
+func anyLists(rocks []Rock, module string) bool {
+	for _, rock := range rocks {
+		if _, listed := rock.modules[module]; listed {
+			return true
+		}
+	}
+	return false
+}

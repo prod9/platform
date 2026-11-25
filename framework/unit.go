@@ -38,10 +38,16 @@ type BuildUnit struct {
 	// Version is the release tag this unit is built as, empty when the build has none.
 	Version string
 
-	// Vars is the resolved [vars] table, carried on every unit. A framework that
-	// interpolates (CUE @tag / directive \(var)) consumes it; one that doesn't ignores
-	// it — a per-framework capability, not a per-project mode.
-	Vars map[string]any
+	// Vars and Rocks are the [vars] and [rocks] tables, carried on every unit. The Infra
+	// framework renders with them; the others ignore them.
+	Vars  map[string]any
+	Rocks map[string]string
+
+	// RegistryUsername and RegistryPassword are the publishing credentials
+	// (REGISTRY_USERNAME, REGISTRY_PASSWORD), which the engine stamps on every unit so
+	// rock fetches can send them. Empty, a fetch is anonymous.
+	RegistryUsername string
+	RegistryPassword string
 }
 
 // RepositoryURL is the unit's repository as a URL — the org.opencontainers.image.source
@@ -111,7 +117,8 @@ func unitFromModule(cfg *conf.Model, name string, mod *conf.Module, arch, versio
 
 		Version: version,
 
-		Vars: cfg.Vars,
+		Vars:  cfg.Vars,
+		Rocks: cfg.Rocks,
 	}, nil
 }
 

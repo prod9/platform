@@ -30,18 +30,18 @@ func versionString(info *debug.BuildInfo, ok bool) string {
 }
 
 // versionsTable adds the baked-in versions that change build/render behavior: the
-// dagger SDK (what engine provisioning pairs to) and the linked CUE evaluator, plus
-// the Go toolchain stamp.
+// dagger SDK (what engine provisioning pairs to) and gopher-lua, the Lua VM render runs
+// apps on, plus the Go toolchain stamp.
 func versionsTable(info *debug.BuildInfo, ok bool) string {
 	goVersion := "(unknown)"
 	if ok && info.GoVersion != "" {
 		goVersion = info.GoVersion
 	}
 
-	return fmt.Sprintf("platform %s\ndagger   %s\ncue      %s\ngo       %s\n",
+	return fmt.Sprintf("platform %s\ndagger   %s\nlua      %s\ngo       %s\n",
 		versionString(info, ok),
 		depVersion(info, ok, "dagger.io/dagger"),
-		depVersion(info, ok, "cuelang.org/go"),
+		depVersion(info, ok, "github.com/yuin/gopher-lua"),
 		goVersion)
 }
 

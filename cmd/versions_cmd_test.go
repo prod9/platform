@@ -50,12 +50,12 @@ func TestVersionString(t *testing.T) {
 func TestVersionsTable(t *testing.T) {
 	info := stubBuildInfo("v0.9.12",
 		dep("dagger.io/dagger", "v0.21.7"),
-		dep("cuelang.org/go", "v0.15.4"))
+		dep("github.com/yuin/gopher-lua", "v1.1.2"))
 	info.GoVersion = "go1.25.5"
 
 	expected := "platform v0.9.12\n" +
 		"dagger   v0.21.7\n" +
-		"cue      v0.15.4\n" +
+		"lua      v1.1.2\n" +
 		"go       go1.25.5\n"
 	require.Equal(t, expected, versionsTable(info, true))
 }
@@ -75,7 +75,7 @@ func TestVersionsTableUnlinkedDeps(t *testing.T) {
 
 	expected := "platform (devel)\n" +
 		"dagger   (unknown)\n" +
-		"cue      (unknown)\n" +
+		"lua      (unknown)\n" +
 		"go       go1.25.5\n"
 	require.Equal(t, expected, versionsTable(info, true))
 }

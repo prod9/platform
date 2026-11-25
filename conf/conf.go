@@ -39,11 +39,13 @@ type (
 		Excludes []string           `toml:"excludes"`
 		Modules  map[string]*Module `toml:"modules,omitempty"`
 
-		// Vars is the verbatim DSL \(var) table (top-level [vars]) — a generic open
-		// map whose values keep their TOML type (string/int/bool). Pure passthrough:
-		// render feeds it project-wide across apps/ (CUE @tag holes and directive
-		// \(var) interpolation); no defaults or inference beyond the baseline seed.
+		// Vars is the top-level [vars] table, names as written and values in their TOML
+		// type; render hands it to every app as platform.vars. No defaults or inference.
 		Vars map[string]any `toml:"vars,omitempty"`
+
+		// Rocks is the top-level [rocks] table: each Lua rock render loads, name to
+		// version, the version being the image tag it is fetched by.
+		Rocks map[string]string `toml:"rocks,omitempty"`
 	}
 
 	Module struct {
@@ -214,16 +216,4 @@ func (p *Model) inferValues() {
 			}
 		}
 	}
-}
-
-// NormalizeVars lowercases every [vars] key to the canonical consumption form. platform.toml
-// prefers env-style keys (NGINX_GATEWAY_VERSION); both render routes consume the lowercase
-// derivation — `\(nginx_gateway_version)` in directives, `@tag(nginx_gateway_version)` in CUE.
-// Pure name normalization; values and their types are untouched.
-func NormalizeVars(vars map[string]any) map[string]any {
-	out := make(map[string]any, len(vars))
-	for name, val := range vars {
-		out[strings.ToLower(name)] = val
-	}
-	return out
 }

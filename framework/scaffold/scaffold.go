@@ -52,8 +52,7 @@ type Data map[string]any
 
 // Resolve resolves a framework's files for installation: ".tmpl" files pass through
 // text/template with data (missing keys are hard errors) and lose the suffix;
-// everything else passes through verbatim — non-template CUE braces must never meet
-// the template engine. Input order is preserved.
+// everything else passes through verbatim and never meets the template engine. Input order is preserved.
 func Resolve(files []File, data Data) ([]File, error) {
 	out := make([]File, 0, len(files))
 	for _, f := range files {

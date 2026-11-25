@@ -90,11 +90,9 @@ let testbeds = [...{name: string, dir: string}] &
 			]
 		},
 		{
-			// infra init generates the whole baseline into a fresh (git-ignored) dir. The
-			// module path comes from the CUE_MOD_PREFIX scaffold input (example.com) — the 4th
-			// positional arg — NOT the bare, non-domain repository `prod9/infra-new`, which CUE
-			// would reject as a module path. The snapshot proves platform.toml carries no
-			// module-path key (it lives only in cue.mod); the follow-on render is the guard.
+			// infra init into a fresh (git-ignored) dir. Until init fetches the infra-lua
+			// rock, the Infra framework scaffolds its module alone (docs/spec/scaffolding.md),
+			// so the snapshot is the generated platform.toml; the follow-on render is the guard.
 			name: "Infra Init"
 			checks: [
 				"exitcode",
@@ -102,12 +100,12 @@ let testbeds = [...{name: string, dir: string}] &
 			]
 			commands: [
 				// Wipe any generated leftovers from a prior local run so init GENERATES fresh
-				// rather than surgically merging a stale platform.toml (which would preserve an
-				// old import_prefix line). The testbed commits only .gitignore.
-				"rm -rf testbeds/infra-init/apps testbeds/infra-init/defaults testbeds/infra-init/cue.mod testbeds/infra-init/platform.toml testbeds/infra-init/platform testbeds/infra-init/k8s",
+				// rather than surgically merging a stale platform.toml. The testbed commits only
+				// .gitignore.
+				"rm -rf testbeds/infra-init/apps testbeds/infra-init/defaults.lua testbeds/infra-init/platform.toml testbeds/infra-init/platform testbeds/infra-init/k8s",
 				// ALWAYS_YES=1 auto-confirms the apply prompt — this testbed carries no
 				// committed files to fall back on, so init must actually run to generate them.
-				"ALWAYS_YES=1 ./testbed.sh infra-init init \"Johnny Appleseed\" \"john@apple.com\" \"prod9/infra-new\" \"example.com\"",
+				"ALWAYS_YES=1 ./testbed.sh infra-init init \"Johnny Appleseed\" \"john@apple.com\" \"prod9/infra-new\"",
 			]
 		},
 		{

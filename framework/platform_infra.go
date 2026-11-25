@@ -2,28 +2,24 @@ package framework
 
 import (
 	"context"
-	"fmt"
 	"path/filepath"
 	"strings"
 
-	"cuelang.org/go/cue"
 	"dagger.io/dagger"
 	"fx.prodigy9.co/errutil"
-	"platform.prodigy9.co/conf"
-	"platform.prodigy9.co/cuemod"
 	"platform.prodigy9.co/framework/gitops"
 	"platform.prodigy9.co/framework/scaffold"
-	"platform.prodigy9.co/framework/skel"
+	"platform.prodigy9.co/rocks"
 )
 
-// PlatformInfra builds an infra repo's delivery image: it renders the repo's apps/ (CUE +
-// .platform directives) to a manifest tree in-process, then packs that tree into a plain
-// `FROM scratch` image as ONE layer — Flux's source-controller extracts a single layer
-// from an OCI artifact, so a multi-layer image silently delivers one file and prune
-// orphans the rest of the cluster. kustomize-controller applies the extracted YAML — no
-// bespoke OCI pusher (see the infra-publishes-as-plain-image decision). It is a real
-// framework module so infra delivery is the ordinary `publish` verb.
-type PlatformInfra struct{}
+// PlatformInfra builds an infra repo's delivery image: it renders the repo's apps/*.lua to
+// a manifest tree in-process, then packs that tree into a plain `FROM scratch` image as ONE
+// layer — Flux's source-controller extracts a single layer from an OCI artifact, so a
+// multi-layer image silently delivers one file and prune orphans the rest of the cluster.
+// kustomize-controller applies the extracted YAML — no bespoke OCI pusher (see the
+// infra-publishes-as-plain-image decision). It is a real framework module so infra
+// delivery is the ordinary `publish` verb.
+type PlatformInfra struct{ noScaffoldVars }
 
 var _ Framework = PlatformInfra{}
 
@@ -37,54 +33,20 @@ func (PlatformInfra) Discover(wd string) bool {
 	return strings.Contains(filepath.Base(wd), "infra")
 }
 
-// Scaffold contributes the whole cluster baseline: the infra module, the baseline's default
-// [vars] pins, the embedded component files (routed and resolved), a greenfield cue.mod, and
-// the "rolling" strategy seed. There is no app-vs-infra branch anywhere — PlatformInfra simply
-// contributes more, and owns resolving its own template holes.
-func (i PlatformInfra) Scaffold(ctx context.Context, wd string, env scaffold.Env, inputs map[string]string) (scaffold.Spec, error) {
-	files, err := skel.Files()
-	if err != nil {
-		return scaffold.Spec{}, err
-	}
-	if !cuemod.Present(wd) {
-		files = append(files, scaffold.File{
-			Path:    cuemod.ModuleFile + ".tmpl",
-			Content: skel.CueMod,
-			Mode:    0644,
-		})
-	}
-
-	data, err := i.scaffoldData(wd, env, inputs)
-	if err != nil {
-		return scaffold.Spec{}, err
-	}
-	resolved, err := scaffold.Resolve(files, data)
-	if err != nil {
-		return scaffold.Spec{}, err
-	}
-
+// Scaffold contributes the infra module and the "rolling" strategy seed. The cluster
+// baseline comes from the infra-lua rock's templates, which init does not fetch yet
+// (docs/spec/scaffolding.md).
+func (i PlatformInfra) Scaffold(_ context.Context, wd string, _ scaffold.Env, _ map[string]string) (scaffold.Spec, error) {
 	return scaffold.Spec{
 		Module:   defaultModule(i, wd),
-		Vars:     infraVars,
-		Files:    resolved,
 		Strategy: "rolling",
 	}, nil
 }
 
-// ScaffoldVars asks for CUE_MOD_PREFIX — the cue.mod `module:` value and the prefix of
-// every `import "<prefix>/defaults"` — only on a greenfield repo; an existing cue.mod is
-// operator truth, read (never re-asked) in scaffoldData.
-func (PlatformInfra) ScaffoldVars(wd string) []string {
-	if cuemod.Present(wd) {
-		return nil
-	}
-	return []string{"CUE_MOD_PREFIX"}
-}
-
 // Plan splits the render's one network-bound stage off from its evaluation. Neither step
 // runs an exec — the render happens in-process and the image is a pure tree write — so both
-// are silent, but they are timed apart, which is the whole point: fetching the CUE modules
-// is the part that reaches the network and can stall.
+// are silent, but they are timed apart, which is the whole point: fetching the rocks is the
+// part that reaches the network and can stall.
 func (PlatformInfra) Plan(*BuildUnit) []Step {
 	return []Step{StepDeps, StepBuild}
 }
@@ -94,15 +56,21 @@ func (PlatformInfra) Execute(ctx context.Context, client *dagger.Client, unit *B
 
 	switch step {
 	case StepDeps:
-		// Host-side work: it warms the CUE module cache the render then resolves through.
-		// A step is under no obligation to touch the container, so this one passes its
-		// input straight along — here that is the nil the first step always receives.
-		return in, gitops.FetchDeps(ctx, unit.WorkDir)
+		// Host-side work: it fills the rock cache the render then reads. A step is under no
+		// obligation to touch the container, so this one passes its input straight along —
+		// here that is the nil the first step always receives.
+		_, err = fetchRocks(ctx, unit)
+		return in, err
 
 	case StepBuild:
-		tree, err := gitops.Render(unit.WorkDir, gitops.RenderOptions{Vars: unit.Vars})
-		if err != nil {
-			return nil, err
+		// The deps step filled the cache, so this fetch only finds the cached directories.
+		rockDirs, fetchErr := fetchRocks(ctx, unit)
+		if fetchErr != nil {
+			return nil, fetchErr
+		}
+		tree, renderErr := gitops.Render(unit.WorkDir, unit.Vars, rockDirs)
+		if renderErr != nil {
+			return nil, renderErr
 		}
 
 		// client.Container() with no From is an empty (scratch) image. The whole rendered
@@ -123,62 +91,11 @@ func (PlatformInfra) Execute(ctx context.Context, client *dagger.Client, unit *B
 	}
 }
 
-// scaffoldData builds the baseline's template data: the CUE module path (from an existing
-// cue.mod or the greenfield CUE_MOD_PREFIX input), the maintainer email (the
-// cluster-issuer's ACME contact), and the flux self-sync image base derived from the
-// repository.
-func (i PlatformInfra) scaffoldData(wd string, env scaffold.Env, inputs map[string]string) (scaffold.Data, error) {
-	modulePath, err := i.modulePath(wd, inputs)
-	if err != nil {
-		return scaffold.Data{}, err
+func fetchRocks(ctx context.Context, unit *BuildUnit) ([]string, error) {
+	fetch := rocks.FetchPins{
+		Pins:     unit.Rocks,
+		Username: unit.RegistryUsername,
+		Password: unit.RegistryPassword,
 	}
-
-	return scaffold.Data{
-		"MaintainerEmail":    env.MaintainerEmail,
-		"ModulePath":         modulePath,
-		"ImageBase":          conf.InferImageBase(env.Repository),
-		"CueLanguageVersion": cue.LanguageVersion(),
-		"DefsModule":         infraDefsModule,
-		"DefsVersion":        infraDefsVersion,
-	}, nil
-}
-
-// modulePath resolves the CUE module path: an existing cue.mod wins (operator truth);
-// otherwise the greenfield CUE_MOD_PREFIX input, validated as a legal CUE module path (its
-// first segment must be a domain — contain a dot — which CUE requires).
-func (PlatformInfra) modulePath(wd string, inputs map[string]string) (string, error) {
-	if cuemod.Present(wd) {
-		return cuemod.Path(wd)
-	}
-
-	prefix := inputs["CUE_MOD_PREFIX"]
-	if err := cuemod.ValidatePath(prefix); err != nil {
-		return "", fmt.Errorf("CUE_MOD_PREFIX %w", err)
-	}
-	return prefix, nil
-}
-
-// infraDefsModule is the infra-defs CUE dependency the baseline apps import;
-// infraDefsVersion is the version a freshly-init'd infra repo pins into its cue.mod; the
-// flux-sync baseline needs v0.4.3's Flux defs (#FluxOCIRepo/#FluxKustomization/#FluxReceiver).
-const (
-	infraDefsModule  = "prodigy9.co/defs@v0"
-	infraDefsVersion = "v0.4.4"
-)
-
-// infraVars is the baseline's shipped [vars]: the version pins each baseline hook
-// consumes. Keys are env-style (SCREAMING_SNAKE) — the preferred platform.toml form; render
-// normalizes them to lowercase for both consumption routes, `\(cert_manager_version)` in
-// directives and `@tag(cert_manager_version)` in CUE apps. Scaffold seeds these into a fresh
-// platform.toml and merges on re-scaffold (new keys appended, operator values preserved).
-// Pure interpolation inputs — component selection is not a var.
-var infraVars = map[string]any{
-	"CERT_MANAGER_VERSION":  "v1.20.2",
-	"FLUX_VERSION":          "v2.8.8",
-	"NGINX_GATEWAY_VERSION": "v2.6.7",
-	"GATEWAY_API_VERSION":   "v1.5.1",
-
-	// Per-deployment ingress host (render-time @tag hole): the Flux webhook-receiver route.
-	// prod9 self-host default; operators edit.
-	"FLUX_HOSTNAME": "flux.prodigy9.co",
+	return fetch.Run(ctx)
 }

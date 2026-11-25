@@ -1,234 +1,77 @@
-// Package gitops renders an infra CUE module's apps/ tree to one k8s/ manifest tree —
-// a pure function of committed git: .cue apps export through the linked CUE evaluator,
-// .platform directives run through the dsl subpackage, both fed by the [vars] table.
+// Package gitops renders an infra repo's apps/*.lua to one manifest tree, a pure function
+// of the committed repo, its [vars] table and the pinned rocks (docs/spec/lua-render.md).
 // The Infra framework packs the result into a plain image published by the ordinary
 // publish path.
 package gitops
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"cuelang.org/go/cue/ast"
-	"cuelang.org/go/cue/build"
-	"cuelang.org/go/cue/cuecontext"
-	"cuelang.org/go/cue/load"
-	cueyaml "cuelang.org/go/encoding/yaml"
-	"gopkg.in/yaml.v3"
-	"platform.prodigy9.co/conf"
-	"platform.prodigy9.co/cuemod"
-	"platform.prodigy9.co/dsl"
+	lua "github.com/yuin/gopher-lua"
 )
-
-// DefaultRegistry maps the infra-defs module prefix to its OCI host for
-// `cue export` dependency resolution. An ambient CUE_REGISTRY wins if set.
-const DefaultRegistry = "prodigy9.co=ghcr.io/prod9"
 
 const (
-	// appsPackage is the one source directory holding both formats: the `apps` CUE
-	// package (each top-level field one component, a filename->docs map) and the
-	// co-located `.platform` directives. Render routes by extension.
-	appsPackage = "apps"
+	appsDir = "apps"
+	appExt  = ".lua"
 
-	platformExt = ".platform"
+	// treeModule is the infra-lua module whose list function sets the list mark.
+	treeModule = "infra.tree"
 )
 
-// RenderOptions carries the render context: the [vars] table feeding both routes —
-// CUE `@tag(name)` holes and directive `\(var)` interpolation — and an optional Fetch
-// override for `download` (nil uses a plain HTTP GET; tests inject fixtures).
-type RenderOptions struct {
-	Vars  map[string]any
-	Fetch func(url string) ([]byte, error)
-}
-
-// Render walks srcDir's apps/ and fuses both routes into one tree, by extension: the CUE
-// package (`.cue` → file-map `cue export`) and the co-located directives (`.platform` →
-// dsl.Apply). Each route is skipped when it contributes nothing. Both write
-// <component>/<filename> entries.
-func Render(srcDir string, opts RenderOptions) (Tree, error) {
-	vars := conf.NormalizeVars(opts.Vars)
-
-	if cueTree, err := renderCueTree(srcDir, vars); err != nil {
-		return nil, err
-	} else if platformTree, err := renderPlatformTree(srcDir, vars, opts.Fetch); err != nil {
-		return nil, err
-	} else {
-		return merge(cueTree, platformTree), nil
-	}
-}
-
-// renderCueTree exports the CUE apps package under srcDir/apps into a file-map tree. Each app
-// field becomes a component directory; each filename key under it becomes a named file
-// holding one document (a map value) or a multi-doc stream (a list value). Empty when the
-// dir has no `.cue` files (directives-only apps/, or no apps/ at all).
-func renderCueTree(srcDir string, vars map[string]any) (Tree, error) {
-	cue, err := filesWithExt(filepath.Join(srcDir, appsPackage), ".cue")
+// Render runs every apps/<component>.lua under repoDir in a sandbox of its own and turns
+// what each returns into that component's files (docs/spec/lua-render.md, "Pipeline").
+// rockDirs are the cache directories of the pinned rocks. Nothing is written: a failure
+// at any app leaves no partial tree.
+func Render(repoDir string, vars map[string]any, rockDirs []string) (Tree, error) {
+	luaVars, err := NewVars(vars)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("render: %w", err)
 	}
-	if len(cue) == 0 {
-		return Tree{}, nil
-	}
-
-	exported, err := exportCue(srcDir, vars)
+	rocks, err := loadRocks(rockDirs)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("render: %w", err)
 	}
-	return buildTree(exported)
-}
-
-// exportCue evaluates the apps CUE package via the linked CUE engine and encodes it to
-// YAML — the app->files->docs structure with faithful scalar types, same shape the old
-// `cue export --out yaml` produced. The normalized [vars] feed the apps' `@tag(name)`
-// holes as load tags — the committed-config source for every CUE tag.
-func exportCue(srcDir string, vars map[string]any) ([]byte, error) {
-	root, err := filepath.Abs(srcDir)
+	apps, err := appFiles(filepath.Join(repoDir, appsDir))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("render: %w", err)
 	}
 
-	// Address the apps by their module-qualified import path (`<module>/apps`) read from
-	// cue.mod — the operator's truth for the module namespace — rather than by directory.
-	// cue.mod is where the module path lives (seeded at init, never from platform.toml); a
-	// missing or unparseable cue.mod fails render here, fast and clearly.
-	module, err := cuemod.Path(srcDir)
-	if err != nil {
-		return nil, fmt.Errorf("render: read cue.mod: %w", err)
-	}
-	appsPkg := module + "/" + appsPackage
-
-	registry, err := newRegistry()
-	if err != nil {
-		return nil, err
-	}
-
-	cfg := &load.Config{Dir: root, Registry: registry}
-
-	// First pass, no tags: discover which `@tag` holes the apps actually declare. [vars]
-	// feeds both render routes, so it carries vars meant only for `.platform` directives; those
-	// have no CUE `@tag`, and CUE rejects an injected tag that nothing declares ("no tag for X").
-	// Inject only the declared subset.
-	probe := load.Instances([]string{appsPkg}, cfg)
-	if len(probe) == 0 {
-		return nil, fmt.Errorf("render: no CUE instance for %s", appsPkg)
-	}
-	if err := probe[0].Err; err != nil {
-		return nil, err
-	}
-	if tags := computeCueTags(probe[0], vars); len(tags) > 0 {
-		cfg.Tags = tags
-	}
-
-	insts := load.Instances([]string{appsPkg}, cfg)
-	if len(insts) == 0 {
-		return nil, fmt.Errorf("render: no CUE instance for %s", appsPkg)
-	}
-	if err := insts[0].Err; err != nil {
-		return nil, err
-	}
-
-	value := cuecontext.New().BuildInstance(insts[0])
-	if err := value.Err(); err != nil {
-		return nil, err
-	}
-	return cueyaml.Encode(value)
-}
-
-// computeCueTags walks the loaded apps' syntax for `@tag(name)` attributes and renders the cue
-// load tags ("name=value") for the ones [vars] carries a value for — the committed-config
-// source for every CUE tag. A var no `@tag` declares is directive-only and stays out; CUE
-// rejects an injected tag nothing declares. The same hole declared in two files yields one
-// tag. Values stringify verbatim; the consuming field's `@tag(name,type=...)` annotation
-// drives any non-string coercion.
-func computeCueTags(inst *build.Instance, vars map[string]any) []string {
-	seen := map[string]bool{}
-	tags := make([]string, 0, len(vars))
-
-	for _, f := range inst.Files {
-		ast.Walk(f, func(n ast.Node) bool {
-			a, ok := n.(*ast.Attribute)
-			if !ok {
-				return true
-			}
-			name, ok := tagAttrName(a)
-			if !ok || seen[name] {
-				return true
-			}
-			if val, ok := vars[name]; ok {
-				seen[name] = true
-				tags = append(tags, fmt.Sprintf("%s=%v", name, val))
-			}
-			return true
-		}, nil)
-	}
-	return tags
-}
-
-// tagAttrName extracts the tag name from an `@tag(name,opts...)` attribute, false for any other.
-func tagAttrName(a *ast.Attribute) (string, bool) {
-	key, body := a.Split()
-	if key != "tag" {
-		return "", false
-	}
-	name, _, _ := strings.Cut(body, ",")
-	return name, name != ""
-}
-
-// renderPlatformTree runs every `.platform` directive co-located with the CUE apps (selection
-// happened at install time, so whatever is present applies) into a file-map tree keyed by
-// <component>/<emitted-file>. Each runs with dsl.Apply into a per-component output
-// directory. Empty when the dir has no `.platform` files.
-func renderPlatformTree(srcDir string, vars map[string]any, fetch func(string) ([]byte, error)) (Tree, error) {
-	dir := filepath.Join(srcDir, appsPackage)
-	names, err := filesWithExt(dir, platformExt)
-	if err != nil || len(names) == 0 {
-		return Tree{}, err
-	}
-
-	out, err := os.MkdirTemp("", "platform-render-")
-	if err != nil {
-		return nil, err
-	}
-	defer os.RemoveAll(out)
-
-	for _, name := range names {
-		if err := applyDirective(dir, out, name, vars, fetch); err != nil {
-			return nil, fmt.Errorf("render: %s: %w", name, err)
+	tree := Tree{}
+	for _, app := range apps {
+		files, appErr := renderApp(repoDir, app, rocks, luaVars)
+		if appErr != nil {
+			return nil, fmt.Errorf("render: %w", appErr)
+		}
+		component := strings.TrimSuffix(app, appExt)
+		for name, content := range files {
+			tree[component+"/"+name] = content
 		}
 	}
-	return readTree(out)
+	return tree, nil
 }
 
-// applyDirective runs one directive file into outRoot/<outputName>.
-func applyDirective(srcDir, outRoot, name string, vars map[string]any, fetch func(string) ([]byte, error)) error {
-	directives, err := os.ReadFile(filepath.Join(srcDir, name))
-	if err != nil {
-		return err
+func loadRocks(rockDirs []string) ([]Rock, error) {
+	rocks := make([]Rock, 0, len(rockDirs))
+	for _, dir := range rockDirs {
+		rock, err := LoadRock(dir)
+		if err != nil {
+			return nil, err
+		}
+		rocks = append(rocks, rock)
 	}
-
-	outDir := filepath.Join(outRoot, outputName(name))
-	if err := os.MkdirAll(outDir, 0o755); err != nil {
-		return err
-	}
-
-	_, err = dsl.Apply(string(directives), dsl.Options{Vars: vars, OutDir: outDir, Fetch: fetch})
-	return err
+	return rocks, nil
 }
 
-// outputName is the directory a directive's emitted manifests render under: its filename
-// without the .platform extension (so they land in k8s/<outputName>/).
-func outputName(file string) string {
-	return strings.TrimSuffix(file, platformExt)
-}
-
-// filesWithExt lists filenames with ext directly under dir. An absent directory yields
-// no files rather than an error.
-func filesWithExt(dir, ext string) ([]string, error) {
+// appFiles lists the app files directly under dir in name order. A repo with no apps/
+// directory has no apps.
+func appFiles(dir string) ([]string, error) {
 	entries, err := os.ReadDir(dir)
-	if os.IsNotExist(err) {
+	if errors.Is(err, fs.ErrNotExist) {
 		return nil, nil
 	}
 	if err != nil {
@@ -236,98 +79,110 @@ func filesWithExt(dir, ext string) ([]string, error) {
 	}
 
 	var names []string
-	for _, e := range entries {
-		if !e.IsDir() && strings.HasSuffix(e.Name(), ext) {
-			names = append(names, e.Name())
+	for _, entry := range entries {
+		if !entry.IsDir() && strings.HasSuffix(entry.Name(), appExt) {
+			names = append(names, entry.Name())
 		}
 	}
 	return names, nil
 }
 
-// readTree reads every file under root into a tree keyed by its slash-separated
-// path relative to root (i.e. <component>/<filename>).
-func readTree(root string) (Tree, error) {
-	tree := Tree{}
-	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
-			return err
-		}
-
-		rel, err := filepath.Rel(root, path)
-		if err != nil {
-			return err
-		}
-		content, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-
-		tree[filepath.ToSlash(rel)] = content
-		return nil
-	})
-	return tree, err
-}
-
-// cueRegistry is the module registry spec for resolving prodigy9.co/defs: the ambient
-// CUE_REGISTRY if set, else the project default.
-func cueRegistry() string {
-	if r := os.Getenv("CUE_REGISTRY"); r != "" {
-		return r
+// renderApp runs one app in a fresh sandbox and encodes the files it returns.
+func renderApp(repoDir, app string, rocks []Rock, vars Vars) (map[string][]byte, error) {
+	appPath := filepath.Join(appsDir, app)
+	state, err := NewSandbox(repoDir, rocks, vars)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", appPath, err)
 	}
-	return DefaultRegistry
-}
+	defer state.Close()
 
-// buildTree walks cue's exported app->files mapping into a Tree, keying each
-// file by <app>/<filename>. It walks parsed nodes rather than re-marshalling
-// through interface{}, so scalar fidelity (ints stay ints) survives.
-func buildTree(exported []byte) (Tree, error) {
-	var root yaml.Node
-	if err := yaml.Unmarshal(exported, &root); err != nil {
+	chunk, err := state.LoadFile(filepath.Join(repoDir, appPath))
+	if err != nil {
 		return nil, err
 	}
-	if len(root.Content) == 0 {
-		return Tree{}, nil
+	state.Push(chunk)
+	err = state.PCall(0, 1, nil)
+	if err != nil {
+		return nil, err
 	}
+	returned := state.Get(-1)
+	state.Pop(1)
 
-	apps := root.Content[0]
-	if apps.Kind != yaml.MappingNode {
-		return nil, fmt.Errorf("render: apps export is not a mapping (got %v)", apps.Kind)
+	mark, err := listMark(state, rocks)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", appPath, err)
 	}
-
-	tree := Tree{}
-	for i := 0; i+1 < len(apps.Content); i += 2 {
-		app := apps.Content[i].Value
-		files := apps.Content[i+1]
-		if files.Kind != yaml.MappingNode {
-			return nil, fmt.Errorf("render: app %q is not a filename map", app)
-		}
-
-		for j := 0; j+1 < len(files.Content); j += 2 {
-			name := files.Content[j].Value
-			content, err := encodeFile(files.Content[j+1])
-			if err != nil {
-				return nil, fmt.Errorf("render: %s/%s: %w", app, name, err)
-			}
-			tree[app+"/"+name] = content
-		}
+	files, err := encodeFiles(state, returned, mark)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", appPath, err)
 	}
-	return tree, nil
+	return files, nil
 }
 
-// encodeFile renders one filename value: a sequence node becomes a multi-doc
-// YAML stream (one doc per element), any other node becomes a single document.
-func encodeFile(node *yaml.Node) ([]byte, error) {
-	if node.Kind != yaml.SequenceNode {
-		return yaml.Marshal(node)
+// listMark is infra-lua's list metatable as the app's own state loaded it
+// (docs/spec/lua-render.md, "YAML"). With no pinned rock listing infra.tree there is no
+// mark, and nil leaves every empty table a mapping.
+func listMark(state *lua.LState, rocks []Rock) (*lua.LTable, error) {
+	if !anyLists(rocks, treeModule) {
+		return nil, nil
 	}
 
-	docs := make([]string, 0, len(node.Content))
-	for _, item := range node.Content {
-		out, err := yaml.Marshal(item)
+	err := state.DoString(`return getmetatable(require("` + treeModule + `").list({}))`)
+	if err != nil {
+		return nil, fmt.Errorf("take the list mark from %s: %w", treeModule, err)
+	}
+	mark := state.Get(-1)
+	state.Pop(1)
+	table, isTable := mark.(*lua.LTable)
+	if !isTable {
+		return nil, fmt.Errorf("%s.list set no metatable", treeModule)
+	}
+	return table, nil
+}
+
+// encodeFiles converts an app's return value, file name to documents, into file contents.
+func encodeFiles(state *lua.LState, returned lua.LValue, mark *lua.LTable) (map[string][]byte, error) {
+	table, isTable := returned.(*lua.LTable)
+	if !isTable {
+		return nil, fmt.Errorf("want a table of file name to documents, got a %s", returned.Type())
+	}
+
+	files := map[string][]byte{}
+	for key, value := table.Next(lua.LNil); key != lua.LNil; key, value = table.Next(key) {
+		name, err := fileName(key)
 		if err != nil {
 			return nil, err
 		}
-		docs = append(docs, string(out))
+		content, err := EncodeDocuments(documents(state, value, mark), mark)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", name, err)
+		}
+		files[name] = content
 	}
-	return []byte(strings.Join(docs, "---\n")), nil
+	return files, nil
+}
+
+// fileName admits a key that names one file inside the component directory.
+func fileName(key lua.LValue) (string, error) {
+	name, isString := key.(lua.LString)
+	if !isString {
+		return "", fmt.Errorf("want file names as keys, got a %s key", key.Type())
+	}
+	if !filepath.IsLocal(string(name)) || filepath.Base(string(name)) != string(name) {
+		return "", fmt.Errorf("%q is not a file name", string(name))
+	}
+	return string(name), nil
+}
+
+// documents is a file's value as a list of documents: a list (a pack, a plain list, or a
+// marked empty list) as it is, and any other value as a list of that one value.
+func documents(state *lua.LState, value lua.LValue, mark *lua.LTable) lua.LValue {
+	table, isTable := value.(*lua.LTable)
+	if isTable && (table.RawGetInt(1) != lua.LNil || (mark != nil && table.Metatable == lua.LValue(mark))) {
+		return table
+	}
+
+	single := state.NewTable()
+	single.Append(value)
+	return single
 }

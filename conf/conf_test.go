@@ -33,9 +33,8 @@ func TestRepositoryURL(t *testing.T) {
 }
 
 func TestProject_vars(t *testing.T) {
-	// [vars] is the verbatim DSL \(var) table — a pure passthrough map.
-	// Bools and numbers are strings (TOML has no untyped scalar the DSL wants),
-	// and the processor stores them as-is, no per-software fields.
+	// [vars] is a pure passthrough map: names as written, values as TOML typed them,
+	// no per-software fields.
 	const config = `
 repository = "github.com/prod9/platform"
 

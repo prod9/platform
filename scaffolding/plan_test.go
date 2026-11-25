@@ -54,43 +54,34 @@ func TestPlan_freshRepoWritesEverything(t *testing.T) {
 	r.NotZero(t, info.Mode()&0100, "platform script must be executable")
 }
 
-func TestPlan_infraGetsBaselineUniformly(t *testing.T) {
-	// A dir the Infra framework discovers (name glob) gets its full baseline contribution
-	// through the same driver path as every other framework — no infra branch. Like every
-	// target, it must already be a git repo root (platform never runs `git init`).
+func TestPlan_infraGetsItsModuleUniformly(t *testing.T) {
+	// A dir the Infra framework discovers (name glob) gets its contribution through the same
+	// driver path as every other framework — no infra branch. Like every target, it must
+	// already be a git repo root (platform never runs `git init`). Until init fetches the
+	// infra-lua rock, that contribution is the module and the strategy seed alone
+	// (docs/spec/scaffolding.md).
 	dir := filepath.Join(t.TempDir(), "test-infra")
 	r.NoError(t, os.Mkdir(dir, 0o755))
 	r.NoError(t, os.Mkdir(filepath.Join(dir, ".git"), 0o755))
 
 	stubVersions(t)
 
-	// The CUE module path is a greenfield scaffold input, not a platform.toml key.
 	target, err := Discover(dir)
 	r.NoError(t, err)
-	plan, err := target.Plan(testInfo(), map[string]string{"CUE_MOD_PREFIX": "example.com"})
+	plan, err := target.Plan(testInfo(), nil)
 	r.NoError(t, err)
 
+	paths := []string{}
 	byPath := map[string]FileChange{}
 	for _, f := range plan.Files {
+		paths = append(paths, f.Path)
 		byPath[f.Path] = f
 	}
-	r.Contains(t, byPath, "platform.toml")
-	r.Contains(t, byPath, filepath.Join("apps", "cert-manager.platform"))
-	r.Contains(t, byPath, filepath.Join("defaults", "basics.cue"))
-	r.Contains(t, byPath, filepath.Join("cue.mod", "module.cue"))
+	r.ElementsMatch(t, []string{"platform.toml", "platform"}, paths)
 
-	// The strategy seed lands in platform.toml; the CUE module path does NOT (it is never
-	// persisted there — it lives only in cue.mod).
 	toml := string(byPath["platform.toml"].Content)
 	r.Contains(t, toml, `strategy = "rolling"`)
-	r.NotContains(t, toml, "import_prefix")
-	r.NotContains(t, toml, "CUE_MOD_PREFIX")
-
-	// The cue.mod module path resolves from the CUE_MOD_PREFIX input, NOT the GitHub
-	// repository — they are separate namespaces.
-	cuemod := string(byPath[filepath.Join("cue.mod", "module.cue")].Content)
-	r.Contains(t, cuemod, `module: "example.com"`)
-	r.NotContains(t, cuemod, testInfo().Repository)
+	r.Contains(t, toml, `framework = "platform/infra"`)
 }
 
 func TestDiscover_rejectsNonGitDir(t *testing.T) {

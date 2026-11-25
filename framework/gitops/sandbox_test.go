@@ -15,7 +15,7 @@ func newTestSandbox(t *testing.T, repoDir string) *lua.LState {
 	t.Helper()
 	rock, err := gitops.LoadRock(filepath.Join("testdata", "rock"))
 	require.NoError(t, err)
-	state, err := gitops.NewSandbox(repoDir, []gitops.Rock{rock})
+	state, err := gitops.NewSandbox(repoDir, []gitops.Rock{rock}, gitops.Vars{})
 	require.NoError(t, err)
 	t.Cleanup(state.Close)
 	return state

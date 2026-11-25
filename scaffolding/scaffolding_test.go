@@ -8,7 +8,7 @@ import (
 	r "github.com/stretchr/testify/require"
 )
 
-func TestDiscover_exposesFrameworkScaffoldVars(t *testing.T) {
+func TestDiscover_infraAsksNoScaffoldVars(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "test-infra")
 	r.NoError(t, os.Mkdir(dir, 0o755))
 	r.NoError(t, os.Mkdir(filepath.Join(dir, ".git"), 0o755))
@@ -16,7 +16,7 @@ func TestDiscover_exposesFrameworkScaffoldVars(t *testing.T) {
 	target, err := Discover(dir)
 	r.NoError(t, err)
 
-	r.Equal(t, []string{"CUE_MOD_PREFIX"}, target.ScaffoldVars())
+	r.Empty(t, target.ScaffoldVars())
 }
 
 func TestTargetPlan_keepsDiscoveredFramework(t *testing.T) {

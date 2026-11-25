@@ -4,3 +4,6 @@ strategy = "rolling"
 
 [modules.infra]
 framework = "platform/infra"
+
+[vars]
+INFRA_BASIC_HOST = "basic.smoke.test"

@@ -47,14 +47,13 @@ type (
 		// ScaffoldVars lists the operator inputs this framework needs at init,
 		// by name (the name is the prompt label). The driver prompts each and passes the
 		// answers back via ScaffoldData. Most frameworks onboard an existing repo and need
-		// none (nil); PlatformInfra needs the CUE module path only when greenfield.
+		// none (nil), and so does every framework today.
 		ScaffoldVars(wd string) []string
 
 		// Scaffold returns the framework's full, ready-to-write contribution to a fresh repo:
 		// its platform.toml module, default [vars], the strategy it seeds, and the files it
 		// ships with every template hole already resolved. The framework owns resolution — it
-		// knows which operator input fills which hole (e.g. CUE_MOD_PREFIX -> the CUE module
-		// path) and how to read existing state (an existing cue.mod wins over the input).
+		// knows which operator input fills which hole and how to read existing state.
 		// env carries the environment facts the driver supplies; inputs are the operator's
 		// answers to ScaffoldVars. The driver just writes what it gets.
 		Scaffold(ctx context.Context, wd string, env scaffold.Env, inputs map[string]string) (scaffold.Spec, error)

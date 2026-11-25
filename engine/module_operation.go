@@ -79,6 +79,8 @@ func (o *moduleOperation) configure(obs observer.Observer) (*Run, string, error)
 		return nil, "", err
 	}
 	unit := units[0]
+	creds := registryCredsFrom(cfgFrom(o.session.ctx))
+	unit.RegistryUsername, unit.RegistryPassword = creds.username, creds.password
 	if err := o.intent.prepare(unit); err != nil {
 		return nil, "", err
 	}

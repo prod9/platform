@@ -27,10 +27,11 @@ var (
 )
 
 // NewSandbox builds the VM state one app runs in: the base, table, string and math
-// libraries, math without random and randomseed, only the allowed base globals, and
-// platform's require, resolving against the rocks' modules first and repoDir second.
+// libraries, math without random and randomseed, only the allowed base globals, the
+// platform table over vars, and platform's require, resolving against the rocks' modules
+// first and repoDir second.
 // The caller closes the state.
-func NewSandbox(repoDir string, rocks []Rock) (*lua.LState, error) {
+func NewSandbox(repoDir string, rocks []Rock, vars Vars) (*lua.LState, error) {
 	modules, err := rockModules(rocks)
 	if err != nil {
 		return nil, err
@@ -43,8 +44,7 @@ func NewSandbox(repoDir string, rocks []Rock) (*lua.LState, error) {
 		return nil, err
 	}
 	removeGlobals(state)
-	// The platform table (platform.vars, the upstream download) is installed here once
-	// lua-render.md settles the case of var names.
+	state.SetGlobal("platform", platformTable(state, vars))
 	state.SetGlobal("require", state.NewFunction(requireFrom(modules, repoDir)))
 	return state, nil
 }
